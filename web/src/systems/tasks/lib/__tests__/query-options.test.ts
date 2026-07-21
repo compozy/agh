@@ -8,6 +8,7 @@ import {
   taskDashboardOptions,
   taskDetailOptions,
   taskExecutionProfileOptions,
+  taskInboxBadgeOptions,
   taskInboxOptions,
   taskReviewsOptions,
   taskRunDetailOptions,
@@ -87,11 +88,13 @@ describe("tasks dashboard and inbox options", () => {
   it("keeps dashboard polling separate from infinite inbox pages", () => {
     const dashboardOptions = taskDashboardOptions({ scope: "workspace" });
     const inboxOptions = taskInboxOptions({ lane: "approvals" });
+    const inboxBadgeOptions = taskInboxBadgeOptions({ limit: 1 });
 
     expect(dashboardOptions.staleTime).toBe(15_000);
     expect(dashboardOptions.refetchInterval).toBe(30_000);
-    expect(inboxOptions.staleTime).toBe(15_000);
+    expect(inboxOptions.staleTime).toBe(0);
     expect(inboxOptions.refetchInterval).toBeUndefined();
+    expect(inboxBadgeOptions.staleTime).toBe(15_000);
     expect(inboxOptions.initialPageParam).toBeUndefined();
     const page = {
       archived_total: 0,

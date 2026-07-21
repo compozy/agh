@@ -9,6 +9,7 @@ import {
   taskBridgeNotificationSubscriptionsOptions,
 } from "../lib/query-options";
 import { tasksKeys } from "../lib/query-keys";
+import { acknowledgeTaskMutationSettlement } from "../lib/task-mutation";
 import type {
   TaskBridgeNotificationSubscriptionCreateRequest,
   TaskBridgeNotificationSubscriptionsFilter,
@@ -78,8 +79,10 @@ export function useCreateTaskBridgeNotificationSubscription() {
   return useMutation({
     mutationFn: ({ taskId, data }: CreateSubscriptionParams) =>
       createTaskBridgeNotificationSubscription(taskId, data),
-    onSettled: (result, _error, { taskId }) =>
-      invalidateBridgeNotificationQueries(queryClient, taskId, result?.subscription_id),
+    onSettled: (result, error, { taskId }) => {
+      acknowledgeTaskMutationSettlement(error);
+      return invalidateBridgeNotificationQueries(queryClient, taskId, result?.subscription_id);
+    },
   });
 }
 
@@ -89,7 +92,8 @@ export function useDeleteTaskBridgeNotificationSubscription() {
   return useMutation({
     mutationFn: ({ taskId, subscriptionId }: DeleteSubscriptionParams) =>
       deleteTaskBridgeNotificationSubscription(taskId, subscriptionId),
-    onSettled: (_result, _error, { taskId, subscriptionId }) => {
+    onSettled: (_result, error, { taskId, subscriptionId }) => {
+      acknowledgeTaskMutationSettlement(error);
       queryClient.removeQueries({ queryKey: tasksKeys.bridgeNotification(taskId, subscriptionId) });
       return invalidateBridgeNotificationQueries(queryClient, taskId, subscriptionId);
     },

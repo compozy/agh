@@ -1,4 +1,3 @@
-// Types
 export type {
   AddTaskDependencyRequest,
   AgentContextView,
@@ -101,7 +100,6 @@ export type {
   UpdateTaskRequest,
 } from "./types";
 
-// Adapters
 export {
   TasksApiError,
   addTaskDependency,
@@ -111,6 +109,7 @@ export {
   buildTaskStreamUrl,
   cancelTask,
   cancelTaskRun,
+  clearTaskBlock,
   completeTaskRun,
   createChildTask,
   createTask,
@@ -158,7 +157,6 @@ export {
   updateTask,
 } from "./adapters/tasks-api";
 
-// Query infrastructure
 export { tasksKeys } from "./lib/query-keys";
 export {
   agentContextOptions,
@@ -168,6 +166,7 @@ export {
   taskDashboardOptions,
   taskDetailOptions,
   taskExecutionProfileOptions,
+  taskInboxBadgeOptions,
   taskInboxOptions,
   taskReviewsOptions,
   taskRunDetailOptions,
@@ -179,7 +178,6 @@ export {
   tasksListOptions,
 } from "./lib/query-options";
 
-// Formatters and helpers
 export type { BlockedReasonChip, TaskStatusSignal } from "./lib/task-formatters";
 export {
   computeElapsed,
@@ -214,8 +212,40 @@ export {
   toRunCardStatus,
 } from "./lib/task-formatters";
 export { taskRunCanRecover } from "./lib/task-run-recovery";
+export {
+  parseTasksSurfaceMode,
+  validateTaskCreateSearch,
+  validateTasksSearch,
+} from "./lib/task-location-search";
+export type { TaskCreateSearch, TasksRouteSearch } from "./lib/task-location-search";
+export {
+  TASK_INSPECT_TARGETS,
+  TASK_DETAIL_TABS,
+  validateTaskDetailSearch,
+} from "./lib/task-detail-search";
+export type {
+  ResolvedTaskDetailSearch,
+  TaskDetailSearch,
+  TaskDetailTab,
+  TaskInspectTarget,
+} from "./lib/task-detail-search";
+export {
+  humanizeTaskEvent,
+  matchesActivityFilter,
+  TASK_ACTIVITY_FILTERS,
+} from "./lib/task-activity-copy";
+export type {
+  TaskActivityCategory,
+  TaskActivityFilter,
+  TaskActivityView,
+} from "./lib/task-activity-copy";
+export { resolveTaskCommandState, taskHighestAttemptOrdinal } from "./lib/task-command-state";
+export type { TaskCommandState, TaskPrimaryCommand } from "./lib/task-command-state";
+export { projectTaskExceptionPills } from "./lib/task-detail-pills";
+export type { TaskExceptionPill } from "./lib/task-detail-pills";
+export { DEFAULT_TASK_LIST_LIMIT, defaultTaskCatalogFilter } from "./lib/task-catalog-filter";
+export { taskScopeForActiveWorkspace } from "./lib/workspace-scope";
 
-// Templates and grouping
 export {
   DEFAULT_TASK_TEMPLATE_ID,
   TASK_TEMPLATES,
@@ -263,7 +293,6 @@ export type {
   InboxUiLane,
 } from "./lib/inbox-grouping";
 
-// Read hooks
 export { useTask, useTaskRuns, useTasks } from "./hooks/use-tasks";
 export {
   useTaskInspect,
@@ -273,7 +302,7 @@ export {
   useTaskTree,
 } from "./hooks/use-task-live";
 export { useTaskDashboard } from "./hooks/use-task-dashboard";
-export { useTaskInbox } from "./hooks/use-task-inbox";
+export { useTaskInbox, useTaskInboxBadge } from "./hooks/use-task-inbox";
 export { useTaskExecutionProfile } from "./hooks/use-task-profile";
 export { useTaskReviews, useTaskRunReview, useTaskRunReviews } from "./hooks/use-task-reviews";
 export { useAgentContext, useTaskContextBundle } from "./hooks/use-task-context-bundle";
@@ -287,36 +316,25 @@ export type {
   TaskStreamEventSourceFactory,
   UseTaskStreamOptions,
 } from "./hooks/use-task-stream";
+export { useTasksPage } from "./hooks/use-tasks-page";
+export type { InboxLaneFilter, UseTasksPageOptions } from "./hooks/use-tasks-page";
+export { useTaskCreateState } from "./hooks/use-task-create-state";
+export { useTaskEditState } from "./hooks/use-task-edit-state";
+export { useTaskDetailPage } from "./hooks/use-task-detail-page";
+export type { UseTaskDetailPageOptions } from "./hooks/use-task-detail-page";
+export { useTaskOperatorLayer } from "./hooks/use-task-operator-layer";
+export { useTaskSetupRuntime } from "./hooks/use-task-setup-runtime";
+export { useProfileEditor } from "./hooks/use-profile-editor";
+export type { TaskProfileEditor } from "./hooks/use-profile-editor";
+export type { UseTaskOperatorLayerOptions } from "./hooks/use-task-operator-layer";
+export { useTaskRunPage } from "./hooks/use-task-run-page";
+export type { UseTaskRunPageOptions } from "./hooks/use-task-run-page";
+export { useLiveElapsed } from "./hooks/use-live-elapsed";
+export { useTaskPauseDialog } from "./hooks/use-task-pause-dialog";
+export { useForceFailDialog } from "./hooks/use-force-fail-dialog";
+export { useTaskFanOutDialog } from "./hooks/use-task-fan-out-dialog";
 
-// Mutation hooks
-export {
-  useAddTaskDependency,
-  useApproveTask,
-  useArchiveTask,
-  useAttachTaskRunSession,
-  useCancelTask,
-  useCancelTaskRun,
-  useCompleteTaskRun,
-  useCreateChildTask,
-  useCreateTask,
-  useDeleteTask,
-  useDismissTask,
-  useEnqueueTaskRun,
-  useFanOutTaskRuns,
-  useFailTaskRun,
-  useForceFailTaskRun,
-  useForceReleaseTaskRun,
-  useMarkTaskRead,
-  usePauseTask,
-  usePublishTask,
-  useRecoverTask,
-  useRejectTask,
-  useRemoveTaskDependency,
-  useRetryTaskRun,
-  useResumeTask,
-  useStartTaskRun,
-  useUpdateTask,
-} from "./hooks/use-task-actions";
+export * from "./hooks/task-actions-public-api";
 export { useRecoverTaskRun } from "./hooks/use-task-run-recovery";
 export {
   useDeleteTaskExecutionProfile,
@@ -328,17 +346,6 @@ export {
   useDeleteTaskBridgeNotificationSubscription,
 } from "./hooks/use-task-notifications";
 
-// Components
-export { TaskCard } from "./components/task-card";
-export type { TaskCardProps } from "./components/task-card";
-export { TasksListRow } from "./components/tasks-list-row";
-export type { TasksListRowProps } from "./components/tasks-list-row";
-export { TasksListSurface } from "./components/tasks-list-surface";
-export type { TasksListSurfaceProps } from "./components/tasks-list-surface";
-export { TasksListFilters } from "./components/tasks-list-filters";
-export type { TasksListFiltersProps } from "./components/tasks-list-filters";
-export { TasksListSort } from "./components/tasks-list-sort";
-export type { TasksListSortProps } from "./components/tasks-list-sort";
 export {
   applyTaskFilterChips,
   buildTaskFilterFields,
@@ -362,74 +369,105 @@ export type {
   InboxFilterState,
   InboxLaneCount,
 } from "./lib/inbox-filters";
-export { TaskGroup } from "./components/task-group";
-export type { TaskGroupProps } from "./components/task-group";
-export { TasksKanbanBoard } from "./components/tasks-kanban-board";
-export type { TasksKanbanBoardProps } from "./components/tasks-kanban-board";
-export { TasksEmptyState } from "./components/tasks-empty-state";
-export type { TasksEmptyStateProps } from "./components/tasks-empty-state";
-export { TaskEditorModal } from "./components/task-editor-modal";
-export type { TaskEditorModalMode, TaskEditorModalProps } from "./components/task-editor-modal";
-
-// Task detail + run detail components
-export { TasksDetailBlockedReasons } from "./components/tasks-detail-blocked-reasons";
-export type { TasksDetailBlockedReasonsProps } from "./components/tasks-detail-blocked-reasons";
-export { TasksDetailHeader } from "./components/tasks-detail-header";
-export type { TasksDetailHeaderProps } from "./components/tasks-detail-header";
-export { TasksDetailTabs } from "./components/tasks-detail-tabs";
-export type { TasksDetailTabItem, TasksDetailTabsProps } from "./components/tasks-detail-tabs";
-export { TasksDetailOverviewPanel } from "./components/tasks-detail-overview-panel";
-export type { TasksDetailOverviewPanelProps } from "./components/tasks-detail-overview-panel";
-export { TasksTimelinePanel } from "./components/tasks-timeline-panel";
-export type { TasksTimelinePanelProps } from "./components/tasks-timeline-panel";
-export { TasksDetailRunsPanel } from "./components/tasks-detail-runs-panel";
-export type { TasksDetailRunsPanelProps } from "./components/tasks-detail-runs-panel";
-export { TasksDetailChildrenPanel } from "./components/tasks-detail-children-panel";
-export type { TasksDetailChildrenPanelProps } from "./components/tasks-detail-children-panel";
-export { TasksDetailDependenciesPanel } from "./components/tasks-detail-dependencies-panel";
-export type { TasksDetailDependenciesPanelProps } from "./components/tasks-detail-dependencies-panel";
-
-export { TaskRunDetailHeader } from "./components/task-run-detail-header";
-export type { TaskRunDetailHeaderProps } from "./components/task-run-detail-header";
-export { TaskRunTimelinePanel } from "./components/task-run-timeline-panel";
-export type { TaskRunTimelinePanelProps } from "./components/task-run-timeline-panel";
-export { TaskInspectDiagnosticsCard } from "./components/task-inspect-diagnostics-card";
-export type { TaskInspectDiagnosticsCardProps } from "./components/task-inspect-diagnostics-card";
-
-export { TasksMultiAgentPanel } from "./components/tasks-multi-agent-panel";
-export type { TasksMultiAgentPanelProps } from "./components/tasks-multi-agent-panel";
-export { AgentCard } from "./components/agent-card";
-export type { AgentCardProps } from "./components/agent-card";
-
-// Orchestration tab components (execution profile, reviews, bridge notifications, stream resume)
-export { TasksExecutionProfileCard } from "./components/tasks-execution-profile-card";
-export type { TasksExecutionProfileCardProps } from "./components/tasks-execution-profile-card";
-export { TasksFanOutRunsCard } from "./components/tasks-fan-out-runs-card";
-export type { TasksFanOutRunsCardProps } from "./components/tasks-fan-out-runs-card";
-export { TasksReviewsCard } from "./components/tasks-reviews-card";
-export type { TasksReviewsCardProps } from "./components/tasks-reviews-card";
-export { TasksBridgeNotificationsCard } from "./components/tasks-bridge-notifications-card";
-export type { TasksBridgeNotificationsCardProps } from "./components/tasks-bridge-notifications-card";
-export { TasksStreamResumeCard } from "./components/tasks-stream-resume-card";
-export type { TasksStreamResumeCardProps } from "./components/tasks-stream-resume-card";
-export { TasksDetailOrchestrationPanel } from "./components/tasks-detail-orchestration-panel";
-export type { TasksDetailOrchestrationPanelProps } from "./components/tasks-detail-orchestration-panel";
-
-// Dashboard + Inbox aggregate components
-export { TasksDashboardCards } from "./components/tasks-dashboard-cards";
-export type { TasksDashboardCardsProps } from "./components/tasks-dashboard-cards";
-export { TasksDashboardStatusBreakdown } from "./components/tasks-dashboard-status-breakdown";
-export type { TasksDashboardStatusBreakdownProps } from "./components/tasks-dashboard-status-breakdown";
-export { TasksDashboardQueueHealth } from "./components/tasks-dashboard-queue-health";
-export type { TasksDashboardQueueHealthProps } from "./components/tasks-dashboard-queue-health";
-export { TasksDashboardActiveRuns } from "./components/tasks-dashboard-active-runs";
-export type { TasksDashboardActiveRunsProps } from "./components/tasks-dashboard-active-runs";
-export { TasksDashboardView } from "./components/tasks-dashboard-view";
-export type { TasksDashboardViewProps } from "./components/tasks-dashboard-view";
-
-export { TasksInboxItem } from "./components/tasks-inbox-item";
-export type { TasksInboxItemProps } from "./components/tasks-inbox-item";
-export { TasksInboxPageHead } from "./components/tasks-inbox-page-head";
-export type { TasksInboxPageHeadProps } from "./components/tasks-inbox-page-head";
-export { TasksInboxView } from "./components/tasks-inbox-view";
-export type { TasksInboxViewProps } from "./components/tasks-inbox-view";
+export {
+  TaskActivityItem,
+  TaskActivityPanel,
+  TaskAutoEnqueueSwitch,
+  TaskBridgeSubscriptionsPane,
+  TaskCard,
+  TaskDeleteAction,
+  TaskDependenciesSection,
+  TaskEditorModal,
+  TaskEditorSurface,
+  TaskFanOutDialog,
+  TaskGroup,
+  TaskInspectDrawer,
+  TaskLinkedRow,
+  TaskNowStrip,
+  TaskOverviewPanel,
+  TaskPageActions,
+  TaskPageOverflow,
+  TaskPageStatus,
+  TaskPauseDialog,
+  TaskPriorityEditor,
+  TaskPropertiesRail,
+  TaskRawPane,
+  TaskRunForceFailDialog,
+  TaskRunActivitySection,
+  TaskRunInspectDrawer,
+  TaskRunOutcome,
+  TaskResultSection,
+  TaskRunPageActions,
+  TaskRunPageOverflow,
+  TaskRunPageStatus,
+  TaskRunRail,
+  TaskRunReviewCard,
+  TaskRunSubhead,
+  TaskRunsPanel,
+  TaskSetupSheet,
+  TaskStateBand,
+  TaskSubtasksSection,
+  TasksDashboardActiveRuns,
+  TasksDashboardCards,
+  TasksDashboardQueueHealth,
+  TasksDashboardStatusBreakdown,
+  TasksDashboardView,
+  TasksDetailSubhead,
+  TasksEmptyState,
+  TasksInboxItem,
+  TasksInboxView,
+  TasksKanbanBoard,
+  TasksListFilters,
+  TasksListRow,
+  TasksListSort,
+  TasksListSurface,
+  TasksListToolbar,
+  TASK_RESULT_ANCHOR_ID,
+} from "./components/public-api";
+export type {
+  TaskActivityPanelProps,
+  TaskBridgeSubscriptionsPaneProps,
+  TaskCardProps,
+  TaskEditorModalMode,
+  TaskEditorModalProps,
+  TaskEditorSurfaceMode,
+  TaskEditorSurfaceProps,
+  TaskFanOutDialogProps,
+  TaskGroupProps,
+  TaskInspectDrawerProps,
+  TaskInspectDrawerTab,
+  TaskLinkedRowProps,
+  TaskLinkedRowState,
+  TaskNowStripHandlers,
+  TaskNowStripProps,
+  TaskOverviewPanelProps,
+  TaskPageActionHandlers,
+  TaskPageActionsProps,
+  TaskPageOverflowProps,
+  TaskPauseDialogProps,
+  TaskPropertiesRailProps,
+  TaskRunForceFailDialogProps,
+  TaskRunActivitySectionProps,
+  TaskRunInspectDrawerProps,
+  TaskResultSectionProps,
+  TaskRunPageActionsProps,
+  TaskRunPageOverflowProps,
+  TaskRunRailProps,
+  TaskRunsPanelProps,
+  TaskSetupSheetProps,
+  TaskStateBandProps,
+  TasksDashboardActiveRunsProps,
+  TasksDashboardCardsProps,
+  TasksDashboardQueueHealthProps,
+  TasksDashboardStatusBreakdownProps,
+  TasksDashboardViewProps,
+  TasksEmptyStateProps,
+  TasksInboxItemProps,
+  TasksInboxViewProps,
+  TasksKanbanBoardProps,
+  TasksListFiltersProps,
+  TasksListRowProps,
+  TasksListSortProps,
+  TasksListSurfaceProps,
+  TasksListToolbarProps,
+} from "./components/public-api";

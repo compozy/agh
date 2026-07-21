@@ -16,6 +16,8 @@ export interface ThreadOverlayProps {
   threadId: string;
   /** Render in full-page mode (no fixed width / no border-left) for `<1024px` or `?view=full`. */
   fullPage?: boolean;
+  onClose: () => void;
+  onOpenMain: () => void;
 }
 
 export function ThreadOverlay({
@@ -23,8 +25,10 @@ export function ThreadOverlay({
   channel,
   threadId,
   fullPage = false,
+  onClose,
+  onOpenMain,
 }: ThreadOverlayProps) {
-  const view = useThreadOverlayView({ workspaceId, channel, fullPage, threadId });
+  const view = useThreadOverlayView({ workspaceId, channel, fullPage, threadId, onClose });
   const { overlay, session, disabledReason, openWork, handleRetry, handleDiscard } = view;
   const detailError = overlay.detailError;
   const isResolvingDetail = !detailError && !overlay.detail;
@@ -49,6 +53,8 @@ export function ThreadOverlay({
         rootMessageId={overlay.rootMessage?.message_id ?? null}
         selfSessionId={session?.sessionId ?? null}
         threadId={threadId}
+        onClose={onClose}
+        onOpenMain={onOpenMain}
       />
       <ThreadTaskLinks links={overlay.detail?.task_links ?? []} />
       {detailError ? (

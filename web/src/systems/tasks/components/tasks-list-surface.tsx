@@ -1,15 +1,11 @@
 import { AlertCircle, ListChecks, Search } from "lucide-react";
 
-import { Button, Empty, ListingPage, ListingToolbar, PageHead, Skeleton, Spinner } from "@agh/ui";
+import { Button, Empty, ListingPage, Skeleton, Spinner } from "@agh/ui";
 
 import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
-import { formatRelativeTime } from "../lib/task-formatters";
-import type { TaskFilterOwnerOption } from "../lib/tasks-list-filters";
-import type { TaskListItem, TaskListSortKey, TaskPriority, TaskStatus } from "../types";
+import type { TaskListItem, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
-import { TasksListFilters } from "./tasks-list-filters";
-import { TasksListSort } from "./tasks-list-sort";
 
 const TASK_LIST_SKELETON_IDS = [
   "task-list-skeleton-1",
@@ -21,23 +17,11 @@ const TASK_LIST_SKELETON_IDS = [
 
 export interface TasksListSurfaceProps {
   tasks: TaskListItem[];
-  totalCount?: number;
   statusCounts: Record<TaskStatus, number>;
   isLoading?: boolean;
   errorMessage?: string | null;
-  workspaceName?: string | null;
-  listUpdatedAt?: number;
-  statusFilter: TaskStatus | null;
-  ownerFilter: TaskFilterOwnerOption | null;
-  priorityFilter: TaskPriority | null;
-  ownerOptions: TaskFilterOwnerOption[];
-  sortBy: TaskListSortKey;
+  filterState?: "active" | "inactive";
   searchQuery: string;
-  onStatusChange: (next: TaskStatus | null) => void;
-  onOwnerChange: (next: TaskFilterOwnerOption | null) => void;
-  onPriorityChange: (next: TaskPriority | null) => void;
-  onSortChange: (next: TaskListSortKey) => void;
-  onSearchQueryChange: (next: string) => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
@@ -46,23 +30,11 @@ export interface TasksListSurfaceProps {
 
 export function TasksListSurface({
   tasks,
-  totalCount,
   statusCounts,
   isLoading = false,
   errorMessage = null,
-  workspaceName,
-  listUpdatedAt,
-  statusFilter,
-  ownerFilter,
-  priorityFilter,
-  ownerOptions,
-  sortBy,
+  filterState = "inactive",
   searchQuery,
-  onStatusChange,
-  onOwnerChange,
-  onPriorityChange,
-  onSortChange,
-  onSearchQueryChange,
   hasMore = false,
   isLoadingMore = false,
   onLoadMore,
@@ -74,70 +46,10 @@ export function TasksListSurface({
   );
 
   const visibleCount = tasks.length;
-  const hasFilters =
-    Boolean(statusFilter) ||
-    Boolean(ownerFilter) ||
-    Boolean(priorityFilter) ||
-    searchQuery.trim() !== "";
-  const countLabel =
-    totalCount === undefined
-      ? undefined
-      : visibleCount === totalCount
-        ? `${totalCount}`
-        : `${visibleCount} of ${totalCount}`;
-  let syncedText: string | null = null;
-  if (listUpdatedAt) {
-    const syncedLabel = formatRelativeTime(new Date(listUpdatedAt).toISOString());
-    syncedText = syncedLabel === "now" ? "synced just now" : `synced ${syncedLabel} ago`;
-  }
+  const hasFilters = filterState === "active" || searchQuery.trim() !== "";
 
   return (
     <ListingPage data-testid="tasks-list-surface">
-      <PageHead
-        count={countLabel}
-        countTestId="tasks-list-page-count"
-        data-testid="tasks-list-page-head"
-        icon={ListChecks}
-        meta={
-          workspaceName || syncedText ? (
-            <>
-              {workspaceName ? (
-                <span data-testid="tasks-list-page-workspace">workspace {workspaceName}</span>
-              ) : null}
-              {workspaceName && syncedText ? <PageHead.MetaDot /> : null}
-              {syncedText ? <span data-testid="tasks-list-page-synced">{syncedText}</span> : null}
-            </>
-          ) : undefined
-        }
-        title={<span data-testid="tasks-list-page-title">Tasks</span>}
-      />
-
-      <ListingToolbar>
-        <ListingToolbar.Leading>
-          <ListingToolbar.Search
-            aria-label="Search tasks"
-            data-testid="tasks-list-search-input"
-            onChange={onSearchQueryChange}
-            placeholder="Search tasks"
-            value={searchQuery}
-          />
-          <ListingToolbar.Filters>
-            <TasksListFilters
-              onOwnerChange={onOwnerChange}
-              onPriorityChange={onPriorityChange}
-              onStatusChange={onStatusChange}
-              ownerFilter={ownerFilter}
-              ownerOptions={ownerOptions}
-              priorityFilter={priorityFilter}
-              statusFilter={statusFilter}
-            />
-          </ListingToolbar.Filters>
-        </ListingToolbar.Leading>
-        <ListingToolbar.Trailing>
-          <TasksListSort onSortChange={onSortChange} sortBy={sortBy} />
-        </ListingToolbar.Trailing>
-      </ListingToolbar>
-
       <div className="flex flex-col gap-5" data-testid="tasks-list-surface-body">
         {isLoading && visibleCount === 0 ? (
           <div

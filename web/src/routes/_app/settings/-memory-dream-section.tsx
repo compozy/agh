@@ -1,7 +1,12 @@
 import { Play } from "lucide-react";
 
-import { SettingsDecimalInput, SettingsFieldRow, SettingsNumberInput } from "@/systems/settings";
-import { Button, Input, Section, Spinner, Switch } from "@agh/ui";
+import {
+  SettingsDecimalInput,
+  SettingsFieldRow,
+  SettingsGroup,
+  SettingsNumberInput,
+} from "@/systems/settings";
+import { Button, Input, Spinner, Switch } from "@agh/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
 interface DreamSectionProps extends ValidatedSectionProps {
@@ -27,11 +32,10 @@ function renderDreamSection({
 }: DreamSectionProps) {
   const dreamDisabled = !draft.dream.enabled;
   return (
-    <Section
-      divided
-      label="Memory dreaming"
-      note="background recall-signal scoring + curated promotion"
-      right={
+    <SettingsGroup
+      title="Memory dreaming"
+      description="background recall-signal scoring + curated promotion"
+      action={
         <Button
           type="button"
           variant="outline"
@@ -443,6 +447,6 @@ function renderDreamSection({
           {actionMessage}
         </p>
       ) : null}
-    </Section>
+    </SettingsGroup>
   );
 }

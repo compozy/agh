@@ -96,7 +96,7 @@ function EditorHarness({
   ...args
 }: ComponentProps<typeof LoopEditor> & { heightClass?: string }) {
   return (
-    <StoryTopbarHost breadcrumb={<span>Loops › {args.name}</span>} title="Editor">
+    <StoryTopbarHost title="Editor">
       <StorySurface className={`flex ${heightClass} p-0`}>
         <LoopEditor {...args} />
       </StorySurface>

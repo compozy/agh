@@ -133,7 +133,7 @@ export function taskDashboardOptions(filters: TaskDashboardFilter = {}, enabled 
   });
 }
 
-export function taskInboxOptions(filters: TaskInboxFilter = {}, enabled = true) {
+function taskInboxQueryOptions(filters: TaskInboxFilter, enabled: boolean, staleTime: number) {
   const stableFilters = taskInboxStableFilter(filters);
   return infiniteQueryOptions({
     queryKey: tasksKeys.inbox(stableFilters),
@@ -141,9 +141,18 @@ export function taskInboxOptions(filters: TaskInboxFilter = {}, enabled = true) 
       getTaskInbox(taskInboxPageRequest(stableFilters, pageParam), signal),
     initialPageParam: INITIAL_CURSOR,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
-    staleTime: DEFAULT_STALE_TIME,
+    staleTime,
     enabled,
   });
+}
+
+export function taskInboxOptions(filters: TaskInboxFilter = {}, enabled = true) {
+  return taskInboxQueryOptions(filters, enabled, 0);
+}
+
+/** Minimal unread/count projection preloaded for the always-visible Tasks badge. */
+export function taskInboxBadgeOptions(filters: TaskInboxFilter = {}, enabled = true) {
+  return taskInboxQueryOptions(filters, enabled, DEFAULT_STALE_TIME);
 }
 
 export function taskExecutionProfileOptions(taskId: string, enabled = true) {

@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
 
 import type { NetworkConversationMessage, NetworkThreadDetail } from "../types";
 import { useLastRead } from "./use-last-read";
@@ -11,6 +10,7 @@ export interface UseThreadOverlayArgs {
   channel: string;
   threadId: string;
   fullPage: boolean;
+  onClose: () => void;
 }
 
 export interface UseThreadOverlayResult {
@@ -47,8 +47,8 @@ export function useThreadOverlay({
   channel,
   threadId,
   fullPage,
+  onClose,
 }: UseThreadOverlayArgs): UseThreadOverlayResult {
-  const navigate = useNavigate();
   const detail = useNetworkThreadDetail(channel, threadId, { workspaceId });
   const messagesQuery = useNetworkMessages({
     workspaceId,
@@ -77,16 +77,11 @@ export function useThreadOverlay({
       if (event.key !== "Escape") {
         return;
       }
-      if (workspaceId) {
-        void navigate({
-          params: { workspaceId, channel },
-          to: "/network/$workspaceId/$channel/threads",
-        });
-      }
+      onClose();
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [channel, fullPage, navigate, workspaceId]);
+  }, [fullPage, onClose]);
 
   useEffect(() => {
     const lastTimestamp = messagesQuery.messages.at(-1)?.timestamp;

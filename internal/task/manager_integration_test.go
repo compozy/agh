@@ -1088,6 +1088,139 @@ func TestTaskManagerPlainWorkspaceStartPersistsLocalParticipationIntegration(t *
 	}
 }
 
+func TestTaskManagerGlobalLocalParticipationIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should approve a global task without workspace participation resolution", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		resolver := &countingParticipationResolver{
+			inner: newTaskParticipationResolver(t, db, nil),
+		}
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithParticipationResolver(resolver))
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"global-operator",
+			taskpkg.OriginKindCLI,
+			"agh task approve",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:          taskpkg.ScopeGlobal,
+			Title:          "Global approval boundary",
+			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		execution, err := manager.ApproveTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{}, actor)
+		if err != nil {
+			t.Fatalf("ApproveTask() error = %v", err)
+		}
+		if got, want := execution.Run.NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
+			t.Fatalf("ApproveTask().Run.NetworkSpecSnapshot() = %#v, want %#v", got, want)
+		}
+		if got := resolver.CallCount(); got != 0 {
+			t.Fatalf("participation resolver calls = %d, want 0", got)
+		}
+		if got := resolver.ObservationCount(); got != 0 {
+			t.Fatalf("participation observations = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should preserve an explicit local source for a global task", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		resolver := &countingParticipationResolver{
+			inner: newTaskParticipationResolver(t, db, nil),
+		}
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithParticipationResolver(resolver))
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"global-operator",
+			taskpkg.OriginKindCLI,
+			"agh task start",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Global explicit local boundary",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		local := participation.ModeLocal
+
+		execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
+			NetworkParticipation: &participation.Request{Mode: &local},
+		}, actor)
+		if err != nil {
+			t.Fatalf("StartTask() error = %v", err)
+		}
+		if got, want := execution.Run.NetworkSpecSnapshot().Source, participation.SourceExplicitRequest; got != want {
+			t.Fatalf("StartTask().Run.NetworkSpecSnapshot().Source = %q, want %q", got, want)
+		}
+		if got := resolver.CallCount(); got != 0 {
+			t.Fatalf("participation resolver calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should delegate global live participation before reserving a run", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		resolver := &countingParticipationResolver{
+			inner: newTaskParticipationResolver(t, db, nil),
+		}
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithParticipationResolver(resolver))
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"global-operator",
+			taskpkg.OriginKindCLI,
+			"agh task start",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Global live boundary",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		live := participation.ModeLive
+		strategy := participation.StrategyRun
+
+		_, err = manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
+			NetworkParticipation: &participation.Request{
+				Mode:            &live,
+				ChannelStrategy: &strategy,
+			},
+		}, actor)
+		if err == nil || !strings.Contains(err.Error(), "workspace_id is required") {
+			t.Fatalf("StartTask() error = %v, want workspace participation resolution failure", err)
+		}
+		runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+		if err != nil {
+			t.Fatalf("ListTaskRuns() error = %v", err)
+		}
+		if len(runs) != 0 {
+			t.Fatalf("runs after rejected live participation = %#v, want none", runs)
+		}
+		if got := resolver.CallCount(); got != 1 {
+			t.Fatalf("participation resolver calls = %d, want 1", got)
+		}
+	})
+}
+
 func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *testing.T) {
 	t.Parallel()
 

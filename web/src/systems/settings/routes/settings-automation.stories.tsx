@@ -5,7 +5,7 @@ import { aghApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
 import {
-  StorybookRestartBannerSetup,
+  StorybookRestartNoticeSetup,
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
   appRouteParameters,
@@ -59,13 +59,13 @@ export const Dirty: Story = {
 /**
  * Restart-required banner after changing automation config that affects the scheduler runtime.
  */
-export const RestartBanner: Story = {
+export const RestartNotice: Story = {
   args: {},
   parameters: appRouteParameters("/settings/automation"),
   render: () => (
     <>
       <StorybookWorkspaceSetup />
-      <StorybookRestartBannerSetup section="automation" />
+      <StorybookRestartNoticeSetup section="automation" />
     </>
   ),
 };

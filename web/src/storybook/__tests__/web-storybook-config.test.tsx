@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -18,15 +18,19 @@ const {
   isBypassableStorybookRequest,
   isStorybookLocalApiRequest,
   queryClientDecorator,
+  resetStorybookAppState,
   routerDecorator,
   storybookDecorators,
   storybookUnhandledRequest,
   storybookSystemHandlers,
 } = webPreviewModule;
+const { StorybookWorkspaceSetup } = await import("../route-story");
+const { desktopStore } = await import("@/systems/os/stores/desktop-store");
 
 afterEach(() => {
   cleanup();
   document.documentElement.className = "";
+  desktopStore.getState().resetForWorkspace();
 });
 
 function QueryClientProbe() {
@@ -141,6 +145,19 @@ describe("web Storybook config", () => {
     await router.load();
 
     expect(router.state.location.pathname).toBe("/settings/providers");
+  });
+
+  it("prepares app stories with completed local hydration and an optional initial window", async () => {
+    desktopStore.getState().openOrFocus({ app: "tasks" });
+    resetStorybookAppState();
+
+    expect(desktopStore.getState().windows).toEqual({});
+    expect(desktopStore.getState().hydration).toBe("degraded");
+
+    render(createElement(StorybookWorkspaceSetup, { initialApp: "dashboard" }));
+    await waitFor(() => {
+      expect(desktopStore.getState().windows["app:dashboard"]).toBeDefined();
+    });
   });
 
   it("renders stories through the router decorator stub with a query client available", async () => {

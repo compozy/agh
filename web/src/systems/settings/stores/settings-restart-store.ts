@@ -25,6 +25,8 @@ export interface SettingsRestartState {
   activeSessionCount: number;
   failureReason?: string;
   lastMutation: PendingSettingsMutation | null;
+  mutationGeneration: number;
+  snoozedMutationGeneration: number | null;
 }
 
 export interface SettingsRestartActions {
@@ -39,6 +41,7 @@ export interface SettingsRestartActions {
     failureReason?: string;
   }) => void;
   clearRestart: () => void;
+  dismissRestartNotice: () => void;
   recordMutation: (payload: PendingSettingsMutation | null) => void;
 }
 
@@ -50,6 +53,8 @@ export const initialSettingsRestartState: SettingsRestartState = {
   activeSessionCount: 0,
   failureReason: undefined,
   lastMutation: null,
+  mutationGeneration: 0,
+  snoozedMutationGeneration: null,
 };
 
 export const createSettingsRestartStore: StateCreator<SettingsRestartStore> = set => ({
@@ -71,6 +76,21 @@ export const createSettingsRestartStore: StateCreator<SettingsRestartStore> = se
     set(state => ({
       ...initialSettingsRestartState,
       lastMutation: state.lastMutation,
+      mutationGeneration: state.mutationGeneration,
+      snoozedMutationGeneration: state.snoozedMutationGeneration,
     })),
-  recordMutation: lastMutation => set({ lastMutation }),
+  dismissRestartNotice: () =>
+    set(state => ({
+      ...initialSettingsRestartState,
+      lastMutation: state.lastMutation,
+      mutationGeneration: state.mutationGeneration,
+      snoozedMutationGeneration: state.lastMutation?.restartRequired
+        ? state.mutationGeneration
+        : null,
+    })),
+  recordMutation: lastMutation =>
+    set(state => ({
+      lastMutation,
+      mutationGeneration: state.mutationGeneration + 1,
+    })),
 });

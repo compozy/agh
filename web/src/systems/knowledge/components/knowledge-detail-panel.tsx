@@ -9,7 +9,6 @@ import {
   type ContextBoxEntry,
   Empty,
   PAGE_CONTENT_GUTTER,
-  PageHead,
   Pill,
   Section,
   Spinner,
@@ -313,32 +312,26 @@ function KnowledgeDetailPanel({
       className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-y-auto")}
       data-testid="knowledge-detail-panel"
     >
-      <div className="pt-5">
-        <PageHead
-          data-testid="knowledge-detail-header"
-          pretitle={
-            <span className="lowercase" data-testid="knowledge-detail-filename">
-              {memory.filename}
-            </span>
-          }
-          title={<span data-testid="knowledge-detail-title">{memory.name}</span>}
-          variant="compact"
-          pills={
-            <>
-              <Pill mono data-testid="detail-scope-badge" tone={scopeTone}>
-                <StatusDot
-                  aria-hidden="true"
-                  className="-ml-0.5"
-                  tone={statusDotToneFromScope(resolvedScope)}
-                />
-                {knowledgeScopeLabel(resolvedScope)}
-              </Pill>
-              <Pill mono data-testid="detail-age-badge" tone="neutral">
-                <Time iso={memory.mod_time} />
-              </Pill>
-            </>
-          }
-        />
+      <div className="flex flex-col gap-2 pt-4" data-testid="knowledge-detail-header">
+        <span
+          className="lowercase text-small-body text-subtle"
+          data-testid="knowledge-detail-filename"
+        >
+          {memory.filename}
+        </span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Pill mono data-testid="detail-scope-badge" tone={scopeTone}>
+            <StatusDot
+              aria-hidden="true"
+              className="-ml-0.5"
+              tone={statusDotToneFromScope(resolvedScope)}
+            />
+            {knowledgeScopeLabel(resolvedScope)}
+          </Pill>
+          <Pill mono data-testid="detail-age-badge" tone="neutral">
+            <Time iso={memory.mod_time} />
+          </Pill>
+        </div>
       </div>
 
       <div className="flex flex-col gap-6 py-5">

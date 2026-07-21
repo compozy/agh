@@ -3535,7 +3535,7 @@ func renderTaskInspectToon(record *TaskInspectRecord) (string, error) {
 		}),
 		renderToonArray(
 			"diagnostics",
-			[]string{"code", "severity", "message", "command"},
+			[]string{cliCodeKey, "severity", clientMessageKey, "command"},
 			taskInspectDiagnosticToonRows(record.Diagnostics),
 		),
 		renderToonArray(

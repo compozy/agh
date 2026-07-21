@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import {
   TasksApiError,
+  clearTaskBlock,
   createTaskBridgeNotificationSubscription,
   deleteTaskBridgeNotificationSubscription,
   deleteTaskExecutionProfile,
@@ -112,6 +113,28 @@ describe("execution profile adapters", () => {
       method: "DELETE",
       path: "/api/tasks/task_001/execution-profile",
     });
+  });
+});
+
+describe("task block adapters", () => {
+  it("Should clear the exact block through the task-scoped HTTP route", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 204 }));
+
+    await clearTaskBlock("task_001", "block_002", "Operator supplied evidence");
+
+    await expectFetchRequest({
+      body: { note: "Operator supplied evidence" },
+      method: "POST",
+      path: "/api/tasks/task_001/blocks/block_002/clear",
+    });
+  });
+
+  it("Should identify both task and block when the scoped resource is missing", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(clearTaskBlock("task_missing", "block_missing")).rejects.toThrow(
+      'Task "task_missing" or block "block_missing" was not found'
+    );
   });
 });
 

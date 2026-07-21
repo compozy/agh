@@ -1,5 +1,5 @@
 import * as React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../dialog";
+import { OverlayContainerContext } from "../hooks/use-overlay-container";
 import { Button } from "../button";
 
 function DialogExample({ defaultOpen = false }: { defaultOpen?: boolean }) {
@@ -227,6 +228,87 @@ describe("Dialog", () => {
     await waitFor(() => {
       expect(getComputedStyle(dialog).opacity).toBe("1");
     });
+  });
+
+  it("Should mount inside the nearest OverlayContainerContext container when one is provided", async () => {
+    function WindowHost() {
+      const ref = React.useRef<HTMLDivElement | null>(null);
+      const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
+      React.useEffect(() => setContainer(ref.current), []);
+      return (
+        <div ref={ref} data-testid="os-window">
+          <OverlayContainerContext.Provider value={container}>
+            <Dialog defaultOpen>
+              <DialogContent showCloseButton={false}>
+                <DialogTitle>In-window</DialogTitle>
+              </DialogContent>
+            </Dialog>
+          </OverlayContainerContext.Provider>
+        </div>
+      );
+    }
+
+    render(<WindowHost />);
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    const windowEl = screen.getByTestId("os-window");
+    const dialog = screen.getByRole("dialog");
+    expect(windowEl.contains(dialog)).toBe(true);
+  });
+
+  it("Should keep a window-scoped dialog open while a peer surface remains interactive", async () => {
+    const user = userEvent.setup();
+
+    function WindowHost() {
+      const ref = React.useRef<HTMLDivElement | null>(null);
+      const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
+      const [peerValue, setPeerValue] = React.useState("");
+      React.useEffect(() => setContainer(ref.current), []);
+      return (
+        <>
+          <div ref={ref} data-testid="os-window">
+            {container ? (
+              <OverlayContainerContext.Provider value={container}>
+                <Dialog defaultOpen>
+                  <DialogContent showCloseButton={false}>
+                    <DialogTitle>Window confirm</DialogTitle>
+                  </DialogContent>
+                </Dialog>
+              </OverlayContainerContext.Provider>
+            ) : null}
+          </div>
+          <input
+            aria-label="Peer composer"
+            value={peerValue}
+            onChange={event => setPeerValue(event.target.value)}
+          />
+        </>
+      );
+    }
+
+    render(<WindowHost />);
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    // Let the dialog's async initial-focus job land before interacting with the
+    // peer; clicking mid-flight lets the late focus steal the caret back.
+    await waitFor(() => expect(document.body).not.toHaveFocus());
+
+    const peerComposer = screen.getByRole("textbox", { name: "Peer composer" });
+    await user.click(peerComposer);
+    await waitFor(() => expect(peerComposer).toHaveFocus());
+    fireEvent.change(peerComposer, { target: { value: "still active" } });
+
+    expect(peerComposer).toHaveValue("still active");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("Should fall back to document.body when no OverlayContainerContext is provided", async () => {
+    const { container } = render(<DialogExample defaultOpen />);
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    const dialog = screen.getByRole("dialog");
+    expect(document.body.contains(dialog)).toBe(true);
+    // Mounted at the body root, not inside the React Testing Library render container.
+    expect(container.contains(dialog)).toBe(false);
   });
 
   it("Should throw when DialogContent is rendered outside <Dialog>", () => {

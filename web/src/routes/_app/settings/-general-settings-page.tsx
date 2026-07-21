@@ -1,39 +1,63 @@
-import { AlertCircle, ExternalLink } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 
-import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
+import { useSettingsGeneralPage } from "@/systems/settings/hooks/use-settings-general-page";
 import {
-  restartBannerPropsFor,
+  SettingActionRow,
+  SettingRow,
+  SettingValue,
+  SettingsAdvancedFold,
   SettingsApplyRecordsPanel,
-  SettingsFieldRow,
+  SettingsChoiceGroup,
+  SettingsGroup,
   SettingsNumberInput,
+  SettingsPageFrame,
+  SettingsProvChip,
   SettingsSaveBar,
+  SettingsRuntimeUnavailable,
+  useSettingsSaveBarState,
+  useSettingsTopbar,
+  SettingsTile,
+  SettingsTiles,
+  useSettingsProviders,
+  useSettingsSandboxes,
   type SettingsGeneralSection,
-  type SettingsUpdateStatus,
-  SettingsPageHead,
 } from "@/systems/settings";
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
 import {
   Button,
-  Eyebrow,
   Input,
-  Metric,
-  MetricGrid,
-  PageShell,
-  PillGroup,
-  RestartBanner,
-  Section,
+  NativeSelect,
+  NativeSelectOption,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
   Spinner,
-  StatusLine,
 } from "@agh/ui";
 
 import { DaemonSection, RedactionSection } from "./-general-daemon-sections";
+import { GeneralUpdateSection } from "./-general-update-section";
 
-const PERMISSION_MODES = ["deny-all", "approve-reads", "approve-all"] as const;
-type PermissionMode = (typeof PERMISSION_MODES)[number];
+const PERMISSION_OPTIONS = [
+  {
+    value: "deny-all" as const,
+    name: "Ask first",
+    description: "Every action waits for your approval.",
+  },
+  {
+    value: "approve-reads" as const,
+    name: "Allow reading",
+    description: "Reads run on their own; changes still ask.",
+  },
+  {
+    value: "approve-all" as const,
+    name: "Allow everything",
+    description: "Agents act freely. For trusted work only.",
+  },
+];
 
 type GeneralConfig = SettingsGeneralSection["config"];
-type UpdateQuery = ReturnType<typeof useSettingsGeneralPage>["update"];
 
 function parseSessionTimeoutSeconds(raw: string): number {
   if (!raw) return 0;
@@ -51,47 +75,25 @@ function formatSessionTimeout(seconds: number): string {
   return `${Math.floor(seconds)}s`;
 }
 
-function formatUpdateTimestamp(value?: string | null): string {
-  if (!value) return "--";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "--" : parsed.toLocaleString();
-}
-
-function formatUpdateStatus(status?: SettingsUpdateStatus["status"]): string {
-  if (!status) return "unknown";
-  return status.replace(/-/g, " ");
-}
-
 export function GeneralSettingsPage() {
   const page = useSettingsGeneralPage();
+  useSettingsTopbar("general");
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
+  const [applyRecordsOpen, setApplyRecordsOpen] = useState(false);
   const setValidationError = (key: string) => (message: string | null) => {
     setValidationErrors(current =>
       current[key] === message ? current : { ...current, [key]: message }
     );
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
-  const runtime = page.envelope?.runtime;
-  const configPaths = page.envelope?.config_paths;
-  const statusLine =
-    runtime && configPaths ? (
-      <StatusLine
-        data-testid="settings-page-general-status-line"
-        status={runtime.available ? "connected" : "error"}
-        items={[
-          {
-            key: "sessions",
-            value: `${runtime.active_sessions} active sessions · ${runtime.active_agents} agents`,
-            tone: "neutral",
-          },
-          {
-            key: "config",
-            value: <span className="font-mono">config: {configPaths.global_config}</span>,
-            tone: "neutral",
-          },
-        ]}
-      />
-    ) : null;
+  const saveBarState = useSettingsSaveBarState({
+    isDirty: page.isDirty,
+    isInvalid,
+    isSaving: page.isSaving,
+    error: page.saveError,
+    warnings: page.warnings,
+    lastAppliedLabel: page.lastAppliedLabel,
+  });
 
   if (page.isLoading) {
     return (
@@ -124,194 +126,227 @@ export function GeneralSettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart, update } = page;
-
-  const bannerProps = restartBannerPropsFor("general", restart);
+  const runtime = envelope.runtime;
 
   return (
-    <PageShell
-      slug="general"
-      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsPageHead slug="general" statusLine={statusLine} />}
-      footer={
+    <SettingsPageFrame
+      description="Defaults and day-to-day behavior for this runtime. Changes here apply to new sessions on this machine."
+      meta={
+        runtime.available
+          ? [
+              {
+                key: "sessions",
+                content: (
+                  <span>
+                    <span className="font-medium text-muted">{runtime.active_sessions}</span> active
+                    sessions
+                  </span>
+                ),
+              },
+              {
+                key: "agents",
+                content: (
+                  <span>
+                    <span className="font-medium text-muted">{runtime.active_agents}</span> agents
+                    working
+                  </span>
+                ),
+              },
+            ]
+          : [{ key: "runtime", content: <span>runtime unavailable</span> }]
+      }
+      restart={restart}
+      saveBar={
         <SettingsSaveBar
           slug="general"
-          isDirty={page.isDirty}
-          isInvalid={isInvalid}
-          isSaving={page.isSaving}
-          error={page.saveError}
-          warnings={page.warnings}
-          lastAppliedLabel={page.lastAppliedLabel}
+          state={saveBarState}
           onSave={page.handleSave}
           onReset={page.handleReset}
         />
       }
+      slug="general"
     >
-      <RuntimeSection envelope={envelope} />
-      <SettingsApplyRecordsPanel
-        records={page.applyRecords.data?.entries ?? []}
-        isLoading={page.applyRecords.isLoading}
-        isFetching={page.applyRecords.isFetching}
-        error={page.applyRecords.error instanceof Error ? page.applyRecords.error : null}
-        reloadError={page.reloadError}
-        reloadResult={page.reloadResult}
-        isReloading={page.isReloading}
-        onRefresh={() => void page.applyRecords.refetch()}
-        onReload={page.handleReload}
-      />
-      <SoftwareUpdateSection update={update} />
-      <DefaultsSection draft={draft} setDraft={setDraft} />
-      <PermissionsSection draft={draft} setDraft={setDraft} />
+      <DefaultsGroup draft={draft} setDraft={setDraft} />
+
+      <SettingsGroup
+        data-testid="settings-page-general-permissions"
+        description="How much agents can do before asking you first."
+        title="Permissions"
+      >
+        <SettingsChoiceGroup
+          ariaLabel="Permission mode"
+          data-testid="settings-page-general-permissions-group"
+          onChange={mode =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, permissions: { mode } };
+            })
+          }
+          options={PERMISSION_OPTIONS}
+          value={draft.permissions.mode}
+        />
+      </SettingsGroup>
+
       <ToolApprovalGrantsSection />
-      <SessionSection
-        draft={draft}
-        setDraft={setDraft}
-        timeoutError={validationErrors.sessionTimeout ?? undefined}
-        onTimeoutValidityChange={setValidationError("sessionTimeout")}
-      />
+
+      <SettingsGroup description="Lifecycle for sessions this daemon hosts." title="Sessions">
+        <SettingRow
+          data-testid="settings-page-general-session-timeout"
+          description="A session with no activity for this long is ended and kept in history. 0 keeps sessions open."
+          error={validationErrors.sessionTimeout ?? undefined}
+          label="End idle sessions after"
+          control={
+            <span className="flex items-center gap-2">
+              <SettingsNumberInput
+                className="w-28 text-right font-mono"
+                data-testid="settings-page-general-session-timeout-input"
+                min={0}
+                onValidityChange={setValidationError("sessionTimeout")}
+                onValueChange={value =>
+                  setDraft(prev => {
+                    const current = prev ?? draft;
+                    return { ...current, session_timeout: formatSessionTimeout(value) };
+                  })
+                }
+                value={parseSessionTimeoutSeconds(draft.session_timeout)}
+              />
+              <span className="text-form-label text-subtle">seconds</span>
+            </span>
+          }
+        />
+      </SettingsGroup>
+
       <DaemonSection draft={draft} setDraft={setDraft} />
       <RedactionSection draft={draft} setDraft={setDraft} />
-    </PageShell>
-  );
-}
 
-function RuntimeSection({ envelope }: { envelope: SettingsGeneralSection }) {
-  const runtime = envelope.runtime;
-  return (
-    <Section divided label="Runtime" note="read-only">
-      <MetricGrid>
-        <Metric label="UDS socket" value={runtime.socket ?? envelope.config.daemon.socket} />
-        <Metric
-          label="HTTP bind"
-          value={
-            runtime.http_host && runtime.http_port
-              ? `${runtime.http_host}:${runtime.http_port}`
-              : `${envelope.config.http.host}:${envelope.config.http.port}`
+      <SettingsGroup
+        bare
+        description="Where this daemon is listening right now. Read-only."
+        title="Runtime"
+      >
+        {runtime.available ? (
+          <SettingsTiles>
+            <SettingsTile
+              label="Local socket"
+              mono
+              value={runtime.socket ?? envelope.config.daemon.socket}
+            />
+            <SettingsTile
+              label="HTTP address"
+              mono
+              value={
+                runtime.http_host && runtime.http_port
+                  ? `${runtime.http_host}:${runtime.http_port}`
+                  : `${envelope.config.http.host}:${envelope.config.http.port}`
+              }
+            />
+            <SettingsTile
+              dotTone={runtime.active_sessions > 0 ? "success" : "neutral"}
+              label="Active sessions"
+              value={String(runtime.active_sessions)}
+            />
+            <SettingsTile
+              label="Agents running"
+              value={`${runtime.active_agents} of ${envelope.config.limits.max_concurrent_agents} max`}
+            />
+          </SettingsTiles>
+        ) : (
+          <SettingsRuntimeUnavailable
+            slug="general"
+            description="Session, agent, socket, and uptime facts could not be measured."
+          />
+        )}
+      </SettingsGroup>
+
+      <GeneralUpdateSection
+        data={update.data}
+        error={update.error}
+        isError={update.isError}
+        isFetching={update.isFetching}
+        isLoading={update.isLoading}
+        onRetry={() => void update.refetch()}
+      />
+
+      <SettingsAdvancedFold data-testid="settings-page-general-advanced">
+        <SettingRow
+          data-testid="settings-page-general-reload"
+          description="Re-read the config file without restarting the daemon."
+          label={
+            <>
+              Reload configuration <SettingsProvChip>config.toml</SettingsProvChip>
+            </>
           }
-        />
-        <Metric label="Active sessions" value={String(runtime.active_sessions)} />
-        <Metric
-          label="Concurrent agents"
-          value={`${runtime.active_agents} / ${envelope.config.limits.max_concurrent_agents} max`}
-        />
-      </MetricGrid>
-    </Section>
-  );
-}
-
-function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
-  const snapshot = update.data ?? null;
-  const transportError =
-    update.error instanceof Error ? update.error.message : "Failed to load update status";
-  const releaseLink = snapshot?.release_url ? (
-    <Button
-      nativeButton={false}
-      variant="outline"
-      size="sm"
-      render={
-        <a
-          aria-label="Open release notes"
-          href={snapshot.release_url}
-          rel="noreferrer"
-          target="_blank"
-          data-testid="settings-page-general-update-release-link"
-        />
-      }
-    >
-      <ExternalLink className="size-3 text-subtle" />
-      Release notes
-    </Button>
-  ) : null;
-  const refreshIndicator = update.isFetching ? (
-    <span className="inline-flex items-center gap-1.5 text-xs text-muted">
-      <Spinner className="size-3 text-subtle" />
-      Checking
-    </span>
-  ) : null;
-  const retryButton = update.error ? (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      onClick={() => void update.refetch()}
-      data-testid="settings-page-general-update-retry"
-    >
-      Retry
-    </Button>
-  ) : null;
-  const statusValue = snapshot
-    ? formatUpdateStatus(snapshot.status)
-    : update.isLoading || update.isFetching
-      ? "checking"
-      : "unavailable";
-  const lastError = snapshot?.last_error ?? (snapshot ? null : transportError);
-
-  return (
-    <Section
-      divided
-      label="Software update"
-      note="Read-only. AGH self-updates direct-binary installs on macOS and Linux; managed installs return exact upgrade guidance."
-      right={
-        releaseLink || refreshIndicator || retryButton ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {releaseLink}
-            {refreshIndicator}
-            {retryButton}
-          </div>
-        ) : undefined
-      }
-    >
-      <MetricGrid>
-        <Metric
-          label="Status"
-          value={statusValue}
-          subtext={snapshot?.supported ? undefined : "manual update path"}
-          data-testid="settings-page-general-update-status"
-        />
-        <Metric
-          label="Current version"
-          value={snapshot?.current_version ?? "--"}
-          data-testid="settings-page-general-update-current-version"
-        />
-        <Metric
-          label="Latest stable"
-          value={snapshot?.latest_version ?? "--"}
-          data-testid="settings-page-general-update-latest-version"
-        />
-        <Metric
-          label="Install method"
-          value={snapshot?.install_method ?? "--"}
-          data-testid="settings-page-general-update-install-method"
-        />
-        <Metric
-          label="Managed"
-          value={snapshot ? (snapshot.managed ? "yes" : "no") : "--"}
-          data-testid="settings-page-general-update-managed"
-        />
-        <Metric
-          label="Last checked"
-          value={formatUpdateTimestamp(snapshot?.checked_at)}
-          data-testid="settings-page-general-update-checked-at"
-        />
-      </MetricGrid>
-      {snapshot?.recommendation ? (
-        <SettingsFieldRow
-          data-testid="settings-page-general-update-recommendation"
-          label="Next action"
-          description="Exact command or package-manager path for this install"
           control={
-            <span className="max-w-136 font-mono text-xs text-fg">{snapshot.recommendation}</span>
+            <Button
+              data-testid="settings-page-general-reload-button"
+              disabled={page.isReloading}
+              onClick={page.handleReload}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              {page.isReloading ? <Spinner className="size-3" /> : null}
+              Reload
+            </Button>
           }
         />
-      ) : null}
-      {lastError ? (
-        <SettingsFieldRow
-          data-testid="settings-page-general-update-last-error"
-          label="Last error"
-          description="The last update refresh that failed"
-          control={<span className="max-w-136 font-mono text-xs text-danger">{lastError}</span>}
+        <SettingActionRow
+          data-testid="settings-page-general-apply-records"
+          description={
+            page.applyRecords.data?.entries?.length
+              ? `${page.applyRecords.data.entries.length} apply records.`
+              : "History of applied configuration changes."
+          }
+          label="Configuration changes"
+          onClick={() => setApplyRecordsOpen(true)}
         />
-      ) : null}
-    </Section>
+        <SettingRow
+          description="Workspace overlays can override values from this file."
+          label="Config file"
+          control={<SettingValue mono>{envelope.config_paths?.global_config ?? "—"}</SettingValue>}
+        />
+        {update.data ? (
+          <SettingRow
+            data-testid="settings-page-general-update-detail"
+            description={
+              update.data.recommendation ??
+              "Latest stable and install-method detail for this machine."
+            }
+            label="Update detail"
+            control={
+              <SettingValue mono>
+                {update.data.latest_version ?? "—"} · {update.data.install_method ?? "—"}
+              </SettingValue>
+            }
+          />
+        ) : null}
+      </SettingsAdvancedFold>
+
+      <Sheet onOpenChange={setApplyRecordsOpen} open={applyRecordsOpen}>
+        <SheetContent
+          className="w-[min(var(--width-settings-sheet),calc(100vw-var(--spacing-settings-sheet-viewport-gutter)))] sm:max-w-none"
+          data-testid="settings-page-general-apply-records-sheet"
+          side="right"
+        >
+          <SheetHeader>
+            <SheetTitle>Configuration changes</SheetTitle>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <SettingsApplyRecordsPanel
+              records={page.applyRecords.data?.entries ?? []}
+              isLoading={page.applyRecords.isLoading}
+              isFetching={page.applyRecords.isFetching}
+              error={page.applyRecords.error instanceof Error ? page.applyRecords.error : null}
+              reloadError={page.reloadError}
+              reloadResult={page.reloadResult}
+              isReloading={page.isReloading}
+              onRefresh={() => void page.applyRecords.refetch()}
+              onReload={page.handleReload}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </SettingsPageFrame>
   );
 }
 
@@ -320,42 +355,44 @@ interface DraftSectionProps {
   setDraft: Dispatch<SetStateAction<GeneralConfig | null>>;
 }
 
-function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
+function DefaultsGroup({ draft, setDraft }: DraftSectionProps) {
+  const providers = useSettingsProviders();
+  const sandboxes = useSettingsSandboxes();
+  const providerNames = (providers.data?.providers ?? []).map(entry => entry.name);
+  const sandboxNames = (sandboxes.data?.sandboxes ?? []).map(entry => entry.name);
+
   return (
-    <Section divided label="Defaults" note="applied to new sessions">
-      <SettingsFieldRow
+    <SettingsGroup
+      data-testid="settings-page-general-defaults"
+      description="What new sessions start with unless you pick something else."
+      title="Defaults"
+    >
+      <SettingRow
         data-testid="settings-page-general-default-agent"
+        description="Used when you start a session without choosing an agent."
         label="Default agent"
-        description="Used when a new session doesn't specify one"
-        hint="CONFIG.TOML"
         control={
           <Input
-            className="w-56"
+            className="w-52"
             data-testid="settings-page-general-default-agent-input"
-            value={draft.defaults.agent}
             onChange={event =>
               setDraft(prev => {
                 const current = prev ?? draft;
-                return {
-                  ...current,
-                  defaults: { ...current.defaults, agent: event.target.value },
-                };
+                return { ...current, defaults: { ...current.defaults, agent: event.target.value } };
               })
             }
+            value={draft.defaults.agent}
           />
         }
       />
-      <SettingsFieldRow
+      <SettingRow
         data-testid="settings-page-general-default-provider"
+        description="The provider new agents run on when none is set."
         label="Default provider"
-        description="LLM backend agents spawn against"
-        hint="OPTIONAL"
         control={
-          <Input
-            className="w-56"
+          <NativeSelect
+            className="w-52"
             data-testid="settings-page-general-default-provider-input"
-            value={draft.defaults.provider ?? ""}
-            placeholder="auto"
             onChange={event =>
               setDraft(prev => {
                 const current = prev ?? draft;
@@ -365,20 +402,25 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
                 };
               })
             }
-          />
+            value={draft.defaults.provider ?? ""}
+          >
+            <NativeSelectOption value="">auto</NativeSelectOption>
+            {providerNames.map(name => (
+              <NativeSelectOption key={name} value={name}>
+                {name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
         }
       />
-      <SettingsFieldRow
+      <SettingRow
         data-testid="settings-page-general-default-sandbox"
+        description="How much of your file system new sessions can touch."
         label="Default sandbox"
-        description="Execution profile for new workspaces"
-        hint="DEFAULT"
         control={
-          <Input
-            className="w-56 font-mono"
+          <NativeSelect
+            className="w-52 font-mono"
             data-testid="settings-page-general-default-sandbox-input"
-            value={draft.defaults.sandbox ?? ""}
-            placeholder="local"
             onChange={event =>
               setDraft(prev => {
                 const current = prev ?? draft;
@@ -388,88 +430,17 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
                 };
               })
             }
-          />
+            value={draft.defaults.sandbox ?? ""}
+          >
+            <NativeSelectOption value="">local</NativeSelectOption>
+            {sandboxNames.map(name => (
+              <NativeSelectOption key={name} value={name}>
+                {name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
         }
       />
-    </Section>
+    </SettingsGroup>
   );
-}
-
-function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
-  return (
-    <Section divided label="Permissions" note="tool approval policy">
-      <PillGroup
-        className="max-w-full flex-wrap"
-        data-testid="settings-page-general-permissions-group"
-        aria-label="Tool approval policy"
-        value={draft.permissions.mode}
-        onChange={mode =>
-          setDraft(prev => {
-            const current = prev ?? draft;
-            return { ...current, permissions: { mode } };
-          })
-        }
-        items={PERMISSION_MODES.map(mode => ({
-          value: mode,
-          label: mode,
-          testId: `settings-page-general-permission-${mode}`,
-        }))}
-      />
-      <p className="text-xs text-subtle">{describePermissionMode(draft.permissions.mode)}</p>
-    </Section>
-  );
-}
-
-function SessionSection({
-  draft,
-  setDraft,
-  timeoutError,
-  onTimeoutValidityChange,
-}: DraftSectionProps & {
-  timeoutError?: string;
-  onTimeoutValidityChange: (message: string | null) => void;
-}) {
-  return (
-    <Section divided label="Session" note="runtime limits">
-      <SettingsFieldRow
-        data-testid="settings-page-general-session-timeout"
-        label="Session timeout"
-        description="0 disables force-close"
-        error={timeoutError}
-        hint="SECONDS"
-        control={
-          <div className="flex max-w-full flex-wrap items-center gap-2">
-            <SettingsNumberInput
-              min={0}
-              className="w-28"
-              data-testid="settings-page-general-session-timeout-input"
-              value={parseSessionTimeoutSeconds(draft.session_timeout)}
-              onValidityChange={onTimeoutValidityChange}
-              onValueChange={value =>
-                setDraft(prev => {
-                  const current = prev ?? draft;
-                  return {
-                    ...current,
-                    session_timeout: formatSessionTimeout(value),
-                  };
-                })
-              }
-            />
-            <Eyebrow className="text-muted">seconds</Eyebrow>
-          </div>
-        }
-      />
-    </Section>
-  );
-}
-
-function describePermissionMode(mode: PermissionMode): string {
-  switch (mode) {
-    case "deny-all":
-      return "All tool calls denied unless explicitly allowed by agent frontmatter.";
-    case "approve-reads":
-      return "Read-only tool calls auto-approved. Writes require confirmation.";
-    case "approve-all":
-      return "All tool calls auto-approved. Agents can lower this individually via their permissions: frontmatter.";
-  }
 }

@@ -18,8 +18,7 @@ type Story = StoryObj<typeof meta>;
 export const Clean: Story = {
   args: {
     slug: "general",
-    isDirty: false,
-    isSaving: false,
+    state: { kind: "idle" },
     onSave: fn(),
     onReset: fn(),
   },
@@ -28,8 +27,7 @@ export const Clean: Story = {
 export const Dirty: Story = {
   args: {
     slug: "general",
-    isDirty: true,
-    isSaving: false,
+    state: { kind: "dirty", warnings: [] },
     onSave: fn(),
     onReset: fn(),
   },
@@ -38,8 +36,7 @@ export const Dirty: Story = {
 export const Saving: Story = {
   args: {
     slug: "general",
-    isDirty: true,
-    isSaving: true,
+    state: { kind: "saving" },
     onSave: fn(),
     onReset: fn(),
   },
@@ -48,9 +45,7 @@ export const Saving: Story = {
 export const Invalid: Story = {
   args: {
     slug: "general",
-    isDirty: true,
-    isSaving: false,
-    isInvalid: true,
+    state: { kind: "invalid", warnings: [] },
     onSave: fn(),
     onReset: fn(),
   },
@@ -59,9 +54,7 @@ export const Invalid: Story = {
 export const WithError: Story = {
   args: {
     slug: "general",
-    isDirty: true,
-    isSaving: false,
-    error: "Could not reach the daemon",
+    state: { kind: "error", message: "Could not reach the daemon" },
     onSave: fn(),
     onReset: fn(),
   },
@@ -70,9 +63,11 @@ export const WithError: Story = {
 export const WithWarnings: Story = {
   args: {
     slug: "general",
-    isDirty: true,
-    isSaving: false,
-    warnings: ["Restart required", "Sandbox mismatch"],
+    state: {
+      kind: "warning",
+      message: "Saved with warnings",
+      warnings: ["Restart required", "Sandbox mismatch"],
+    },
     onSave: fn(),
     onReset: fn(),
   },
@@ -81,9 +76,7 @@ export const WithWarnings: Story = {
 export const LastApplied: Story = {
   args: {
     slug: "general",
-    isDirty: false,
-    isSaving: false,
-    lastAppliedLabel: "Applied 2 minutes ago",
+    state: { kind: "saved", message: "Applied 2 minutes ago" },
     onSave: fn(),
     onReset: fn(),
   },
@@ -91,7 +84,7 @@ export const LastApplied: Story = {
 
 /**
  * Interaction test: flips isDirty true → false via Discard and asserts the
- * buttons disable and the placeholder copy returns.
+ * save bar leaves the page once the draft is clean.
  */
 export const DirtyToCleanInteraction: Story = {
   tags: ["play-fn"],
@@ -101,8 +94,7 @@ export const DirtyToCleanInteraction: Story = {
       return (
         <SettingsSaveBar
           slug="general"
-          isDirty={isDirty}
-          isSaving={false}
+          state={isDirty ? { kind: "dirty", warnings: [] } : { kind: "idle" }}
           onSave={() => setIsDirty(false)}
           onReset={() => setIsDirty(false)}
         />
@@ -113,11 +105,8 @@ export const DirtyToCleanInteraction: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const reset = canvas.getByTestId("settings-page-general-reset");
-    const save = canvas.getByTestId("settings-page-general-save");
     await expect(reset).not.toBeDisabled();
     await userEvent.click(reset);
-    await expect(save).toBeDisabled();
-    await expect(reset).toBeDisabled();
-    await expect(canvas.getByText(/No unsaved changes/i)).toBeInTheDocument();
+    await expect(canvas.queryByTestId("settings-page-general-save-bar")).not.toBeInTheDocument();
   },
 };

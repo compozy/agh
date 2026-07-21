@@ -5,7 +5,7 @@ import { aghApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
 import {
-  StorybookRestartBannerSetup,
+  StorybookRestartNoticeSetup,
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
   appRouteParameters,
@@ -20,7 +20,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Network settings route stories covering the runtime summary, restart banner, and request boundary states.",
+          "Network settings route stories covering the runtime summary, restart notice, and request boundary states.",
       },
     },
   },
@@ -56,13 +56,13 @@ export const Dirty: Story = {
 /**
  * Restart-required banner after a Network settings update requires daemon reconciliation.
  */
-export const RestartBanner: Story = {
+export const RestartNotice: Story = {
   args: {},
   parameters: appRouteParameters("/settings/network"),
   render: () => (
     <>
       <StorybookWorkspaceSetup />
-      <StorybookRestartBannerSetup section="network" />
+      <StorybookRestartNoticeSetup section="network" />
     </>
   ),
 };

@@ -24,10 +24,18 @@ export function StorybookRestartPhaseSetup({
   section: SettingsSectionName;
   overrides: RestartOverrides;
 }) {
+  const {
+    activeSessionCount = 0,
+    failureReason,
+    mutationRestartRequired = false,
+    operationId,
+    status,
+  } = overrides;
+
   useEffect(() => {
     const store = useSettingsRestartStore.getState();
     store.recordMutation(
-      overrides.mutationRestartRequired
+      mutationRestartRequired
         ? {
             section,
             restartRequired: true,
@@ -37,21 +45,21 @@ export function StorybookRestartPhaseSetup({
           }
         : null
     );
-    if (overrides.operationId && overrides.status) {
+    if (operationId && status) {
       store.startRestart({
-        operationId: overrides.operationId,
-        status: overrides.status,
-        activeSessionCount: overrides.activeSessionCount ?? 0,
+        operationId,
+        status,
+        activeSessionCount,
       });
       store.updateRestart({
-        status: overrides.status,
-        activeSessionCount: overrides.activeSessionCount ?? 0,
-        failureReason: overrides.failureReason,
+        status,
+        activeSessionCount,
+        failureReason,
       });
     } else {
       store.clearRestart();
     }
-  }, [section, overrides]);
+  }, [activeSessionCount, failureReason, mutationRestartRequired, operationId, section, status]);
 
   return null;
 }

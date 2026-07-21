@@ -45,14 +45,6 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/hooks/routes/use-mcp-authorize", () => ({
-  useMCPAuthorize: () => ({
-    acknowledgeStatus: mocks.acknowledgeStatus,
-    beginAuthorize: mocks.beginAuthorize,
-    isAwaiting: mocks.isAwaiting,
-  }),
-}));
-
 vi.mock("@/systems/settings", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/settings")>();
   return {
@@ -67,6 +59,11 @@ vi.mock("@/systems/settings", async importOriginal => {
       mocks.mcpQueryCalls.push({ filter, options });
       return filter.scope === "global" ? mocks.globalMCP : mocks.workspaceMCP;
     },
+    useMCPAuthorize: () => ({
+      acknowledgeStatus: mocks.acknowledgeStatus,
+      beginAuthorize: mocks.beginAuthorize,
+      isAwaiting: mocks.isAwaiting,
+    }),
   };
 });
 

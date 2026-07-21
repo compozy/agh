@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { toNetworkPresenceState } from "../lib/network-formatters";
+import { getOtherDirectSessionId } from "../lib/network-window-location";
 import { networkPeersOptions } from "../lib/query-options";
 import type {
   NetworkConversationMessage,
@@ -35,19 +36,6 @@ export interface UseDirectRoomResult {
   lastReadIso: string | null;
 }
 
-function pickOtherSessionId(
-  detail: NetworkDirectRoomDetail | null,
-  selfSessionId?: string
-): string {
-  if (!detail) {
-    return "";
-  }
-  if (!selfSessionId) {
-    return detail.session_a;
-  }
-  return detail.session_a === selfSessionId ? detail.session_b : detail.session_a;
-}
-
 function presenceFromPeer(peer: NetworkPeerSummary | undefined): NetworkPresence {
   return {
     state: toNetworkPresenceState(peer?.presence_state),
@@ -68,7 +56,9 @@ export function useDirectRoom({
     enabled: Boolean(detail.direct),
     surface: "direct",
   });
-  const otherSessionId = pickOtherSessionId(detail.direct, selfSessionId);
+  const otherSessionId = detail.direct
+    ? (getOtherDirectSessionId(detail.direct, selfSessionId) ?? "")
+    : "";
   const peersQuery = useQuery(
     networkPeersOptions(workspaceId, channel, Boolean(workspaceId && channel && otherSessionId))
   );

@@ -80,6 +80,8 @@ describe("ThreadOverlayHeader", () => {
       <ThreadOverlayHeader
         channel="ops"
         detail={detail}
+        onClose={() => undefined}
+        onOpenMain={() => undefined}
         rootMessageId="msg_root"
         selfSessionId="session-self"
         threadId="thread_ops"

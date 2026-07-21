@@ -107,7 +107,8 @@ describe("TaskEditorModal", () => {
     renderModal();
 
     expect(screen.getByTestId("task-editor-modal")).toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-modal-title")).toHaveTextContent("Create task");
+    expect(screen.queryByTestId("task-editor-modal-title")).not.toBeInTheDocument();
+    expect(screen.getByText(/A task is a durable contract/)).toBeInTheDocument();
     expect(screen.getByTestId("task-mode-simple")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("task-template-one_shot")).toBeInTheDocument();
     expect(screen.getByTestId("task-template-human_in_loop")).toBeInTheDocument();
@@ -216,7 +217,8 @@ describe("TaskEditorModal", () => {
 
     renderModal({ mode: "edit", draft, task: editTask });
 
-    expect(screen.getByTestId("task-editor-modal-title")).toHaveTextContent("Edit task");
+    expect(screen.queryByTestId("task-editor-modal-title")).not.toBeInTheDocument();
+    expect(screen.getByText(/A task is a durable contract/)).toBeInTheDocument();
     expect(screen.queryByTestId("task-mode-simple")).not.toBeInTheDocument();
     expect(screen.queryByTestId("task-mode-advanced")).not.toBeInTheDocument();
     expect(screen.queryByTestId("task-template-one_shot")).not.toBeInTheDocument();

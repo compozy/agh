@@ -2,9 +2,10 @@ package workspace
 
 import "context"
 
-// UnregisterPreparation owns reversible external state that must be staged
-// before the workspace row and its database-owned children are deleted.
+// UnregisterPreparation owns reversible external state around deletion of a
+// workspace row and its database-owned children.
 type UnregisterPreparation interface {
+	BeforeDelete(ctx context.Context) error
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
 }

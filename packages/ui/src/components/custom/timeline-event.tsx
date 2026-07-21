@@ -30,6 +30,15 @@ const TONE_DOT: Record<PillTone, string> = {
   info: "bg-info",
 };
 
+const TONE_ICON: Record<PillTone, string> = {
+  neutral: "text-muted",
+  accent: "text-accent",
+  success: "text-success",
+  warning: "text-warning",
+  danger: "text-danger",
+  info: "text-info",
+};
+
 function TimelineEvent({
   title,
   description,
@@ -56,7 +65,12 @@ function TimelineEvent({
           className="absolute left-2 top-2 inline-flex size-2 -translate-x-1/2 items-center justify-center"
         >
           {Icon ? (
-            <span className="inline-flex size-3 items-center justify-center rounded-full bg-canvas-soft text-muted">
+            <span
+              className={cn(
+                "inline-flex size-3 items-center justify-center rounded-full bg-canvas-soft",
+                TONE_ICON[tone]
+              )}
+            >
               <Icon className="size-3" />
             </span>
           ) : (

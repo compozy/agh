@@ -1,5 +1,5 @@
-import { SettingsFieldRow, SettingsNumberInput } from "@/systems/settings";
-import { Input, Section, Switch } from "@agh/ui";
+import { SettingsFieldRow, SettingsGroup, SettingsNumberInput } from "@/systems/settings";
+import { Input, Switch } from "@agh/ui";
 import {
   type DraftSectionProps,
   type ValidatedSectionProps,
@@ -13,7 +13,7 @@ export function SessionLedgerSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <Section divided label="Session ledger" note="forensic JSONL ledger materialization">
+    <SettingsGroup title="Session ledger" description="forensic JSONL ledger materialization">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-ledger-format`}
         label="Ledger format"
@@ -156,7 +156,7 @@ export function SessionLedgerSection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -167,7 +167,7 @@ export function DailyLogsSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <Section divided label="Daily logs" note="rotation, dreaming window, and archival">
+    <SettingsGroup title="Daily logs" description="rotation, dreaming window, and archival">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-max-bytes`}
         label="Max bytes per file"
@@ -362,7 +362,7 @@ export function DailyLogsSection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -373,7 +373,7 @@ export function FileCapsSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <Section divided label="File caps" note="MEMORY.md projection ceilings">
+    <SettingsGroup title="File caps" description="MEMORY.md projection ceilings">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-file-max-lines`}
         label="Max lines"
@@ -422,13 +422,13 @@ export function FileCapsSection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }
 
 export function WorkspaceIdentitySection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <Section divided label="Workspace identity" note=".agh/workspace.toml lifecycle">
+    <SettingsGroup title="Workspace identity" description=".agh/workspace.toml lifecycle">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-workspace-toml-path`}
         label="Workspace toml path"
@@ -462,6 +462,6 @@ export function WorkspaceIdentitySection({ draft, setDraft }: DraftSectionProps)
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }

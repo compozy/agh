@@ -266,6 +266,28 @@ export async function rejectTask(id: string, signal?: AbortSignal): Promise<Task
   return requireResponseData(data, response, `Failed to reject task "${id}"`).task;
 }
 
+export async function clearTaskBlock(
+  id: string,
+  blockId: string,
+  note?: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.POST("/api/tasks/{id}/blocks/{block_id}/clear", {
+    params: { path: { id, block_id: blockId } },
+    body: note ? { note } : {},
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new TasksApiError(`Task "${id}" or block "${blockId}" was not found`, 404);
+    }
+    throw new TasksApiError(
+      defaultApiErrorMessage(`Failed to clear block "${blockId}" on task "${id}"`, response, error),
+      response.status
+    );
+  }
+}
+
 export async function createChildTask(
   parentId: string,
   body: CreateChildTaskRequest,

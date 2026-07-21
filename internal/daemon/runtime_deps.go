@@ -74,5 +74,6 @@ type RuntimeDeps struct {
 	Extensions          udsapi.ExtensionService
 	Bundles             core.BundleService
 	Resources           core.ResourceService
+	DesktopState        core.DesktopStateService
 	StartedAt           time.Time
 }

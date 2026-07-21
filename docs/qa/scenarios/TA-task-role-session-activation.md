@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-complete-task-tree
 expected: A spawned task-role session receives one initial turn after ACP readiness, claims and attaches its assigned queued run through the lease contract, and surfaces a prompt/start failure promptly instead of idling until TTL.
 entry_points: scheduler starvation recovery; Web agent Sessions; Web task run detail
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260713-task-role-session-never-starts;BUG-20260713-task-role-dispatch-repeats;BUG-20260713-cursor-agent-mode-unavailable
 fix_status: fixed
 retest_status: pass
@@ -23,3 +23,5 @@ The task-role prompt must be actively dispatched; storing it only as `creation_p
 2026-07-13 residual: the same session later contained 14 assistant responses for the same still-queued run with no user prompt or explicit recovery. The first-turn fix is therefore not durable-idempotent after prompt completion; BUG-20260713-task-role-dispatch-repeats tracks the provider-spend/transcript-flood regression.
 
 2026-07-14 final retest: four fresh Cursor/Grok task-role sessions each received one correlated activation, claimed one existing run, and completed exactly once. The faithful AGH-71 children retained one session/run pair each and no polling redispatch appeared.
+
+2026-07-21: qa_status reset to untested — the opendesign redesigns restructured this scenario's web entry surface (task detail/run detail 3-tab IA, settings takeover shell, or providers page); the pass verdict predates that surface.

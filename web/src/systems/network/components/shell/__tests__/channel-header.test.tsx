@@ -5,30 +5,6 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({
-    to,
-    params,
-    children,
-    ...rest
-  }: {
-    to: string;
-    params?: Record<string, string>;
-    children: ReactNode;
-    [key: string]: unknown;
-  }) => {
-    const path = Object.entries(params ?? {}).reduce(
-      (acc, [key, value]) => acc.replace(`$${key}`, String(value)),
-      to
-    );
-    return (
-      <a href={path} {...(rest as Record<string, unknown>)}>
-        {children}
-      </a>
-    );
-  },
-}));
-
 vi.mock("../../../hooks/use-channel-members", () => ({
   useChannelMembers: () => ({
     members: [],
@@ -46,11 +22,11 @@ const WORKSPACE_ID = "w1";
 function renderHeader({
   channel = sampleChannel,
   detail = null,
-  inspectorOpen = false,
+  threadCount = 3,
 }: {
   channel?: NetworkChannelSummary;
   detail?: NetworkChannel | null;
-  inspectorOpen?: boolean;
+  threadCount?: number | null;
 } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -61,9 +37,8 @@ function renderHeader({
       workspaceId={WORKSPACE_ID}
       channel={channel}
       detail={detail}
-      inspectorOpen={inspectorOpen}
-      onInspectorToggle={() => undefined}
       openWorkCount={2}
+      threadCount={threadCount}
     />,
     { wrapper }
   );
@@ -75,28 +50,35 @@ const sampleChannel: NetworkChannelSummary = {
   created_at: "2026-04-17T14:00:00Z",
   created_by: "ops",
   peer_count: 4,
+  purpose: "Operational coordination.",
+  fanout_policy: "capability_match",
 };
 
 describe("ChannelHeader", () => {
-  it("Should emit a <DetailHeader> 24 px H1", () => {
+  it("Should render the chead title without a DetailHeader or icon tile", () => {
     renderHeader();
     const wrapper = screen.getByTestId("network-channel-header");
-    const detailHeader = wrapper.querySelector('[data-slot="detail-header"]');
-    expect(detailHeader).not.toBeNull();
-    const title = wrapper.querySelector('[data-slot="detail-header-title"]');
-    expect(title).not.toBeNull();
+    expect(wrapper.querySelector('[data-slot="detail-header"]')).toBeNull();
+    expect(wrapper.querySelector('[data-slot="page-header-icon"]')).toBeNull();
     expect(screen.getByTestId("network-channel-title")).toHaveTextContent("ops");
   });
 
-  it("Should NOT render the channel-search button", () => {
+  it("Should carry no action buttons (inspector toggle and kebab live in the toolbar)", () => {
     renderHeader();
-    expect(screen.queryByTestId("network-channel-search")).toBeNull();
-    expect(screen.queryByRole("button", { name: /search/i })).toBeNull();
+    expect(screen.queryByTestId("network-channel-inspector-toggle")).toBeNull();
+    expect(screen.queryByTestId("network-channel-kebab")).toBeNull();
+    expect(screen.getByTestId("network-channel-header").querySelector("button")).toBeNull();
   });
 
-  it("Should expose the inspector toggle and kebab actions in the DetailHeader actions slot", () => {
+  it("Should render the work pill, fanout pill, purpose line, and dot meta", () => {
     renderHeader();
-    expect(screen.getByTestId("network-channel-inspector-toggle")).toBeInTheDocument();
-    expect(screen.getByTestId("network-channel-kebab")).toBeInTheDocument();
+    expect(screen.getByTestId("network-channel-work-pill")).toHaveTextContent("2 work open");
+    expect(screen.getByTestId("network-channel-fanout-pill")).toHaveTextContent("capability_match");
+    expect(screen.getByTestId("network-channel-purpose")).toHaveTextContent(
+      "Operational coordination."
+    );
+    expect(screen.getByTestId("network-channel-meta-agents")).toHaveTextContent("1 agent");
+    expect(screen.getByTestId("network-channel-meta-humans")).toHaveTextContent("1 human");
+    expect(screen.getByTestId("network-channel-meta-threads")).toHaveTextContent("3 threads");
   });
 });

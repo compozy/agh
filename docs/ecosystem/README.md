@@ -243,6 +243,8 @@ A bridge should not automatically be treated as a complete business connector. E
 
 ## The plug-and-play platform gap
 
+> **Product decision — 2026-07-20 (binding). The ten platform gaps below are `rejected` as core/engine roadmap work — do not implement them.** They were reviewed and pruned; the only accepted new core investment from the platform-enabling catalog is **credential/secret liveness health** (see PE-015, "accepted — health only", in [extension-opportunities.md](extension-opportunities.md#platform-enabling-opportunities)). The accepted product direction is that connectors converge on MCP servers (OAuth handled by the existing MCP layer) or subprocess extensions that ship real code and read API keys from the vault, so no-code import/compilation, a generic OAuth broker, signing/registry/conformance tooling, and bundle composition (dependency resolution, profile-scoped resources, capability contracts) are out of scope. The sections below are retained as historical analysis only.
+
 The current runtime can validate bundle projection mechanics with a self-contained prototype. It cannot make the named showcase packages plug-and-play without explicit platform work.
 
 ### 1. Transactional dependency resolution
@@ -401,9 +403,11 @@ Marketplace ranking should not reduce trust to stars or downloads. Better signal
 
 ### Wave 3 — composable marketplace
 
-- Add dependency resolution, provider selection, profile-scoped resource semantics, ownership-aware updates, and signed releases.
-- Open verified partner and community lanes.
-- Add collections, remix, bounties, and migration paths.
+> **Rejected by the 2026-07-20 decision — do not implement.** Dependency resolution, provider/capability selection, profile-scoped resource semantics, ownership-aware update diffs, and signed releases are out of scope (see the platform-gap decision note above and the PE table in extension-opportunities.md). This wave is retained as historical analysis only.
+
+- ~~Add dependency resolution, provider selection, profile-scoped resource semantics, ownership-aware updates, and signed releases.~~
+- ~~Open verified partner and community lanes.~~
+- ~~Add collections, remix, bounties, and migration paths.~~
 
 ### Wave 4 — vertical expansion
 

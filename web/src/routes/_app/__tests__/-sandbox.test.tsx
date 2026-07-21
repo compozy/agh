@@ -3,9 +3,9 @@ import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SettingsSandboxEntry } from "@/systems/settings";
-import { SandboxPage } from "../-sandbox-page";
+import { SandboxPage } from "@/systems/sandbox";
 
-type RestartBanner = {
+type RestartNotice = {
   isVisible: boolean;
   isRestartRequired: boolean;
   isPolling: boolean;
@@ -74,7 +74,7 @@ type PageState = {
   openInspect: ReturnType<typeof vi.fn>;
   closeInspect: ReturnType<typeof vi.fn>;
   refetch: ReturnType<typeof vi.fn>;
-  restart: RestartBanner;
+  restart: RestartNotice;
   editor: { mode: "closed" | "create" | "edit"; [key: string]: unknown };
   editorIsValid: boolean;
   editorError: string | null;
@@ -100,7 +100,7 @@ type PageState = {
   dismissLastAction: ReturnType<typeof vi.fn>;
 };
 
-const restartBanner: RestartBanner = {
+const restartNotice: RestartNotice = {
   isVisible: false,
   isRestartRequired: false,
   isPolling: false,
@@ -118,8 +118,8 @@ const restartBanner: RestartBanner = {
 
 let pageState: PageState;
 
-vi.mock("@/hooks/routes/use-sandbox-page", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/hooks/routes/use-sandbox-page")>();
+vi.mock("@/systems/sandbox/hooks/use-sandbox-page", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/sandbox/hooks/use-sandbox-page")>();
   return {
     ...actual,
     useSandboxPage: () => pageState,
@@ -150,7 +150,7 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     openInspect: vi.fn(),
     closeInspect: vi.fn(),
     refetch: vi.fn(),
-    restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
+    restart: { ...restartNotice, trigger: vi.fn(), dismiss: vi.fn() },
     editor: { mode: "closed" },
     editorIsValid: false,
     editorError: null,

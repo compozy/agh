@@ -1,5 +1,5 @@
-import { SettingsFieldRow, SettingsNumberInput } from "@/systems/settings";
-import { Input, Section, Switch } from "@agh/ui";
+import { SettingsFieldRow, SettingsGroup, SettingsNumberInput } from "@/systems/settings";
+import { Input, Switch } from "@agh/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
 export function ControllerSection({
@@ -10,10 +10,9 @@ export function ControllerSection({
 }: ValidatedSectionProps) {
   const allowOrigins = draft.controller.policy.allow_origins.join(", ");
   return (
-    <Section
-      divided
-      label="Write controller"
-      note="lexical/entity-only ADD / UPDATE / DELETE / NOOP / REJECT pipeline"
+    <SettingsGroup
+      title="Write controller"
+      description="lexical/entity-only ADD / UPDATE / DELETE / NOOP / REJECT pipeline"
     >
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-controller-mode`}
@@ -151,7 +150,7 @@ export function ControllerSection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -163,7 +162,10 @@ export function ControllerLLMSection({
 }: ValidatedSectionProps) {
   const llmDisabled = !draft.controller.llm.enabled;
   return (
-    <Section divided label="Controller LLM tiebreaker" note="entity-slot ambiguity escalations">
+    <SettingsGroup
+      title="Controller LLM tiebreaker"
+      description="entity-slot ambiguity escalations"
+    >
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-controller-llm-enabled`}
         label="LLM tiebreaker"
@@ -321,6 +323,6 @@ export function ControllerLLMSection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }

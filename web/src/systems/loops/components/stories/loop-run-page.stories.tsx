@@ -12,7 +12,6 @@ import { LoopFailureDetail } from "../run-page/loop-failure-detail";
 import { LoopApprovalGate } from "../run-page/loop-approval-gate";
 import { LoopGenerationTimeline } from "../run-page/loop-generation-timeline";
 import { LoopRunContractHeader } from "../run-page/loop-run-contract-header";
-import { LoopRunControls } from "../run-page/loop-run-controls";
 import { LoopRunEventsRail } from "../run-page/loop-run-events-rail";
 import { LoopRunFacts } from "../run-page/loop-run-facts";
 import { LoopRunMeters } from "../run-page/loop-run-meters";
@@ -133,15 +132,6 @@ function RunPage({ run, definition, generations, live }: RunPageProps) {
         <LoopRunContractHeader
           run={run}
           contract={definition.contract}
-          controls={
-            <LoopRunControls
-              status={run.status}
-              pauseRequested={run.pause_requested}
-              onPause={() => undefined}
-              onResume={() => undefined}
-              onStop={() => undefined}
-            />
-          }
           meters={<LoopRunMeters meters={meters} />}
         />
         <div className="flex flex-col gap-4 px-6 py-5">

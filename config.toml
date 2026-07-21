@@ -5,6 +5,10 @@ socket = "~/.agh/daemon.sock"
 host = "localhost"
 port = 2123
 
+[desktop_state]
+max_value_kib = 256
+max_keys_per_workspace = 512
+
 [defaults]
 agent = "general"
 provider = "claude"

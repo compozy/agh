@@ -1,3 +1,4 @@
+import * as React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -10,6 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "../sheet";
+import { OverlayContainerContext } from "../hooks/use-overlay-container";
 import { Button } from "../button";
 
 type Side = "top" | "right" | "bottom" | "left";
@@ -71,6 +73,53 @@ describe("Sheet", () => {
     ) as HTMLElement | null;
 
     expect(overlay).not.toBeNull();
+  });
+
+  it("Should keep a window-scoped sheet open while a peer surface remains interactive", async () => {
+    const user = userEvent.setup();
+
+    function WindowHost() {
+      const ref = React.useRef<HTMLDivElement | null>(null);
+      const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
+      const [peerValue, setPeerValue] = React.useState("");
+      React.useEffect(() => setContainer(ref.current), []);
+
+      return (
+        <>
+          <div ref={ref} data-testid="os-window">
+            {container ? (
+              <OverlayContainerContext.Provider value={container}>
+                <Sheet defaultOpen>
+                  <SheetContent>
+                    <SheetTitle>Window detail</SheetTitle>
+                  </SheetContent>
+                </Sheet>
+              </OverlayContainerContext.Provider>
+            ) : null}
+          </div>
+          <input
+            aria-label="Peer composer"
+            value={peerValue}
+            onChange={event => setPeerValue(event.target.value)}
+          />
+        </>
+      );
+    }
+
+    render(<WindowHost />);
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    const windowEl = screen.getByTestId("os-window");
+    const sheet = screen.getByRole("dialog");
+    expect(windowEl.contains(sheet)).toBe(true);
+
+    const peerComposer = screen.getByRole("textbox", { name: "Peer composer" });
+    await user.click(peerComposer);
+    expect(peerComposer).toHaveFocus();
+    fireEvent.change(peerComposer, { target: { value: "still active" } });
+
+    expect(peerComposer).toHaveValue("still active");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("Should throw when SheetContent is used outside <Sheet>", () => {

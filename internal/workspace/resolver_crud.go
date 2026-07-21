@@ -70,16 +70,23 @@ func (r *Resolver) Unregister(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("workspace: prepare unregister %q: %w", trimmedID, err)
 	}
+	if preparation != nil {
+		if err := preparation.BeforeDelete(ctx); err != nil {
+			rollbackErr := preparation.Rollback(context.WithoutCancel(ctx))
+			return errors.Join(
+				fmt.Errorf("workspace: stage unregister %q: %w", trimmedID, err),
+				wrapUnregisterRollbackError(trimmedID, rollbackErr),
+			)
+		}
+	}
 
 	if err := r.store.DeleteWorkspace(ctx, trimmedID); err != nil {
 		if preparation != nil {
 			rollbackErr := preparation.Rollback(context.WithoutCancel(ctx))
-			if rollbackErr != nil {
-				return errors.Join(
-					fmt.Errorf("workspace: unregister %q: %w", trimmedID, err),
-					fmt.Errorf("workspace: roll back unregister preparation %q: %w", trimmedID, rollbackErr),
-				)
-			}
+			return errors.Join(
+				fmt.Errorf("workspace: unregister %q: %w", trimmedID, err),
+				wrapUnregisterRollbackError(trimmedID, rollbackErr),
+			)
 		}
 		return fmt.Errorf("workspace: unregister %q: %w", trimmedID, err)
 	}
@@ -106,6 +113,13 @@ func (r *Resolver) Unregister(ctx context.Context, id string) error {
 		)
 	}
 	return nil
+}
+
+func wrapUnregisterRollbackError(workspaceID string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("workspace: roll back unregister preparation %q: %w", workspaceID, err)
 }
 
 // Update mutates an existing workspace registration.

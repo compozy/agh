@@ -12,7 +12,7 @@ import {
   type AutomationJobStableFilter,
   type AutomationTriggerStableFilter,
 } from "@/systems/automation";
-import type { AutomationRouteSearch } from "@/hooks/routes/use-automation-page";
+import type { AutomationRouteSearch } from "@/systems/os/apps/automation/use-automation-page";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 

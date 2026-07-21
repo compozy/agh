@@ -8,11 +8,11 @@ import type {
   VaultEditorState,
   VaultLastAction,
   VaultNamespaceFilter,
-} from "@/hooks/routes/use-vault-page";
+} from "@/systems/vault/hooks/use-vault-page";
 import type { VaultListFilter, VaultSecret } from "@/systems/vault";
 import type { ListingViewMode } from "@agh/ui";
 
-import { VaultPage } from "../-vault-page";
+import { VaultPage } from "@/systems/vault";
 
 type PageState = {
   counts: { total: number; sessions: number; providers: number };
@@ -59,8 +59,8 @@ const { mockUseVaultPage } = vi.hoisted(() => ({
   mockUseVaultPage: vi.fn(),
 }));
 
-vi.mock("@/hooks/routes/use-vault-page", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/hooks/routes/use-vault-page")>();
+vi.mock("@/systems/vault/hooks/use-vault-page", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/vault/hooks/use-vault-page")>();
   return {
     ...actual,
     useVaultPage: (...args: unknown[]) => mockUseVaultPage(...args),

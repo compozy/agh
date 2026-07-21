@@ -23,7 +23,6 @@ export function ProviderCredentialFields({ draft, onChange }: ProviderCredential
         data-testid="settings-providers-editor-api-key"
         label="Target env"
         description="Environment variable injected from the provider credential slot."
-        hint="OPTIONAL"
         control={
           <div className="flex items-center gap-2">
             <KeyRound aria-hidden="true" className="size-3 text-subtle" />
@@ -45,7 +44,6 @@ export function ProviderCredentialFields({ draft, onChange }: ProviderCredential
         data-testid="settings-providers-editor-secret-ref"
         label="Secret ref"
         description="Bound credential source injected into the target env var at launch."
-        hint="BOUND"
         control={
           <div className="flex items-center gap-2">
             <KeyRound aria-hidden="true" className="size-3 text-subtle" />
@@ -67,7 +65,6 @@ export function ProviderCredentialFields({ draft, onChange }: ProviderCredential
         data-testid="settings-providers-editor-secret-value"
         label="API key"
         description="Write-only value stored when the secret ref uses vault:."
-        hint="WRITE-ONLY"
         control={
           <Input
             className="w-72 font-mono"
@@ -97,7 +94,6 @@ function AdditionalCredentialSlotsEditor({ draft, onChange }: ProviderCredential
       data-testid="settings-providers-editor-credential-slots"
       label="More slots"
       description="Additional credential refs injected into provider subprocess env."
-      hint="OPTIONAL"
       control={
         <div className="flex w-full max-w-176 flex-col gap-2">
           {additionalSlots.length === 0 ? (

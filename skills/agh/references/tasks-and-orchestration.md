@@ -31,6 +31,8 @@ semantics in `runtime-operations.md`'s Usage cost truth section: estimates remai
 `included`/`unknown` carry no amount, and incompatible aggregate provenance suppresses only money,
 not token totals.
 
+For web operators, task detail has **Overview**, **Runs**, and **Activity** views. Task-specific execution policy lives in the **Task setup** sheet; bridge subscriptions, SSE resume state, and raw diagnostics live behind **Inspect**. The task stream emits standard SSE `message` frames; dispatch the parsed payload by its `type` field.
+
 ## Task Pause, Resume, And Force Recovery
 
 `agh task pause <task-id> --reason <reason>` pauses new runs for one task while current claims finish. `agh task resume <task-id>` re-enables scheduler claims for that task. A pause reason is required and should name the operational cause, not a prompt-level preference.

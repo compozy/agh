@@ -516,6 +516,9 @@ func newExtensionLocalDeps(t *testing.T, client DaemonClient) (commandDeps, aghc
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
 	}
+	if err := cliTestStoreSeed.Clone(homePaths.DatabaseFile); err != nil {
+		t.Fatalf("cli store seed Clone() error = %v", err)
+	}
 	deps.ensureHome = aghconfig.EnsureHomeLayout
 	deps.loadConfig = func() (aghconfig.Config, error) {
 		cfg := aghconfig.DefaultWithHome(homePaths)

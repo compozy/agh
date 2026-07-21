@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
 export const sessionLifecycleTestIds = {
-  appSidebar: "app-sidebar",
+  osDesktop: "os-desktop",
   chatHeader: "chat-header",
   chatView: "chat-view",
   composerClearButton: "composer-clear-button",
@@ -24,7 +24,7 @@ export const sessionLifecycleTestIds = {
 export interface SessionLifecycleSelectors {
   agentPageNewSession: Locator;
   agentRow(agentName: string): Locator;
-  appSidebar: Locator;
+  osDesktop: Locator;
   chatHeader: Locator;
   chatView: Locator;
   composerClearButton: Locator;
@@ -45,7 +45,7 @@ export interface SessionLifecycleSelectors {
 }
 
 export const networkOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   channelNameInput: "network-channel-name-input",
   channelHeader: "network-channel-header",
   channelIdentityMix: "network-channel-identity-mix",
@@ -86,7 +86,7 @@ export const networkOperatorTestIds = {
 } as const;
 
 export const automationOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   automationDetailPanel: "automation-detail-panel",
   automationEditorDialog: "automation-editor-dialog",
   automationJobScheduler: "automation-job-scheduler",
@@ -143,7 +143,7 @@ export const automationOperatorTestIds = {
 } as const;
 
 export const bridgeOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   bridgeCreateDialog: "bridge-create-dialog",
   bridgeDetailPanel: "bridge-detail-panel",
   bridgeEditDialog: "bridge-edit-dialog",
@@ -193,7 +193,7 @@ export const bridgeOperatorTestIds = {
 } as const;
 
 export const knowledgeOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   cancelCreateMemory: "cancel-create-memory-btn",
   confirmCreateMemory: "confirm-create-memory-btn",
   confirmDeleteMemory: "confirm-delete-memory-btn",
@@ -244,7 +244,7 @@ export const marketplaceOperatorTestIds = {
 export const sandboxOperatorTestIds = {
   actionResult: "sandbox-page-action-result",
   actionResultDismiss: "sandbox-page-action-result-dismiss",
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   createButton: "sandbox-page-create",
   deleteConfirm: "settings-sandboxes-delete-confirm",
   deleteDialog: "settings-sandboxes-delete",
@@ -260,7 +260,7 @@ export const sandboxOperatorTestIds = {
   empty: "sandbox-page-empty",
   list: "sandbox-page-list",
   navSandbox: "nav-sandbox",
-  restartBanner: "settings-page-sandbox-restart-banner",
+  restartNotice: "settings-page-sandbox-restart-notice",
   shell: "sandbox-shell",
   total: "sandbox-page-total",
   workspaceReferences: "sandbox-page-workspaces",
@@ -269,7 +269,7 @@ export const sandboxOperatorTestIds = {
 } as const;
 
 export interface NetworkOperatorSelectors {
-  appSidebar: Locator;
+  osDesktop: Locator;
   agentOption(agentName: string): Locator;
   channelItem(channelName: string): Locator;
   channelMessage(messageId: string): Locator;
@@ -317,7 +317,7 @@ export interface NetworkOperatorSelectors {
 }
 
 export interface AutomationOperatorSelectors {
-  appSidebar: Locator;
+  osDesktop: Locator;
   automationSuggestionsCard: Locator;
   automationDeleteConfirmTyping: Locator;
   automationDeleteDialog: Locator;
@@ -386,7 +386,7 @@ export interface AutomationOperatorSelectors {
 
 export interface BridgeOperatorSelectors {
   activeRoutesMetric: Locator;
-  appSidebar: Locator;
+  osDesktop: Locator;
   backToList: Locator;
   createBridgeButton: Locator;
   createDialog: Locator;
@@ -447,7 +447,7 @@ export interface BridgeOperatorSelectors {
 }
 
 export interface KnowledgeOperatorSelectors {
-  appSidebar: Locator;
+  osDesktop: Locator;
   cancelCreateMemory: Locator;
   confirmCreateMemory: Locator;
   confirmDeleteMemory: Locator;
@@ -505,7 +505,7 @@ export interface MarketplaceOperatorSelectors {
 export interface SandboxOperatorSelectors {
   actionResult: Locator;
   actionResultDismiss: Locator;
-  appSidebar: Locator;
+  osDesktop: Locator;
   createButton: Locator;
   deleteConfirm: Locator;
   deleteDialog: Locator;
@@ -527,7 +527,7 @@ export interface SandboxOperatorSelectors {
   profileMetadata(name: string): Locator;
   profileSource(name: string): Locator;
   profileUsage(name: string): Locator;
-  restartBanner: Locator;
+  restartNotice: Locator;
   shell: Locator;
   total: Locator;
   workspaceReferences: Locator;
@@ -544,30 +544,26 @@ export const settingsShellTestIds = {
 
 export const settingsGeneralTestIds = {
   page: "settings-page-general",
-  pageHeader: "settings-page-general-header",
-  restartAction: "settings-page-general-restart-action",
   saveBar: "settings-page-general-save-bar",
   saveButton: "settings-page-general-save",
   resetButton: "settings-page-general-reset",
   sessionTimeoutInput: "settings-page-general-session-timeout-input",
-  restartBanner: "settings-page-general-restart-banner",
-  restartBannerMessage: "settings-page-general-restart-banner-message",
-  restartBannerOp: "settings-page-general-restart-banner-op",
-  restartBannerTrigger: "settings-page-general-restart-banner-trigger",
+  restartNotice: "settings-page-general-restart-notice",
+  restartTrigger: "settings-page-general-restart-trigger",
+  restartDismiss: "settings-page-general-restart-dismiss",
 } as const;
 
 export const settingsSkillsTestIds = {
   page: "settings-page-skills",
-  pageHeader: "settings-page-skills-header",
   disabledList: "settings-page-skills-disabled-list",
-  disabledApplied: "settings-page-skills-disabled-applied",
+  disabledMessage: "settings-page-skills-disabled-message",
   disabledSave: "settings-page-skills-disabled-save",
-  policyApplied: "settings-page-skills-policy-applied",
+  policyMessage: "settings-page-skills-policy-message",
   policySave: "settings-page-skills-policy-save",
   policyRegistryInput: "settings-page-skills-marketplace-registry-input",
   policyBaseURLInput: "settings-page-skills-marketplace-base-url-input",
   operationalLink: "settings-page-skills-link-skills",
-  restartBanner: "settings-page-skills-restart-banner",
+  restartNotice: "settings-page-skills-restart-notice",
 } as const;
 
 export const settingsProvidersTestIds = {
@@ -583,7 +579,7 @@ export const settingsProvidersTestIds = {
   editorSave: "provider-inspector-save",
   deleteDialog: "settings-providers-delete",
   deleteConfirm: "settings-providers-delete-confirm",
-  restartBanner: "settings-page-providers-restart-banner",
+  restartNotice: "settings-page-providers-restart-notice",
 } as const;
 
 export const settingsMCPServersTestIds = {
@@ -603,13 +599,12 @@ export const settingsMCPServersTestIds = {
   editorRemove: "settings-mcp-servers-editor-remove",
   deleteDialog: "settings-mcp-servers-delete",
   deleteConfirm: "settings-mcp-servers-delete-confirm",
-  restartBanner: "settings-page-mcp-servers-restart-banner",
 } as const;
 
 export const settingsHooksTestIds = {
   hooksList: "settings-page-hooks-list",
   page: "settings-page-hooks",
-  restartBanner: "settings-page-hooks-restart-banner",
+  restartNotice: "settings-page-hooks-restart-notice",
 } as const;
 
 export const settingsExtensionsTestIds = {
@@ -619,7 +614,7 @@ export const settingsExtensionsTestIds = {
   policyControls: "settings-page-extensions-policy-controls",
   policyRegistryInput: "settings-page-extensions-policy-registry-input",
   policySave: "settings-page-extensions-policy-save",
-  restartBanner: "settings-page-extensions-restart-banner",
+  restartNotice: "settings-page-extensions-restart-notice",
 } as const;
 
 interface SettingsShellSelectors {
@@ -634,13 +629,10 @@ interface SettingsShellSelectors {
 
 interface SettingsGeneralSelectors {
   page: Locator;
-  pageHeader: Locator;
   resetButton: Locator;
-  restartAction: Locator;
-  restartBanner: Locator;
-  restartBannerMessage: Locator;
-  restartBannerOp: Locator;
-  restartBannerTrigger: Locator;
+  restartDismiss: Locator;
+  restartNotice: Locator;
+  restartTrigger: Locator;
   saveBar: Locator;
   saveButton: Locator;
   sessionTimeoutInput: Locator;
@@ -648,17 +640,16 @@ interface SettingsGeneralSelectors {
 
 interface SettingsSkillsSelectors {
   page: Locator;
-  pageHeader: Locator;
   disabledList: Locator;
-  disabledApplied: Locator;
+  disabledMessage: Locator;
   disabledSave: Locator;
   disabledToggle(name: string): Locator;
   operationalLink: Locator;
-  policyApplied: Locator;
+  policyMessage: Locator;
   policyBaseURLInput: Locator;
   policyRegistryInput: Locator;
   policySave: Locator;
-  restartBanner: Locator;
+  restartNotice: Locator;
 }
 
 interface SettingsProvidersSelectors {
@@ -666,12 +657,9 @@ interface SettingsProvidersSelectors {
   actionResultDismiss: Locator;
   card(name: string): Locator;
   cardCommand(name: string): Locator;
-  cardSource(name: string): Locator;
   create: Locator;
-  deleteCard(name: string): Locator;
   deleteConfirm: Locator;
   deleteDialog: Locator;
-  editCard(name: string): Locator;
   editor: Locator;
   editorCommandInput: Locator;
   editorModelInput: Locator;
@@ -679,7 +667,8 @@ interface SettingsProvidersSelectors {
   editorSave: Locator;
   list: Locator;
   page: Locator;
-  restartBanner: Locator;
+  inspectorSource: Locator;
+  restartNotice: Locator;
 }
 
 interface SettingsMCPServersSelectors {
@@ -697,7 +686,6 @@ interface SettingsMCPServersSelectors {
   editorTargetInput: Locator;
   list: Locator;
   page: Locator;
-  restartBanner: Locator;
   row(name: string): Locator;
   rowSource(name: string): Locator;
   scopeGlobal: Locator;
@@ -709,7 +697,7 @@ interface SettingsHooksSelectors {
   hooksList: Locator;
   hookToggle(name: string): Locator;
   page: Locator;
-  restartBanner: Locator;
+  restartNotice: Locator;
 }
 
 interface SettingsExtensionsSelectors {
@@ -719,7 +707,7 @@ interface SettingsExtensionsSelectors {
   policyControls: Locator;
   policyRegistryInput: Locator;
   policySave: Locator;
-  restartBanner: Locator;
+  restartNotice: Locator;
 }
 
 export interface SettingsOperatorSelectors {
@@ -732,7 +720,7 @@ export interface SettingsOperatorSelectors {
   skills: SettingsSkillsSelectors;
 }
 export const tasksOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   createDescription: "task-description-input",
   createEditorSurface: "task-editor-modal",
   createModeAdvanced: "task-mode-advanced",
@@ -748,6 +736,8 @@ export const tasksOperatorTestIds = {
   detailActiveRunEmpty: "tasks-detail-active-run-empty",
   detailActiveRunEmptyHint: "tasks-detail-active-run-empty-hint",
   detailContent: "tasks-detail-content",
+  detailInspectDrawer: "tasks-inspect-drawer",
+  detailInspectStream: "tasks-inspect-stream",
   detailCoordination: "tasks-detail-coordination",
   detailCancel: "tasks-detail-cancel",
   detailDelete: "tasks-detail-delete",
@@ -766,21 +756,12 @@ export const tasksOperatorTestIds = {
   detailPreviewPanel: "tasks-detail-preview-panel",
   detailPreviewPublish: "tasks-detail-preview-publish",
   detailRunsEmpty: "tasks-detail-runs-empty",
-  detailTabAgents: "tasks-detail-tab-agents",
-  detailTabOrchestration: "tasks-detail-tab-orchestration",
   detailTabRuns: "tasks-detail-tab-runs",
-  orchestrationPanel: "tasks-detail-orchestration-panel",
-  orchestrationProfileCard: "tasks-execution-profile-card",
-  orchestrationProfileEmpty: "tasks-execution-profile-empty",
-  orchestrationProfileSummary: "tasks-execution-profile-summary",
-  orchestrationReviewsCard: "tasks-reviews-card",
-  orchestrationReviewsEmpty: "tasks-reviews-card-empty",
-  orchestrationNotificationsCard: "tasks-bridge-notifications-card",
-  orchestrationNotificationsEmpty: "tasks-bridge-notifications-empty",
-  orchestrationStreamCard: "tasks-stream-resume-card",
-  orchestrationStreamLatest: "tasks-stream-resume-latest",
-  orchestrationStreamSeed: "tasks-stream-resume-seed",
-  orchestrationStreamStatus: "tasks-stream-resume-status",
+  detailSetupEdit: "tasks-setup-edit",
+  detailSetupForm: "tasks-setup-form",
+  detailSetupOpen: "tasks-rail-edit-setup",
+  detailSetupSheet: "tasks-setup-sheet",
+  detailSetupWorkerRuntime: "tasks-setup-worker-runtime",
   inboxView: "tasks-inbox-view",
   modeDashboard: "tasks-mode-dashboard",
   modeInbox: "tasks-mode-inbox",
@@ -796,6 +777,7 @@ export const tasksOperatorTestIds = {
   runDetailContent: "tasks-run-detail-content",
   runDetailCancel: "task-run-detail-cancel",
   runDetailOverflow: "task-run-detail-overflow",
+  runReviews: "tasks-run-reviews",
   runSessionDrilldown: "task-run-detail-open-session",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
@@ -807,7 +789,7 @@ const tasksInboxGroupByLane: Record<string, string> = {
 };
 
 export interface TasksOperatorSelectors {
-  appSidebar: Locator;
+  osDesktop: Locator;
   createDescription: Locator;
   createEditorSurface: Locator;
   createPriority(priority: string): Locator;
@@ -829,6 +811,8 @@ export interface TasksOperatorSelectors {
   detailActiveRunEmptyHint: Locator;
   detailBreadcrumbTasks: Locator;
   detailContent: Locator;
+  detailInspectDrawer: Locator;
+  detailInspectStream: Locator;
   detailCoordination: Locator;
   detailCancel: Locator;
   detailDelete: Locator;
@@ -850,25 +834,16 @@ export interface TasksOperatorSelectors {
   detailRunsEmpty: Locator;
   detailRunsLink(runId: string): Locator;
   detailTab(tabId: string): Locator;
-  detailTabAgents: Locator;
-  detailTabOrchestration: Locator;
   detailTabRuns: Locator;
+  detailSetupEdit: Locator;
+  detailSetupForm: Locator;
+  detailSetupOpen: Locator;
+  detailSetupSheet: Locator;
+  detailSetupWorkerRuntime: Locator;
   detailChildItem(taskId: string): Locator;
   detailChildLink(taskId: string): Locator;
   detailDependencyItem(taskId: string): Locator;
   detailDependencyLink(taskId: string): Locator;
-  orchestrationPanel: Locator;
-  orchestrationProfileCard: Locator;
-  orchestrationProfileEmpty: Locator;
-  orchestrationProfileSummary: Locator;
-  orchestrationReviewsCard: Locator;
-  orchestrationReviewsEmpty: Locator;
-  orchestrationNotificationsCard: Locator;
-  orchestrationNotificationsEmpty: Locator;
-  orchestrationStreamCard: Locator;
-  orchestrationStreamLatest: Locator;
-  orchestrationStreamSeed: Locator;
-  orchestrationStreamStatus: Locator;
   inboxApprove(taskId: string): Locator;
   inboxArchive(taskId: string): Locator;
   inboxDismiss(taskId: string): Locator;
@@ -893,6 +868,8 @@ export interface TasksOperatorSelectors {
   runDetailContent: Locator;
   runDetailCancel: Locator;
   runDetailOverflow: Locator;
+  runReviews: Locator;
+  runsRow(runId: string): Locator;
   runReviewRow(reviewId: string): Locator;
   runSessionDrilldown: Locator;
   taskCard(taskId: string): Locator;
@@ -906,7 +883,7 @@ export function sessionLifecycleSelectors(
   return {
     agentPageNewSession: page.getByTestId("agent-page-new-session"),
     agentRow: (agentName: string) => page.getByTestId(`agent-fleet-row-link-${agentName}`),
-    appSidebar: page.getByTestId(sessionLifecycleTestIds.appSidebar),
+    osDesktop: page.getByTestId(sessionLifecycleTestIds.osDesktop),
     chatHeader: page.getByTestId(sessionLifecycleTestIds.chatView),
     chatView: page.getByTestId(sessionLifecycleTestIds.chatView),
     composerClearButton: page.getByTestId(sessionLifecycleTestIds.composerClearButton),
@@ -1034,7 +1011,7 @@ export function networkOperatorSelectors(
   page: Pick<Page, "getByTestId" | "locator">
 ): NetworkOperatorSelectors {
   return {
-    appSidebar: page.getByTestId(networkOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(networkOperatorTestIds.osDesktop),
     agentOption: (agentName: string) => page.getByTestId(`network-agent-option-${agentName}`),
     channelItem: (channelName: string) => page.getByTestId(`network-channel-row-${channelName}`),
     channelMessage: (messageId: string) =>
@@ -1089,7 +1066,7 @@ export function knowledgeOperatorSelectors(
   page: Pick<Page, "getByTestId">
 ): KnowledgeOperatorSelectors {
   return {
-    appSidebar: page.getByTestId(knowledgeOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(knowledgeOperatorTestIds.osDesktop),
     cancelCreateMemory: page.getByTestId(knowledgeOperatorTestIds.cancelCreateMemory),
     confirmCreateMemory: page.getByTestId(knowledgeOperatorTestIds.confirmCreateMemory),
     confirmDeleteMemory: page.getByTestId(knowledgeOperatorTestIds.confirmDeleteMemory),
@@ -1156,7 +1133,7 @@ export function sandboxOperatorSelectors(
   return {
     actionResult: page.getByTestId(sandboxOperatorTestIds.actionResult),
     actionResultDismiss: page.getByTestId(sandboxOperatorTestIds.actionResultDismiss),
-    appSidebar: page.getByTestId(sandboxOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(sandboxOperatorTestIds.osDesktop),
     createButton: page.getByTestId(sandboxOperatorTestIds.createButton),
     deleteConfirm: page.getByTestId(sandboxOperatorTestIds.deleteConfirm),
     deleteDialog: page.getByTestId(sandboxOperatorTestIds.deleteDialog),
@@ -1178,7 +1155,7 @@ export function sandboxOperatorSelectors(
     profileMetadata: (name: string) => page.getByTestId(`sandbox-page-card-${name}-profile`),
     profileSource: (name: string) => page.getByTestId(`sandbox-page-card-${name}-source`),
     profileUsage: (name: string) => page.getByTestId(`sandbox-page-card-${name}-usage`),
-    restartBanner: page.getByTestId(sandboxOperatorTestIds.restartBanner),
+    restartNotice: page.getByTestId(sandboxOperatorTestIds.restartNotice),
     shell: page.getByTestId(sandboxOperatorTestIds.shell),
     total: page.getByTestId(sandboxOperatorTestIds.total),
     workspaceReferences: page.getByTestId(sandboxOperatorTestIds.workspaceReferences),
@@ -1193,7 +1170,7 @@ export function automationOperatorSelectors(
   const editorDialog = page.getByTestId(automationOperatorTestIds.automationEditorDialog);
 
   return {
-    appSidebar: page.getByTestId(automationOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(automationOperatorTestIds.osDesktop),
     automationSuggestionsCard: page.getByTestId(
       automationOperatorTestIds.automationSuggestionsCard
     ),
@@ -1278,7 +1255,7 @@ export function bridgeOperatorSelectors(
 
   return {
     activeRoutesMetric: page.getByTestId(bridgeOperatorTestIds.bridgeMetricActiveRoutes),
-    appSidebar: page.getByTestId(bridgeOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(bridgeOperatorTestIds.osDesktop),
     backToList: breadcrumb.getByRole("link", { exact: true, name: "Bridges" }),
     createBridgeButton: page.getByTestId(bridgeOperatorTestIds.createBridgeButton),
     createDialog: page.getByTestId(bridgeOperatorTestIds.bridgeCreateDialog),
@@ -1356,10 +1333,6 @@ export function bridgeOperatorSelectors(
 export function settingsOperatorSelectors(
   page: Pick<Page, "getByTestId" | "locator">
 ): SettingsOperatorSelectors {
-  const generalRestartAction = page.locator(
-    `[data-testid="${settingsGeneralTestIds.restartBanner}"] [data-slot="restart-banner-action"]`
-  );
-
   return {
     shell: {
       navSettings: page.getByTestId(settingsShellTestIds.navSettings),
@@ -1370,16 +1343,14 @@ export function settingsOperatorSelectors(
         '[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]'
       ),
       sectionLink: (slug: string) => page.getByTestId(`settings-section-${slug}`),
-      sectionActive: (slug: string) => page.getByTestId(`settings-section-active-${slug}`),
+      sectionActive: (slug: string) =>
+        page.locator(`[data-testid="settings-section-${slug}"][aria-current="page"]`),
     },
     general: {
       page: page.getByTestId(settingsGeneralTestIds.page),
-      pageHeader: page.getByTestId(settingsGeneralTestIds.pageHeader),
-      restartAction: generalRestartAction,
-      restartBanner: page.getByTestId(settingsGeneralTestIds.restartBanner),
-      restartBannerMessage: page.getByTestId(settingsGeneralTestIds.restartBannerMessage),
-      restartBannerOp: page.getByTestId(settingsGeneralTestIds.restartBannerOp),
-      restartBannerTrigger: generalRestartAction,
+      restartDismiss: page.getByTestId(settingsGeneralTestIds.restartDismiss),
+      restartNotice: page.getByTestId(settingsGeneralTestIds.restartNotice),
+      restartTrigger: page.getByTestId(settingsGeneralTestIds.restartTrigger),
       saveBar: page.getByTestId(settingsGeneralTestIds.saveBar),
       saveButton: page.getByTestId(settingsGeneralTestIds.saveButton),
       resetButton: page.getByTestId(settingsGeneralTestIds.resetButton),
@@ -1387,18 +1358,17 @@ export function settingsOperatorSelectors(
     },
     skills: {
       page: page.getByTestId(settingsSkillsTestIds.page),
-      pageHeader: page.getByTestId(settingsSkillsTestIds.pageHeader),
       disabledList: page.getByTestId(settingsSkillsTestIds.disabledList),
-      disabledApplied: page.getByTestId(settingsSkillsTestIds.disabledApplied),
+      disabledMessage: page.getByTestId(settingsSkillsTestIds.disabledMessage),
       disabledSave: page.getByTestId(settingsSkillsTestIds.disabledSave),
       disabledToggle: (name: string) =>
         page.getByTestId(`settings-page-skills-disabled-toggle-${name}`),
       operationalLink: page.getByTestId(settingsSkillsTestIds.operationalLink),
-      policyApplied: page.getByTestId(settingsSkillsTestIds.policyApplied),
+      policyMessage: page.getByTestId(settingsSkillsTestIds.policyMessage),
       policyRegistryInput: page.getByTestId(settingsSkillsTestIds.policyRegistryInput),
       policyBaseURLInput: page.getByTestId(settingsSkillsTestIds.policyBaseURLInput),
       policySave: page.getByTestId(settingsSkillsTestIds.policySave),
-      restartBanner: page.getByTestId(settingsSkillsTestIds.restartBanner),
+      restartNotice: page.getByTestId(settingsSkillsTestIds.restartNotice),
     },
     providers: {
       page: page.getByTestId(settingsProvidersTestIds.page),
@@ -1413,12 +1383,11 @@ export function settingsOperatorSelectors(
       editorSave: page.getByTestId(settingsProvidersTestIds.editorSave),
       deleteDialog: page.getByTestId(settingsProvidersTestIds.deleteDialog),
       deleteConfirm: page.getByTestId(settingsProvidersTestIds.deleteConfirm),
-      restartBanner: page.getByTestId(settingsProvidersTestIds.restartBanner),
+      restartNotice: page.getByTestId(settingsProvidersTestIds.restartNotice),
       card: (name: string) => page.getByTestId(`settings-page-providers-card-${name}`),
-      cardCommand: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-hint`),
-      cardSource: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-source`),
-      editCard: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-edit`),
-      deleteCard: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-delete`),
+      cardCommand: (name: string) =>
+        page.getByTestId(`settings-page-providers-card-${name}-command`),
+      inspectorSource: page.getByTestId("inspect-source"),
     },
     mcpServers: {
       page: page.getByTestId(settingsMCPServersTestIds.page),
@@ -1437,7 +1406,6 @@ export function settingsOperatorSelectors(
       editorRemove: page.getByTestId(settingsMCPServersTestIds.editorRemove),
       deleteDialog: page.getByTestId(settingsMCPServersTestIds.deleteDialog),
       deleteConfirm: page.getByTestId(settingsMCPServersTestIds.deleteConfirm),
-      restartBanner: page.getByTestId(settingsMCPServersTestIds.restartBanner),
       row: (name: string) => page.getByTestId(`marketplace-installed-card-${name}`),
       rowSource: (name: string) =>
         page.locator(`[data-testid="marketplace-installed-card-${name}"] [data-slot="pill"]`),
@@ -1449,7 +1417,7 @@ export function settingsOperatorSelectors(
     hooks: {
       page: page.getByTestId(settingsHooksTestIds.page),
       hooksList: page.getByTestId(settingsHooksTestIds.hooksList),
-      restartBanner: page.getByTestId(settingsHooksTestIds.restartBanner),
+      restartNotice: page.getByTestId(settingsHooksTestIds.restartNotice),
       hookToggle: (name: string) => page.getByTestId(`settings-page-hooks-row-${name}-toggle`),
     },
     extensions: {
@@ -1459,7 +1427,7 @@ export function settingsOperatorSelectors(
       policyRegistryInput: page.getByTestId(settingsExtensionsTestIds.policyRegistryInput),
       policyBaseURLInput: page.getByTestId(settingsExtensionsTestIds.policyBaseURLInput),
       policySave: page.getByTestId(settingsExtensionsTestIds.policySave),
-      restartBanner: page.getByTestId(settingsExtensionsTestIds.restartBanner),
+      restartNotice: page.getByTestId(settingsExtensionsTestIds.restartNotice),
     },
   };
 }
@@ -1470,7 +1438,7 @@ export function tasksOperatorSelectors(
   const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
 
   return {
-    appSidebar: page.getByTestId(tasksOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(tasksOperatorTestIds.osDesktop),
     createDescription: page.getByTestId(tasksOperatorTestIds.createDescription),
     createEditorSurface: page.getByTestId(tasksOperatorTestIds.createEditorSurface),
     createModeAdvanced: page.getByTestId(tasksOperatorTestIds.createModeAdvanced),
@@ -1494,6 +1462,8 @@ export function tasksOperatorSelectors(
     detailActiveRunEmptyHint: page.getByTestId(tasksOperatorTestIds.detailActiveRunEmptyHint),
     detailBreadcrumbTasks: breadcrumb.getByRole("link", { exact: true, name: "Tasks" }),
     detailContent: page.getByTestId(tasksOperatorTestIds.detailContent),
+    detailInspectDrawer: page.getByTestId(tasksOperatorTestIds.detailInspectDrawer),
+    detailInspectStream: page.getByTestId(tasksOperatorTestIds.detailInspectStream),
     detailCoordination: page.getByTestId(tasksOperatorTestIds.detailCoordination),
     detailCancel: page.getByTestId(tasksOperatorTestIds.detailCancel),
     detailDelete: page.getByTestId(tasksOperatorTestIds.detailDelete),
@@ -1515,31 +1485,18 @@ export function tasksOperatorSelectors(
     detailRunsEmpty: page.getByTestId(tasksOperatorTestIds.detailRunsEmpty),
     detailRunsLink: (runId: string) => page.getByTestId(`tasks-detail-runs-link-${runId}`),
     detailTab: (tabId: string) => page.getByTestId(`tasks-detail-tab-${tabId}`),
-    detailTabAgents: page.getByTestId(tasksOperatorTestIds.detailTabAgents),
-    detailTabOrchestration: page.getByTestId(tasksOperatorTestIds.detailTabOrchestration),
     detailTabRuns: page.getByTestId(tasksOperatorTestIds.detailTabRuns),
+    detailSetupEdit: page.getByTestId(tasksOperatorTestIds.detailSetupEdit),
+    detailSetupForm: page.getByTestId(tasksOperatorTestIds.detailSetupForm),
+    detailSetupOpen: page.getByTestId(tasksOperatorTestIds.detailSetupOpen),
+    detailSetupSheet: page.getByTestId(tasksOperatorTestIds.detailSetupSheet),
+    detailSetupWorkerRuntime: page.getByTestId(tasksOperatorTestIds.detailSetupWorkerRuntime),
     detailChildItem: (taskId: string) => page.getByTestId(`tasks-detail-children-item-${taskId}`),
     detailChildLink: (taskId: string) => page.getByTestId(`tasks-detail-children-link-${taskId}`),
     detailDependencyItem: (taskId: string) =>
       page.getByTestId(`tasks-detail-dependencies-item-${taskId}`),
     detailDependencyLink: (taskId: string) =>
       page.getByTestId(`tasks-detail-dependencies-link-${taskId}`),
-    orchestrationPanel: page.getByTestId(tasksOperatorTestIds.orchestrationPanel),
-    orchestrationProfileCard: page.getByTestId(tasksOperatorTestIds.orchestrationProfileCard),
-    orchestrationProfileEmpty: page.getByTestId(tasksOperatorTestIds.orchestrationProfileEmpty),
-    orchestrationProfileSummary: page.getByTestId(tasksOperatorTestIds.orchestrationProfileSummary),
-    orchestrationReviewsCard: page.getByTestId(tasksOperatorTestIds.orchestrationReviewsCard),
-    orchestrationReviewsEmpty: page.getByTestId(tasksOperatorTestIds.orchestrationReviewsEmpty),
-    orchestrationNotificationsCard: page.getByTestId(
-      tasksOperatorTestIds.orchestrationNotificationsCard
-    ),
-    orchestrationNotificationsEmpty: page.getByTestId(
-      tasksOperatorTestIds.orchestrationNotificationsEmpty
-    ),
-    orchestrationStreamCard: page.getByTestId(tasksOperatorTestIds.orchestrationStreamCard),
-    orchestrationStreamLatest: page.getByTestId(tasksOperatorTestIds.orchestrationStreamLatest),
-    orchestrationStreamSeed: page.getByTestId(tasksOperatorTestIds.orchestrationStreamSeed),
-    orchestrationStreamStatus: page.getByTestId(tasksOperatorTestIds.orchestrationStreamStatus),
     inboxApprove: (taskId: string) => page.getByTestId(`tasks-inbox-item-approve-${taskId}`),
     inboxArchive: (taskId: string) => page.getByTestId(`tasks-inbox-item-archive-${taskId}`),
     inboxDismiss: (taskId: string) => page.getByTestId(`tasks-inbox-item-dismiss-${taskId}`),
@@ -1566,6 +1523,8 @@ export function tasksOperatorSelectors(
     runDetailContent: page.getByTestId(tasksOperatorTestIds.runDetailContent),
     runDetailCancel: page.getByTestId(tasksOperatorTestIds.runDetailCancel),
     runDetailOverflow: page.getByTestId(tasksOperatorTestIds.runDetailOverflow),
+    runReviews: page.getByTestId(tasksOperatorTestIds.runReviews),
+    runsRow: (runId: string) => page.getByTestId(`tasks-runs-row-${runId}`),
     runReviewRow: (reviewId: string) => page.getByTestId(`tasks-run-reviews-row-${reviewId}`),
     runSessionDrilldown: page.getByTestId(tasksOperatorTestIds.runSessionDrilldown),
     taskCard: (taskId: string) => page.getByTestId(`task-card-${taskId}`),

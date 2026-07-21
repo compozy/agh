@@ -6,7 +6,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
 import {
-  StorybookRestartBannerSetup,
+  StorybookRestartNoticeSetup,
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
   appRouteParameters,
@@ -21,7 +21,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Memory settings route stories covering the save surface, consolidation action, restart banner, and failure states.",
+          "Memory settings route stories covering the save surface, consolidation action, restart notice, and failure states.",
       },
     },
   },
@@ -85,13 +85,13 @@ export const DreamTriggered: Story = {
 /**
  * Restart-required banner after a memory configuration mutation that affects daemon behavior.
  */
-export const RestartBanner: Story = {
+export const RestartNotice: Story = {
   args: {},
   parameters: appRouteParameters("/settings/memory"),
   render: () => (
     <>
       <StorybookWorkspaceSetup />
-      <StorybookRestartBannerSetup section="memory" />
+      <StorybookRestartNoticeSetup section="memory" />
     </>
   ),
 };

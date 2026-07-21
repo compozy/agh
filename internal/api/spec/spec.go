@@ -208,6 +208,7 @@ type ParameterSpec struct {
 	Kind        string
 	Format      string
 	Enum        []string
+	Maximum     *float64
 }
 
 // ResponseSpec describes one OpenAPI response.
@@ -277,6 +278,9 @@ func Document() (*openapi3.T, error) {
 			{Name: specVaultKey},
 			{Name: specWorkspacesKey},
 		},
+	}
+	if err := registerDesktopStateComponentSchemas(doc.Components.Schemas); err != nil {
+		return nil, fmt.Errorf("register desktop-state component schemas: %w", err)
 	}
 
 	for _, opSpec := range Operations() {
@@ -4273,7 +4277,7 @@ var operationRegistry = append([]OperationSpec{
 		Responses: []ResponseSpec{
 			{
 				Status:      200,
-				Description: "Task event stream",
+				Description: "Standard SSE message stream; the payload type identifies each task event",
 				Body:        contract.TaskStreamEventPayload{},
 				ContentType: specContentTypeEventStream,
 			},
@@ -5633,7 +5637,11 @@ func schemaRefForValue(value any, schemas openapi3.Schemas) (*openapi3.SchemaRef
 			value = reflect.New(rootType).Interface()
 		}
 	}
-	schemaRef, err := openapi3gen.NewSchemaRefForValue(value, schemas, openapi3gen.SchemaCustomizer(schemaCustomizer))
+	schemaRef, err := openapi3gen.NewSchemaRefForValue(
+		value,
+		schemas,
+		openapi3gen.SchemaCustomizer(schemaCustomizer),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -5680,6 +5688,9 @@ func schemaRefForParameter(spec ParameterSpec) *openapi3.SchemaRef {
 		for _, value := range spec.Enum {
 			schema.Enum = append(schema.Enum, value)
 		}
+	}
+	if spec.Maximum != nil {
+		schema.WithMax(*spec.Maximum)
 	}
 	return openapi3.NewSchemaRef("", schema)
 }

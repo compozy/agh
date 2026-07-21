@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import type { ProviderInspectorState } from "./use-settings-providers-page";
+import type { ProviderInspectorState } from "@/systems/settings/hooks/use-settings-providers-page";
 
 type ProviderInspectorMode = ProviderInspectorState["mode"];
 

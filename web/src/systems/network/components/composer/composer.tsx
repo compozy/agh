@@ -13,7 +13,7 @@ import {
   type UseComposerStateResult,
 } from "./use-composer-state";
 
-const TEXTAREA_MIN_ROWS = 2;
+const TEXTAREA_MIN_ROWS = 1;
 const TEXTAREA_MAX_ROWS = 8;
 
 export type { ComposerSubmitArgs };
@@ -22,8 +22,10 @@ export interface ComposerProps {
   placeholder: string;
   /** Stable suffix for `data-testid` attributes (e.g. `channel`, `thread`, `direct`). */
   testIdSuffix: string;
-  /** Tooltip + aria-label for the Send button (`Send to #ops` etc). */
+  /** Visible Send label naming the delivery target (`Send to #ops` etc). */
   sendLabel: string;
+  /** Per-surface delivery explanation rendered under the composer. */
+  hint?: string;
   /** Currently submitting? Disables the textarea + Send button. */
   isSending?: boolean;
   /** Disabled completely (e.g. network down). */
@@ -42,6 +44,7 @@ function ComposerView({
   placeholder,
   testIdSuffix,
   sendLabel,
+  hint,
   isSending = false,
   disabled = false,
   disabledReason,
@@ -49,6 +52,7 @@ function ComposerView({
   state,
   textareaRef,
 }: ComposerViewProps) {
+  const hintText = disabled ? (disabledReason ?? hint) : hint;
   return (
     <form
       aria-label={sendLabel}
@@ -62,7 +66,7 @@ function ComposerView({
       <Textarea
         aria-label={placeholder}
         className={cn(
-          "min-h-16 resize-none rounded border-0 bg-input-fill px-3 py-2 text-sm focus-visible:ring-0",
+          "min-h-9 resize-none rounded border-0 bg-input-fill px-3 py-2 text-sm focus-visible:ring-0",
           "focus:bg-canvas focus-visible:bg-canvas focus-visible:shadow-focus-ring",
           disabled && "cursor-not-allowed opacity-60"
         )}
@@ -106,13 +110,21 @@ function ComposerView({
           data-testid={`network-composer-send-${testIdSuffix}`}
           disabled={state.sendDisabled}
           size="sm"
-          title={sendLabel}
           type="submit"
           variant="default"
         >
-          Send
+          {sendLabel}
         </Button>
       </div>
+
+      {hintText ? (
+        <p
+          className="text-form-hint text-faint"
+          data-testid={`network-composer-hint-${testIdSuffix}`}
+        >
+          {hintText}
+        </p>
+      ) : null}
 
       <ComposerSlashPopover
         filterValue={state.slashFilter}

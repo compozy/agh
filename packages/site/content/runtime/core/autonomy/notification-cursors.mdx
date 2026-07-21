@@ -295,22 +295,21 @@ Preset CRUD uses the same HTTP/UDS transport parity:
 
 ## Inspect from the operator web UI
 
-The **Bridge Notifications** card on the task **Orchestration** tab renders the cursor diagnostics
-surfaced by the API. Run detail currently renders the run-level **Reviews** card, not bridge
+Open a task, choose **Inspect**, then select **Bridges**. The pane renders the subscription and
+cursor diagnostics surfaced by the API. Run detail renders run-level reviews, not bridge
 notification subscriptions.
 
-- **Zero state.** When no cursor row exists yet, the card shows a `zero state` pill and `seq 0`
-  instead of inventing delivery metrics.
+- **Zero state.** When no subscription exists, the pane says that task events remain inside the
+  runtime until a bridge subscribes. A new subscription validates its scope before submission.
 - **Steady state.** `last_sequence`, `last_delivery_id`, and `last_delivered_at` come straight from
   generated OpenAPI types — there is no client-side derivation.
 - **Failure state.** When `last_error` is set, the card surfaces the bounded error and links to the
   subscription's identifying fields so operators can correlate with task events.
-- **Delete and recreate.** Deleting a subscription removes the active target row; the card hides
-  the row but explains that recreating the same `subscription_id` resumes from the preserved
-  cursor.
+- **Delete and recreate.** Deleting a subscription requires confirmation and removes the active
+  target row. Recreating the same `subscription_id` resumes from the preserved cursor.
 
-The same tab's **Stream Resume** card seeds reconnects from `latest_event_seq`, which is documented
-below.
+The **Inspect → Stream** pane shows the SSE connection state and resume cursor seeded from
+`latest_event_seq`, which is documented below.
 
 ## SSE resume seeding
 
@@ -319,6 +318,9 @@ durable `task_events.event_seq` for the task, or `0` when the task has no events
 clients open `EventSource` (`/api/tasks/{id}/stream`) with `?after_sequence=<latest_event_seq>` from
 the rendered read payload, which prevents the read-then-stream race for review and notification
 events.
+
+The endpoint emits standard SSE `message` frames. Read each frame's JSON payload and dispatch on
+`type`; the stream does not duplicate the task event type in an SSE `event:` field.
 
 On reconnect, `Last-Event-ID` takes precedence over `?after_sequence`, including the literal value
 `0`; malformed `Last-Event-ID` headers fail parsing rather than silently falling back to the query

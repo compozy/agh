@@ -53,10 +53,12 @@ function MarketplaceEntryStatus({ entry }: { entry: MarketplaceListing }) {
 
 function MarketplaceEntryAction({
   entry,
+  emphasis = "neutral",
   pending = false,
   onAction,
 }: {
   entry: MarketplaceListing;
+  emphasis?: "neutral" | "primary";
   pending?: boolean;
   onAction: (entry: MarketplaceListing) => void;
 }) {
@@ -67,7 +69,10 @@ function MarketplaceEntryAction({
     return (
       <a
         aria-label={`Manage ${entry.name}`}
-        className={buttonVariants({ size: "sm", variant: "ghost" })}
+        className={buttonVariants({
+          size: "sm",
+          variant: emphasis === "primary" ? "default" : "ghost",
+        })}
         href={entry.manage_path}
       >
         Manage
@@ -106,7 +111,7 @@ function MarketplaceEntryAction({
       onClick={() => onAction(entry)}
       size="sm"
       type="button"
-      variant="neutral"
+      variant={emphasis === "primary" ? "default" : "neutral"}
     >
       {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
       {pending ? marketplaceEntryPendingLabel(entry) : action}

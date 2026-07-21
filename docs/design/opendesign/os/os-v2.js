@@ -81,24 +81,49 @@ let APPROVALS = [
 ];
 const SPARK_DATA = [11, 14, 9, 16, 12, 18, 15, 10, 17, 13, 19, 14, 16, 21];
 
-/* Each window = an existing web/ route rendered as-is; `trail`
-   mirrors that route's topbar trailing actions. */
+/* Window chrome contract (pagehead-redesign): 44px unified head
+   (glyph + title · status · ≤2 actions) + optional 38px tool strip. */
+const MORE_BTN = '<button class="btn btn--ghost btn--icon" aria-label="More actions" data-trail="more"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="12.5" cy="8" r="1.3" fill="currentColor"/></svg></button>';
+
 const APPS = {
-  dashboard:   { name: 'Dashboard',   w: 680, h: 540, x: 110, y: 56, trail: '' },
-  sessions:    { name: 'Sessions',    w: 420, h: 560, x: 56,  y: 38, trail: '<button class="btn btn--sm" data-trail="new-session">New session</button>' },
-  session:     { name: 'Checkout flow polish', w: 630, h: 570, x: 470, y: 26, trail: '' },
-  tasks:       { name: 'Tasks',       w: 660, h: 480, x: 200, y: 88, trail: '<button class="btn btn--primary btn--sm" data-trail="new-session">New task</button>' },
-  agents:      { name: 'Agents',      w: 540, h: 390, x: 260, y: 118, trail: '' },
-  loops:       { name: 'Loops',       w: 560, h: 400, x: 240, y: 100, trail: '' },
-  jobs:        { name: 'Jobs',        w: 600, h: 400, x: 280, y: 118, trail: '' },
-  triggers:    { name: 'Triggers',    w: 620, h: 400, x: 310, y: 136, trail: '' },
-  marketplace: { name: 'Marketplace', w: 720, h: 550, x: 168, y: 52, trail: '' },
-  bridges:     { name: 'Bridges',     w: 560, h: 400, x: 340, y: 150, trail: '' },
-  knowledge:   { name: 'Knowledge',   w: 580, h: 390, x: 360, y: 164, trail: '' },
-  sandbox:     { name: 'Sandbox',     w: 640, h: 450, x: 300, y: 126, trail: '' },
-  network:     { name: 'Network',     w: 540, h: 480, x: 300, y: 98, trail: '' },
-  vault:       { name: 'Vault',       w: 580, h: 390, x: 330, y: 128, trail: '' },
-  settings:    { name: 'Settings',    w: 640, h: 450, x: 280, y: 108, trail: '' },
+  dashboard: {
+    name: 'Dashboard', w: 680, h: 540, x: 110, y: 56,
+    status: () => '<span class="w2-status" data-tone="ok"><span class="d d--ok"></span>Connected</span>',
+  },
+  sessions: {
+    name: 'Sessions', w: 420, h: 560, x: 56, y: 38, hoistToolbar: true,
+    count: () => String(SESSIONS.length),
+    actions: () => `${MORE_BTN}<button class="btn btn--primary" data-trail="new-session">New session</button>`,
+  },
+  session: {
+    name: 'Checkout flow polish', w: 630, h: 570, x: 470, y: 26, document: true,
+  },
+  tasks: {
+    name: 'Tasks', w: 660, h: 480, x: 200, y: 88, hoistToolbar: true,
+    count: () => String(TASKS.length),
+    status: () => {
+      const n = TASKS.filter(t => t.status === 'running').length;
+      return n ? `<span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>${n} running</span>` : '';
+    },
+    actions: () => `${MORE_BTN}<button class="btn btn--primary" data-trail="new-task">New task</button>`,
+  },
+  agents:      { name: 'Agents',      w: 540, h: 390, x: 260, y: 118 },
+  loops:       { name: 'Loops',       w: 560, h: 400, x: 240, y: 100 },
+  jobs:        { name: 'Jobs',        w: 600, h: 400, x: 280, y: 118 },
+  triggers:    { name: 'Triggers',    w: 620, h: 400, x: 310, y: 136 },
+  marketplace: {
+    name: 'Marketplace', w: 720, h: 550, x: 168, y: 52, hoistToolbar: true,
+    actions: () => MORE_BTN,
+  },
+  bridges:     { name: 'Bridges',     w: 560, h: 400, x: 340, y: 150 },
+  knowledge:   { name: 'Knowledge',   w: 580, h: 390, x: 360, y: 164 },
+  sandbox:     { name: 'Sandbox',     w: 640, h: 450, x: 300, y: 126, hoistToolbar: true },
+  network: {
+    name: 'Network', w: 540, h: 480, x: 300, y: 98,
+    status: () => '<span class="w2-status" data-tone="ok"><span class="d d--ok"></span>Healthy</span>',
+  },
+  vault:       { name: 'Vault',       w: 580, h: 390, x: 330, y: 128 },
+  settings:    { name: 'Settings',    w: 640, h: 450, x: 280, y: 108 },
 };
 /* Mirrors app-sidebar.tsx groups; 'sep' = the sidebar's group breaks.
    Settings intentionally lives in the menu bar cog, not the dock. */
@@ -151,6 +176,95 @@ function clampRect(r) {
   return r;
 }
 
+function resolveHeadField(value) {
+  return typeof value === 'function' ? value() : (value || '');
+}
+
+function sessionTrailHTML(agent, { elapsed = '2m 14s', elapsedSecs = 134 } = {}) {
+  return `<span class="w2-status"><span class="agent-chip mono">${agent.chip}</span>${agent.name}</span>`
+    + `<span class="w2-meta mono">${agent.model}</span>`
+    + `<span class="w2-vsep"></span>`
+    + `<span class="w2-meta mono" data-elapsed="${elapsedSecs}" aria-label="Elapsed">${elapsed}</span>`;
+}
+
+function paintWindowHead(win, appId, opts = {}) {
+  const app = APPS[appId];
+  if (!app) return;
+  const glyph = $('[data-win-glyph]', win);
+  const titleEl = $('[data-win-title]', win);
+  const countEl = $('[data-win-count]', win);
+  const trail = $('[data-win-trail]', win);
+  const back = $('[data-win-back]', win);
+  const crumb = $('[data-win-crumb]', win);
+  const sep = $('[data-win-sep]', win);
+  let docDot = $('[data-win-doc-dot]', win);
+
+  const isDoc = Boolean(app.document);
+  win.dataset.doc = isDoc ? 'true' : 'false';
+  win.setAttribute('aria-label', opts.title || app.name);
+  titleEl.textContent = opts.title || app.name;
+
+  if (!docDot) {
+    docDot = document.createElement('span');
+    docDot.setAttribute('data-win-doc-dot', '');
+    docDot.setAttribute('aria-hidden', 'true');
+    glyph.before(docDot);
+  }
+
+  if (isDoc) {
+    glyph.hidden = true;
+    docDot.hidden = false;
+    docDot.className = opts.dotClass || 'd d--run d--pulse';
+    countEl.hidden = true;
+    back.hidden = true;
+    crumb.hidden = true;
+    sep.hidden = true;
+    trail.innerHTML = opts.trail || '';
+    return;
+  }
+
+  docDot.hidden = true;
+  const depth = opts.depth;
+  if (depth) {
+    glyph.hidden = true;
+    back.hidden = false;
+    crumb.hidden = false;
+    crumb.textContent = depth.parent;
+    sep.hidden = false;
+    titleEl.textContent = depth.child;
+    countEl.hidden = true;
+  } else {
+    glyph.hidden = false;
+    glyph.innerHTML = ICONS[appId] || ICONS.dashboard;
+    back.hidden = true;
+    crumb.hidden = true;
+    sep.hidden = true;
+    const count = opts.count !== undefined ? opts.count : resolveHeadField(app.count);
+    if (count !== '' && count != null) {
+      countEl.textContent = String(count);
+      countEl.hidden = false;
+    } else {
+      countEl.hidden = true;
+    }
+  }
+
+  const status = opts.status !== undefined ? opts.status : resolveHeadField(app.status);
+  const actions = opts.actions !== undefined ? opts.actions : resolveHeadField(app.actions);
+  const parts = [];
+  if (status) parts.push(status);
+  if (status && actions) parts.push('<span class="w2-vsep"></span>');
+  if (actions) parts.push(`<div class="w2-actions">${actions}</div>`);
+  trail.innerHTML = parts.join('');
+}
+
+function hoistToolbar(win) {
+  const src = $('[data-hoist-toolbar]', win);
+  const dest = $('[data-win-toolbar]', win);
+  if (!src || !dest) return;
+  dest.hidden = false;
+  dest.appendChild(src);
+}
+
 function openWindow(appId) {
   const app = APPS[appId];
   if (!app) return;
@@ -161,14 +275,21 @@ function openWindow(appId) {
   const win = frag.querySelector('.win');
   win.dataset.app = appId;
   win.setAttribute('data-od-id', `window-${appId}`);
-  win.setAttribute('aria-label', app.name);
-  $('.crumb-root', win).textContent = state.ws;
-  $('.crumb-page', win).textContent = app.name;
-  $('.win-trail', win).innerHTML = app.trail || '';
 
   const body = $('.win-body', win);
   const tpl = $(`#tpl-app-${appId}`);
   if (tpl) body.appendChild(tpl.content.cloneNode(true));
+
+  if (app.document) {
+    const a = AGENTS[0];
+    paintWindowHead(win, appId, {
+      title: app.name,
+      trail: sessionTrailHTML(a),
+    });
+  } else {
+    paintWindowHead(win, appId);
+  }
+  if (app.hoistToolbar) hoistToolbar(win);
 
   const saved = space().open[appId];
   const rect = saved ? { ...saved } : { x: app.x, y: app.y, w: app.w, h: app.h };
@@ -192,17 +313,43 @@ function bindWindow(win, appId) {
   $('.wc-min', win).addEventListener('click', (e) => { e.stopPropagation(); minimizeWindow(appId); });
   $('.wc-zoom', win).addEventListener('click', (e) => { e.stopPropagation(); zoomWindow(appId); });
 
-  const trail = $('.win-trail', win);
+  const trail = $('[data-win-trail]', win);
   trail.addEventListener('click', (e) => {
     const b = e.target.closest('[data-trail]');
     if (!b) return;
     e.stopPropagation();
     if (b.dataset.trail === 'new-session') startNewSession('webgen');
+    else if (b.dataset.trail === 'new-task') toast({ title: 'New task', body: 'Task editor opens here in production.' });
+    else if (b.dataset.trail === 'more') toast({ title: 'More actions', body: 'Overflow actions stay in <kbd class="mono">⌘K</kbd>.' });
   });
 
-  const head = $('.win-head', win);
+  const back = $('[data-win-back]', win);
+  const crumb = $('[data-win-crumb]', win);
+  const onBack = (e) => {
+    e.stopPropagation();
+    if (appId === 'sessions') setSessionsView('recent');
+  };
+  back.addEventListener('click', onBack);
+  crumb.addEventListener('click', onBack);
+
+  const head = $('[data-win-head]', win);
+  const body = $('.win-body', win);
+  body.addEventListener('scroll', () => {
+    head.classList.toggle('is-scrolled', body.scrollTop > 2);
+  }, { passive: true });
+
   head.addEventListener('pointerdown', (e) => {
-    if (isMobile() || e.target.closest('.wc') || e.target.closest('[data-trail]') || win.classList.contains('is-max')) return;
+    if (
+      isMobile()
+      || e.target.closest('.wc')
+      || e.target.closest('[data-trail]')
+      || e.target.closest('.w2-back')
+      || e.target.closest('.w2-crumb')
+      || e.target.closest('.w2-actions')
+      || e.target.closest('button')
+      || e.target.closest('input')
+      || win.classList.contains('is-max')
+    ) return;
     const startX = e.clientX, startY = e.clientY;
     const ox = win.offsetLeft, oy = win.offsetTop;
     head.setPointerCapture(e.pointerId);
@@ -416,7 +563,11 @@ function renderSessionsList() {
   if (!win) return;
   const q = ($('[data-sr-filter]', win)?.value || '').trim().toLowerCase();
   const visible = SESSIONS.filter(s => !q || s.title.toLowerCase().includes(q) || agentById(s.agent).name.toLowerCase().includes(q));
-  $('[data-sr-count]', win).textContent = String(visible.length);
+  const countEl = $('[data-win-count]', win);
+  if (countEl && state.sessionsView !== 'all') {
+    countEl.textContent = String(visible.length);
+    countEl.hidden = false;
+  }
 
   const recent = visible.slice(0, 6);
   const recentEl = $('[data-sr-recent]', win);
@@ -465,13 +616,18 @@ function setSessionsView(view) {
   const win = sessionsWin();
   if (win) {
     $('[data-sr-track]', win).dataset.view = view;
-    $('[data-sr-back]', win).hidden = view !== 'all';
+    if (view === 'all') {
+      paintWindowHead(win, 'sessions', {
+        depth: { parent: 'Sessions', child: 'All' },
+      });
+    } else {
+      paintWindowHead(win, 'sessions');
+    }
   }
   save();
 }
 
 function initSessions(win) {
-  $('[data-sr-back]', win).addEventListener('click', () => setSessionsView('recent'));
   $('[data-sr-filter]', win).addEventListener('input', renderSessionsList);
   setSessionsView(state.sessionsView);
   renderSessionsList();
@@ -479,24 +635,46 @@ function initSessions(win) {
 
 function openSessionView(session) {
   APPS.session.name = session.title;
-  const win = openWindow('session');
-  $('.crumb-page', win).textContent = session.title;
   const a = agentById(session.agent);
-  $('.ss-agent', win).textContent = a.name;
-  $('.agent-chip', $('.session-status', win)).textContent = a.chip;
-  $('.ss-model', win).textContent = a.model;
-  const st = $('.ss-state', win);
-  const dot = $('.session-status .d', win);
-  if (session.status === 'working') {
-    st.textContent = 'working'; st.style.color = '';
-    dot.className = 'd d--run d--pulse';
-  } else if (session.status === 'failed') {
-    st.textContent = 'failed'; st.style.color = 'var(--danger)';
-    dot.className = 'd d--fail';
-  } else {
-    st.textContent = 'idle'; st.style.color = 'var(--muted)';
-    dot.className = 'd d--idle';
+  let dotClass = 'd d--idle';
+  if (session.status === 'working') dotClass = 'd d--run d--pulse';
+  else if (session.status === 'failed') dotClass = 'd d--fail';
+  else if (session.status === 'needs') dotClass = 'd d--needs';
+
+  const existing = wins.get('session');
+  if (existing) {
+    paintWindowHead(existing, 'session', {
+      title: session.title,
+      dotClass,
+      trail: sessionTrailHTML(a, { elapsed: '2m 14s', elapsedSecs: 134 }),
+    });
+    startSessionClock(existing, 134);
+    restoreWindow('session');
+    focusWindow(existing);
+    return existing;
   }
+
+  const win = openWindow('session');
+  paintWindowHead(win, 'session', {
+    title: session.title,
+    dotClass,
+    trail: sessionTrailHTML(a, { elapsed: '2m 14s', elapsedSecs: 134 }),
+  });
+  startSessionClock(win, 134);
+  return win;
+}
+
+function startSessionClock(win, startSecs) {
+  if (win._timer) clearInterval(win._timer);
+  let secs = Number(startSecs) || 0;
+  win._timer = setInterval(() => {
+    if (!win.isConnected) { clearInterval(win._timer); return; }
+    const el = $('[data-elapsed]', win);
+    if (!el) return;
+    secs += 1;
+    el.dataset.elapsed = String(secs);
+    el.textContent = `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, '0')}s`;
+  }, 1000);
 }
 
 function initSession(win) {
@@ -521,12 +699,7 @@ function initSession(win) {
     input.value = '';
   });
   const el = $('[data-elapsed]', win);
-  let secs = Number(el.dataset.elapsed);
-  win._timer = setInterval(() => {
-    if (!el.isConnected) { clearInterval(win._timer); return; }
-    secs += 1;
-    el.textContent = `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, '0')}s`;
-  }, 1000);
+  startSessionClock(win, el ? el.dataset.elapsed : 0);
 }
 
 function initTasks(win) {
@@ -1055,9 +1228,12 @@ function startNewSession(agentId) {
   toast({ title: 'New session', body: `Starting a session with <strong>${a.name}</strong> (${a.model}) in <code>${state.ws}</code>.` });
   APPS.session.name = 'New session';
   const win = openWindow('session');
-  $('.crumb-page', win).textContent = 'New session';
-  $('.ss-agent', win).textContent = a.name;
-  $('.ss-model', win).textContent = a.model;
+  paintWindowHead(win, 'session', {
+    title: 'New session',
+    dotClass: 'd d--run d--pulse',
+    trail: sessionTrailHTML(a, { elapsed: '0m 00s', elapsedSecs: 0 }),
+  });
+  startSessionClock(win, 0);
   $('input', $('[data-composer]', win)).focus();
 }
 $('#dockNew').addEventListener('click', () => startNewSession('webgen'));

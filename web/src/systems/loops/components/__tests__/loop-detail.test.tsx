@@ -16,6 +16,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
         {children as React.ReactNode}
       </a>
     ),
+    useNavigate: () => vi.fn(),
   };
 });
 
@@ -117,13 +118,14 @@ describe("LoopDetailView", () => {
     const onOpenEditor = vi.fn();
     renderDetail({ onRun, onConfigure, onOpenEditor });
     fireEvent.click(screen.getByTestId("loop-run-action"));
+    fireEvent.click(screen.getByTestId("loop-detail-overflow"));
+    expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Edit");
     fireEvent.click(screen.getByTestId("loop-edit-action"));
     fireEvent.click(screen.getByTestId("loop-detail-overflow"));
     fireEvent.click(screen.getByTestId("loop-configure-action"));
     expect(onRun).toHaveBeenCalledTimes(1);
     expect(onConfigure).toHaveBeenCalledTimes(1);
     expect(onOpenEditor).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Edit");
   });
 
   it("Should require the exact Loop name before deleting a workspace definition", () => {

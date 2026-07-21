@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { LayoutDashboard } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -18,44 +19,212 @@ function SlotInspector({ probeId }: { probeId: string }) {
   const slot = useTopbarSlotValue();
   return (
     <span data-testid={probeId}>
-      routeNav:{slot?.routeNav ? "yes" : "no"} actions:{slot?.actions ? "yes" : "no"} overflow:
-      {slot?.overflow ? "yes" : "no"} crumb:{slot?.crumb ? "yes" : "no"} crumb-value:
-      {typeof slot?.crumb === "string" ? slot.crumb : "no"}
+      actions:{slot?.actions ? "yes" : "no"} overflow:{slot?.overflow ? "yes" : "no"} crumb:
+      {slot?.crumb ? "yes" : "no"} crumb-value:
+      {typeof slot?.crumb === "string" ? slot.crumb : "no"} toolbar:
+      {slot?.toolbar ? "yes" : "no"} nav:{slot?.nav ? "yes" : "no"} status:
+      {slot?.status ? "yes" : "no"}
     </span>
   );
 }
 
 describe("Topbar", () => {
-  it("Should own the route H1 beside the breadcrumb in the leading context zone", () => {
+  it("Should render left-aligned identity with a quiet glyph and title", () => {
     render(
       <TopbarSlotProvider>
-        <Topbar breadcrumb={<span data-testid="crumb-trail">Operate</span>} title="Tasks" />
+        <Topbar
+          leading={<span data-testid="window-controls">lights</span>}
+          glyph={<LayoutDashboard data-testid="glyph" />}
+          title="Tasks"
+        />
       </TopbarSlotProvider>
     );
-    const context = document.querySelector("[data-slot='topbar-context']");
-    expect(context).toContainElement(screen.getByTestId("crumb-trail"));
+    expect(document.querySelector("[data-slot='topbar-leading']")).toContainElement(
+      screen.getByTestId("window-controls")
+    );
+    expect(document.querySelector("[data-slot='topbar-glyph']")).toContainElement(
+      screen.getByTestId("glyph")
+    );
     const title = screen.getByRole("heading", { level: 1, name: "Tasks" });
     expect(title).toHaveAttribute("tabindex", "-1");
     expect(title).toHaveAttribute("data-slot", "topbar-title");
+    expect(document.querySelector("[data-slot='topbar-breadcrumb']")).toBeNull();
   });
 
-  it("Should render route identity without breadcrumb or slots", () => {
+  it("Should render route identity without leading or slots", () => {
     const { container } = render(
       <TopbarSlotProvider>
         <Topbar title="Home" />
       </TopbarSlotProvider>
     );
-    const header = container.querySelector("[data-slot='topbar']");
-    expect(header).toBeInTheDocument();
+    expect(container.querySelector("[data-slot='topbar']")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument();
-    expect(container.querySelector("[data-slot='topbar-route-nav']")).toBeNull();
+    expect(container.querySelector("[data-slot='topbar-leading']")).toBeNull();
     expect(container.querySelector("[data-slot='topbar-actions']")).toBeNull();
   });
 
-  it("Should expose routeNav/actions/overflow slots in their zones", () => {
+  it("Should render the published crumb as the leaf title", () => {
+    function Setup() {
+      useTopbarSlot({ crumb: "Nightly audit" });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar title="Tasks" />
+      </TopbarSlotProvider>
+    );
+
+    expect(screen.getByRole("heading", { level: 1, name: "Nightly audit" })).toBeInTheDocument();
+  });
+
+  it("Should render count and status from the slot", () => {
     function Setup() {
       useTopbarSlot({
-        routeNav: <span data-testid="route-nav-links">views</span>,
+        count: 6,
+        status: <span data-testid="status-chip">2 running</span>,
+      });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar title="Tasks" />
+      </TopbarSlotProvider>
+    );
+    expect(document.querySelector("[data-slot='topbar-count']")).toHaveTextContent("6");
+    expect(screen.getByTestId("status-chip")).toBeInTheDocument();
+  });
+
+  it("Should render peer route nav after identity and before the flex gutter", () => {
+    function Setup() {
+      useTopbarSlot({
+        nav: <nav data-testid="route-tabs">List · Kanban</nav>,
+      });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar title="Tasks" />
+      </TopbarSlotProvider>
+    );
+    const head = document.querySelector("[data-slot='topbar']");
+    const identity = document.querySelector("[data-slot='topbar-identity']");
+    const nav = document.querySelector("[data-slot='topbar-nav']");
+    const flex = document.querySelector("[data-slot='topbar-flex']");
+    expect(head).not.toBeNull();
+    expect(identity).not.toBeNull();
+    expect(nav).not.toBeNull();
+    expect(flex).not.toBeNull();
+    expect(nav).toContainElement(screen.getByTestId("route-tabs"));
+    expect(identity!.compareDocumentPosition(nav!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(nav!.compareDocumentPosition(flex!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("Should omit topbar-nav when the publisher does not supply nav (drill-in)", () => {
+    function Setup() {
+      useTopbarSlot({
+        onBack: () => undefined,
+        crumbs: [{ id: "tasks", label: "Tasks", onSelect: () => undefined }],
+        crumb: "Run #128",
+      });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar title="Tasks" />
+      </TopbarSlotProvider>
+    );
+    expect(document.querySelector("[data-slot='topbar-nav']")).toBeNull();
+  });
+
+  it("Should render drill-in back + crumbs without a workspace prefix (UT-092)", () => {
+    const onBack = vi.fn();
+    const onSelect = vi.fn();
+    function Setup() {
+      useTopbarSlot({
+        onBack,
+        crumbs: [{ id: "tasks", label: "Tasks", onSelect }],
+        crumb: "Run #128",
+      });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar title="Tasks" />
+      </TopbarSlotProvider>
+    );
+    expect(document.querySelector("[data-slot='topbar-glyph']")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back one level" }));
+    expect(onBack).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Run #128" })).toBeInTheDocument();
+    expect(screen.queryByText("agh")).toBeNull();
+  });
+
+  it("Should keep edge parents visible and expose collapsed middle parents as menu items", () => {
+    const selectProjects = vi.fn();
+    const selectWeb = vi.fn();
+    const selectTasks = vi.fn();
+
+    function Setup() {
+      useTopbarSlot({
+        crumbs: [
+          { id: "knowledge", label: "Knowledge", onSelect: vi.fn() },
+          { id: "projects", label: "Projects", onSelect: selectProjects },
+          { id: "web", label: "Web", onSelect: selectWeb },
+          { id: "tasks", label: "Tasks", onSelect: selectTasks },
+        ],
+        crumb: "streaming.md",
+      });
+      return null;
+    }
+
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar title="Knowledge" />
+      </TopbarSlotProvider>
+    );
+
+    expect(screen.queryByRole("button", { name: "Projects" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
+    expect(selectTasks).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Show hidden path levels" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Projects" }));
+
+    expect(selectProjects).toHaveBeenCalledTimes(1);
+    expect(selectWeb).not.toHaveBeenCalled();
+  });
+
+  it("Should let leading coexist with published actions/overflow slots", () => {
+    function Setup() {
+      useTopbarSlot({
+        actions: <span data-testid="action-btn">action</span>,
+      });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar leading={<span data-testid="window-controls">lights</span>} title="Tasks" />
+      </TopbarSlotProvider>
+    );
+    expect(document.querySelector("[data-slot='topbar-leading']")).toContainElement(
+      screen.getByTestId("window-controls")
+    );
+    expect(document.querySelector("[data-slot='topbar-actions']")).toContainElement(
+      screen.getByTestId("action-btn")
+    );
+  });
+
+  it("Should expose actions and overflow slots in their zones", () => {
+    function Setup() {
+      useTopbarSlot({
         actions: <span data-testid="action-btn">action</span>,
         overflow: <span data-testid="overflow-trigger">…</span>,
       });
@@ -66,9 +235,6 @@ describe("Topbar", () => {
         <Setup />
         <Topbar title="Tasks" />
       </TopbarSlotProvider>
-    );
-    expect(document.querySelector("[data-slot='topbar-route-nav']")).toContainElement(
-      screen.getByTestId("route-nav-links")
     );
     expect(document.querySelector("[data-slot='topbar-actions']")).toContainElement(
       screen.getByTestId("action-btn")
@@ -128,9 +294,10 @@ describe("Topbar", () => {
             <ProbeSlot
               slot={{
                 crumb: "loop-a",
-                routeNav: <span data-testid="rn" />,
                 actions: <span data-testid="a" />,
                 overflow: <span data-testid="o" />,
+                nav: <span data-testid="nv" />,
+                toolbar: <span data-testid="tb" />,
               }}
               label="a"
             />
@@ -145,9 +312,10 @@ describe("Topbar", () => {
       </TopbarSlotProvider>
     );
     expect(screen.getByTestId("inspector")).toHaveTextContent("actions:yes");
-    expect(screen.getByTestId("inspector")).toHaveTextContent("routeNav:yes");
     expect(screen.getByTestId("inspector")).toHaveTextContent("overflow:yes");
     expect(screen.getByTestId("inspector")).toHaveTextContent("crumb:yes");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("nav:yes");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("toolbar:yes");
 
     act(() => {
       rerender(
@@ -158,9 +326,10 @@ describe("Topbar", () => {
     });
 
     expect(screen.getByTestId("inspector")).toHaveTextContent("actions:no");
-    expect(screen.getByTestId("inspector")).toHaveTextContent("routeNav:no");
     expect(screen.getByTestId("inspector")).toHaveTextContent("overflow:no");
     expect(screen.getByTestId("inspector")).toHaveTextContent("crumb:no");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("nav:no");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("toolbar:no");
   });
 
   it("Should preserve the active slot when an older consumer unmounts", () => {

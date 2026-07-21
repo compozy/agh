@@ -877,7 +877,7 @@ func agentSoulBundle(record AgentSoulRecord) outputBundle {
 				{Label: "Validation", Value: stringOrDash(string(record.ValidationStatus))},
 				{Label: authoredContextDigestValue, Value: stringOrDash(record.Digest)},
 				{Label: authoredContextSnapshotValue, Value: stringOrDash(record.SnapshotID)},
-				{Label: "Revision", Value: stringOrDash(record.RevisionID)},
+				{Label: cliRevisionValue, Value: stringOrDash(record.RevisionID)},
 				{Label: authoredContextSourceValue, Value: stringOrDash(record.SourcePath)},
 			})
 			return renderHumanBlocks(summary, diagnosticsTable(record.Diagnostics)), nil
@@ -1065,7 +1065,7 @@ func agentHeartbeatMutationBundle(record *AgentHeartbeatMutationRecord) outputBu
 				authoredContextOperationKey,
 				authoredContextPreviousDigestKey,
 				authoredContextNewDigestKey,
-				"snapshot",
+				cliSnapshotKey,
 				automationCreatedAtKey,
 			}, []string{
 				record.Revision.ID,

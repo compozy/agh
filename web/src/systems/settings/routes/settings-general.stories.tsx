@@ -9,7 +9,7 @@ import {
   StorybookRestartPhaseSetup,
 } from "@/storybook/settings-state-helpers";
 import {
-  StorybookRestartBannerSetup,
+  StorybookRestartNoticeSetup,
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
   appRouteParameters,
@@ -29,7 +29,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "General settings route stories rendered through the real app shell, including loading, error, dirty, saving, and all restart banner tones.",
+          "General settings route stories rendered through the real app shell, including loading, error, dirty, saving, and all restart notice tones.",
       },
     },
   },
@@ -154,7 +154,7 @@ export const Saving: Story = {
 };
 
 /**
- * Restart-warning banner -- mutation recorded as restart-required.
+ * Restart-warning notice -- mutation recorded as restart-required.
  */
 export const RestartWarning: Story = {
   args: {},
@@ -162,14 +162,14 @@ export const RestartWarning: Story = {
   render: () => (
     <>
       <StorybookWorkspaceSetup />
-      <StorybookRestartBannerSetup section="general" />
+      <StorybookRestartNoticeSetup section="general" />
     </>
   ),
 };
 
 /**
- * Restart-polling banner -- operation started, status still pending, spinner
- * visible in the banner.
+ * Restart-polling notice -- operation started, status still pending, spinner
+ * visible in the notice.
  */
 export const RestartPolling: Story = {
   args: {},
@@ -216,7 +216,7 @@ export const ApplyHistory: Story = {
 };
 
 /**
- * Restart-success banner -- operation completed, Dismiss button visible.
+ * Restart-success notice -- operation completed, Dismiss button visible.
  */
 export const RestartSuccess: Story = {
   args: {},
@@ -237,7 +237,7 @@ export const RestartSuccess: Story = {
 };
 
 /**
- * Restart-failure banner -- operation failed with a reason suffix + Dismiss.
+ * Restart-failure notice -- operation failed with a reason suffix + Dismiss.
  */
 export const RestartFailure: Story = {
   args: {},

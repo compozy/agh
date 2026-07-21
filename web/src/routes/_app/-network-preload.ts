@@ -19,6 +19,17 @@ export async function preloadNetworkRootRoute(queryClient: QueryClient): Promise
   await settleRouteQueries([queryClient.ensureQueryData(networkStatusOptions())]);
 }
 
+/** Warms the Network index projection for restored and unfocused windows. */
+export async function preloadNetworkWindowRoute(
+  queryClient: QueryClient,
+  workspaceId: string
+): Promise<void> {
+  await settleRouteQueries([
+    queryClient.ensureQueryData(networkStatusOptions()),
+    queryClient.ensureQueryData(networkChannelsOptions(workspaceId)),
+  ]);
+}
+
 function channelQueries(queryClient: QueryClient, workspaceId: string, channel: string) {
   return [
     queryClient.ensureQueryData(networkStatusOptions()),

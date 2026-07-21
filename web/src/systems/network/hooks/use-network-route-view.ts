@@ -6,11 +6,14 @@ import { useOpenWork } from "./use-work";
 import { useThreadViewMode } from "./use-thread-view-mode";
 import { useNetworkThreadDetail } from "./use-threads";
 import { useNetworkDirectDetail } from "./use-directs";
+import { resolveNetworkConversationLabel } from "../lib/network-window-location";
+import type { UseNetworkRouteShellArgs } from "./use-network-route-shell";
 
-export function useNetworkRouteView() {
-  const route = useNetworkRouteShell();
+export function useNetworkRouteView(args: UseNetworkRouteShellArgs) {
+  const route = useNetworkRouteShell(args);
   const viewMode = useThreadViewMode();
-  const showOverlayInRightRail = route.activeThreadId != null && viewMode === "overlay";
+  const threadIsFullPage = route.location.view === "full" || viewMode === "fullpage";
+  const showOverlayInRightRail = route.activeThreadId != null && !threadIsFullPage;
   const containerSurface = route.activeThreadId
     ? ("thread" as const)
     : route.activeDirectId
@@ -49,13 +52,22 @@ export function useNetworkRouteView() {
     enabled: route.page.isNetworkEnabled,
     workspaceId: route.activeWorkspaceId,
   });
+  const conversationLabel = resolveNetworkConversationLabel(route.location, {
+    thread: threadDetail.thread,
+    direct: directDetail.direct,
+    selfSessionId: railView.session.session?.sessionId ?? null,
+  });
 
   return {
     ...route,
     inspectorView,
     networkCreate,
+    conversationLabel,
+    directDetail,
     openWork,
     railView,
     showOverlayInRightRail,
+    threadDetail,
+    threadIsFullPage,
   };
 }

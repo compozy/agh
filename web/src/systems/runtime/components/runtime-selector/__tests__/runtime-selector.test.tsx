@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@agh/ui";
 
 import { FAVORITES_STORAGE_KEY, RECENTS_LIMIT, RECENTS_STORAGE_KEY } from "../favorites";
-import { registerCommandK, triggerVisible } from "../command-k-registry";
+import { triggerVisible } from "../use-runtime-j-shortcut";
 import { IntensityMeter } from "../intensity-meter";
 import { runtimeModelKey } from "../model-key";
 import { ReasoningBar } from "../reasoning-bar";
@@ -1492,10 +1492,11 @@ describe("RuntimeSelector reasoning strip label identity", () => {
 });
 
 // ---------------------------------------------------------------------------
-// ⌘K ownership — one global listener, a single deterministic owner
+// ⌘J shortcut — component-scoped to the selector's composer surface (ADR-005;
+// ⌘K belongs to the shell palette and never reaches this component)
 // ---------------------------------------------------------------------------
 
-describe("RuntimeSelector ⌘K ownership", () => {
+describe("RuntimeSelector ⌘J shortcut", () => {
   function Instance({ testId }: { testId: string }) {
     const [value, setValue] = useState<RuntimeSelectorValue>({
       provider: "codex",
@@ -1517,105 +1518,103 @@ describe("RuntimeSelector ⌘K ownership", () => {
     return within(screen.getByTestId(testId)).getByRole("button", { name: /^Provider:/ });
   }
 
-  it("Should resolve one deterministic owner across two instances and toggle it with ⌘K", async () => {
+  it("Should open with ⌘J only while the selector's composer scope owns focus (UT-060)", async () => {
     render(
       <UIProvider reducedMotion="always">
-        <Instance testId="rt-a" />
-        <Instance testId="rt-b" />
+        <form data-testid="composer-scope">
+          <input aria-label="Prompt" data-testid="composer-input" />
+          <Instance testId="rt-a" />
+        </form>
+        <button type="button" data-testid="outside-control">
+          outside
+        </button>
       </UIProvider>
     );
 
-    // Two eligible instances, none focused → ownership stays DETERMINISTIC (never
-    // "no owner"): the most-recently-registered eligible selector (rt-b) owns ⌘K,
-    // and exactly ONE popup opens — no competing per-instance handlers fight.
-    fireEvent.keyDown(document.body, { key: "k", metaKey: true });
-    await waitFor(() => expect(screen.getAllByTestId("runtime-selector-popup")).toHaveLength(1));
-    expect(screen.getByTestId("rt-b")).toHaveAttribute("data-open", "true");
-    expect(screen.getByTestId("rt-a")).toHaveAttribute("data-open", "false");
+    // Focus outside the composer scope → ⌘J does nothing.
+    screen.getByTestId("outside-control").focus();
+    fireEvent.keyDown(screen.getByTestId("outside-control"), { key: "j", metaKey: true });
+    expect(screen.queryAllByTestId("runtime-selector-popup")).toHaveLength(0);
 
-    // Close it and refocus the FIRST selector → it becomes the last-focused owner;
-    // ⌘K now opens rt-a instead (focus wins over the registration fallback).
-    fireEvent.keyDown(screen.getByTestId("runtime-selector-search"), { key: "Escape" });
-    await waitFor(() => expect(screen.queryAllByTestId("runtime-selector-popup")).toHaveLength(0));
-    const firstProvider = providerButton("rt-a");
-    firstProvider.focus();
-    fireEvent.keyDown(firstProvider, { key: "k", metaKey: true });
+    // Focus inside the composer (its input, not the trigger) → ⌘J opens.
+    const composerInput = screen.getByTestId("composer-input");
+    composerInput.focus();
+    fireEvent.keyDown(composerInput, { key: "j", metaKey: true });
     await waitFor(() => expect(screen.getAllByTestId("runtime-selector-popup")).toHaveLength(1));
     expect(screen.getByTestId("rt-a")).toHaveAttribute("data-open", "true");
 
-    // ⌘K again while owned+open toggles it closed (rule 1: the open selector owns).
-    fireEvent.keyDown(screen.getByTestId("runtime-selector-search"), { key: "k", metaKey: true });
+    // ⌘J while open toggles the selector closed.
+    fireEvent.keyDown(screen.getByTestId("runtime-selector-search"), { key: "j", metaKey: true });
     await waitFor(() => expect(screen.queryAllByTestId("runtime-selector-popup")).toHaveLength(0));
   });
 
-  it("Should hand ⌘K ownership to the sole remaining selector after the focused one unmounts", async () => {
-    function Harness() {
-      const [showB, setShowB] = useState(true);
-      return (
-        <UIProvider reducedMotion="always">
+  it("Should scope ⌘J per selector so two composers never fight over one keystroke", async () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <form>
+          <input aria-label="Prompt A" data-testid="composer-a" />
           <Instance testId="rt-a" />
-          {showB ? <Instance testId="rt-b" /> : null}
-          <button type="button" onClick={() => setShowB(false)}>
-            hide b
-          </button>
-        </UIProvider>
-      );
-    }
-    const user = userEvent.setup();
-    render(<Harness />);
+        </form>
+        <form>
+          <input aria-label="Prompt B" data-testid="composer-b" />
+          <Instance testId="rt-b" />
+        </form>
+      </UIProvider>
+    );
 
-    // Focus B (making it the last-focused owner), then unmount it.
-    providerButton("rt-b").focus();
-    await user.click(screen.getByRole("button", { name: "hide b" }));
-    expect(screen.queryByTestId("rt-b")).not.toBeInTheDocument();
-
-    // The unmounted B can no longer own ⌘K; A is now the sole eligible owner and
-    // opens deterministically even without focus. B is gone, so the single popup
-    // that appears is unambiguously A's.
-    fireEvent.keyDown(document.body, { key: "k", metaKey: true });
+    const composerB = screen.getByTestId("composer-b");
+    composerB.focus();
+    fireEvent.keyDown(composerB, { key: "j", metaKey: true });
     await waitFor(() => expect(screen.getAllByTestId("runtime-selector-popup")).toHaveLength(1));
-    expect(screen.getByTestId("runtime-selector-search")).toBeInTheDocument();
+    expect(screen.getByTestId("rt-b")).toHaveAttribute("data-open", "true");
+    expect(screen.getByTestId("rt-a")).toHaveAttribute("data-open", "false");
   });
 
-  it("Should ignore open owners that are disabled or no longer visible", () => {
-    const disabledClose = vi.fn();
-    const hiddenClose = vi.fn();
-    const eligibleOpen = vi.fn();
-    const unregisterDisabled = registerCommandK({
-      id: "disabled-open",
-      isEligible: () => false,
-      isVisible: () => true,
-      isOpen: () => true,
-      open: vi.fn(),
-      close: disabledClose,
-    });
-    const unregisterHidden = registerCommandK({
-      id: "hidden-open",
-      isEligible: () => true,
-      isVisible: () => false,
-      isOpen: () => true,
-      open: vi.fn(),
-      close: hiddenClose,
-    });
-    const unregisterEligible = registerCommandK({
-      id: "eligible",
-      isEligible: () => true,
-      isVisible: () => true,
-      isOpen: () => false,
-      open: eligibleOpen,
-      close: vi.fn(),
-    });
-
-    try {
-      fireEvent.keyDown(document.body, { key: "k", metaKey: true });
-      expect(eligibleOpen).toHaveBeenCalledTimes(1);
-      expect(disabledClose).not.toHaveBeenCalled();
-      expect(hiddenClose).not.toHaveBeenCalled();
-    } finally {
-      unregisterEligible();
-      unregisterHidden();
-      unregisterDisabled();
+  it("Should ignore ⌘J on a disabled selector even inside its scope", () => {
+    function DisabledInstance() {
+      const [value, setValue] = useState<RuntimeSelectorValue>({
+        provider: "codex",
+        model: "",
+        reasoning_effort: "",
+      });
+      return (
+        <RuntimeSelector
+          value={value}
+          onChange={setValue}
+          providers={[codexProvider]}
+          models={[]}
+          disabled
+          triggerTestId="rt-disabled"
+        />
+      );
     }
+    render(
+      <UIProvider reducedMotion="always">
+        <form>
+          <input aria-label="Prompt" data-testid="composer-input" />
+          <DisabledInstance />
+        </form>
+      </UIProvider>
+    );
+
+    const composerInput = screen.getByTestId("composer-input");
+    composerInput.focus();
+    fireEvent.keyDown(composerInput, { key: "j", metaKey: true });
+    expect(screen.queryAllByTestId("runtime-selector-popup")).toHaveLength(0);
+  });
+
+  it("Should keep focus activation reachable from the trigger group itself", async () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <Instance testId="rt-bare" />
+      </UIProvider>
+    );
+
+    // Without a form/dialog scope the trigger itself is the scope.
+    const provider = providerButton("rt-bare");
+    provider.focus();
+    fireEvent.keyDown(provider, { key: "j", metaKey: true });
+    await waitFor(() => expect(screen.getAllByTestId("runtime-selector-popup")).toHaveLength(1));
   });
 
   it("Should treat triggers under aria-hidden ancestors as not visible", () => {

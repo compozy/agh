@@ -18,7 +18,6 @@ export function ProviderAuthFields({ draft, onChange }: ProviderAuthFieldsProps)
         data-testid="settings-providers-editor-auth-mode"
         label="Auth mode"
         description="Owner of provider authentication at launch."
-        hint="REQUIRED"
         control={
           <NativeSelect
             className="w-44 font-mono"
@@ -54,7 +53,6 @@ export function ProviderAuthFields({ draft, onChange }: ProviderAuthFieldsProps)
         data-testid="settings-providers-editor-env-policy"
         label="Env policy"
         description="Daemon environment inheritance policy for provider subprocesses."
-        hint="REQUIRED"
         control={
           <NativeSelect
             className="w-40 font-mono"
@@ -77,7 +75,6 @@ export function ProviderAuthFields({ draft, onChange }: ProviderAuthFieldsProps)
         data-testid="settings-providers-editor-home-policy"
         label="Home policy"
         description="Provider CLI state location policy."
-        hint="REQUIRED"
         control={
           <NativeSelect
             className="w-40 font-mono"
@@ -100,7 +97,6 @@ export function ProviderAuthFields({ draft, onChange }: ProviderAuthFieldsProps)
         data-testid="settings-providers-editor-auth-status-command"
         label="Status command"
         description="Provider-owned command used for auth diagnostics."
-        hint="OPTIONAL"
         control={
           <Input
             className="w-72 font-mono"
@@ -118,7 +114,6 @@ export function ProviderAuthFields({ draft, onChange }: ProviderAuthFieldsProps)
         data-testid="settings-providers-editor-auth-login-command"
         label="Login command"
         description="Provider-owned command opened by provider auth login."
-        hint="OPTIONAL"
         control={
           <Input
             className="w-72 font-mono"

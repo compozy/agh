@@ -118,6 +118,7 @@ let pageState: {
   restart: RestartBanner;
   update: {
     data: UpdateStatus | null;
+    isError: boolean;
     isLoading: boolean;
     isFetching: boolean;
     error: Error | null;
@@ -146,13 +147,18 @@ const restartBanner: RestartBanner = {
   dismiss: vi.fn(),
 };
 
-vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
-    component: opts.component,
-  }),
-}));
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    createFileRoute: () => (opts: { component: () => ReactNode }) => ({
+      component: opts.component,
+    }),
+    useNavigate: () => vi.fn(),
+  };
+});
 
-vi.mock("@/hooks/routes/use-settings-general-page", () => ({
+vi.mock("@/systems/settings/hooks/use-settings-general-page", () => ({
   useSettingsGeneralPage: () => pageState,
 }));
 
@@ -168,6 +174,8 @@ vi.mock("@/systems/settings", async importOriginal => {
   return {
     ...actual,
     useSettingsGeneral: () => ({ data: envelope, isLoading: false, error: null }),
+    useSettingsProviders: () => ({ data: { providers: [{ name: "claude" }] } }),
+    useSettingsSandboxes: () => ({ data: { sandboxes: [{ name: "local" }] } }),
     useUpdateSettingsGeneral: () => mockMutation,
     SettingsApiError: class SettingsApiError extends Error {},
   };
@@ -209,6 +217,7 @@ beforeEach(() => {
         checked_at: "2026-05-03T19:00:00Z",
       },
       isLoading: false,
+      isError: false,
       isFetching: false,
       error: null,
       refetch: vi.fn(),
@@ -243,10 +252,7 @@ beforeEach(() => {
   };
 });
 
-import { routeComponent } from "@/test/route-options";
-import { Route } from "../general";
-
-const GeneralSettingsPage = routeComponent(Route);
+import { GeneralSettingsPage } from "../-general-settings-page";
 
 describe("GeneralSettingsPage", () => {
   it("renders a loading indicator while fetching", () => {
@@ -268,24 +274,27 @@ describe("GeneralSettingsPage", () => {
   it("renders runtime, defaults, permissions, and config path from the section envelope", () => {
     render(<GeneralSettingsPage />);
 
-    expect(screen.getByTestId("settings-page-general-status-line")).toHaveTextContent(
-      "config: ~/.agh/config.toml"
+    expect(screen.getByTestId("settings-page-general-subhead")).toHaveTextContent(
+      "4 active sessions"
+    );
+    expect(screen.getByTestId("settings-page-general-subhead")).toHaveTextContent(
+      "7 agents working"
     );
     expect(screen.getByTestId("settings-page-general-default-agent-input")).toHaveValue("general");
     expect(screen.getByTestId("settings-page-general-default-provider-input")).toHaveValue(
       "claude"
     );
     expect(screen.getByTestId("settings-page-general-permissions-group")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-general-permission-approve-all")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    expect(screen.getByRole("radio", { name: /Allow everything/ })).toBeChecked();
     expect(screen.getByTestId("settings-page-general-update-status")).toHaveTextContent(
       "available"
     );
     expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
       "Run `agh update`."
     );
+    fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
+    expect(screen.getByText("Config file")).toBeInTheDocument();
+    expect(screen.getByText("~/.agh/config.toml")).toBeInTheDocument();
   });
 
   it("composes the remembered-decisions section after the permissions policy", () => {
@@ -361,7 +370,7 @@ describe("GeneralSettingsPage", () => {
     render(<GeneralSettingsPage />);
 
     expect(screen.getByTestId("settings-page-general-update-status")).toHaveTextContent(
-      "unsupported"
+      /unsupported/i
     );
     expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
       "replace `agh.exe` manually"
@@ -374,6 +383,7 @@ describe("GeneralSettingsPage", () => {
   it("surfaces transport errors and retries the update query when refresh fails", () => {
     pageState.update = {
       data: null,
+      isError: true,
       isLoading: false,
       isFetching: false,
       error: new Error("update refresh timed out"),
@@ -402,7 +412,7 @@ describe("GeneralSettingsPage", () => {
     pageState.restart.isVisible = true;
     pageState.restart.isRestartRequired = true;
     render(<GeneralSettingsPage />);
-    expect(screen.getByTestId("settings-page-general-restart-banner")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-general-restart-notice")).toBeInTheDocument();
   });
 
   it("wires the save bar buttons to the page-level handlers", () => {
@@ -417,9 +427,16 @@ describe("GeneralSettingsPage", () => {
   });
 
   it("surfaces the last-applied label when the save bar has a success message", () => {
+    pageState.isDirty = true;
+    pageState.isSaving = true;
     pageState.lastAppliedLabel = "Saved · restart required to apply";
-    render(<GeneralSettingsPage />);
-    expect(screen.getByTestId("settings-page-general-save-applied")).toHaveTextContent(
+    const { rerender } = render(<GeneralSettingsPage />);
+
+    pageState.isDirty = false;
+    pageState.isSaving = false;
+    rerender(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-save-message")).toHaveTextContent(
       "restart required"
     );
   });

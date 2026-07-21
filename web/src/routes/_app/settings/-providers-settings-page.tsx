@@ -1,4 +1,5 @@
 import { AlertCircle, Check, Database, Plus, Trash2, X } from "lucide-react";
+import { useState } from "react";
 
 import {
   Alert,
@@ -7,74 +8,45 @@ import {
   Button,
   ConfirmDialog,
   Empty,
-  PageShell,
-  RestartBanner,
-  Section,
   Spinner,
-  StatusLine,
 } from "@agh/ui";
 
 import { useCreateProviderFocusRestore } from "@/hooks/routes/use-create-provider-focus-restore";
 import {
   useSettingsProvidersPage,
   type ProviderLastAction,
-} from "@/hooks/routes/use-settings-providers-page";
+} from "@/systems/settings/hooks/use-settings-providers-page";
 import {
-  ProviderInspectorSheet,
-  ProvidersGrid,
-  ProvidersListFilters,
-  restartBannerPropsFor,
+  ProviderCard,
+  ProviderDetailDialog,
+  ProviderRow,
+  ProvidersToolbar,
+  SettingsPageFrame,
+  useSettingsTopbar,
+  type ProvidersViewMode,
   type SettingsProviderEntry,
-  SettingsPageHead,
 } from "@/systems/settings";
+
 export function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
-  const envelopeForSlot = page.envelope;
+  const [view, setView] = useState<ProvidersViewMode>("cards");
   const inspectorOpen = page.inspector.mode !== "closed";
   const createProviderButtonRef = useCreateProviderFocusRestore(page.inspector.mode);
-
-  const statusLine = envelopeForSlot ? (
-    <StatusLine
-      data-testid="settings-page-providers-status-line"
-      status="connected"
-      items={[
-        {
-          key: "total",
-          value: (
-            <span data-testid="settings-page-providers-total">{page.counts.total} providers</span>
-          ),
-          tone: "neutral",
-        },
-        {
-          key: "installed",
-          value: (
-            <span data-testid="settings-page-providers-installed">
-              {page.counts.installed} installed
-            </span>
-          ),
-          tone: "neutral",
-        },
-        {
-          key: "missing",
-          value: (
-            <span data-testid="settings-page-providers-missing">
-              {page.counts.binaryMissing} binary missing
-            </span>
-          ),
-          tone: "neutral",
-        },
-        {
-          key: "unconfigured",
-          value: (
-            <span data-testid="settings-page-providers-unconfigured">
-              {page.counts.unconfigured} unconfigured
-            </span>
-          ),
-          tone: "neutral",
-        },
-      ]}
-    />
-  ) : null;
+  useSettingsTopbar("providers", {
+    actions:
+      !page.isLoading && !page.error && page.envelope ? (
+        <Button
+          data-testid="settings-page-providers-create"
+          onClick={page.openCreate}
+          ref={createProviderButtonRef}
+          size="sm"
+          type="button"
+        >
+          <Plus aria-hidden="true" className="size-3" />
+          New provider
+        </Button>
+      ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -101,7 +73,6 @@ export function ProvidersSettingsPage() {
     );
   }
 
-  const bannerProps = restartBannerPropsFor("providers", page.restart);
   const inspectorEntry =
     page.inspector.mode === "inspect" || page.inspector.mode === "edit"
       ? page.inspector.entry
@@ -111,77 +82,86 @@ export function ProvidersSettingsPage() {
       ? page.inspector.draft
       : null;
   const existingNames = page.providers.map(provider => provider.name);
+  const readyCount = page.counts.installed;
+  const setupCount = page.counts.needsSetup;
+  const missingCount = page.counts.binaryMissing;
 
   return (
-    <PageShell
+    <SettingsPageFrame
+      description="The agent CLIs and model providers your sessions run on. Each provider is saved on its own."
+      meta={[
+        {
+          key: "ready",
+          content: <span data-testid="settings-page-providers-ready">{readyCount} ready</span>,
+        },
+        {
+          key: "setup",
+          content: (
+            <span data-testid="settings-page-providers-needs-setup">{setupCount} needs setup</span>
+          ),
+        },
+        {
+          key: "missing",
+          content: (
+            <span data-testid="settings-page-providers-missing">{missingCount} not installed</span>
+          ),
+        },
+      ]}
+      restart={page.restart}
       slug="providers"
-      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsPageHead slug="providers" statusLine={statusLine} />}
+      wide
     >
       {page.lastAction ? (
         <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
 
-      <Section
-        data-testid="settings-page-providers-header-row"
-        label="Catalog"
-        note={
-          <>{page.counts.total} providers shipped with the daemon or defined in config overlays</>
-        }
-        right={
-          <Button
-            ref={createProviderButtonRef}
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={page.openCreate}
-            data-testid="settings-page-providers-create"
-          >
-            <Plus aria-hidden="true" className="size-3" />
-            New provider
-          </Button>
-        }
-      />
-
       {page.providers.length === 0 ? (
         <Empty
+          data-testid="settings-page-providers-empty"
+          description='Use "New provider" to add an overlay entry to your config.'
           icon={Database}
           title="No providers configured"
-          description='Use "New provider" to add an overlay entry to your config.'
-          data-testid="settings-page-providers-empty"
         />
       ) : (
         <>
-          <ProvidersListFilters
-            statusFilter={page.filters.statusFilter}
-            sourceFilter={page.filters.sourceFilter}
-            harnessFilter={page.filters.harnessFilter}
-            authModeFilter={page.filters.authModeFilter}
-            defaultFilter={page.filters.defaultFilter}
+          <ProvidersToolbar
             nameQuery={page.filters.nameQuery}
-            visibleCount={page.filteredProviders.length}
-            totalCount={page.providers.length}
-            onStatusChange={page.setStatusFilter}
-            onSourceChange={page.setSourceFilter}
-            onHarnessChange={page.setHarnessFilter}
-            onAuthModeChange={page.setAuthModeFilter}
-            onDefaultChange={page.setDefaultFilter}
             onNameQueryChange={page.setNameQuery}
+            onStatusChange={page.setStatusFilter}
+            onViewChange={setView}
+            statusFilter={page.filters.statusFilter}
+            view={view}
           />
           {page.filteredProviders.length === 0 ? (
-            <Empty
-              icon={Database}
-              title="No providers match these filters"
-              description="Adjust the filters above or clear the search to see more providers."
+            <p
+              className="rounded-lg border border-line bg-canvas-soft px-4 py-4 text-small-body text-muted"
               data-testid="settings-page-providers-empty-filtered"
-            />
+            >
+              No providers match. Clear the search or the status filter.
+            </p>
+          ) : view === "cards" ? (
+            <section
+              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+              data-testid="settings-page-providers-list"
+            >
+              {page.filteredProviders.map(provider => (
+                <ProviderCard key={provider.name} onOpen={page.openInspect} provider={provider} />
+              ))}
+            </section>
           ) : (
-            <ProvidersGrid providers={page.filteredProviders} onOpen={page.openInspect} />
+            <section
+              className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+              data-testid="settings-page-providers-list"
+            >
+              {page.filteredProviders.map(provider => (
+                <ProviderRow key={provider.name} onOpen={page.openInspect} provider={provider} />
+              ))}
+            </section>
           )}
         </>
       )}
 
-      <ProviderInspectorSheet
+      <ProviderDetailDialog
         open={inspectorOpen}
         mode={page.inspector.mode === "closed" ? "inspect" : page.inspector.mode}
         entry={inspectorEntry}
@@ -212,7 +192,7 @@ export function ProvidersSettingsPage() {
         onClose={page.closeDelete}
         onConfirm={page.confirmDelete}
       />
-    </PageShell>
+    </SettingsPageFrame>
   );
 }
 

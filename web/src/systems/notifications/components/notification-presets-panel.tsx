@@ -10,12 +10,9 @@ import {
   Section,
   Spinner,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from "@agh/ui";
 
 interface NotificationPresetsPanelProps {
@@ -29,6 +26,11 @@ interface NotificationPresetsPanelProps {
   onDelete: (preset: NotificationPresetEntry) => void;
 }
 
+/**
+ * Notification presets as a registry list: bell-glyph rows with origin tags
+ * and an "events → target" meta line; the create form stays behind the New
+ * preset toggle so the registry reads first.
+ */
 export function NotificationPresetsPanel({
   presets,
   isLoading,
@@ -39,6 +41,7 @@ export function NotificationPresetsPanel({
   onToggle,
   onDelete,
 }: NotificationPresetsPanelProps) {
+  const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
     events: "task.run_*",
@@ -75,68 +78,104 @@ export function NotificationPresetsPanel({
   return (
     <Section
       data-testid="settings-page-hooks-notification-presets-section"
-      label="Notification presets"
-      note="SQLite-backed fanout policies"
-      right={<Bell className="size-4 text-muted" />}
+      label="Notifications"
+      note="Presets apply immediately — no restart."
+      right={
+        <Button
+          aria-expanded={createOpen}
+          data-testid="settings-page-hooks-notification-preset-new"
+          disabled={!canMutate}
+          onClick={() => setCreateOpen(open => !open)}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          <Plus className="size-3.5" />
+          New preset
+        </Button>
+      }
     >
       <div className="flex flex-col gap-3">
-        <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto_auto]">
-          <Input
-            aria-label="Notification preset name"
-            className="font-mono"
-            data-testid="settings-page-hooks-notification-preset-name"
-            placeholder="custom_alert"
-            value={form.name}
-            onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
-          />
-          <Input
-            aria-label="Notification preset events"
-            className="font-mono"
-            data-testid="settings-page-hooks-notification-preset-events"
-            value={form.events}
-            onChange={event => setForm(current => ({ ...current, events: event.target.value }))}
-          />
-          <Input
-            aria-label="Notification preset target"
-            className="font-mono"
-            data-testid="settings-page-hooks-notification-preset-target"
-            placeholder="bridge_slack_ops:channel:ops"
-            value={form.target}
-            onChange={event => setForm(current => ({ ...current, target: event.target.value }))}
-          />
-          <Input
-            aria-label="Notification preset filter"
-            className="font-mono"
-            data-testid="settings-page-hooks-notification-preset-filter"
-            placeholder="outcome >= warning"
-            value={form.filter}
-            onChange={event => setForm(current => ({ ...current, filter: event.target.value }))}
-          />
-          <label className="flex min-h-9 items-center gap-2 text-xs text-muted">
-            <Switch
-              aria-label="Create notification preset enabled"
-              checked={form.enabled}
-              disabled={!canMutate}
-              onCheckedChange={next => setForm(current => ({ ...current, enabled: next }))}
-              data-testid="settings-page-hooks-notification-preset-enabled"
-            />
-            enabled
-          </label>
-          <Button
-            data-testid="settings-page-hooks-notification-preset-create"
-            disabled={!canMutate || pendingName === form.name.trim()}
-            onClick={submit}
-            type="button"
-            size="sm"
+        {createOpen ? (
+          <div
+            className="flex flex-col gap-2 rounded-md border border-line bg-canvas px-3 py-3"
+            data-testid="settings-page-hooks-notification-preset-createform"
           >
-            {pendingName === form.name.trim() ? (
-              <Spinner className="size-3.5" />
-            ) : (
-              <Plus className="size-3.5" />
-            )}
-            Create
-          </Button>
-        </div>
+            <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)]">
+              <Input
+                aria-label="Notification preset name"
+                className="font-mono"
+                data-testid="settings-page-hooks-notification-preset-name"
+                placeholder="custom_alert"
+                value={form.name}
+                onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
+              />
+              <Input
+                aria-label="Notification preset events"
+                className="font-mono"
+                data-testid="settings-page-hooks-notification-preset-events"
+                value={form.events}
+                onChange={event => setForm(current => ({ ...current, events: event.target.value }))}
+              />
+              <Input
+                aria-label="Notification preset target"
+                className="font-mono"
+                data-testid="settings-page-hooks-notification-preset-target"
+                placeholder="bridge_slack_ops:channel:ops"
+                value={form.target}
+                onChange={event => setForm(current => ({ ...current, target: event.target.value }))}
+              />
+              <Input
+                aria-label="Notification preset filter"
+                className="font-mono"
+                data-testid="settings-page-hooks-notification-preset-filter"
+                placeholder="outcome >= warning"
+                value={form.filter}
+                onChange={event => setForm(current => ({ ...current, filter: event.target.value }))}
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <Switch
+                  aria-label="Create notification preset enabled"
+                  checked={form.enabled}
+                  disabled={!canMutate}
+                  onCheckedChange={next => setForm(current => ({ ...current, enabled: next }))}
+                  data-testid="settings-page-hooks-notification-preset-enabled"
+                />
+                enabled
+              </label>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  data-testid="settings-page-hooks-notification-preset-cancel"
+                  onClick={() => {
+                    setCreateOpen(false);
+                    setLocalError(null);
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  data-testid="settings-page-hooks-notification-preset-create"
+                  disabled={!canMutate || pendingName === form.name.trim()}
+                  onClick={submit}
+                  type="button"
+                  size="sm"
+                >
+                  {pendingName === form.name.trim() ? (
+                    <Spinner className="size-3.5" />
+                  ) : (
+                    <Plus className="size-3.5" />
+                  )}
+                  Create
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {localError || error ? (
           <span
@@ -163,130 +202,24 @@ export function NotificationPresetsPanel({
             data-testid="settings-page-hooks-notification-presets-empty"
           />
         ) : (
-          <>
-            <div className="grid gap-2 md:hidden">
-              {presets.map(preset => (
-                <NotificationPresetCard
-                  key={preset.name}
-                  preset={preset}
-                  pending={pendingName === preset.name}
-                  canMutate={canMutate}
-                  onToggle={onToggle}
-                  onDelete={onDelete}
-                />
-              ))}
-            </div>
-            <div
-              className="hidden overflow-hidden rounded-lg border border-line md:block"
-              data-testid="settings-page-hooks-notification-presets-table"
-            >
-              <Table className="table-fixed">
-                <TableHeader>
-                  <TableRow className="bg-elevated">
-                    <TableHead className="eyebrow w-[22%] text-muted">Preset</TableHead>
-                    <TableHead className="eyebrow w-[30%] text-muted">Events</TableHead>
-                    <TableHead className="eyebrow w-[24%] text-muted">Targets</TableHead>
-                    <TableHead className="eyebrow w-[14%] text-muted">Default</TableHead>
-                    <TableHead className="eyebrow w-[10%] text-right text-muted">State</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {presets.map(preset => (
-                    <NotificationPresetRow
-                      key={preset.name}
-                      preset={preset}
-                      pending={pendingName === preset.name}
-                      canMutate={canMutate}
-                      onToggle={onToggle}
-                      onDelete={onDelete}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </>
+          <ul
+            className="overflow-hidden rounded-lg border border-line"
+            data-testid="settings-page-hooks-notification-presets-list"
+          >
+            {presets.map(preset => (
+              <NotificationPresetRow
+                key={preset.name}
+                preset={preset}
+                pending={pendingName === preset.name}
+                canMutate={canMutate}
+                onToggle={onToggle}
+                onDelete={onDelete}
+              />
+            ))}
+          </ul>
         )}
       </div>
     </Section>
-  );
-}
-
-function NotificationPresetCard({
-  preset,
-  pending,
-  canMutate,
-  onToggle,
-  onDelete,
-}: {
-  preset: NotificationPresetEntry;
-  pending: boolean;
-  canMutate: boolean;
-  onToggle: (preset: NotificationPresetEntry, nextEnabled: boolean) => void;
-  onDelete: (preset: NotificationPresetEntry) => void;
-}) {
-  return (
-    <article
-      className="flex flex-col gap-3 rounded-md border border-line bg-elevated px-3 py-2"
-      data-testid={"settings-page-hooks-notification-preset-card-" + preset.name}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <span className="block truncate font-mono text-sm text-fg">{preset.name}</span>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {preset.built_in ? <Pill mono>built-in</Pill> : <Pill mono>custom</Pill>}
-            {preset.user_modified ? (
-              <Pill tone="warning" mono>
-                modified
-              </Pill>
-            ) : null}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {pending ? <Spinner className="size-3.5 text-muted" /> : null}
-          <Switch
-            aria-label={"Toggle " + preset.name}
-            checked={preset.enabled}
-            disabled={!canMutate || pending}
-            onCheckedChange={next => onToggle(preset, next)}
-            data-testid={"settings-page-hooks-notification-preset-card-" + preset.name + "-toggle"}
-          />
-          <Button
-            aria-label={"Delete " + preset.name}
-            data-testid={"settings-page-hooks-notification-preset-card-" + preset.name + "-delete"}
-            disabled={!canMutate || pending || preset.built_in}
-            onClick={() => onDelete(preset)}
-            size="icon"
-            type="button"
-            variant="ghost"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-      <dl className="grid gap-2 text-xs">
-        <div>
-          <dt className="eyebrow text-muted">Events</dt>
-          <dd className="break-words font-mono text-subtle">{preset.events.join(", ")}</dd>
-        </div>
-        <div>
-          <dt className="eyebrow text-muted">Targets</dt>
-          <dd className="break-words font-mono text-subtle">
-            {notificationPresetTargetLabel(preset.targets)}
-          </dd>
-        </div>
-        <div>
-          <dt className="eyebrow text-muted">Default</dt>
-          <dd className="flex flex-wrap items-center gap-1 font-mono text-subtle">
-            <span>{preset.default_version ?? "custom"}</span>
-            {preset.default_update_available ? (
-              <Pill tone="warning" mono>
-                default drift
-              </Pill>
-            ) : null}
-          </dd>
-        </div>
-      </dl>
-    </article>
   );
 }
 
@@ -303,67 +236,78 @@ function NotificationPresetRow({
   onToggle: (preset: NotificationPresetEntry, nextEnabled: boolean) => void;
   onDelete: (preset: NotificationPresetEntry) => void;
 }) {
+  const deleteDisabled = !canMutate || pending || preset.built_in;
+  const deleteButton = (
+    <Button
+      aria-label={"Delete " + preset.name}
+      data-testid={"settings-page-hooks-notification-preset-row-" + preset.name + "-delete"}
+      disabled={deleteDisabled}
+      onClick={() => onDelete(preset)}
+      size="icon-sm"
+      type="button"
+      variant="ghost"
+    >
+      <Trash2 className="size-3.5" />
+    </Button>
+  );
+
   return (
-    <TableRow data-testid={"settings-page-hooks-notification-preset-row-" + preset.name}>
-      <TableCell>
-        <div className="flex min-w-0 flex-col gap-1">
+    <li
+      className="grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line-soft bg-canvas-soft px-4 py-2.5 last:border-b-0"
+      data-testid={"settings-page-hooks-notification-preset-row-" + preset.name}
+    >
+      <span
+        aria-hidden="true"
+        className="flex size-6.5 items-center justify-center rounded-sm bg-elevated text-subtle"
+      >
+        <Bell className="size-3.5" />
+      </span>
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="truncate font-mono text-sm text-fg">{preset.name}</span>
-          <div className="flex flex-wrap gap-1">
-            {preset.built_in ? <Pill mono>built-in</Pill> : <Pill mono>custom</Pill>}
-            {preset.user_modified ? (
-              <Pill tone="warning" mono>
-                modified
-              </Pill>
-            ) : null}
-          </div>
-        </div>
-      </TableCell>
-      <TableCell className="whitespace-normal">
-        <span className="break-words font-mono text-xs text-subtle">
-          {preset.events.join(", ")}
-        </span>
-      </TableCell>
-      <TableCell className="whitespace-normal">
-        <span className="break-words font-mono text-xs text-subtle">
-          {notificationPresetTargetLabel(preset.targets)}
-        </span>
-      </TableCell>
-      <TableCell className="whitespace-normal">
-        <div className="flex flex-col gap-1">
-          <span className="font-mono text-xs text-subtle">
-            {preset.default_version ?? "custom"}
-          </span>
+          <Pill mono size="xs">
+            {preset.built_in ? "built-in" : "custom"}
+          </Pill>
+          {preset.user_modified ? (
+            <Pill mono size="xs" tone="warning">
+              modified
+            </Pill>
+          ) : null}
           {preset.default_update_available ? (
-            <Pill tone="warning" mono>
+            <Pill mono size="xs" tone="warning">
               default drift
             </Pill>
           ) : null}
-        </div>
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center justify-end gap-2">
-          {pending ? <Spinner className="size-3.5 text-muted" /> : null}
-          <Switch
-            aria-label={"Toggle " + preset.name}
-            checked={preset.enabled}
-            disabled={!canMutate || pending}
-            onCheckedChange={next => onToggle(preset, next)}
-            data-testid={"settings-page-hooks-notification-preset-row-" + preset.name + "-toggle"}
-          />
-          <Button
-            aria-label={"Delete " + preset.name}
-            data-testid={"settings-page-hooks-notification-preset-row-" + preset.name + "-delete"}
-            disabled={!canMutate || pending || preset.built_in}
-            onClick={() => onDelete(preset)}
-            size="icon"
-            type="button"
-            variant="ghost"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
-      </TableCell>
-    </TableRow>
+        </span>
+        <span className="truncate font-mono text-mono-id text-subtle">
+          {preset.events.join(", ")}
+          <span aria-hidden="true" className="px-1 text-faint">
+            →
+          </span>
+          {notificationPresetTargetLabel(preset.targets)}
+        </span>
+      </div>
+      <div className="flex items-center justify-end gap-2">
+        {pending ? <Spinner className="size-3.5 text-muted" /> : null}
+        <Switch
+          aria-label={"Toggle " + preset.name}
+          checked={preset.enabled}
+          disabled={!canMutate || pending}
+          onCheckedChange={next => onToggle(preset, next)}
+          data-testid={"settings-page-hooks-notification-preset-row-" + preset.name + "-toggle"}
+        />
+        {preset.built_in ? (
+          <Tooltip>
+            <TooltipTrigger render={<span className="inline-flex" />}>
+              {deleteButton}
+            </TooltipTrigger>
+            <TooltipContent>Built-in presets cannot be deleted.</TooltipContent>
+          </Tooltip>
+        ) : (
+          deleteButton
+        )}
+      </div>
+    </li>
   );
 }
 

@@ -46,6 +46,15 @@ type DaemonReloadTimeoutsConfig struct {
 	Bridges   time.Duration `toml:"bridges"`
 }
 
+func defaultDaemonConfig(homePaths HomePaths) DaemonConfig {
+	return DaemonConfig{
+		Socket:                              homePaths.DaemonSocket,
+		MemoryReportInterval:                DefaultDaemonMemoryReportInterval,
+		SubprocessHealthEscalationThreshold: DefaultDaemonSubprocessHealthEscalationThreshold,
+		ReloadTimeouts:                      DefaultDaemonReloadTimeoutsConfig(),
+	}
+}
+
 // DefaultDaemonReloadTimeoutsConfig returns daemon hot-reload timeout defaults.
 func DefaultDaemonReloadTimeoutsConfig() DaemonReloadTimeoutsConfig {
 	return DaemonReloadTimeoutsConfig{

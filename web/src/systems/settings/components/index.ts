@@ -10,18 +10,49 @@ export type { MCPServerEditorProps } from "./mcp-server-editor";
 export { MCPServersTable } from "./mcp-servers-table";
 export type { MCPServersTableProps } from "./mcp-servers-table";
 export { ProviderCard } from "./provider-card";
+export { ProviderRow } from "./provider-row";
+export { ProvidersToolbar } from "./providers-toolbar";
+export type { ProvidersToolbarProps, ProvidersViewMode } from "./providers-toolbar";
 export { ProviderEditForm } from "./provider-edit-form";
-export { ProviderInspectorSheet } from "./provider-inspector-sheet";
+export { ProviderDetailDialog } from "./provider-detail-dialog";
 export { ProviderInspectView } from "./provider-inspect-view";
 export { ProviderLogo } from "./provider-logo";
 export { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
 export { NetworkSettingsSections } from "./network-settings-sections";
-export { ProvidersGrid } from "./providers-grid";
-export { ProvidersListFilters } from "./providers-list-filters";
 export { SettingsDecimalInput } from "./settings-decimal-input";
 export { SettingsDisabledSkillsSection } from "./settings-disabled-skills-section";
 export { SettingsFieldRow } from "./settings-field-row";
 export type { SettingsFieldRowVariant } from "./settings-field-row";
+export { SettingActionRow, SettingLinkRow, SettingRow, SettingValue } from "./setting-row";
+export type { SettingActionRowProps, SettingLinkRowProps, SettingRowProps } from "./setting-row";
+export { SettingsGroup } from "./settings-group";
+export type { SettingsGroupProps } from "./settings-group";
+export { SettingsChoiceGroup } from "./settings-choice-group";
+export type { SettingsChoiceGroupProps, SettingsChoiceOption } from "./settings-choice-group";
+export { SettingsTile, SettingsTiles } from "./settings-tiles";
+export type { SettingsTileProps } from "./settings-tiles";
+export { SettingsAdvancedFold, SettingsProvChip } from "./settings-advanced-fold";
+export {
+  SettingsHeroBoard,
+  type SettingsHeroBoardProps,
+  type SettingsHeroStat,
+} from "./settings-hero-board";
+export { SettingsHeroGauge, type SettingsHeroGaugeProps } from "./settings-hero-gauge";
+export { SettingsTaglistField, type SettingsTaglistFieldProps } from "./settings-taglist-field";
+export {
+  SettingsByteField,
+  type SettingsByteFieldProps,
+  type SettingsByteUnit,
+} from "./settings-byte-field";
+export { SettingsLiveChip } from "./settings-live-chip";
+export { SettingsRestartNotice } from "./settings-restart-notice";
+export { SettingsRuntimeUnavailable } from "./settings-runtime-unavailable";
+export {
+  SettingsInlineSaveControls,
+  type SettingsInlineSaveControlsProps,
+} from "./settings-inline-save-controls";
+export { SettingsPageFrame } from "./settings-page-frame";
+export type { SettingsPageFrameProps } from "./settings-page-frame";
 export { SettingsNumberInput } from "./settings-number-input";
 export { SettingsApplyRecordsPanel } from "./settings-apply-records-panel";
 export type { SettingsApplyRecordsPanelProps } from "./settings-apply-records-panel";

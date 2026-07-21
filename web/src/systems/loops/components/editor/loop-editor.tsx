@@ -2,7 +2,7 @@ import { AlertCircle } from "lucide-react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { toast } from "sonner";
 
-import { Empty, Spinner, useTopbarSlot } from "@agh/ui";
+import { Empty, Spinner, useTopbarSlot, type TopbarSlotValue } from "@agh/ui";
 
 import { useLoopEditor, type UseLoopEditorResult } from "../../hooks/use-loop-editor";
 import type { LoopDefinition, LoopDetail } from "../../types";
@@ -13,12 +13,13 @@ import { LoopEditorInspector } from "./loop-editor-inspector";
 import { LoopEditorPalette } from "./loop-editor-palette";
 import { LoopEditorStartSummary } from "./loop-editor-start-summary";
 import { LoopEditorToolbar } from "./loop-editor-toolbar";
-import { LoopEditorTopbarActions } from "./loop-editor-topbar-actions";
+import { LoopEditorTopbarActions, LoopEditorTopbarStatus } from "./loop-editor-topbar-actions";
 import { LoopLinterDock } from "./loop-linter-dock";
 
 interface LoopEditorProps {
   workspaceId: string;
   name: string;
+  topbarIdentity?: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">;
   /** Called after a successful publish with the updated loop (route → toast / navigate to run). */
   onPublished?: (loop: LoopDetail) => void;
 }
@@ -34,8 +35,40 @@ type ReadyEditor = UseLoopEditorResult & {
  * Loop definition. The bijective codec + shared-linter authority live in the view-model
  * (useLoopEditor); this composition wires the surfaces and the publish → run handoff.
  */
-export function LoopEditor({ workspaceId, name, onPublished }: LoopEditorProps) {
+export function LoopEditor({ workspaceId, name, topbarIdentity, onPublished }: LoopEditorProps) {
   const editor = useLoopEditor(workspaceId, name);
+  const readyEditor: ReadyEditor | null =
+    editor.status === "ready" && editor.loop && editor.definition
+      ? { ...editor, loop: editor.loop, definition: editor.definition }
+      : null;
+
+  const handlePublish = async () => {
+    if (!readyEditor) return;
+    const updated = await readyEditor.publish();
+    if (updated) {
+      toast.success(`Published ${updated.name} v${updated.version}`);
+      onPublished?.(updated);
+    }
+  };
+
+  useTopbarSlot({
+    ...topbarIdentity,
+    status: readyEditor ? (
+      <LoopEditorTopbarStatus
+        version={readyEditor.version}
+        isDirty={readyEditor.isDirty}
+        positionsDirty={readyEditor.positionsDirty}
+      />
+    ) : undefined,
+    actions: readyEditor ? (
+      <LoopEditorTopbarActions
+        busy={readyEditor.busy}
+        publishDisabled={readyEditor.publishDisabled}
+        onValidate={() => void readyEditor.validate()}
+        onPublish={() => void handlePublish()}
+      />
+    ) : undefined,
+  });
 
   if (editor.status === "no-workspace") {
     return (
@@ -55,7 +88,7 @@ export function LoopEditor({ workspaceId, name, onPublished }: LoopEditorProps) 
       </CenteredState>
     );
   }
-  if (editor.status === "error" || !editor.loop || !editor.definition) {
+  if (!readyEditor) {
     return (
       <CenteredState testId="loop-editor-not-found">
         <div className="flex flex-col items-center gap-2 text-center">
@@ -66,45 +99,11 @@ export function LoopEditor({ workspaceId, name, onPublished }: LoopEditorProps) 
     );
   }
 
-  const readyEditor: ReadyEditor = {
-    ...editor,
-    loop: editor.loop,
-    definition: editor.definition,
-  };
-  return <LoopEditorReady editor={readyEditor} onPublished={onPublished} />;
+  return <LoopEditorReady editor={readyEditor} />;
 }
 
-function LoopEditorReady({
-  editor,
-  onPublished,
-}: {
-  editor: ReadyEditor;
-  onPublished?: (loop: LoopDetail) => void;
-}) {
+function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
   const definition = editor.definition;
-
-  const handlePublish = async () => {
-    const updated = await editor.publish();
-    if (updated) {
-      toast.success(`Published ${updated.name} v${updated.version}`);
-      onPublished?.(updated);
-    }
-  };
-
-  useTopbarSlot({
-    actions: (
-      <LoopEditorTopbarActions
-        version={editor.version}
-        isDirty={editor.isDirty}
-        positionsDirty={editor.positionsDirty}
-        busy={editor.busy}
-        publishDisabled={editor.publishDisabled}
-        onValidate={() => void editor.validate()}
-        onSaveDraft={() => void editor.savePositions()}
-        onPublish={() => void handlePublish()}
-      />
-    ),
-  });
 
   return (
     <ReactFlowProvider>
@@ -114,7 +113,10 @@ function LoopEditorReady({
           view={editor.view}
           onViewChange={editor.setView}
           lint={editor.lint}
+          busy={editor.busy}
+          positionsDirty={editor.positionsDirty}
           onAutoLayout={editor.autoLayout}
+          onSaveLayout={() => void editor.savePositions()}
         />
 
         <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)_344px]">

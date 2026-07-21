@@ -5,6 +5,17 @@ normative unless that source explicitly marks it directional. Visual similarity
 is not inferred from code, tests, or an implementation screenshot; it is proved
 with a rendered reference/implementation evidence bundle.
 
+Normative binds the reference's **visual language**: layout and composition,
+region topology, spacing rhythm, component anatomy, typography, tokens, chrome
+geometry, and visible states. A prototype is **lossy** on every other axis:
+demo data, fixture copy, placeholder brand marks, and simplified or omitted
+product content are artifacts of prototyping, not instructions. Content and
+data are owned by runtime truth, labels and copy by `COPY.md`, marks by the
+real brand inventory (`@agh/ui`), and existing product surfaces by their own
+contracts. Resolve divergences on those axes toward the canonical owner and
+record each as an authorized difference — never invent, delete, or rebrand
+product content to match the reference.
+
 ## Contents
 
 - Resolve the contract before implementation
@@ -26,9 +37,10 @@ with a rendered reference/implementation evidence bundle.
 4. Expand phrases such as “every state” into explicit rows. Include shell,
    loading, empty, error, populated, responsive, dialog, tab, and menu states
    when the task or artifact defines them.
-5. Treat fidelity as `normative` by default. An authorized difference needs a
-   cited PRD, TechSpec, ADR, or runtime-truth rule; implementation convenience is
-   never authority.
+5. Treat fidelity as `normative` by default; `normative` binds the
+   visual-language axes only. An authorized difference needs a cited PRD,
+   TechSpec, ADR, or canonical-owner rule (runtime truth, `COPY.md`, brand
+   inventory); implementation convenience is never authority.
 
 Done when every visible acceptance state maps to one reference, one renderable
 implementation target, one exact viewport, and any allowed difference has a
@@ -89,17 +101,21 @@ for every row. Compare, in order:
 1. shell boundaries, content frame, and responsive breakpoint;
 2. region topology, order, alignment, sizing, and whitespace rhythm;
 3. component anatomy, hierarchy, typography, density, and emphasis;
-4. controls, labels, content/state coverage, icons, and signal colors;
+4. control placement and anatomy, icon treatment, and signal colors;
 5. borders, radii, surfaces, and motion-relevant visible states.
 
 A missing/reordered region, wrong shell, materially different geometry or
-hierarchy, substituted component anatomy, missing state/control, or uncited
-structural difference blocks parity. Text fixtures, timestamps, and
+hierarchy, substituted component anatomy, missing visible state, or uncited
+visual-language difference blocks parity. Whether a control, metric, label,
+datum, or mark exists at all is the canonical owner's call, not the
+reference's: a prototype placeholder or omission on those axes resolves toward
+the owner as an authorized difference. Text fixtures, timestamps, and
 anti-aliasing may be non-blocking only when structure and semantics match.
 
-If runtime truth conflicts with the reference, daemon truth wins, but the row
-remains blocked until the contract is reconciled or a higher-authority artifact
-explicitly authorizes the difference. Never relabel an observed mismatch as an
+If a canonical owner (runtime truth, `COPY.md`, the brand inventory, an
+existing product surface) conflicts with the reference, the owner wins, but the
+row remains blocked until the contract is reconciled or the difference is
+recorded with its cited owner. Never relabel an observed mismatch as an
 intentional design decision after implementation.
 
 Write `review.md` with the contract row, source identities, capture paths,

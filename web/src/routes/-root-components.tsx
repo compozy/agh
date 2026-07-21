@@ -13,8 +13,8 @@ import { Button, Empty, buttonVariants } from "@agh/ui";
 export function RootComponent() {
   return (
     <div
-      data-testid="app-shell"
-      className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
+      data-testid="root-shell"
+      className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
     >
       <SkipToContentLink />
       <Outlet />

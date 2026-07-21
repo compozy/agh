@@ -101,7 +101,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
 
   await useGlobalWorkspaceIfPrompted(bridgeUI);
 
-  await expect(bridgeUI.appSidebar).toBeVisible();
+  await expect(bridgeUI.osDesktop).toBeVisible();
   await expect(bridgeUI.navBridges).toBeVisible();
   await bridgeUI.navBridges.click();
 

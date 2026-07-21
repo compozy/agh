@@ -19,6 +19,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		observer:           s.observer,
 		schemaStreams:      s.schemaStreams,
 		resources:          s.resources,
+		desktopState:       s.desktopState,
 		automation:         s.automation,
 		loops:              s.loops,
 		bridges:            s.bridges,

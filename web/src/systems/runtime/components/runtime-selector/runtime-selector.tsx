@@ -111,7 +111,6 @@ export function RuntimeSelector({
         popupId={popup.popupId}
         ariaLabelledby={ariaLabelledby}
         onSegment={popup.handleSegment}
-        onFocus={popup.handleTriggerFocus}
       />
       <PopoverContent
         align="start"

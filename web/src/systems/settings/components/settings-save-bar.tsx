@@ -1,118 +1,103 @@
-import { AlertCircle, Check, Save, Undo2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
-import { Button, Spinner, cn } from "@agh/ui";
+import { Button, cn, Pill, Spinner } from "@agh/ui";
+
+import type { SettingsSaveBarState } from "../lib/save-state";
 
 interface SettingsSaveBarProps {
   slug: string;
-  isDirty: boolean;
-  isSaving: boolean;
-  isInvalid?: boolean;
-  lastAppliedLabel?: string | null;
-  error?: string | null;
-  warnings?: string[];
+  state: SettingsSaveBarState;
   onSave: () => void;
   onReset: () => void;
   className?: string;
 }
 
-function SettingsSaveBar({
-  slug,
-  isDirty,
-  isSaving,
-  isInvalid = false,
-  lastAppliedLabel,
-  error,
-  warnings,
-  onSave,
-  onReset,
-  className,
-}: SettingsSaveBarProps) {
-  const disabled = !isDirty || isSaving || isInvalid;
-  const liveRegion = error ? "assertive" : "polite";
+function warningsFor(state: SettingsSaveBarState): string[] {
+  return state.kind === "dirty" || state.kind === "invalid" || state.kind === "warning"
+    ? state.warnings
+    : [];
+}
+
+function messageFor(state: Exclude<SettingsSaveBarState, { kind: "idle" }>): string {
+  switch (state.kind) {
+    case "dirty":
+      return "Unsaved changes";
+    case "invalid":
+      return "Resolve validation errors before saving";
+    case "saving":
+      return "Saving…";
+    case "error":
+    case "saved":
+    case "warning":
+      return state.message;
+  }
+}
+
+/** Pure save-state renderer. Mutation and saved-flash orchestration live in route hooks. */
+function SettingsSaveBar({ slug, state, onSave, onReset, className }: SettingsSaveBarProps) {
+  if (state.kind === "idle") return null;
+
+  const isDirty = state.kind === "dirty" || state.kind === "invalid";
+  const isSaving = state.kind === "saving";
+  const isError = state.kind === "error";
+  const warnings = warningsFor(state);
+  const liveRegion = isError ? "assertive" : "polite";
+  const dotTone = state.kind === "saved" ? "success" : "warning";
 
   return (
     <div
-      className={cn(
-        "flex flex-col gap-4 bg-canvas-soft px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between md:px-8 xl:px-10",
-        className
-      )}
-      data-testid={`settings-page-${slug}-save-bar`}
-      data-dirty={isDirty ? "true" : "false"}
+      className={cn("pointer-events-none sticky bottom-6 z-10 flex justify-center px-4", className)}
     >
       <div
-        className="flex min-w-0 flex-1 flex-col gap-1 text-xs"
-        role="status"
-        aria-live={liveRegion}
         aria-atomic="true"
+        aria-live={liveRegion}
+        className="pointer-events-auto flex w-full max-w-settings-save-bar items-center gap-3 rounded-lg border border-line-strong bg-elevated py-2.5 pr-3 pl-4 shadow-overlay"
+        data-dirty={isDirty ? "true" : "false"}
+        data-state={state.kind}
+        data-testid={`settings-page-${slug}-save-bar`}
+        role="status"
       >
-        {error ? (
+        <span className="flex min-w-0 flex-1 items-center gap-2.5 text-small-body text-fg">
+          {isSaving ? (
+            <Spinner className="size-3 shrink-0 text-warning" />
+          ) : isError ? (
+            <AlertCircle aria-hidden="true" className="size-3.5 shrink-0 text-danger" />
+          ) : (
+            <Pill.Dot className="size-settings-save-dot" tone={dotTone} />
+          )}
           <span
-            className="flex items-center gap-1.5 text-danger"
-            data-testid={`settings-page-${slug}-save-error`}
+            className={cn("truncate", isError && "text-danger")}
+            data-testid={`settings-page-${slug}-save-message`}
           >
-            <AlertCircle className="size-3" />
-            {error}
+            {messageFor(state)}
           </span>
-        ) : warnings && warnings.length > 0 ? (
-          <ul
-            className="flex flex-col gap-0.5 text-warning"
-            data-testid={`settings-page-${slug}-save-warnings`}
-          >
-            {warnings.map(warning => (
-              <li key={warning} className="flex items-start gap-1.5">
-                <AlertCircle className="mt-0.5 size-3 shrink-0" />
-                <span>{warning}</span>
-              </li>
-            ))}
-          </ul>
-        ) : isInvalid ? (
-          <span
-            className="flex items-center gap-1.5 text-warning"
-            data-testid={`settings-page-${slug}-save-invalid`}
-          >
-            <AlertCircle className="size-3" />
-            Resolve validation errors before saving
-          </span>
-        ) : isDirty ? (
-          <span className="text-subtle" data-testid={`settings-page-${slug}-save-dirty`}>
-            Unsaved changes
-          </span>
-        ) : lastAppliedLabel ? (
-          <span
-            className="flex items-center gap-1.5 text-subtle"
-            data-testid={`settings-page-${slug}-save-applied`}
-          >
-            <Check className="size-3 text-success" />
-            {lastAppliedLabel}
-          </span>
-        ) : (
-          <span className="text-subtle" data-testid={`settings-page-${slug}-save-clean`}>
-            No unsaved changes
-          </span>
-        )}
-      </div>
-      <div className="flex items-center justify-end gap-2">
+          {warnings.length > 0 ? (
+            <span
+              className="truncate text-form-hint text-warning"
+              data-testid={`settings-page-${slug}-save-warnings`}
+            >
+              {warnings.join(" · ")}
+            </span>
+          ) : null}
+        </span>
         <Button
+          data-testid={`settings-page-${slug}-reset`}
+          disabled={!isDirty || isSaving}
+          onClick={onReset}
+          size="sm"
           type="button"
           variant="ghost"
-          size="sm"
-          onClick={onReset}
-          disabled={!isDirty || isSaving}
-          data-testid={`settings-page-${slug}-reset`}
         >
-          <Undo2 className="size-3" />
           Discard
         </Button>
         <Button
-          type="button"
-          variant="default"
-          size="sm"
-          onClick={onSave}
-          disabled={disabled}
           data-testid={`settings-page-${slug}-save`}
+          disabled={state.kind !== "dirty"}
+          onClick={onSave}
+          size="sm"
+          type="button"
         >
-          {isSaving ? <Spinner className="size-3" /> : <Save className="size-3" />}
-          {isSaving ? "Saving..." : "Save changes"}
+          Save changes
         </Button>
       </div>
     </div>
@@ -120,3 +105,4 @@ function SettingsSaveBar({
 }
 
 export { SettingsSaveBar };
+export type { SettingsSaveBarProps };

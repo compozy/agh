@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -38,18 +37,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		cfg.Marketplace.Catalog.BaseURL = firstServer.URL
 		cfg.Marketplace.Catalog.TTL = "1h"
 		cfg.Marketplace.Catalog.Timeout = "1s"
-		registry, err := globaldb.OpenGlobalDB(
-			testutil.Context(t),
-			filepath.Join(t.TempDir(), store.GlobalDatabaseName),
-		)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := registry.Close(testutil.Context(t)); err != nil {
-				t.Errorf("Close() error = %v", err)
-			}
-		})
+		registry := openDaemonTestGlobalDB(t)
 
 		daemonInstance := newTestDaemon(t, homePaths, &cfg)
 		state := &bootState{cfg: cfg, logger: discardLogger(), registry: registry}
@@ -147,18 +135,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		}))
 		t.Cleanup(oldServer.Close)
 		newServer := newMarketplaceFeedServer(t, "replacement")
-		registry, err := globaldb.OpenGlobalDB(
-			testutil.Context(t),
-			filepath.Join(t.TempDir(), store.GlobalDatabaseName),
-		)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := registry.Close(testutil.Context(t)); err != nil {
-				t.Errorf("Close() error = %v", err)
-			}
-		})
+		registry := openDaemonTestGlobalDB(t)
 		marketplaceStore, err := marketplace.NewSQLiteStore(registry)
 		if err != nil {
 			t.Fatalf("NewSQLiteStore() error = %v", err)

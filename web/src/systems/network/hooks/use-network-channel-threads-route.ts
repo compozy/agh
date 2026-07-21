@@ -1,11 +1,10 @@
-import { useParams } from "@tanstack/react-router";
-
 import { useActiveNetworkSession, type UseActiveNetworkSessionResult } from "./use-active-session";
 import { useThreadViewMode, type ThreadViewMode } from "./use-thread-view-mode";
 
 export interface UseNetworkChannelThreadsRouteArgs {
   workspaceId: string;
   channel: string;
+  activeThreadId: string | null;
   view?: "full";
 }
 
@@ -21,10 +20,9 @@ export interface UseNetworkChannelThreadsRouteResult {
 export function useNetworkChannelThreadsRoute({
   workspaceId,
   channel,
+  activeThreadId,
   view,
 }: UseNetworkChannelThreadsRouteArgs): UseNetworkChannelThreadsRouteResult {
-  const detailParams = useParams({ strict: false }) as { threadId?: string };
-  const activeThreadId = detailParams.threadId ?? null;
   const viewMode = useThreadViewMode();
   const isFullPage = view === "full" || viewMode === "fullpage";
   const showOverlay = activeThreadId != null;

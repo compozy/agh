@@ -34,7 +34,7 @@ Operator-first, engineer-to-engineer, dry-confident. (COPY.md §5 is the authori
 
 This must NOT look like:
 
-- **Generic SaaS dashboards.** Hero-metric templates (big number + gradient accent), identical icon-heading-text card grids, decorative glassmorphism.
+- **Generic SaaS dashboards.** Hero-metric templates (big number + gradient accent), identical icon-heading-text card grids, decorative glassmorphism. (Glass is banned as content decoration; the tokenized OS-shell chrome glass — menubar, dock, rail, shell popovers, window frames — is sanctioned per DESIGN.md §5, never on window content.)
 - **Consumer "assistant" chat skins** that hide runtime truth behind a friendly veneer. Sessions are durable operator objects, not a cute chat bubble stream.
 - **Hype copy.** `AI-powered`, `revolutionary`, `next-generation`, `supercharge`, `unleash`, `seamless`, `10x`, `cutting-edge` — banned per COPY.md §6.
 - **Plausible-but-untrue UI.** Controls, metrics, or states the daemon does not actually support. When a mockup conflicts with daemon truth, daemon wins.

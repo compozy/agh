@@ -25,8 +25,14 @@ import (
 )
 
 const (
-	rootAghKey     = "agh"
-	rootVersionKey = "version"
+	rootAghKey       = "agh"
+	rootVersionKey   = "version"
+	cliCodeKey       = "code"
+	cliGetKey        = "get"
+	cliKeyKey        = "key"
+	cliKeyValue      = "Key"
+	cliRevisionValue = "Revision"
+	cliSnapshotKey   = "snapshot"
 )
 
 const (
@@ -135,6 +141,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newMarketplaceCommand(deps))
 	cmd.AddCommand(newBundleCommand(deps))
 	cmd.AddCommand(newWorkspaceCommand(deps))
+	cmd.AddCommand(newDesktopStateCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
 	cmd.AddCommand(newExtensionCommand(deps))
 	cmd.AddCommand(newHooksCommand(deps))
@@ -209,6 +216,12 @@ func writeExecutionError(stderr io.Writer, args []string, err error) int {
 }
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
+	if desktopStateErr, ok := errors.AsType[interface {
+		error
+		desktopStateErrorPayload() contract.DesktopStateErrorPayload
+	}](err); ok {
+		return marshalDesktopStateExecutionError(args, desktopStateErr.desktopStateErrorPayload())
+	}
 	if goalErr, ok := errors.AsType[*goalCommandAPIError](err); ok {
 		return marshalGoalCommandExecutionError(args, goalErr)
 	}
@@ -235,6 +248,28 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 			return nil, false
 		}
 		return payload, true
+	default:
+		return nil, false
+	}
+}
+
+func marshalDesktopStateExecutionError(
+	args []string,
+	payload contract.DesktopStateErrorPayload,
+) ([]byte, bool) {
+	switch requestedOutputFormat(args) {
+	case OutputJSON:
+		encoded, err := json.Marshal(payload)
+		return encoded, err == nil
+	case OutputJSONL:
+		encoded, err := json.Marshal(payload)
+		return append(encoded, '\n'), err == nil
+	case OutputToon:
+		return []byte(renderToonObject(
+			"error",
+			[]string{cliCodeKey, cliKeyKey, clientMessageKey},
+			[]string{string(payload.Code), payload.Key, payload.Error},
+		)), true
 	default:
 		return nil, false
 	}

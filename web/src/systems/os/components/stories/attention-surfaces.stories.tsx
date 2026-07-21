@@ -1,0 +1,182 @@
+import { useState } from "react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn, userEvent, within } from "storybook/test";
+
+import type { SessionPayload } from "@/systems/session";
+import type { WorkspacePayload } from "@/systems/workspace";
+
+import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
+import type { OsAttentionModel } from "../../hooks/use-os-attention";
+import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
+import { createDesktopStore } from "../../stores/desktop-store";
+import { DesktopMenubar } from "../desktop-menubar";
+import { DesktopSessionsRail } from "../sessions-rail";
+import { OsDockZone } from "../os-dock";
+import { buildDeskItems, DesktopShell } from "./_desktop";
+
+function session(
+  id: string,
+  name: string,
+  agentName: string,
+  badge: SessionPayload["badge"]
+): SessionPayload {
+  return {
+    id,
+    name,
+    agent_name: agentName,
+    provider: "codex",
+    workspace_id: "workspace-agh",
+    workspace_path: "/workspace/agh",
+    state: badge === "stopped" || badge === "failed" ? "stopped" : "active",
+    badge,
+    attachable: true,
+    available_commands: [],
+    created_at: "2026-07-20T12:00:00Z",
+    updated_at: "2026-07-20T12:01:00Z",
+  };
+}
+
+const CATALOG: SessionPayload[] = [
+  session("session-1", "Checkout flow polish", "webgen", "running"),
+  session("session-2", "Marketplace empty states", "webgen", "waiting-for-auth"),
+  session("session-3", "Dashboard spacing audit", "webgen", "idle"),
+  session("session-4", "Competitor pricing scan", "research", "running"),
+  session("session-5", "ACP spec digest", "research", "failed"),
+  session("session-6", "Nightly dependency sweep", "infra", "stopped"),
+  session("session-7", "Provider contract review", "infra", "idle"),
+];
+
+const WORKSPACE: WorkspacePayload = {
+  id: "workspace-agh",
+  name: "agh",
+  root_dir: "/workspace/agh",
+  add_dirs: [],
+  created_at: "2026-07-20T12:00:00Z",
+  updated_at: "2026-07-20T12:00:00Z",
+};
+
+const ATTENTION: OsAttentionModel = {
+  badges: { sessions: 1, tasks: 1 },
+  notificationCount: 2,
+  rows: [
+    {
+      kind: "session",
+      id: "session-2",
+      title: "Marketplace empty states",
+      agentName: "webgen",
+    },
+    {
+      kind: "task",
+      id: "task-42",
+      title: "Approve runtime contract",
+      identifier: "AGH-42",
+    },
+  ],
+  sessions: CATALOG,
+  sessionsDisconnected: false,
+  tasksDisconnected: false,
+  loading: false,
+};
+
+function createStoryShell({ collapsedAgent }: { collapsedAgent?: string } = {}): OsShellHandle {
+  const store = createDesktopStore();
+  const router: OsRouterPort = { navigate: () => {}, replace: () => {} };
+  store.getState().hydrate([]);
+  store.getState().openRail();
+  if (collapsedAgent) store.getState().toggleRailGroup(collapsedAgent);
+  const coordinator = new RoutingCoordinator(store, router);
+  coordinator.completeHydration();
+  return { store, coordinator, flushPersistence: () => {} };
+}
+
+function RailFixture({ collapsedAgent }: { collapsedAgent?: string }) {
+  const [shell] = useState(() => createStoryShell({ collapsedAgent }));
+  const dockItems = buildDeskItems({
+    open: ["sessions"],
+    badges: { sessions: 1, tasks: 1 },
+  });
+  return (
+    <OsShellContext.Provider value={shell}>
+      <DesktopShell dock={false} dockItems={dockItems}>
+        <DesktopSessionsRail sessions={CATALOG} disconnected={false} />
+        <OsDockZone items={dockItems} onSelect={fn()} onNewSession={fn()} />
+      </DesktopShell>
+    </OsShellContext.Provider>
+  );
+}
+
+function BellFixture() {
+  const [shell] = useState(() => createStoryShell());
+  return (
+    <OsShellContext.Provider value={shell}>
+      <DesktopShell
+        menubar={false}
+        dockItems={buildDeskItems({ badges: { sessions: 1, tasks: 1 } })}
+      >
+        <DesktopMenubar
+          workspaces={[WORKSPACE]}
+          activeWorkspace={WORKSPACE}
+          onSelectWorkspace={fn()}
+          onAddWorkspace={fn()}
+          onNewSession={fn()}
+          onOpenPalette={fn()}
+          onOpenSpaces={fn()}
+          activeOverlay="bell"
+          onOverlayOpenChange={fn()}
+          attention={ATTENTION}
+        />
+      </DesktopShell>
+    </OsShellContext.Provider>
+  );
+}
+
+const meta: Meta<typeof DesktopSessionsRail> = {
+  title: "systems/os/components/AttentionSurfaces",
+  component: DesktopSessionsRail,
+  parameters: {
+    layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "Production attention surfaces: the session-catalog rail, focus-only menubar bell, and projection-backed dock badges.",
+      },
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+/** Rail recent view with the runtime's raw status vocabulary and six-row recent limit. */
+export const RailRecent: Story = {
+  args: { sessions: CATALOG, disconnected: false },
+  render: () => <RailFixture />,
+};
+
+/** Grouped catalog with the webgen agent persisted as collapsed. */
+export const RailGrouped: Story = {
+  args: { sessions: CATALOG, disconnected: false },
+  render: () => <RailFixture collapsedAgent="webgen" />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("button", { name: "Show all sessions" }));
+  },
+};
+
+/** Open attention bell with one waiting session and one task awaiting approval. */
+export const BellPopulated: Story = {
+  args: { sessions: CATALOG, disconnected: false },
+  render: () => <BellFixture />,
+};
+
+/** Projection-backed badges: sessions remains exact, while a large task count caps at 9+. */
+export const DockBadges: Story = {
+  args: { sessions: CATALOG, disconnected: false },
+  render: () => (
+    <DesktopShell
+      dockItems={buildDeskItems({
+        badges: { sessions: 1, tasks: 12 },
+      })}
+      deskHint
+    />
+  ),
+};

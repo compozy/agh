@@ -3,6 +3,8 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { TopbarSlotValue } from "@agh/ui";
+
 import { createMswFetch } from "@/test/msw-fetch";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 import { LoopEditor } from "../editor/loop-editor";
@@ -16,7 +18,8 @@ const WS = "ws_default";
 
 function renderEditor(
   name = "software-delivery",
-  extraHandlers: ReturnType<typeof http.post>[] = []
+  extraHandlers: ReturnType<typeof http.post>[] = [],
+  topbarIdentity?: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">
 ) {
   vi.stubGlobal(
     "fetch",
@@ -26,7 +29,12 @@ function renderEditor(
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   renderWithTopbar(
     <QueryClientProvider client={queryClient}>
-      <LoopEditor workspaceId={WS} name={name} onPublished={onPublished} />
+      <LoopEditor
+        workspaceId={WS}
+        name={name}
+        onPublished={onPublished}
+        topbarIdentity={topbarIdentity}
+      />
     </QueryClientProvider>
   );
   return { onPublished };
@@ -41,6 +49,30 @@ function nodeCard(id: string): HTMLElement {
 
 describe("LoopEditor", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("Should preserve route identity and editor actions in one topbar publication", async () => {
+    const onBack = vi.fn();
+    const onOpenLoops = vi.fn();
+    const onOpenLoop = vi.fn();
+    renderEditor("software-delivery", [], {
+      onBack,
+      crumbs: [
+        { id: "loops", label: "Loops", onSelect: onOpenLoops },
+        { id: "loop", label: "software-delivery", onSelect: onOpenLoop },
+      ],
+      crumb: "Editor",
+    });
+
+    await screen.findByTestId("loop-editor");
+    expect(screen.getByRole("button", { name: "Back one level" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Loops" })).toBeInTheDocument();
+    expect(screen.getByText("Editor")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-editor-validate")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-editor-publish")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back one level" }));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
 
   it("E2E-web-12: edits a workspace Loop draft — palette add, inspector swap, invariant chips", async () => {
     renderEditor();

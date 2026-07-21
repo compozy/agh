@@ -11,7 +11,7 @@ const siteCss = readFileSync(join(root, "packages/site/app/global.css"), "utf8")
 const design = readFileSync(designPath, "utf8");
 const colorGroups = {
   "surface-ramp": "rail canvas canvas-soft canvas-tint sidebar elevated hover disabled",
-  hairlines: "line line-soft line-strong",
+  hairlines: "line line-soft line-strong line-focus",
   "text-ladder": "fg fg-strong muted subtle faint",
   accent:
     "accent accent-hover accent-strong accent-ink accent-tint accent-tint-strong accent-dim accent-glow",
@@ -59,6 +59,7 @@ function stripFrontmatter(text) {
 function replaceGeneratedSections(text) {
   const sections = [
     ...Object.entries(colorGroups).map(([id, stems]) => [id, tokenTable(colorRows(stems))]),
+    ["shell-glass", tokenTable(shellGlassRows())],
     ["signal", signalTable()],
     ["owner-avatar", tokenTable(prefixRows(runtimeTheme, "color-avatar-"))],
     ["status-tone", tokenTable(prefixRows(runtimeTheme, "color-kind-"))],
@@ -67,6 +68,7 @@ function replaceGeneratedSections(text) {
     ["radii", tokenTable(prefixRows(runtimeTheme, "radius", true))],
     ["component-sizes", tokenTable(namedRows(runtimeDecls, componentSizeTokenPattern))],
     ["shadows", tokenTable(prefixRows(runtimeTheme, "shadow-"))],
+    ["shell-backdrop", tokenTable(namedRows(runtimeDecls, /^(blur-shell|wallpaper-)/))],
     ["motion", tokenTable(namedRows(runtimeTheme, /^(duration|ease)-/))],
     ["site-clamps", tokenTable(namedRows(siteTheme, /^text-site-|^leading-doc-body$/))],
     ["site-layout", tokenTable(namedRows(siteDecls, /^site-/))],
@@ -86,6 +88,16 @@ function replaceSection(text, id, content) {
 
 function colorRows(stems) {
   return stems.split(" ").map(stem => ["--color-" + stem, runtime.get("color-" + stem)]);
+}
+
+// The shell-glass family pairs each canonical `:root --shell-glass*` literal with
+// its `@theme --color-*` adapter, so DESIGN.md documents both the contract name and
+// the utility-facing token that references it (single literal, no duplication).
+function shellGlassRows() {
+  return ["shell-glass", "shell-glass-pop"].flatMap(stem => [
+    ["--" + stem, runtime.get(stem)],
+    ["--color-" + stem, runtime.get("color-" + stem)],
+  ]);
 }
 
 function namedRows(decls, re) {

@@ -15,6 +15,11 @@ import type {
   BridgeTargetsResponse,
 } from "@/systems/bridges/types";
 
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return { ...actual, useNavigate: () => vi.fn() };
+});
+
 function makeBridge(overrides: Partial<BridgeSummary> = {}): BridgeSummary {
   return {
     created_at: "2026-04-13T12:00:00Z",
@@ -204,9 +209,9 @@ describe("BridgeDetailPanel", () => {
     });
 
     const header = screen.getByTestId("bridge-detail-header");
-    expect(header).toHaveAttribute("data-slot", "page-head");
-    expect(header).toHaveAttribute("data-variant", "detail");
-    expect(header).toHaveTextContent("Support");
+    expect(header).toBeInTheDocument();
+    expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("Support");
+    expect(header.querySelector("[data-slot='page-head']")).toBeNull();
     expect(document.querySelectorAll('[data-slot="metric"]')).toHaveLength(6);
     expect(screen.getByTestId("bridge-metric-delivery-backlog")).toHaveTextContent("4");
     expect(screen.getByTestId("bridge-metric-delivery-failures")).toHaveTextContent("5");
@@ -464,8 +469,8 @@ describe("BridgeDetailPanel", () => {
     );
     expect(screen.getByTestId("enable-bridge-btn")).toBeDisabled();
     expect(screen.getByTestId("setup-enable-bridge-btn")).toBeDisabled();
-    expect(screen.getByTestId("edit-bridge-btn")).toBeDisabled();
     fireEvent.click(screen.getByTestId("bridge-detail-overflow"));
+    expect(screen.getByTestId("edit-bridge-btn")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("restart-bridge-btn")).toHaveAttribute("aria-disabled", "true");
   });
 

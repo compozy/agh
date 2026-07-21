@@ -37,6 +37,8 @@ export default defineConfig(({ command }) => ({
       "/api": {
         target: apiProxyTarget,
         changeOrigin: true,
+        // Desktop-state stream: forward WebSocket upgrades to the daemon.
+        ws: true,
         headers: {
           Origin: apiProxyOrigin,
         },

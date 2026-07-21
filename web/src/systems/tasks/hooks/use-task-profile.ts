@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { deleteTaskExecutionProfile, setTaskExecutionProfile } from "../adapters/tasks-api";
 import { taskExecutionProfileOptions } from "../lib/query-options";
 import { tasksKeys } from "../lib/query-keys";
+import { acknowledgeTaskMutationSettlement } from "../lib/task-mutation";
 import type { TaskExecutionProfileSetRequest } from "../types";
 
 interface QueryHookOptions {
@@ -39,7 +40,10 @@ export function useSetTaskExecutionProfile() {
 
   return useMutation({
     mutationFn: ({ id, data }: SetExecutionProfileParams) => setTaskExecutionProfile(id, data),
-    onSettled: (_result, _error, { id }) => invalidateProfileRelatedQueries(queryClient, id),
+    onSettled: (_result, error, { id }) => {
+      acknowledgeTaskMutationSettlement(error);
+      return invalidateProfileRelatedQueries(queryClient, id);
+    },
   });
 }
 
@@ -48,6 +52,9 @@ export function useDeleteTaskExecutionProfile() {
 
   return useMutation({
     mutationFn: ({ id }: DeleteExecutionProfileParams) => deleteTaskExecutionProfile(id),
-    onSettled: (_result, _error, { id }) => invalidateProfileRelatedQueries(queryClient, id),
+    onSettled: (_result, error, { id }) => {
+      acknowledgeTaskMutationSettlement(error);
+      return invalidateProfileRelatedQueries(queryClient, id);
+    },
   });
 }

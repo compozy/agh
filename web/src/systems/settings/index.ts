@@ -74,11 +74,21 @@ export type {
   SettingsWriteTarget,
 } from "./types";
 
+export {
+  useMCPAuthorize,
+  type MCPAuthorizePhase,
+  type MCPAuthorizePriorStatus,
+  type MCPAuthorizeState,
+  type UseMCPAuthorizeReturn,
+} from "./hooks/use-mcp-authorize";
+
 // Section metadata
 export {
   findSettingsSection,
   SETTINGS_ROOT_PATH,
+  SETTINGS_SECTION_GROUPS,
   SETTINGS_SECTIONS,
+  filterSettingsSections,
   SETTINGS_SECTION_SLUGS,
   settingsSectionPath,
 } from "./lib/sections";
@@ -203,9 +213,11 @@ export {
   isTerminalRestartStatus,
   RESTART_TERMINAL_STATUSES,
 } from "./lib/restart-status";
-export { restartBannerPropsFor } from "./lib/restart-banner-mapper";
-export { SettingsPageHead, type SettingsPageHeadProps } from "./components/settings-page-head";
-
+export {
+  settingsRestartPresentation,
+  type SettingsRestartPresentation,
+  type SettingsRestartViewState,
+} from "./lib/restart-presentation";
 // Components
 export {
   MCPAuthorizeDialog,
@@ -215,23 +227,44 @@ export {
   MCPServersTable,
   ProviderCard,
   ProviderEditForm,
-  ProviderInspectorSheet,
+  ProviderDetailDialog,
   ProviderInspectView,
   ProviderLogo,
   ProviderModelCatalogStatus,
   NetworkSettingsSections,
-  ProvidersGrid,
-  ProvidersListFilters,
+  ProviderRow,
+  ProvidersToolbar,
+  SettingActionRow,
+  SettingLinkRow,
+  SettingRow,
+  SettingValue,
+  SettingsAdvancedFold,
+  SettingsHeroBoard,
+  SettingsHeroGauge,
+  SettingsTaglistField,
+  SettingsByteField,
+  SettingsLiveChip,
   SettingsApplyRecordsPanel,
+  SettingsChoiceGroup,
   SettingsDecimalInput,
   SettingsDisabledSkillsSection,
   SettingsEditorDialog,
   SettingsFieldRow,
+  SettingsGroup,
   SettingsNumberInput,
+  SettingsPageFrame,
+  SettingsProvChip,
+  SettingsRestartNotice,
+  SettingsRuntimeUnavailable,
+  SettingsInlineSaveControls,
   SettingsSaveBar,
   SettingsSourceBadge,
+  SettingsTile,
+  SettingsTiles,
 } from "./components";
-export type { MCPServerEditorProps } from "./components";
+export type { MCPServerEditorProps, ProvidersViewMode } from "./components";
+export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";
+export type { ProviderStateLabel, ProviderStateView } from "./lib/provider-state";
 
 // Stores
 export { useSettingsRestartStore } from "./stores/use-settings-restart-store";
@@ -292,3 +325,6 @@ export {
 
 // Hooks -- restart
 export { useSettingsRestart } from "./hooks/use-settings-restart";
+export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";
+export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-settings-topbar";
+export type { SettingsSaveBarState } from "./lib/save-state";

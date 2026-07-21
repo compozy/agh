@@ -6,10 +6,16 @@ import type { TaskListFilter, TaskRunsFilter } from "../types";
 
 interface QueryHookOptions {
   enabled?: boolean;
+  refetchIntervalMs?: number | false;
 }
 
 export function useTasks(filters: TaskListFilter = {}, options: QueryHookOptions = {}) {
-  const query = useInfiniteQuery(tasksListOptions(filters, options.enabled ?? true));
+  const query = useInfiniteQuery({
+    ...tasksListOptions(filters, options.enabled ?? true),
+    ...(options.refetchIntervalMs === undefined
+      ? {}
+      : { refetchInterval: options.refetchIntervalMs }),
+  });
   const catalog = readTaskListData(query.data);
   return {
     ...query,

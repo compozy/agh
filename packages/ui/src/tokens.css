@@ -1,32 +1,9 @@
-/*
- * Shared design tokens for AGH (canonical Tailwind v4 single-layer `@theme`).
- *
- * Authority: `DESIGN.md` (repo root).
- *
- * Consumers (`web/`, `packages/site`) own framework-level stylesheet setup,
- * including the single `@import "tailwindcss"` call and any concrete font
- * loading. This file stays font-source agnostic so each surface can choose
- * its own delivery path without shipping duplicate faces.
- *
- * Token contract: every design-system token meant to generate a utility is
- * declared once inside `@theme` with its canonical Tailwind v4 namespace
- * prefix (`--color-*`, `--text-*`, `--tracking-*`, `--leading-*`,
- * `--radius-*`, `--duration-*`, `--ease-*`, `--shadow-*`, `--font-*`,
- * `--font-weight-*`). Tailwind both generates the bare utility (`text-fg`,
- * `bg-canvas-soft`, `duration-base`, `shadow-overlay`, …) AND exposes each
- * token as a global CSS custom property (`var(--color-fg)`, etc.).
- *
- * Component-internal sizing/spacing tokens (modal widths, catalog/provider
- * logo wells, PillGroup segment heights, PillGroup spacing) stay in `:root`
- * and are consumed via arbitrary-value syntax inside the owning component
- * (e.g. `w-(--width-modal-md)` in Dialog, `min-h-(--height-pill-group-segment-md)`
- * in PillGroup). They are NOT in `@theme` because they are not part of a
- * scale that benefits from utility generation, and adding them invites
- * value-matching false positives in third-party tools that infer theme
- * mappings from numeric values.
- */
+/* Canonical AGH Tailwind v4 tokens. DESIGN.md is the generated specification;
+   this file owns utility-facing declarations while tokens-runtime.css owns
+   global base styles, custom utilities, and reduced-motion behavior. */
 
 @import "tw-animate-css";
+@import "./tokens-runtime.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -45,6 +22,7 @@
   --color-line: rgba(255, 255, 255, 0.055);
   --color-line-soft: rgba(255, 255, 255, 0.03);
   --color-line-strong: rgba(255, 255, 255, 0.09);
+  --color-line-focus: rgba(255, 255, 255, 0.14);
 
   /* Text. */
   --color-fg: #ececef;
@@ -161,18 +139,20 @@
      Site re-binds this to Playfair Display in `packages/site/app/global.css`. */
   --font-display: var(--font-sans);
 
-  /* Weight ladder. */
+  /* Weight ladder. Medium is 510 (not 500) — OpenDesign UI medium: a soft
+     half-step between Regular and classic Medium that `font-medium` maps to
+     across every surface. Requires Inter Variable (wght axis). */
   --font-weight-normal: 400;
-  --font-weight-medium: 500;
+  --font-weight-medium: 510;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
   /* Type scale shared with both web and site surfaces. */
   --text-item-title: 0.9375rem; /* 15px */
   --text-item-title--line-height: 1.375rem;
-  --text-small-body: 0.8125rem; /* 13px */
+  --text-small-body: 0.78125rem; /* 12.5px — OpenDesign UI body / menubar labels */
   --text-small-body--line-height: 1.125rem;
-  --text-badge: 0.625rem; /* 10px */
+  --text-badge: 0.65625rem; /* 10.5px — matches --text-micro */
   --text-badge--line-height: 0.75rem;
   --text-eyebrow: 0.6875rem; /* 11px */
   --text-eyebrow--line-height: 1rem;
@@ -180,7 +160,7 @@
   --text-display-2xl--line-height: 1;
   --text-site-lead: 1.1875rem; /* 19px */
   --text-site-lead--line-height: 1.5;
-  --text-micro: 0.5625rem; /* 9px */
+  --text-micro: 0.65625rem; /* 10.5px */
   --text-micro--line-height: 0.75rem;
   --text-inline-code: 0.9em; /* 14.4px */
   --text-accent-glyph: 0.85em; /* 13.6px */
@@ -208,8 +188,8 @@
   --text-mono-id: 0.65625rem;
   --text-pill-group-badge: 0.5625rem;
   /* 14 px tier for prose-adjacent / card-title surfaces (chat bubble body,
-     code-block content, tool-call title, topbar title). One step above
-     `--text-small-body` (13 px), one step below `--text-item-title` (15 px). */
+     code-block content, tool-call title). One step above
+     `--text-small-body` (12.5 px), one step below `--text-item-title` (15 px). */
   --text-card-title: 0.875rem;
   --text-card-title--line-height: 1.4;
 
@@ -306,9 +286,13 @@
 
   /* Tabs list + count chip + tab underline. */
   --height-tabs-list: 40px;
-  --size-tab-underline: 1.5px;
+  --height-tab-underline: 1.5px;
   --spacing-count-chip: 19px;
   --spacing-count-chip-sm: 17px;
+
+  /* Detail-rail property rows. */
+  --height-property-row: 26px;
+  --spacing-property-row-y: 3px;
 
   /* Empty / menu primitives. */
   --size-empty-icon: 38px;
@@ -332,17 +316,98 @@
   --width-search-input-min: 220px;
   --width-filters-menu-default: 200px;
   --width-filters-menu-stack: 220px;
-  --width-settings-nav: 224px;
+  --width-settings-nav: 264px;
+  --container-settings-takeover: 56rem;
+  --container-task-detail-rail: 64rem;
+  --width-settings-sheet: 640px;
+  --width-task-properties-rail: 320px;
+  --spacing-settings-sheet-viewport-gutter: 24px;
+  --height-setting-row: 54px;
+  --container-setting-description: 52ch;
+  --container-settings-page-form: 768px;
+  --container-settings-page-wide: 960px;
+  --container-settings-page-description: 72ch;
+  --spacing-settings-page-bottom: 96px;
+  --container-settings-save-bar: 560px;
+  --size-settings-save-dot: 7px;
 
   /* Modal height ceilings — wizard / editor / tall form sheets. */
   --height-modal-md: 760px;
   --height-modal-tall: 900px;
   --height-modal-wizard: 960px;
   --height-modal-xl: 840px;
+
+  /* OS shell chrome — the sanctioned depth carve-out (DESIGN.md §5).
+     Glass, backdrop blur, and window shadows apply to shell chrome only:
+     menubar, dock, sessions rail, shell popovers, and window frames.
+     Content inside window bodies stays on the flat ramp/hairline model.
+     The canonical `--shell-glass` literals live in `:root`; these `--color-*`
+     adapters reference them so production keeps resolving through `--color-*`. */
+  --color-shell-glass: var(--shell-glass);
+  --color-shell-glass-pop: var(--shell-glass-pop);
+  --radius-window: 12px;
+  --radius-dock: 22px;
+  --radius-dock-item: 13px;
+  --radius-menubar-control: 7px;
+  --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
+  --shadow-window-unfocused: 0 18px 50px -22px rgba(0, 0, 0, 0.55);
+  --shadow-window-head-scrolled: 0 10px 18px -14px rgba(0, 0, 0, 0.55);
+  --shadow-dock: 0 18px 50px -18px rgba(0, 0, 0, 0.6);
+
+  /* Shell motion tier — chrome-scale spatial transitions (window entry,
+     dock magnification, minimize travel) above the base ladder; one spring. */
+  --duration-shell-fast: 120ms;
+  --duration-shell-base: 240ms;
+  --duration-shell-slow: 320ms;
+  --ease-spring: cubic-bezier(0.32, 0.72, 0.28, 1);
+
+  /* Shell chrome geometry. */
+  --height-menubar: 44px;
+  --height-menubar-chip: 26px;
+  --size-dock-item: 46px;
+  --size-dock-icon: 21px;
+  --size-dock-badge: 15px;
+  --size-dock-indicator: 4px;
+  --size-dock-indicator-min: 5px;
+  --size-traffic-light: 12px;
+  --size-menubar-logo: 17px;
+  --size-workspace-avatar: 18px;
+  --size-dock-new-icon: 18px;
+  /* `--spacing-*` (not `--space-*`) so Tailwind v4 emits gap/p utilities. */
+  --spacing-dock-gap: 4px;
+  --spacing-dock-pad: 7px;
+  --spacing-menubar-workspace-gap: 7px;
+  --spacing-traffic-light-gap: 7px;
+  --spacing-traffic-light-compact-gap: 12px;
+
+  /* Shell backdrop blur tiers — consumed as backdrop-blur-shell etc. */
+  --blur-shell: 28px;
+  --blur-shell-pop: 32px;
+  --blur-shell-scrim: 8px;
+
+  /* Compact (<960px) presentation — os-v2.css mobile block. */
+  --height-dock-tabbar: 56px;
+  --size-dock-tab-item: 44px;
+  --size-traffic-light-compact: 15px;
+  --size-traffic-light-compact-target: 44px;
+
+  /* Spaces-overview cards (os-v2.css `.space-card`/`.space-thumb`). */
+  --width-space-card: 264px;
+  --height-space-thumb: 148px;
+  --spacing-spaces-subtitle-gap: 22px;
+  --spacing-spaces-row-gap: 18px;
+  --spacing-space-thumb-top-offset: 8px;
+  --text-space-avatar: 9px;
 }
 
 :root {
   color-scheme: dark;
+
+  /* Canonical OS-shell glass literals — the exact `--shell-glass` names from the
+     OpenDesign contract (os-v2.css). Referenced by the `@theme` `--color-shell-glass`
+     adapters above; components never consume these directly. */
+  --shell-glass: rgba(12, 11, 11, 0.72);
+  --shell-glass-pop: rgba(19, 18, 17, 0.94);
 
   /* Non-utility runtime var: consumed inside `backdrop-filter: blur(...)` on
      dialog/sheet scrims; no Tailwind namespace matches `backdrop-filter`
@@ -376,110 +441,64 @@
      Kept out of @theme because Tailwind has no `--space-*` namespace that
      would generate a useful utility for this calc context. */
   --space-switch-thumb-inset: 2px;
-}
 
-.dark {
-  color-scheme: dark;
-}
+  /* Wallpaper stacks — OsWallpaper composes these via the background
+     shorthand. Gradient geometry is not a utility scale, so the family
+     stays out of @theme. --wallpaper-teal is a registered brand tone for
+     wallpaper depth only — never a component color. */
+  --wallpaper-teal: #225555;
+  --wallpaper-grid: radial-gradient(
+    1.5px 1.5px at 50% 50%,
+    rgba(255, 255, 255, 0.035) 40%,
+    transparent 41%
+  );
+  --wallpaper-grid-size: 26px;
+  --wallpaper-ember:
+    radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%),
+    radial-gradient(
+      1000px 640px at 92% -12%,
+      color-mix(in oklab, var(--wallpaper-teal) 38%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%);
+  --wallpaper-mesh:
+    radial-gradient(900px 600px at 85% 108%, var(--color-success-tint), transparent 60%),
+    radial-gradient(
+      1200px 700px at 8% -8%,
+      color-mix(in oklab, var(--wallpaper-teal) 40%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%);
+  --wallpaper-carbon:
+    radial-gradient(1000px 620px at 50% -14%, rgba(255, 255, 255, 0.04), transparent 58%),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%);
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-
-  html,
-  body,
-  #app {
-    min-height: 100%;
-  }
-
-  body {
-    @apply bg-background font-sans text-foreground antialiased;
-    /* Body baseline / §9. */
-    font-size: 0.84375rem;
-    line-height: 1.5;
-    letter-spacing: -0.006em;
-    font-feature-settings: "cv01", "ss03", "cv11";
-    text-rendering: optimizeLegibility;
-  }
-
-  /* JetBrains Mono override:
-     Inter is calibrated for grayscale (`antialiased`) and its OpenType
-     features (cv01/ss03/cv11) are inherited from body. Both rules thin and
-     distort JetBrains Mono on macOS Chrome/Safari, where its narrower
-     strokes pay a much higher visual penalty than Inter's. Restore subpixel
-     rendering and reset font-feature-settings so the variable wght axis is
-     read at full stroke weight on every mono surface. */
-  .font-mono,
-  [class*="font-mono"],
-  code,
-  kbd,
-  samp,
-  pre {
-    -webkit-font-smoothing: subpixel-antialiased;
-    -moz-osx-font-smoothing: auto;
-    font-feature-settings: normal;
-  }
-
-  /* Text selection — warm accent at 10%. */
-  ::selection {
-    background: var(--color-accent-tint);
-    color: var(--color-fg-strong);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-@utility animate-shimmer {
-  animation: shimmer 2s ease-in-out infinite;
-}
-
-/*
- * Single eyebrow utility / §11, lesson L-022.
- * Inter UC 11/600/-0.005em is the only eyebrow contract. The previous
- * `eyebrow-badge` (10 px) and `eyebrow-micro` (9 px) variants are deleted
- * (greenfield rule, SD-002 — no transitional alias). Consumers render
- * through `<Eyebrow>` (`@agh/ui`) or this utility on structural HTML.
- */
-@utility eyebrow {
-  @apply font-sans text-(length:--text-eyebrow) font-semibold uppercase;
-  letter-spacing: var(--tracking-eyebrow);
-}
-
-@keyframes typing-bounce {
-  0%,
-  60%,
-  100% {
-    opacity: 0.3;
-    transform: translateY(0);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(-2px);
-  }
-}
-
-/*
- * Reduced-motion guard.
- * Applies to every animation and transition, not only `--duration-*` token
- * references. Required because `tw-animate-css` and the `shimmer` /
- * `typing-bounce` keyframes hardcode their durations and would otherwise
- * keep playing. `0.001ms` (not 0) preserves CSS animation-callback timing
- * (libraries relying on `animationend`).
- */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-delay: 0.001ms !important;
-    transition-duration: 0.001ms !important;
-  }
+  /* Wallpaper thumbnails (Appearance picker previews) — the desk stacks with
+     percentage radial geometry so the same composition reads at any preview
+     size, and tints one step stronger so the choice is legible at card scale.
+     Gradient geometry is not a utility scale, so the family stays out of
+     @theme like the desk stacks. */
+  --wallpaper-thumb-ember:
+    radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%),
+    radial-gradient(
+      75% 90% at 92% -12%,
+      color-mix(in oklab, var(--wallpaper-teal) 55%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%);
+  --wallpaper-thumb-mesh:
+    radial-gradient(
+      70% 85% at 85% 108%,
+      color-mix(in oklab, var(--color-success) 26%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      85% 95% at 8% -8%,
+      color-mix(in oklab, var(--wallpaper-teal) 60%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%);
+  --wallpaper-thumb-carbon:
+    radial-gradient(75% 85% at 50% -14%, rgba(255, 255, 255, 0.09), transparent 58%),
+    linear-gradient(180deg, var(--color-canvas-tint), var(--color-rail) 50%);
 }

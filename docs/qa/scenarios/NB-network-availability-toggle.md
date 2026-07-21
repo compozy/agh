@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-administer-network-live
 expected: Disabling Network rejects new Live participation, cancels and truthfully settles active wakes, preserves conversation and usage data read-only, and leaves Local work unaffected; re-enabling advances availability without replaying or duplicating old wake sources.
 entry_points: web /settings/network; PATCH /api/settings/network over HTTP/UDS; agh config set network.enabled; agh config reload; agh network status -o json
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

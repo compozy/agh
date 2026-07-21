@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { useMCPAuthorize } from "@/hooks/routes/use-mcp-authorize";
+import { useMCPAuthorize } from "@/systems/settings";
 import {
   useDeactivateBundle,
   useRemoveExtension,

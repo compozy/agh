@@ -1336,7 +1336,7 @@ func classifySandboxNetworkMutationPath(name string) (configSetValueKind, bool, 
 
 func classifySandboxDaytonaMutationPath(name string) (configSetValueKind, bool, bool) {
 	switch name {
-	case "api_url", configTargetKey, "image", "snapshot", "class", "auto_stop", "auto_archive":
+	case "api_url", configTargetKey, "image", cliSnapshotKey, "class", "auto_stop", "auto_archive":
 		return configSetString, false, true
 	default:
 		return configSetString, false, false

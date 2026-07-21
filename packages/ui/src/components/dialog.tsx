@@ -14,16 +14,21 @@ import {
 } from "./hooks/use-dialog-motion";
 import { useDialogMotionTransition } from "./hooks/use-dialog-motion-transition";
 import { useInitialState } from "./use-initial-state";
+import { useOverlayContainer } from "./hooks/use-overlay-container";
 
 type DialogRootProps = DialogPrimitive.Root.Props;
 
 function Dialog({
   open: controlledOpen,
   defaultOpen = false,
+  modal,
+  disablePointerDismissal,
   onOpenChange,
   children,
   ...props
 }: DialogRootProps) {
+  const overlayContainer = useOverlayContainer();
+  const windowScoped = overlayContainer !== null;
   const actionsRef = React.useRef<DialogPrimitive.Root.Actions | null>(null);
   const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
@@ -42,6 +47,8 @@ function Dialog({
       actionsRef={actionsRef}
       open={open}
       defaultOpen={defaultOpen}
+      modal={modal ?? (windowScoped ? false : true)}
+      disablePointerDismissal={disablePointerDismissal ?? windowScoped}
       onOpenChange={handleOpenChange}
       {...props}
     >
@@ -56,8 +63,15 @@ function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 }
 
-function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+function DialogPortal({ container, ...props }: DialogPrimitive.Portal.Props) {
+  const overlayContainer = useOverlayContainer();
+  return (
+    <DialogPrimitive.Portal
+      data-slot="dialog-portal"
+      container={container !== undefined ? container : (overlayContainer ?? undefined)}
+      {...props}
+    />
+  );
 }
 
 function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
@@ -110,9 +124,12 @@ function DialogContent({
   children,
   showCloseButton = true,
   unframed = false,
+  style,
   ...props
 }: DialogContentProps) {
   const { actionsRef, open } = useDialogMotion();
+  const overlayContainer = useOverlayContainer();
+  const windowScoped = overlayContainer !== null;
   const transition = useDialogMotionTransition();
   const popupRender = (
     <m.div
@@ -142,6 +159,15 @@ function DialogContent({
               unframed && "overflow-hidden",
               className
             )}
+            style={{
+              ...(windowScoped
+                ? {
+                    maxHeight: "calc(100% - 2rem)",
+                    maxWidth: "calc(100% - 2rem)",
+                  }
+                : undefined),
+              ...style,
+            }}
             {...props}
           >
             {children}

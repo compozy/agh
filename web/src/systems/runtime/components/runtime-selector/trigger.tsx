@@ -1,7 +1,7 @@
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { cn, KindIcon, providerKindIconRegistry } from "@agh/ui";
+import { cn, Kbd, KindIcon, providerKindIconRegistry } from "@agh/ui";
 
 import { IntensityMeter } from "./intensity-meter";
 import {
@@ -216,6 +216,7 @@ export function RuntimeSelectorTrigger({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? popupId : undefined}
+        aria-keyshortcuts="Meta+J Control+J"
         data-focus="model"
         className={cn(SEGMENT_CLASS, "rounded-r-md px-[9px] text-faint", open && "text-fg")}
         onClick={event => {
@@ -223,6 +224,11 @@ export function RuntimeSelectorTrigger({
           if (!disabled && !readOnly) onSegment?.(compact ? "provider" : "model");
         }}
       >
+        {compact ? null : (
+          <Kbd aria-hidden="true" className="shrink-0">
+            ⌘J
+          </Kbd>
+        )}
         <ChevronDown
           aria-hidden="true"
           className={cn("size-3.5 transition-transform", open && "rotate-180")}

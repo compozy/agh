@@ -32,6 +32,7 @@ vi.mock("@tanstack/react-router", () => ({
       {children}
     </a>
   ),
+  useNavigate: () => vi.fn(),
 }));
 
 import { AutomationDetailPanel } from "../automation-detail-panel";
@@ -161,7 +162,8 @@ describe("AutomationDetailPanel", () => {
     const { onDelete, onEdit, onToggleEnabled, onTriggerNow } = renderPanel();
 
     expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
-    expect(screen.getByText("daily-review")).toBeInTheDocument();
+    expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("daily-review");
+    expect(screen.getByTestId("automation-detail-header")).toBeInTheDocument();
     expect(screen.getByText("Review recent changes.")).toBeInTheDocument();
     expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent("Skip missed");
     expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent(
@@ -173,8 +175,9 @@ describe("AutomationDetailPanel", () => {
       "/session/sess_001"
     );
 
-    fireEvent.click(screen.getByTestId("edit-automation-btn"));
     fireEvent.click(screen.getByTestId("trigger-job-btn"));
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    fireEvent.click(screen.getByTestId("edit-automation-btn"));
     fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     fireEvent.click(screen.getByTestId("toggle-automation-btn"));
 
@@ -313,13 +316,13 @@ describe("AutomationDetailPanel", () => {
     expect(screen.queryByText(/Dispatches to/)).not.toBeInTheDocument();
   });
 
-  it("Should render the PageHead detail anatomy with the job name as H1", () => {
+  it("Should render the detail header with the job name in the window-head slot", () => {
     renderPanel();
 
     const header = screen.getByTestId("automation-detail-header");
-    expect(header).toHaveAttribute("data-slot", "page-head");
-    expect(header).toHaveAttribute("data-variant", "detail");
-    expect(header).toHaveTextContent("daily-review");
+    expect(header).toBeInTheDocument();
+    expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("daily-review");
+    expect(header.querySelector("[data-slot='page-head']")).toBeNull();
   });
 
   it("renders manual jobs without implying a cron schedule", () => {
@@ -418,8 +421,8 @@ describe("AutomationDetailPanel", () => {
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith("/api/webhooks/global/push-review--wbh_push_review")
     );
-    expect(screen.getByTestId("edit-automation-btn")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    expect(screen.getByTestId("edit-automation-btn")).toBeInTheDocument();
     expect(screen.getByTestId("delete-automation-btn")).toBeInTheDocument();
   });
 });

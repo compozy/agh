@@ -47,14 +47,10 @@ describe("LoopRunContractHeader", () => {
     expect(screen.getAllByTestId("loop-run-terminal-chip")).toHaveLength(6);
   });
 
-  it("Should render a terminal status truthfully and never coerce it to done (inv5)", () => {
-    const { rerender } = render(
-      <LoopRunContractHeader run={run({ status: "exhausted" })} contract={contract} />
-    );
-    expect(screen.getByTestId("loop-run-status-pill")).toHaveTextContent("Exhausted");
-    expect(screen.getByTestId("loop-run-status-pill")).not.toHaveTextContent("Done");
-    rerender(<LoopRunContractHeader run={run({ status: "stalled" })} contract={contract} />);
-    expect(screen.getByTestId("loop-run-status-pill")).toHaveTextContent("Stalled");
+  it("Should leave live status and operator controls to the OS topbar", () => {
+    render(<LoopRunContractHeader run={run({ status: "exhausted" })} contract={contract} />);
+    expect(screen.queryByTestId("loop-run-status-pill")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-controls")).not.toBeInTheDocument();
   });
 });
 

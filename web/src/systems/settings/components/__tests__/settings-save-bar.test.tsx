@@ -2,189 +2,104 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SettingsSaveBar } from "../settings-save-bar";
+import type { SettingsSaveBarState } from "../../lib/save-state";
+
+function renderSaveBar(
+  state: SettingsSaveBarState,
+  overrides: Partial<React.ComponentProps<typeof SettingsSaveBar>> = {}
+) {
+  const props = {
+    slug: "general",
+    onSave: vi.fn(),
+    onReset: vi.fn(),
+    ...overrides,
+    state,
+  };
+  render(<SettingsSaveBar {...props} />);
+  return props;
+}
 
 describe("SettingsSaveBar", () => {
-  it("disables the Save and Discard buttons when nothing is dirty", () => {
-    render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={false}
-        isSaving={false}
-        onSave={vi.fn()}
-        onReset={vi.fn()}
-      />
-    );
+  it("renders nothing while the page is clean", () => {
+    renderSaveBar({ kind: "idle" });
 
-    expect(screen.getByTestId("settings-page-general-save")).toBeDisabled();
-    expect(screen.getByTestId("settings-page-general-reset")).toBeDisabled();
-    expect(screen.getByTestId("settings-page-general-save-bar")).toHaveAttribute(
-      "data-dirty",
-      "false"
-    );
+    expect(screen.queryByTestId("settings-page-general-save-bar")).not.toBeInTheDocument();
   });
 
-  it("enables the Save button when dirty and not saving or invalid", () => {
-    const onSave = vi.fn();
-    render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={true}
-        isSaving={false}
-        isInvalid={false}
-        onSave={onSave}
-        onReset={vi.fn()}
-      />
-    );
+  it("appears when dirty and fires onSave from the enabled Save button", () => {
+    const { onSave } = renderSaveBar({ kind: "dirty", warnings: [] });
 
+    expect(screen.getByTestId("settings-page-general-save-bar")).toHaveAttribute(
+      "data-dirty",
+      "true"
+    );
+    expect(screen.getByTestId("settings-page-general-save-message")).toHaveTextContent(
+      "Unsaved changes"
+    );
     const save = screen.getByTestId("settings-page-general-save");
     expect(save).not.toBeDisabled();
     fireEvent.click(save);
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
-  it("disables Save when invalid even if dirty", () => {
-    render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={true}
-        isSaving={false}
-        isInvalid={true}
-        onSave={vi.fn()}
-        onReset={vi.fn()}
-      />
-    );
+  it("disables Save and names the blocker when invalid even if dirty", () => {
+    renderSaveBar({ kind: "invalid", warnings: [] });
 
     expect(screen.getByTestId("settings-page-general-save")).toBeDisabled();
-    expect(screen.getByTestId("settings-page-general-save-invalid")).toHaveTextContent(
+    expect(screen.getByTestId("settings-page-general-save-message")).toHaveTextContent(
       "Resolve validation errors before saving"
     );
   });
 
-  it("shows the Saving label + spinner while saving and re-enables after isSaving flips to false", () => {
-    const { rerender } = render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={true}
-        isSaving={true}
-        onSave={vi.fn()}
-        onReset={vi.fn()}
-      />
-    );
+  it("names the saving state and disables both actions while saving", () => {
+    renderSaveBar({ kind: "saving" });
 
-    const save = screen.getByTestId("settings-page-general-save");
-    expect(save).toBeDisabled();
-    expect(save).toHaveTextContent("Saving...");
-
-    rerender(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={true}
-        isSaving={false}
-        onSave={vi.fn()}
-        onReset={vi.fn()}
-      />
-    );
-
-    expect(screen.getByTestId("settings-page-general-save")).not.toBeDisabled();
-    expect(screen.getByTestId("settings-page-general-save")).toHaveTextContent("Save changes");
+    expect(screen.getByTestId("settings-page-general-save-message")).toHaveTextContent("Saving…");
+    expect(screen.getByTestId("settings-page-general-save")).toBeDisabled();
+    expect(screen.getByTestId("settings-page-general-reset")).toBeDisabled();
   });
 
-  it("renders the error line in the danger tone when error is non-null", () => {
-    render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={true}
-        isSaving={false}
-        error="boom"
-        onSave={vi.fn()}
-        onReset={vi.fn()}
-      />
-    );
+  it("renders the error message through an assertive live region", () => {
+    renderSaveBar({ kind: "error", message: "config write failed" });
 
-    const errorLine = screen.getByTestId("settings-page-general-save-error");
-    expect(errorLine).toHaveTextContent("boom");
-    expect(screen.queryByTestId("settings-page-general-save-warnings")).not.toBeInTheDocument();
+    const bar = screen.getByTestId("settings-page-general-save-bar");
+    expect(bar).toHaveAttribute("aria-live", "assertive");
+    expect(screen.getByTestId("settings-page-general-save-message")).toHaveTextContent(
+      "config write failed"
+    );
   });
 
-  it("renders the warnings list in the warning tone when error is null and warnings exist", () => {
-    render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={true}
-        isSaving={false}
-        warnings={["restart required", "env missing"]}
-        onSave={vi.fn()}
-        onReset={vi.fn()}
-      />
-    );
+  it("renders an explicit saved state without implying unsaved changes", () => {
+    renderSaveBar({ kind: "saved", message: "Applied 2 fields" });
 
-    const warnings = screen.getByTestId("settings-page-general-save-warnings");
-    expect(warnings).toHaveTextContent("restart required");
-    expect(warnings).toHaveTextContent("env missing");
+    expect(screen.getByTestId("settings-page-general-save-message")).toHaveTextContent(
+      "Applied 2 fields"
+    );
+    expect(screen.getByTestId("settings-page-general-save-bar")).toHaveAttribute(
+      "data-state",
+      "saved"
+    );
   });
 
-  it("renders the lastAppliedLabel with a success check when no error or warnings and not dirty", () => {
-    render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={false}
-        isSaving={false}
-        lastAppliedLabel="Applied 2m ago"
-        onSave={vi.fn()}
-        onReset={vi.fn()}
-      />
-    );
+  it("keeps warnings visible alongside the dirty state", () => {
+    renderSaveBar({ kind: "dirty", warnings: ["value clamped to 3600"] });
 
-    const applied = screen.getByTestId("settings-page-general-save-applied");
-    expect(applied).toHaveTextContent("Applied 2m ago");
+    expect(screen.getByTestId("settings-page-general-save-warnings")).toHaveTextContent(
+      "value clamped to 3600"
+    );
   });
 
-  it("prioritizes dirty messaging over a stale applied label", () => {
-    render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={true}
-        isSaving={false}
-        lastAppliedLabel="Applied 2m ago"
-        onSave={vi.fn()}
-        onReset={vi.fn()}
-      />
+  it("names clean post-save warnings and leaves both actions disabled", () => {
+    renderSaveBar({
+      kind: "warning",
+      message: "Saved with warnings",
+      warnings: ["value clamped to 3600"],
+    });
+
+    expect(screen.getByTestId("settings-page-general-save-message")).toHaveTextContent(
+      "Saved with warnings"
     );
-
-    expect(screen.getByTestId("settings-page-general-save-dirty")).toHaveTextContent(
-      "Unsaved changes"
-    );
-    expect(screen.queryByTestId("settings-page-general-save-applied")).not.toBeInTheDocument();
-  });
-
-  it("announces save state changes through a live region", () => {
-    render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={false}
-        isSaving={false}
-        lastAppliedLabel="Applied 2m ago"
-        onSave={vi.fn()}
-        onReset={vi.fn()}
-      />
-    );
-
-    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
-  });
-
-  it("fires onReset when Discard is clicked", () => {
-    const onReset = vi.fn();
-    render(
-      <SettingsSaveBar
-        slug="general"
-        isDirty={true}
-        isSaving={false}
-        onSave={vi.fn()}
-        onReset={onReset}
-      />
-    );
-
-    fireEvent.click(screen.getByTestId("settings-page-general-reset"));
-    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("settings-page-general-save")).toBeDisabled();
+    expect(screen.getByTestId("settings-page-general-reset")).toBeDisabled();
   });
 });

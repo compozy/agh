@@ -7,10 +7,11 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 /**
- * Centered sister-route navigation for the topbar route-nav zone
- * (route chrome contract §06). Real links inside a labeled `nav`; the
- * segmented appearance is visual only — `Tabs` stay for in-route panels
- * and `PillGroup` stays a mode selector.
+ * Peer sister-route navigation for the topbar `nav` zone — rendered in the
+ * 44px head immediately after identity (`data-slot="topbar-nav"`), never in
+ * the 38px tools strip (pagehead-redesign §02). Real links inside a labeled
+ * `nav`; the segmented appearance is visual only — `Tabs` stay for in-route
+ * panels and `PillGroup` stays a mode selector.
  */
 function RouteNav({ className, ...props }: React.ComponentProps<"nav">) {
   return (

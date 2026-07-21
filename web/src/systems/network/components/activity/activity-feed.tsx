@@ -1,10 +1,8 @@
-import { ActivitySquare } from "lucide-react";
+import { ActivitySquare, AtSign, MessagesSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { Button, Empty, Eyebrow, Pill, Skeleton, SkeletonRows } from "@agh/ui";
-
-import { cn } from "@/lib/utils";
+import { Button, Empty, Skeleton, SkeletonRows } from "@agh/ui";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkDirectRoomSummary, NetworkThreadSummary } from "../../types";
@@ -130,20 +128,50 @@ function ActivityFeedSkeleton() {
   );
 }
 
+const ACTIVITY_ROW_CLASS = [
+  "grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-2.5",
+  "border-b border-line-soft px-5 py-2.5 text-left",
+  "transition-colors duration-base hover:bg-row-hover",
+  "focus-visible:outline-none focus-visible:shadow-focus-inset",
+].join(" ");
+
+function ActivityRowBody({ entry }: { entry: ActivityEntry }) {
+  const Icon = entry.kind === "thread" ? MessagesSquare : AtSign;
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className="flex size-6.5 items-center justify-center rounded-sm bg-elevated text-subtle"
+      >
+        <Icon className="size-3.5" />
+      </span>
+      <span className="min-w-0 truncate text-small-body text-muted">
+        <span className="font-medium text-fg">{entry.title}</span>
+        <span aria-hidden="true"> — </span>
+        {entry.preview}
+      </span>
+      <span className="font-mono text-mono-id tabular-nums text-faint">
+        {formatNetworkRelativeTime(entry.timestamp)}
+      </span>
+    </>
+  );
+}
+
+/**
+ * Channel activity as an event-styled feed (`arow` anatomy): per-kind icon
+ * well, actor-first text, trailing freshness. Rows come from thread and
+ * direct-room container updates — the runtime exposes no finer event stream.
+ */
 export function ActivityFeed({
   workspaceId,
   channel,
   threads,
   directs,
   status,
-  threadTotal,
-  directTotal,
   pagination,
   isFiltered = false,
   sort = "recent_activity",
 }: ActivityFeedProps) {
-  const resolvedThreadTotal = threadTotal === undefined ? threads.length : threadTotal;
-  const resolvedDirectTotal = directTotal === undefined ? directs.length : directTotal;
   const entries = buildEntries(workspaceId, channel, threads, directs, sort);
   const threadPagination = pagination?.threads;
   const directPagination = pagination?.directs;
@@ -175,59 +203,29 @@ export function ActivityFeed({
       className="flex flex-1 flex-col overflow-y-auto"
       data-testid="network-activity-feed"
     >
-      <div className="border-b border-line px-5 py-2" data-testid="network-activity-subheader">
-        <Eyebrow>
-          Recent activity / {entries.length} loaded / {resolvedThreadTotal + resolvedDirectTotal}{" "}
-          total
-        </Eyebrow>
-      </div>
-      {entries.map(entry => {
-        const linkClass = cn(
-          "flex flex-col gap-1 border-b border-line px-5 py-3 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        );
-        const meta = (
-          <>
-            <div className="flex items-baseline gap-2">
-              <Pill
-                data-testid={`network-activity-tag-${entry.kind}`}
-                mono
-                size="xs"
-                tone={entry.kind === "thread" ? "info" : "neutral"}
-              >
-                {entry.kind === "thread" ? "[TH]" : "[DM]"}
-              </Pill>
-              <Eyebrow aria-hidden="true">/</Eyebrow>
-              <Eyebrow>{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
-            </div>
-            <p className="truncate text-sm font-medium text-fg">{entry.title}</p>
-            <p className="line-clamp-2 text-small-body text-muted">{entry.preview}</p>
-          </>
-        );
-        if (entry.kind === "thread") {
-          return (
-            <Link
-              className={linkClass}
-              data-testid={`network-activity-entry-${entry.id}`}
-              key={entry.id}
-              params={entry.params}
-              to={entry.to}
-            >
-              {meta}
-            </Link>
-          );
-        }
-        return (
+      {entries.map(entry =>
+        entry.kind === "thread" ? (
           <Link
-            className={linkClass}
+            className={ACTIVITY_ROW_CLASS}
             data-testid={`network-activity-entry-${entry.id}`}
             key={entry.id}
             params={entry.params}
             to={entry.to}
           >
-            {meta}
+            <ActivityRowBody entry={entry} />
           </Link>
-        );
-      })}
+        ) : (
+          <Link
+            className={ACTIVITY_ROW_CLASS}
+            data-testid={`network-activity-entry-${entry.id}`}
+            key={entry.id}
+            params={entry.params}
+            to={entry.to}
+          >
+            <ActivityRowBody entry={entry} />
+          </Link>
+        )
+      )}
       {threadPagination || directPagination ? (
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3">
           {threadPagination ? (
@@ -236,7 +234,7 @@ export function ActivityFeed({
               disabled={threadPagination.status === "loading"}
               onClick={() => void loadMore(threadPagination, "Failed to load more threads.")}
               size="sm"
-              variant="outline"
+              variant="neutral"
             >
               {threadPagination.status === "loading" ? "Loading threads…" : "Load more threads"}
             </Button>
@@ -247,7 +245,7 @@ export function ActivityFeed({
               disabled={directPagination.status === "loading"}
               onClick={() => void loadMore(directPagination, "Failed to load more direct rooms.")}
               size="sm"
-              variant="outline"
+              variant="neutral"
             >
               {directPagination.status === "loading" ? "Loading rooms…" : "Load more direct rooms"}
             </Button>

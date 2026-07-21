@@ -40,7 +40,7 @@ export function TasksListFilters({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2" data-testid="tasks-list-filters">
+    <div className="flex flex-nowrap items-center gap-2" data-testid="tasks-list-filters">
       <Filters<string>
         allowMultiple={false}
         fields={fields}

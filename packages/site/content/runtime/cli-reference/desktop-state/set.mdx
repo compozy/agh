@@ -1,0 +1,52 @@
+---
+title: "agh desktop-state set"
+description: "Create or replace one desktop-state value"
+---
+
+## agh desktop-state set
+
+Create or replace one desktop-state value
+
+```
+agh desktop-state set [flags]
+```
+
+### Examples
+
+```
+  agh desktop-state set --workspace ws_1234 --key desktop --value '{"v":1}'
+  agh desktop-state set --workspace ws_1234 --key 'win:app:tasks' --file window.json --if-rev 3 -o json
+```
+
+### Options
+
+```
+      --file string        Read the desktop-state JSON object from a file
+  -h, --help               help for set
+      --if-rev uint        Require this current revision
+      --key string         Desktop-state key
+      --value string       Desktop-state value as a JSON object
+      --workspace string   Workspace id
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh desktop-state set -o json
+```

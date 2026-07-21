@@ -6,7 +6,7 @@ persona: Nia
 journey: J-network-local-default
 expected: Network area empty states answer orientation questions with one settings action; disabled empty names admin operators; onboarding links to Network without mutating settings; Network settings show availability + Live defaults/ceilings and state that they do not opt executions in, with no default_channel enrollment control.
 entry_points: web /network and /settings/network; onboarding chat step; public runtime Network/autonomy/config guides; agh skill view agh and bundled skills/agh Network guidance
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260715-network-ready-empty-unoriented
 fix_status: fixed
 retest_status: pass

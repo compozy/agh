@@ -291,7 +291,7 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(tasksUI);
 
-  await expect(sessionUI.appSidebar).toBeVisible();
+  await expect(sessionUI.osDesktop).toBeVisible();
 
   await appPage.getByTestId("nav-agents").click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");

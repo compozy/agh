@@ -49,29 +49,32 @@
   svg{display:block}
   .hide{display:none!important}
   code,kbd,pre,.mono,.pill[data-mono="true"]{-webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal}
-  :is(.btn,.lane-tab,.pill-group__item,.menu button,.copybtn,.act,.dep-toggle,.prow__edit,.sheet__close,.subrow,.runrow,.breadcrumb__link):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  :is(.btn,.lane-tab,.pill-group__item,.menu button,.copybtn,.act,.dep-toggle,.prow__edit,.sheet__close,.subrow,.runrow,.w2-crumb,.w2-back):focus-visible{outline:none;box-shadow:var(--focus-ring)}
 
-  /* ============ shell + topbar (design-system.html contract: 3-zone, 48px) ============ */
+  /* ============ shell ============ */
   .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
-  .topbar{
-    display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;
-    min-height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas);min-width:0
-  }
-  .topbar__context{min-width:0;overflow:hidden}
-  .topbar__trailing{display:flex;align-items:center;justify-content:flex-end;gap:8px;justify-self:end;min-width:0}
-  .breadcrumb{min-width:0;overflow:hidden}
-  .breadcrumb__list{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;list-style:none;white-space:nowrap;color:var(--muted)}
-  .breadcrumb__item{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:none}
-  .breadcrumb__item:last-child{min-width:0;flex:1 1 auto;overflow:hidden}
-  .breadcrumb__link,.breadcrumb__page{
-    display:inline-flex;align-items:center;min-width:0;border-radius:var(--radius-sm);padding:2px 6px;
-    font-size:13px;line-height:18px;letter-spacing:-.006em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
-  }
-  .breadcrumb__link{color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
-  .breadcrumb__link:hover{background:var(--row-hover);color:var(--fg)}
-  .breadcrumb__page{color:var(--fg-strong)}
-  .breadcrumb__separator{display:inline-flex;color:var(--faint);flex:none}
-  .breadcrumb__separator svg{width:12px;height:12px}
+
+  /* ============ unified head v2 (os/pagehead-redesign.html contract: 44px, drill-in trail) ============ */
+  .w2head{flex:none;min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-status[data-tone="ok"]{color:var(--success)}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
 
   /* ============ buttons (packages/ui buttonVariants) ============ */
   .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
@@ -93,20 +96,11 @@
   .scroll{flex:1;min-height:0;overflow-y:auto}
   .page{max-width:1240px;margin:0 auto;padding:24px 36px 80px}
 
-  /* ============ page head (design-system.html .head--detail) ============ */
-  .head{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;min-width:0}
-  .head--detail{padding-bottom:18px;border-bottom:1px solid var(--line)}
-  .head__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;
-    border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent);margin-top:2px}
-  .head__icon svg{width:12px;height:12px}
-  .head__main{min-width:0;flex:1}
-  .head__titlerow{display:flex;align-items:center;gap:10px;min-width:0}
-  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25;text-wrap:balance}
-  .head__pills{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:7px}
-  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle);max-width:72ch}
-  .head__meta b{font-weight:500;color:var(--muted)}
+  /* ============ subhead (demoted page-head meta, 12px subtle line) ============ */
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:18px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
   .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
-  .head__actions{display:flex;align-items:center;gap:8px;flex:none;flex-wrap:wrap;justify-content:flex-end}
 
   /* ============ pill (packages/ui Pill) ============ */
   .pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:fit-content;flex:none;
@@ -344,8 +338,6 @@
     .page{padding:20px 20px 64px}
   }
   @media (max-width:760px){
-    .head{flex-wrap:wrap}
-    .head__actions{width:100%;justify-content:flex-start}
     .runhead{display:none}
     .runrow{grid-template-columns:112px 96px minmax(0,1fr) 14px}
     .runrow__owner,.runrow__t,.runrow__result{display:none}
@@ -362,61 +354,38 @@
 <body>
 <div class="main">
 
-  <!-- ================= topbar ================= -->
-  <header class="topbar" data-od-id="task-topbar">
-    <div class="topbar__context">
-      <nav class="breadcrumb" aria-label="Breadcrumb">
-        <ol class="breadcrumb__list">
-          <li class="breadcrumb__item"><a class="breadcrumb__link" href="#">Tasks</a></li>
-          <li class="breadcrumb__separator" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
-          <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Lock launch blockers for the 18:30 UTC cutover</span></li>
-        </ol>
-      </nav>
+  <!-- ================= unified head v2 ================= -->
+  <header class="w2head" data-od-id="task-head">
+    <a class="w2-back" href="#" aria-label="Back to Tasks"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title" data-od-id="task-title">Lock launch blockers for the 18:30 UTC cutover</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="run"><span class="dot dot--pulse" aria-hidden="true"></span>In progress</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions" data-od-id="task-actions">
+      <button class="btn btn--primary" type="button" data-od-id="action-open-run">
+        Open run
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+      </button>
+      <button class="btn btn--icon" type="button" id="menuTrigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions" data-od-id="action-more">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+      </button>
     </div>
-    <div></div>
-    <div class="topbar__trailing"></div>
   </header>
 
   <div class="scroll">
     <div class="page">
 
-      <!-- ================= page head ================= -->
-      <header class="head head--detail" data-od-id="task-head">
-        <span class="head__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h11"/><path d="M3 12h11"/><path d="M3 18h7"/><path d="m16 16 2 2 4-4"/></svg>
-        </span>
-        <div class="head__main">
-          <div class="head__titlerow">
-            <h1 class="head__title" tabindex="-1" data-od-id="task-title">Lock launch blockers for the 18:30 UTC cutover</h1>
-          </div>
-          <div class="head__pills" data-od-id="task-pills">
-            <span class="pill" data-tone="accent"><span class="dot dot--pulse"></span>In progress</span>
-            <span class="pill" data-tone="warning">High</span>
-          </div>
-          <div class="head__meta">
-            <span>Owner <b>product-manager-agent</b></span><span class="dotsep"></span>
-            <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
-            <span>Updated <time title="Jul 17, 2026, 09:32">2 min ago</time></span>
-          </div>
-        </div>
-        <div class="head__actions" data-od-id="task-actions">
-          <button class="btn btn--ghost" type="button" data-od-id="action-edit">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-            Edit
-          </button>
-          <button class="btn btn--ghost" type="button" data-od-id="action-pause">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg>
-            Pause
-          </button>
-          <button class="btn btn--primary" type="button" data-od-id="action-open-run">
-            Open run
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
-          </button>
-          <button class="btn btn--icon" type="button" id="menuTrigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions" data-od-id="action-more">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-          </button>
-        </div>
-      </header>
+      <!-- ================= subhead (demoted meta) ================= -->
+      <div class="subhead">
+        <span class="pill" data-tone="warning" data-od-id="task-pills">High</span>
+        <span>Owner <b>product-manager-agent</b></span><span class="dotsep"></span>
+        <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
+        <span>Updated <time title="Jul 17, 2026, 09:32">2 min ago</time></span>
+      </div>
 
       <!-- ================= tabs ================= -->
       <nav class="lane-tabs" role="tablist" aria-label="Task views" data-od-id="task-tabs">
@@ -633,6 +602,14 @@
 
 <!-- ================= overflow menu ================= -->
 <div class="menu" id="moreMenu" role="menu" aria-labelledby="menuTrigger" data-od-id="task-overflow-menu">
+  <button type="button" role="menuitem" data-od-id="action-edit">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+    Edit
+  </button>
+  <button type="button" role="menuitem" data-od-id="action-pause">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg>
+    Pause
+  </button>
   <button type="button" role="menuitem">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m4.9 4.9 14.2 14.2"/></svg>
     Cancel task

@@ -2,53 +2,27 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  AgentPageActions,
-  AgentPageMeta,
-  AgentPageOverflow,
-  AgentPageStatusPill,
-} from "../agent-page-header";
+import { AgentPageActions, AgentPageOverflow, AgentPageStatusPill } from "../agent-page-header";
 
 describe("AgentPageStatusPill", () => {
   it("Should show Active when the exact active count is positive", () => {
     render(<AgentPageStatusPill activeCount={1} />);
-    expect(screen.getByTestId("agent-page-header-status")).toHaveTextContent("Active");
+    expect(screen.getByTestId("agent-page-status")).toHaveTextContent("Active");
   });
 
   it("Should show Idle when the exact active count is zero", () => {
     render(<AgentPageStatusPill activeCount={0} />);
-    expect(screen.getByTestId("agent-page-header-status")).toHaveTextContent("Idle");
-  });
-});
-
-describe("AgentPageMeta", () => {
-  it("Should render category and origin meta", () => {
-    render(
-      <AgentPageMeta
-        agent={{
-          name: "coder",
-          provider: "claude",
-          prompt: "x",
-          definition_digest: "d".repeat(64),
-          origin: "workspace",
-          category_path: ["ops", "release"],
-        }}
-      />
-    );
-    expect(screen.getByTestId("agent-page-meta")).toHaveTextContent(/ops/);
-    expect(screen.getByTestId("agent-page-meta")).toHaveTextContent(/Workspace|workspace/i);
+    expect(screen.getByTestId("agent-page-status")).toHaveTextContent("Idle");
   });
 });
 
 describe("AgentPageActions", () => {
-  it("Should expose New session and Edit settings only", async () => {
+  it("Should expose only the primary New session action", async () => {
     const user = userEvent.setup();
-    const onEditSettings = vi.fn();
     const onNewSession = vi.fn();
 
     render(
       <AgentPageActions
-        onEditSettings={onEditSettings}
         onNewSession={onNewSession}
         isCreatingSession={false}
         newSessionDisabled={false}
@@ -63,24 +37,32 @@ describe("AgentPageActions", () => {
     expect(screen.queryByRole("button", { name: "More agent actions" })).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("agent-page-new-session"));
-    await user.click(screen.getByTestId("agent-page-edit-settings"));
     expect(onNewSession).toHaveBeenCalledTimes(1);
-    expect(onEditSettings).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("AgentPageOverflow", () => {
-  it("Should expose Duplicate and Delete in the overflow menu", async () => {
+  it("Should expose Edit settings, Duplicate, and Delete in the overflow menu", async () => {
     const user = userEvent.setup();
+    const onEditSettings = vi.fn();
     const onDuplicate = vi.fn();
     const onDelete = vi.fn();
 
-    render(<AgentPageOverflow onDelete={onDelete} onDuplicate={onDuplicate} />);
+    render(
+      <AgentPageOverflow
+        onDelete={onDelete}
+        onDuplicate={onDuplicate}
+        onEditSettings={onEditSettings}
+      />
+    );
 
+    await user.click(screen.getByRole("button", { name: "More agent actions" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit settings" }));
     await user.click(screen.getByRole("button", { name: "More agent actions" }));
     await user.click(await screen.findByRole("menuitem", { name: "Duplicate" }));
     await user.click(screen.getByRole("button", { name: "More agent actions" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete…" }));
+    expect(onEditSettings).toHaveBeenCalledTimes(1);
     expect(onDuplicate).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledTimes(1);
   });

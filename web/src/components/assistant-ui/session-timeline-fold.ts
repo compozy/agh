@@ -4,6 +4,8 @@
 // turn stays expanded with a "You stopped after {duration}" label. This is a pure
 // view over the `SessionRow` list produced by the base derivation.
 
+import { formatDuration } from "@agh/ui";
+
 import { aggregateChangedFiles } from "./session-timeline-changed-files";
 import {
   type DeriveSessionRowsOptions,
@@ -135,7 +137,7 @@ function isPersistentTurnRow(row: SessionRow): boolean {
 // an interrupted turn swaps the "Worked for" verb for the operator-facing
 // "You stopped" language.
 function foldLabel(interrupted: boolean, durationMs: number | null): string {
-  const duration = durationMs != null ? formatDuration(durationMs) : null;
+  const duration = durationMs != null ? formatDuration(Math.max(1_000, durationMs)) : null;
   if (interrupted) {
     return duration ? `You stopped after ${duration}` : "You stopped this response";
   }
@@ -216,14 +218,4 @@ function timestampMs(timestamp: string | undefined): number {
   if (!timestamp) return Number.NaN;
   const value = Date.parse(timestamp);
   return Number.isFinite(value) ? value : Number.NaN;
-}
-
-function formatDuration(durationMs: number): string {
-  const seconds = Math.max(1, Math.round(durationMs / 1000));
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return remainingSeconds === 0 ? `${minutes}m` : `${minutes}m ${remainingSeconds}s`;
 }

@@ -1,20 +1,45 @@
 import * as React from "react";
 
+/** Parent crumb in a window-local drill-in trail (leaf is `crumb` / Topbar title). */
+export interface TopbarCrumb {
+  /** Stable list key — required so path collapse/reorder never remounts the wrong crumb. */
+  id: string;
+  label: React.ReactNode;
+  onSelect: () => void;
+}
+
 export interface TopbarSlotValue {
   /**
-   * Override for the current route title. Lets routes that resolve identity
-   * from loader data (entity display names) push it as a live node.
+   * Override for the current route / leaf title. Lets routes that resolve
+   * identity from loader data push it as a live node.
    */
   crumb?: React.ReactNode;
+  /** Quiet identity glyph at window root (hidden when drill-in crumbs/back are set). */
+  glyph?: React.ReactNode;
+  /** Icon well by default; `state` renders a bare live-state mark for document windows. */
+  glyphPresentation?: "icon" | "state";
+  /** Optional mono count beside the title at root. */
+  count?: React.ReactNode;
+  /** Live status chip in the head trail (state-colored). */
+  status?: React.ReactNode;
   /**
-   * Centered sister-route navigation. Real links with `aria-current="page"`
-   * only — panel Tabs and mode PillGroups stay in body chrome.
+   * Window-local parent crumbs for in-place navigation. When set (or `onBack`
+   * is set), the head uses the drill-in variant — back chevron replaces the glyph.
    */
-  routeNav?: React.ReactNode;
-  /** Action buttons rendered in the trailing zone (sm, one accent CTA). */
+  crumbs?: readonly TopbarCrumb[];
+  /** Pop one location level (drill-in back affordance). */
+  onBack?: () => void;
+  /** Action buttons in the trailing zone (≤1 primary + companions). */
   actions?: React.ReactNode;
   /** Overflow menu rendered last in the trailing zone. */
   overflow?: React.ReactNode;
+  /**
+   * Peer route tabs (`RouteNav`) rendered in the 44px head immediately after
+   * identity. Absent on drill-in and on routes without sibling views.
+   */
+  nav?: React.ReactNode;
+  /** Optional 38px context-strip content (filters / search / view toggles). */
+  toolbar?: React.ReactNode;
 }
 
 interface TopbarSlotPublisher {
@@ -41,9 +66,16 @@ function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue | null):
   if (a == null || b == null) return false;
   return (
     a.crumb === b.crumb &&
-    a.routeNav === b.routeNav &&
+    a.glyph === b.glyph &&
+    a.glyphPresentation === b.glyphPresentation &&
+    a.count === b.count &&
+    a.status === b.status &&
+    a.crumbs === b.crumbs &&
+    a.onBack === b.onBack &&
     a.actions === b.actions &&
-    a.overflow === b.overflow
+    a.overflow === b.overflow &&
+    a.nav === b.nav &&
+    a.toolbar === b.toolbar
   );
 }
 

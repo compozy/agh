@@ -277,7 +277,7 @@ async function captureVaultViewportMatrix(
     await appPage.setViewportSize({ width, height: 820 });
     await appPage.goto(runtime.url("/vault"), { waitUntil: "domcontentloaded" });
     await expect(appPage.getByTestId("vault-shell")).toBeVisible();
-    await expect(sessionUI.appSidebar).toBeVisible();
+    await expect(sessionUI.osDesktop).toBeVisible();
     await browserArtifacts.captureScreenshot(`vault-viewport-${width}`, appPage);
   }
 }

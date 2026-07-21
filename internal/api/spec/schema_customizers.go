@@ -15,7 +15,21 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		*schema = *openapi3.NewStringSchema()
 		schema.Format = "binary"
 	},
-	reflect.TypeFor[contract.LoopGraph]():                      customizeLoopGraphSchema,
+	reflect.TypeFor[contract.LoopGraph]():                  customizeLoopGraphSchema,
+	reflect.TypeFor[contract.DesktopStateEntry]():          customizeDesktopStateEntrySchema,
+	reflect.TypeFor[contract.DesktopStateSubscribeFrame](): customizeDesktopStateFrameSchema("sub"),
+	reflect.TypeFor[contract.DesktopStateApplyFrame]():     customizeDesktopStateFrameSchema("apply"),
+	reflect.TypeFor[contract.DesktopStatePingFrame]():      customizeDesktopStateFrameSchema("ping"),
+	reflect.TypeFor[contract.DesktopStateSnapshotFrame]():  customizeDesktopStateFrameSchema("snapshot"),
+	reflect.TypeFor[contract.DesktopStateEventFrame]():     customizeDesktopStateFrameSchema("event"),
+	reflect.TypeFor[contract.DesktopStateAckFrame]():       customizeDesktopStateFrameSchema("ack"),
+	reflect.TypeFor[contract.DesktopStateErrorFrame]():     customizeDesktopStateFrameSchema("error"),
+	reflect.TypeFor[contract.DesktopStatePongFrame]():      customizeDesktopStateFrameSchema("pong"),
+	reflect.TypeFor[contract.DesktopStateSafeNumber](): func(schema *openapi3.Schema) {
+		*schema = *openapi3.NewIntegerSchema().
+			WithMin(0).
+			WithMax(float64(contract.DesktopStateMaxSafeNumber))
+	},
 	reflect.TypeFor[contract.SettingsMCPSecretInputPayload]():  customizeSettingsMCPSecretInputSchema,
 	reflect.TypeFor[contract.SettingsMCPAuthExchangeRequest](): customizeSettingsMCPAuthExchangeRequestSchema,
 	rawMessageType: func(schema *openapi3.Schema) {

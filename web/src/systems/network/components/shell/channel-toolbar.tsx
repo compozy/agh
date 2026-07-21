@@ -1,53 +1,21 @@
-import { useNavigate } from "@tanstack/react-router";
-import { Briefcase, CheckCheck, ChevronDown, ListFilter, UserRound } from "lucide-react";
-import type { ReactNode } from "react";
+import { Briefcase, MoreHorizontal, PanelRight, RefreshCw, Settings2 } from "lucide-react";
 
 import {
   Button,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   LaneTabs,
   SearchInput,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
   type LaneTabsItem,
 } from "@agh/ui";
-import { Filters, type FilterFieldsConfig } from "@agh/ui";
 
-import { useNetworkListFiltersContext } from "../../hooks/use-network-list-filters-context";
-import { type NetworkFilterKey, type NetworkListSort } from "../../hooks/use-network-list-filters";
+import { useChannelToolbar } from "../../hooks/use-channel-toolbar";
+import type { NetworkChannel, NetworkChannelSummary } from "../../types";
+import { ChannelPolicyDialog } from "./channel-policy-dialog";
 import type { ChannelTab } from "./channel-tabs-types";
-
-const SORT_LABELS: Record<NetworkListSort, string> = {
-  recent_activity: "Recent activity",
-  created: "Created",
-  alphabetical: "Alphabetical",
-};
-
-interface ChipFieldDescriptor {
-  key: NetworkFilterKey;
-  label: string;
-  icon: ReactNode;
-  testId: string;
-}
-
-const CHIP_FIELDS: ReadonlyArray<ChipFieldDescriptor> = [
-  {
-    key: "has_work",
-    label: "Has work",
-    icon: <Briefcase aria-hidden="true" className="size-3" />,
-    testId: "network-toolbar-field-has-work",
-  },
-  {
-    key: "includes_me",
-    label: "Includes me",
-    icon: <UserRound aria-hidden="true" className="size-3" />,
-    testId: "network-toolbar-field-includes-me",
-  },
-];
 
 interface TabItem extends LaneTabsItem<ChannelTab> {
   to:
@@ -89,141 +57,146 @@ function buildTabs({
 
 export interface ChannelToolbarProps {
   workspaceId: string;
-  channel: string;
+  channel: NetworkChannelSummary;
+  detail: NetworkChannel | null;
   activeTab: ChannelTab;
   threadCount: number | null;
   directCount: number | null;
+  inspectorOpen: boolean;
+  onInspectorToggle: () => void;
 }
 
+/**
+ * Lane tabs on their own ruled row, then the list toolbar: search, the direct
+ * "Has work" toggle, and the channel commands (mark read, inspector, kebab).
+ */
 export function ChannelToolbar({
   workspaceId,
   channel,
+  detail,
   activeTab,
   threadCount,
   directCount,
+  inspectorOpen,
+  onInspectorToggle,
 }: ChannelToolbarProps) {
-  const {
-    filters,
-    setFilters,
-    sort,
-    setSort,
-    searchQuery,
-    setSearchQuery,
-    canFilterBySelf,
-    markLoadedRead,
-    isMarkLoadedReadDisabled,
-  } = useNetworkListFiltersContext();
-  const navigate = useNavigate();
   const tabs = buildTabs({ threadCount, directCount });
-
-  const filterFields: FilterFieldsConfig<boolean> = CHIP_FIELDS.filter(
-    field => field.key !== "includes_me" || canFilterBySelf
-  ).map(field => ({
-    key: field.key,
-    label: field.label,
-    icon: field.icon,
-    type: "toggle" as const,
-  }));
-
-  const handleTabChange = (next: ChannelTab) => {
-    const target = tabs.find(tab => tab.value === next);
-    if (!target || !workspaceId) return;
-    void navigate({ params: { workspaceId, channel }, to: target.to });
-  };
+  const toolbar = useChannelToolbar({
+    workspaceId,
+    channel: channel.channel,
+    tabTargets: tabs,
+  });
 
   return (
-    <div
-      className="flex items-center gap-3 border-b border-line px-5"
-      data-testid="network-channel-toolbar"
-    >
-      <LaneTabs<ChannelTab>
-        ariaLabel={`Surfaces for #${channel}`}
-        className="border-b-0"
-        data-testid="network-channel-tabs"
-        items={tabs}
-        onChange={handleTabChange}
-        value={activeTab}
-      />
+    <div data-testid="network-channel-toolbar">
+      <div className="mt-4 px-5">
+        <LaneTabs<ChannelTab>
+          ariaLabel={`Surfaces for #${channel.channel}`}
+          data-testid="network-channel-tabs"
+          items={tabs}
+          listClassName="w-full"
+          onChange={toolbar.onTabChange}
+          value={activeTab}
+        />
+      </div>
 
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="flex items-center gap-2 px-5 py-3">
         <SearchInput
           className="h-8 w-56"
           data-testid="network-list-search"
-          onChange={setSearchQuery}
-          placeholder={`Search #${channel}…`}
-          value={searchQuery}
+          onChange={toolbar.setSearchQuery}
+          placeholder={`Search #${channel.channel}…`}
+          value={toolbar.searchQuery}
         />
-        <Filters<boolean>
-          allowMultiple
-          fields={filterFields}
-          filters={filters}
-          onChange={setFilters}
-          showSearchInput={false}
+        <Button
+          aria-pressed={toolbar.hasWorkActive}
+          className={cn(toolbar.hasWorkActive ? "bg-elevated text-fg" : null)}
+          data-testid="network-toolbar-has-work"
+          onClick={toolbar.onHasWorkToggle}
           size="sm"
-          trigger={
-            <Button
-              aria-label="Add filter"
-              data-testid="network-toolbar-add-filter"
-              size="sm"
-              variant="ghost"
-            >
-              <ListFilter aria-hidden="true" className="size-3" />
-              Filter
-            </Button>
-          }
-        />
+          type="button"
+          variant="ghost"
+        >
+          <Briefcase aria-hidden="true" className="size-3" />
+          Has work
+        </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                aria-label="Sort list"
-                data-testid="network-list-sort-trigger"
-                size="sm"
-                type="button"
-                variant="ghost"
-              />
-            }
+        <div className="ml-auto flex items-center gap-1.5">
+          <Button
+            aria-label="Mark loaded conversations as read"
+            data-testid="network-list-mark-all-read"
+            disabled={toolbar.isMarkLoadedReadDisabled}
+            onClick={toolbar.markLoadedRead}
+            size="sm"
+            type="button"
+            variant="ghost"
           >
-            <span className="text-muted">{SORT_LABELS[sort]}</span>
-            <ChevronDown aria-hidden="true" className="size-3 text-subtle" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {(Object.keys(SORT_LABELS) as NetworkListSort[]).map(option => (
+            Mark read
+          </Button>
+          <Button
+            aria-label={inspectorOpen ? "Close channel inspector" : "Open channel inspector"}
+            aria-pressed={inspectorOpen}
+            className={cn(inspectorOpen ? "bg-elevated text-fg" : null)}
+            data-state={inspectorOpen ? "open" : "closed"}
+            data-testid="network-channel-inspector-toggle"
+            onClick={onInspectorToggle}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <PanelRight aria-hidden="true" className="size-4" />
+          </Button>
+
+          <DropdownMenu onOpenChange={toolbar.setOverflowOpen} open={toolbar.overflowOpen}>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  aria-label="Channel actions"
+                  data-testid="network-channel-kebab"
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                />
+              }
+            >
+              <MoreHorizontal aria-hidden="true" className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
               <DropdownMenuItem
-                data-active={option === sort ? "true" : undefined}
-                data-testid={`network-list-sort-${option}`}
-                key={option}
+                data-testid="network-channel-policy"
                 onSelect={event => {
                   event.preventDefault();
-                  setSort(option);
+                  toolbar.setPolicyOpen(true);
+                  toolbar.setOverflowOpen(false);
                 }}
               >
-                {SORT_LABELS[option]}
+                <Settings2 aria-hidden="true" className="size-3" />
+                Delivery policy
               </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                aria-label="Mark loaded conversations as read"
-                data-testid="network-list-mark-all-read"
-                disabled={isMarkLoadedReadDisabled}
-                onClick={markLoadedRead}
-                size="icon-sm"
-                type="button"
-                variant="ghost"
-              />
-            }
-          >
-            <CheckCheck aria-hidden="true" className="size-3" />
-          </TooltipTrigger>
-          <TooltipContent>Mark loaded conversations as read</TooltipContent>
-        </Tooltip>
+              <DropdownMenuItem
+                data-testid="network-channel-refresh"
+                onSelect={event => {
+                  event.preventDefault();
+                  toolbar.onRefresh();
+                }}
+              >
+                <RefreshCw aria-hidden="true" className="size-3" />
+                Refresh data
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
+      <ChannelPolicyDialog
+        channel={channel}
+        detail={detail}
+        isSubmitting={toolbar.isPolicySubmitting}
+        members={toolbar.members.members}
+        onOpenChange={toolbar.setPolicyOpen}
+        onSubmit={toolbar.submitPolicy}
+        open={toolbar.policyOpen}
+      />
     </div>
   );
 }

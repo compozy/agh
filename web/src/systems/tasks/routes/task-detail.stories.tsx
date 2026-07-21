@@ -49,83 +49,22 @@ export const RunsTab: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByTestId("tasks-detail-tab-runs"));
-    await expect(canvas.findByTestId("tasks-detail-runs-panel")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("tasks-runs-panel")).resolves.toBeDefined();
   },
 };
 
 /**
- * Timeline tab with live events and sequence metadata.
+ * Activity tab: humanized newest-first feed with the category filter group.
  */
-export const TimelineTab: Story = {
+export const ActivityTab: Story = {
   args: {},
   parameters: appRouteParameters("/tasks/task_001"),
   render: () => <StorybookWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("tasks-detail-tab-timeline"));
-    await expect(canvas.findByTestId("tasks-timeline-panel")).resolves.toBeDefined();
-  },
-};
-
-/**
- * Multi-agent tab with descendants and an interleaved timeline.
- */
-export const AgentsTab: Story = {
-  args: {},
-  parameters: appRouteParameters("/tasks/task_001"),
-  render: () => <StorybookWorkspaceSetup />,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("tasks-detail-tab-agents"));
-    await expect(canvas.findByTestId("tasks-multi-agent-panel")).resolves.toBeDefined();
-  },
-};
-
-/**
- * Children tab showing the linked child task table.
- */
-export const ChildrenTab: Story = {
-  args: {},
-  parameters: appRouteParameters("/tasks/task_001"),
-  render: () => <StorybookWorkspaceSetup />,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("tasks-detail-tab-children"));
-    await expect(canvas.findByTestId("tasks-detail-children-panel")).resolves.toBeDefined();
-  },
-};
-
-/**
- * Dependencies tab showing the current dependency references.
- */
-export const DependenciesTab: Story = {
-  args: {},
-  parameters: appRouteParameters("/tasks/task_001"),
-  render: () => <StorybookWorkspaceSetup />,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("tasks-detail-tab-dependencies"));
-    await expect(canvas.findByTestId("tasks-detail-dependencies-panel")).resolves.toBeDefined();
-  },
-};
-
-/**
- * Orchestration tab with execution profile, reviews, bridge notifications, and
- * stream resume cards.
- */
-export const OrchestrationTab: Story = {
-  args: {},
-  parameters: appRouteParameters("/tasks/task_001"),
-  render: () => <StorybookWorkspaceSetup />,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("tasks-detail-tab-orchestration"));
-    await expect(canvas.findByTestId("tasks-detail-orchestration-panel")).resolves.toBeDefined();
+    await userEvent.click(await canvas.findByTestId("tasks-detail-tab-activity"));
+    await expect(canvas.findByTestId("tasks-activity-panel")).resolves.toBeDefined();
   },
 };
 

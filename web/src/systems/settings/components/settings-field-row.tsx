@@ -1,21 +1,14 @@
-import { cloneElement, isValidElement, useId, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
-import {
-  Eyebrow,
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-  cn,
-} from "@agh/ui";
+import { cn, Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@agh/ui";
+import { associateSettingsControl } from "../lib/control-association";
 
 type SettingsFieldRowVariant = "default" | "modal";
 
 interface SettingsFieldRowProps {
   label: string;
+  /** The consequence sentence — what this does to the user's work. */
   description?: ReactNode;
-  hint?: ReactNode;
   error?: ReactNode;
   control: ReactNode;
   variant?: SettingsFieldRowVariant;
@@ -23,32 +16,15 @@ interface SettingsFieldRowProps {
   "data-testid"?: string;
 }
 
-const LABELABLE_TAGS = new Set([
-  "button",
-  "input",
-  "meter",
-  "output",
-  "progress",
-  "select",
-  "textarea",
-]);
-
-function mergeAttributeTokens(...values: Array<string | undefined>): string | undefined {
-  const tokens: string[] = [];
-  for (const value of values) {
-    if (!value) continue;
-    for (const token of value.split(" ")) {
-      const trimmed = token.trim();
-      if (trimmed) tokens.push(trimmed);
-    }
-  }
-  return tokens.length > 0 ? Array.from(new Set(tokens)).join(" ") : undefined;
-}
-
+/**
+ * One setting field = one decision (settings design system §05). Default
+ * variant renders the srow anatomy — label + consequence left, one control
+ * right, 54px minimum. `modal` keeps the vertical form layout for sheets and
+ * dialogs. Jargon hint chips are gone; provenance belongs in Advanced only.
+ */
 function SettingsFieldRow({
   label,
   description,
-  hint,
   error,
   control,
   variant = "default",
@@ -62,126 +38,90 @@ function SettingsFieldRow({
   const descriptionId = description ? `${baseId}-description` : undefined;
   const errorId = error ? `${baseId}-error` : undefined;
 
-  type ControlProps = {
-    id?: string;
-    role?: string;
-    "aria-describedby"?: string;
-    "aria-labelledby"?: string;
-    "aria-invalid"?: boolean;
-  };
-  const controlElement = isValidElement<ControlProps>(control) ? control : null;
-  const isGroupWrapper =
-    controlElement !== null &&
-    typeof controlElement.type === "string" &&
-    controlElement.type === "div";
-  const supportsNativeLabelAssociation =
-    controlElement !== null &&
-    typeof controlElement.type === "string" &&
-    LABELABLE_TAGS.has(controlElement.type);
+  const { control: renderedControl, labelHtmlFor } = associateSettingsControl({
+    control,
+    controlId: `${baseId}-control`,
+    labelId,
+    descriptionId,
+    errorId,
+  });
 
-  let renderedControl = control;
-  let renderedLabel: ReactNode = (
-    <FieldLabel
-      id={labelId}
-      className="text-sm font-medium text-fg"
-      data-testid={testId ? `${testId}-label` : undefined}
-    >
-      {label}
-    </FieldLabel>
-  );
-
-  if (controlElement) {
-    const describedBy = mergeAttributeTokens(
-      controlElement.props["aria-describedby"],
-      descriptionId,
-      errorId
-    );
-    const labelledBy = mergeAttributeTokens(controlElement.props["aria-labelledby"], labelId);
-
-    if (isGroupWrapper) {
-      renderedControl = cloneElement(controlElement, {
-        role: controlElement.props.role ?? "group",
-        "aria-labelledby": labelledBy,
-        "aria-describedby": describedBy,
-      });
-    } else {
-      const controlId = controlElement.props.id ?? `${baseId}-control`;
-      renderedControl = cloneElement(controlElement, {
-        id: controlId,
-        "aria-describedby": describedBy,
-        "aria-labelledby": labelledBy,
-        "aria-invalid": error ? true : controlElement.props["aria-invalid"],
-      });
-      if (supportsNativeLabelAssociation) {
-        renderedLabel = (
+  if (variant === "modal") {
+    return (
+      <Field
+        orientation="vertical"
+        data-variant={variant}
+        className={cn(
+          "grid gap-3 border-t border-line pt-5 pb-5 first:border-t-0 first:pt-0",
+          className
+        )}
+        data-testid={testId}
+      >
+        <FieldContent className="min-w-0 gap-1.5">
           <FieldLabel
-            htmlFor={controlId}
-            id={labelId}
             className="text-sm font-medium text-fg"
             data-testid={testId ? `${testId}-label` : undefined}
+            htmlFor={labelHtmlFor}
+            id={labelId}
           >
             {label}
           </FieldLabel>
-        );
-      }
-    }
+          {description ? (
+            <FieldDescription id={descriptionId} className="max-w-136 text-xs leading-5 text-muted">
+              {description}
+            </FieldDescription>
+          ) : null}
+          {error ? (
+            <FieldError id={errorId} className="text-xs text-danger">
+              {error}
+            </FieldError>
+          ) : null}
+        </FieldContent>
+        <div className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-3 [&_input]:max-w-full [&_select]:max-w-full">
+          {renderedControl}
+        </div>
+      </Field>
+    );
   }
 
-  const isModal = variant === "modal";
+  const LabelTag = labelHtmlFor ? "label" : "span";
 
   return (
-    <Field
-      orientation="vertical"
-      data-variant={variant}
+    <div
       className={cn(
-        "grid gap-3 border-t border-line pt-5 first:border-t-0 first:pt-0 pb-5",
-        !isModal && "lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-x-8 lg:gap-y-0",
+        "flex min-h-setting-row items-center justify-between gap-5 border-t border-line-soft px-4 py-3 first:border-t-0",
         className
       )}
+      data-slot="settings-field-row"
       data-testid={testId}
     >
-      <FieldContent className="min-w-0 gap-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          {renderedLabel}
-          {hint && isModal ? (
-            <Eyebrow className="text-muted" data-testid={testId ? `${testId}-hint` : undefined}>
-              {hint}
-            </Eyebrow>
-          ) : null}
-          {hint && !isModal ? (
-            <Eyebrow
-              className="text-muted lg:hidden"
-              data-testid={testId ? `${testId}-hint` : undefined}
-            >
-              {hint}
-            </Eyebrow>
-          ) : null}
-        </div>
+      <div className="min-w-0 flex-1">
+        <LabelTag
+          className="flex items-center gap-1.5 text-ws-name font-medium text-fg-strong"
+          data-testid={testId ? `${testId}-label` : undefined}
+          htmlFor={labelHtmlFor}
+          id={labelId}
+        >
+          {label}
+        </LabelTag>
         {description ? (
-          <FieldDescription id={descriptionId} className="max-w-136 text-xs leading-5 text-muted">
+          <p
+            className="mt-0.5 max-w-setting-description text-form-label leading-normal text-muted"
+            id={descriptionId}
+          >
             {description}
-          </FieldDescription>
+          </p>
         ) : null}
         {error ? (
-          <FieldError id={errorId} className="text-xs text-danger">
+          <p className="mt-1 text-form-hint text-danger" id={errorId} role="alert">
             {error}
-          </FieldError>
+          </p>
         ) : null}
-      </FieldContent>
-      <div className={cn("flex min-w-0 items-start", !isModal && "lg:justify-self-start")}>
-        <div
-          className={cn(
-            "flex w-full min-w-0 max-w-full flex-wrap items-center gap-3 [&_input]:max-w-full [&_select]:max-w-full",
-            !isModal && "lg:w-auto"
-          )}
-        >
-          {renderedControl}
-          {hint && !isModal ? (
-            <Eyebrow className="text-muted hidden lg:inline">{hint}</Eyebrow>
-          ) : null}
-        </div>
       </div>
-    </Field>
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        {renderedControl}
+      </div>
+    </div>
   );
 }
 

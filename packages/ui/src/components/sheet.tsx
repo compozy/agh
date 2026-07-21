@@ -13,6 +13,7 @@ import {
   useSheetMotion,
 } from "./hooks/use-sheet-motion";
 import { useInitialState } from "./use-initial-state";
+import { useOverlayContainer } from "./hooks/use-overlay-container";
 
 type SheetSide = "top" | "right" | "bottom" | "left";
 
@@ -21,10 +22,14 @@ type SheetRootProps = SheetPrimitive.Root.Props;
 function Sheet({
   open: controlledOpen,
   defaultOpen = false,
+  modal,
+  disablePointerDismissal,
   onOpenChange,
   children,
   ...props
 }: SheetRootProps) {
+  const overlayContainer = useOverlayContainer();
+  const windowScoped = overlayContainer !== null;
   const actionsRef = React.useRef<SheetPrimitive.Root.Actions | null>(null);
   const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
@@ -43,6 +48,8 @@ function Sheet({
       actionsRef={actionsRef}
       open={open}
       defaultOpen={defaultOpen}
+      modal={modal ?? (windowScoped ? false : true)}
+      disablePointerDismissal={disablePointerDismissal ?? windowScoped}
       onOpenChange={handleOpenChange}
       {...props}
     >
@@ -61,8 +68,15 @@ function SheetClose({ ...props }: SheetPrimitive.Close.Props) {
   return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
 }
 
-function SheetPortal({ ...props }: SheetPrimitive.Portal.Props) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
+function SheetPortal({ container, ...props }: SheetPrimitive.Portal.Props) {
+  const overlayContainer = useOverlayContainer();
+  return (
+    <SheetPrimitive.Portal
+      data-slot="sheet-portal"
+      container={container !== undefined ? container : (overlayContainer ?? undefined)}
+      {...props}
+    />
+  );
 }
 
 function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {

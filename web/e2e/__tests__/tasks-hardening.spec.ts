@@ -577,7 +577,7 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
       waitUntil: "domcontentloaded",
     });
     await expect(ui.detailContent).toBeVisible();
-    await expect(ui.detailTab("timeline")).toBeVisible();
+    await expect(ui.detailTab("activity")).toBeVisible();
     await expect(ui.detailTab("runs")).toBeVisible();
     await ui.detailTab("runs").click();
     await expect(ui.detailRunsEmpty).toBeVisible();

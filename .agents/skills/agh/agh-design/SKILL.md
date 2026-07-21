@@ -29,7 +29,10 @@ When a task or spec names an OpenDesign artifact, mock, screenshot, or other
 trusted visual reference, activate `agh-ui-screenshot` before implementation
 and follow its Visual Contract Mode. Implement from the rendered reference,
 not source inspection alone; an implementation-only screenshot never proves
-parity.
+parity. The reference is normative for visual language — layout, anatomy,
+typography, tokens, motion — and lossy for everything else: content, data,
+copy, brand marks, and which controls exist stay with runtime truth,
+`COPY.md`, and the brand inventory, recorded as authorized differences.
 
 ## Static HTML artifacts
 
@@ -67,3 +70,4 @@ bundle with zero unresolved blocking divergence.
 - **No exported primitive fits:** decide whether the need is generic or domain-specific; add generic primitives to `packages/ui` and domain composites to the owning Web system.
 - **A plausible mock implies unsupported runtime behavior:** remove the unsupported control or metric; daemon truth wins.
 - **Runtime truth conflicts with a normative visual reference:** follow runtime truth, record the contract conflict, and reconcile or explicitly authorize the reference delta before claiming parity.
+- **The reference shows placeholder art, demo data, or omits product content:** a prototype is lossy — keep the canonical owner (brand inventory, runtime truth, existing views), record the authorized difference, and never grow an `@agh/ui` brand primitive or delete product content to match a mock.

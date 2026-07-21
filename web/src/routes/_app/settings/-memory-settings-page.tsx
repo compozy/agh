@@ -1,9 +1,16 @@
 import { AlertCircle } from "lucide-react";
 import { useState } from "react";
 
-import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
-import { restartBannerPropsFor, SettingsPageHead, SettingsSaveBar } from "@/systems/settings";
-import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";
+import { useSettingsMemoryPage } from "@/systems/settings/hooks/use-settings-memory-page";
+import {
+  SettingsAdvancedFold,
+  SettingsPageFrame,
+  SettingsSaveBar,
+  SettingsRuntimeUnavailable,
+  useSettingsSaveBarState,
+  useSettingsTopbar,
+} from "@/systems/settings";
+import { Button, Spinner, Time } from "@agh/ui";
 import { ControllerLLMSection, ControllerSection } from "./-memory-controller-sections";
 import { DreamSection } from "./-memory-dream-section";
 import {
@@ -17,12 +24,9 @@ import { RecallSection } from "./-memory-recall-section";
 import { TEST_PREFIX, type ValidationSetter } from "./-memory-settings-types";
 import { MemorySystemSection, ProviderResilienceSection } from "./-memory-system-sections";
 
-function formatHealthTimestamp(timestamp: string): string {
-  return timestamp.replace("T", " ").replace(/\.\d+Z$/, "Z");
-}
-
 export function MemorySettingsPage() {
   const page = useSettingsMemoryPage();
+  useSettingsTopbar("memory");
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
   const setValidationError: ValidationSetter = (key: string) => (message: string | null) => {
     setValidationErrors(current =>
@@ -30,36 +34,14 @@ export function MemorySettingsPage() {
     );
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
-  const healthForSlot = page.envelope?.health;
-  const statusLine = healthForSlot ? (
-    <StatusLine
-      data-testid={`${TEST_PREFIX}-status-line`}
-      status={healthForSlot.available ? "connected" : "error"}
-      items={[
-        {
-          key: "files",
-          value: `${healthForSlot.file_count} memory files`,
-          tone: "neutral",
-        },
-        {
-          key: "last",
-          value: (
-            <span data-testid={`${TEST_PREFIX}-last-consolidated`}>
-              {healthForSlot.last_consolidated_at
-                ? `last dream ${formatHealthTimestamp(healthForSlot.last_consolidated_at)}`
-                : "no dream runs yet"}
-            </span>
-          ),
-          tone: "neutral",
-        },
-        {
-          key: "dream-state",
-          value: healthForSlot.dream_enabled ? "dreaming enabled" : "dreaming disabled",
-          tone: "neutral",
-        },
-      ]}
-    />
-  ) : null;
+  const saveBarState = useSettingsSaveBarState({
+    isDirty: page.isDirty,
+    isInvalid,
+    isSaving: page.isSaving,
+    error: page.saveError,
+    warnings: page.warnings,
+    lastAppliedLabel: page.lastAppliedLabel,
+  });
 
   if (page.isLoading) {
     return (
@@ -89,96 +71,82 @@ export function MemorySettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
+  const health = envelope.health;
   const dreamAvailable =
-    envelope.actions.consolidate.available && envelope.health.dream_enabled && draft.dream.enabled;
-
-  const bannerProps = restartBannerPropsFor("memory", restart);
+    health.available &&
+    envelope.actions.consolidate.available &&
+    envelope.health.dream_enabled &&
+    draft.dream.enabled;
+  const validatedSectionProps = { draft, setDraft, validationErrors, setValidationError };
 
   return (
-    <PageShell
-      slug="memory"
-      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsPageHead slug="memory" statusLine={statusLine} />}
-      footer={
+    <SettingsPageFrame
+      description="What your agents remember across sessions, and how those memories are made."
+      meta={
+        health.available
+          ? [
+              {
+                key: "files",
+                content: (
+                  <span>
+                    <span className="font-medium text-muted">{health.file_count}</span> memory files
+                  </span>
+                ),
+              },
+              {
+                key: "dream",
+                content: health.last_consolidated_at ? (
+                  <span
+                    className="inline-flex items-center gap-1"
+                    data-testid={`${TEST_PREFIX}-last-consolidated`}
+                  >
+                    last dream <Time iso={health.last_consolidated_at} mode="relative" />
+                  </span>
+                ) : (
+                  <span data-testid={`${TEST_PREFIX}-last-consolidated`}>no dream runs yet</span>
+                ),
+              },
+            ]
+          : [{ key: "runtime", content: <span>runtime unavailable</span> }]
+      }
+      restart={restart}
+      saveBar={
         <SettingsSaveBar
           slug="memory"
-          isDirty={page.isDirty}
-          isInvalid={isInvalid}
-          isSaving={page.isSaving}
-          error={page.saveError}
-          warnings={page.warnings}
-          lastAppliedLabel={page.lastAppliedLabel}
+          state={saveBarState}
           onSave={page.handleSave}
           onReset={page.handleReset}
         />
       }
+      slug="memory"
     >
+      {!health.available ? (
+        <SettingsRuntimeUnavailable
+          slug="memory"
+          description="Memory health and file counts could not be measured."
+        />
+      ) : null}
       <MemorySystemSection draft={draft} setDraft={setDraft} />
-      <ProviderResilienceSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <ControllerSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <ControllerLLMSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <RecallSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <DecisionsSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <ExtractorSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
+      <RecallSection {...validatedSectionProps} />
       <DreamSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
+        {...validatedSectionProps}
         dreamAvailable={dreamAvailable}
         dreamPending={page.isTriggeringDream}
         onTriggerDream={page.handleTriggerDream}
         actionMessage={page.actionMessage}
       />
-      <SessionLedgerSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <DailyLogsSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <FileCapsSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
+      <SessionLedgerSection {...validatedSectionProps} />
+      <DailyLogsSection {...validatedSectionProps} />
       <WorkspaceIdentitySection draft={draft} setDraft={setDraft} />
-    </PageShell>
+
+      <SettingsAdvancedFold data-testid={`${TEST_PREFIX}-advanced`} padded>
+        <ProviderResilienceSection {...validatedSectionProps} />
+        <ControllerSection {...validatedSectionProps} />
+        <ControllerLLMSection {...validatedSectionProps} />
+        <DecisionsSection {...validatedSectionProps} />
+        <ExtractorSection {...validatedSectionProps} />
+        <FileCapsSection {...validatedSectionProps} />
+      </SettingsAdvancedFold>
+    </SettingsPageFrame>
   );
 }

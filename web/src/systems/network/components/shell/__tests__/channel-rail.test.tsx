@@ -177,7 +177,7 @@ describe("ChannelRail", () => {
     expect(directRecent.querySelector("[aria-label='Direct room']")).not.toBeNull();
   });
 
-  it("Should truncate long recents preview on a separate row from the channel tag", () => {
+  it("Should render recents as a single truncated line with trailing freshness", () => {
     const longPreview =
       "Kicking off a new thread to coordinate a redesign of the network shell and recents rail.";
     const longRecents: NetworkRecentEntry[] = [
@@ -199,14 +199,12 @@ describe("ChannelRail", () => {
     const previewRow = screen.getByTestId("network-recents-preview-row-thread_long_preview");
     const preview = screen.getByTestId("network-recents-preview-thread_long_preview");
     const timestamp = screen.getByTestId("network-recents-time-thread_long_preview");
-    const channelRow = screen.getByTestId("network-recents-channel-row-thread_long_preview");
 
     expect(preview).toHaveClass("min-w-0", "flex-1", "truncate");
-    expect(preview).toHaveAttribute("title", longPreview);
+    expect(preview).toHaveAttribute("title", `${longPreview} — #design`);
     expect(previewRow).toContainElement(preview);
     expect(previewRow).toContainElement(timestamp);
-    expect(channelRow).toHaveTextContent("#design");
-    expect(previewRow).not.toContainElement(channelRow);
+    expect(screen.queryByTestId("network-recents-channel-row-thread_long_preview")).toBeNull();
   });
 
   it("invokes togglePinned when the pin affordance is clicked", async () => {

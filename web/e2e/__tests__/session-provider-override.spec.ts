@@ -100,7 +100,7 @@ test("operator can create a provider/model override session and attach without l
 
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(ui);
-  await expect(ui.appSidebar).toBeVisible();
+  await expect(ui.osDesktop).toBeVisible();
   await appPage.getByTestId(`workspace-avatar-${workspace.id}`).click();
   await expect(appPage.getByTestId(`workspace-avatar-${workspace.id}`)).toHaveAttribute(
     "data-active",
@@ -250,7 +250,7 @@ test("operator persists an advertised model and non-empty reasoning effort on th
   const ui = sessionLifecycleSelectors(appPage);
 
   await useGlobalWorkspaceIfPrompted(ui);
-  await expect(ui.appSidebar).toBeVisible();
+  await expect(ui.osDesktop).toBeVisible();
   await appPage.getByTestId("nav-agents").click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
   await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();

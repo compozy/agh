@@ -70,6 +70,7 @@ describe("NotificationPresetsPanel", () => {
       />
     );
 
+    fireEvent.click(screen.getByTestId("settings-page-hooks-notification-preset-new"));
     fireEvent.change(screen.getByTestId("settings-page-hooks-notification-preset-name"), {
       target: { value: "custom_task" },
     });
@@ -139,6 +140,7 @@ describe("NotificationPresetsPanel", () => {
       />
     );
 
+    fireEvent.click(screen.getByTestId("settings-page-hooks-notification-preset-new"));
     fireEvent.change(screen.getByTestId("settings-page-hooks-notification-preset-name"), {
       target: { value: "custom_task" },
     });

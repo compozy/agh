@@ -41,6 +41,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
     .poll(async () => normalizeTexts(await settingsUI.shell.sectionItems.allTextContents()))
     .toEqual([
       "General",
+      "Appearance",
       "Providers",
       "Memory",
       "Skills",
@@ -81,32 +82,28 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   await expect(settingsUI.general.saveButton).toBeEnabled();
   await settingsUI.general.saveButton.click();
 
-  await expect(settingsUI.general.restartBanner).toBeVisible();
-  await expect(settingsUI.general.restartBannerMessage).toContainText(
-    "Changes saved. Restart the daemon to apply."
-  );
-  await expect(settingsUI.general.restartBannerTrigger).toBeVisible();
+  await expect(settingsUI.general.restartNotice).toBeVisible();
+  await expect(settingsUI.general.restartNotice).toContainText("Restart needed");
+  await expect(settingsUI.general.restartTrigger).toBeVisible();
   await browserArtifacts.captureScreenshot("tc-func-001-settings-shell-navigation", appPage);
 
-  await settingsUI.general.restartAction.click();
+  const restartResponse = appPage.waitForResponse(
+    response =>
+      new URL(response.url()).pathname === "/api/settings/actions/restart" &&
+      response.request().method() === "POST"
+  );
+  await settingsUI.general.restartTrigger.click();
+  const operationID = ((await (await restartResponse).json()) as { operation_id: string })
+    .operation_id;
+  expect(operationID).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 
-  let operationID = "";
-  await expect
-    .poll(async () => {
-      operationID = (await settingsUI.general.restartBannerOp.textContent())?.trim() ?? "";
-      return operationID;
-    })
-    .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-
-  await expect(settingsUI.general.restartBannerMessage).toContainText("Restarting daemon");
+  await expect(settingsUI.general.restartNotice).toContainText("Restarting…");
   await browserArtifacts.captureScreenshot("tc-func-002-general-restart-polling", appPage);
 
   await reloadDaemonServedPage(appPage, runtime, "/settings/general", {
     readyTestId: "settings-page-general",
   });
-  if (await settingsUI.general.restartBanner.isVisible().catch(() => false)) {
-    await expect(settingsUI.general.restartBannerOp).toContainText(operationID);
-  } else {
+  if (!(await settingsUI.general.restartNotice.isVisible().catch(() => false))) {
     const payload = await runtime.requestJSON<{ status: string }>(
       `/api/settings/actions/restart/${encodeURIComponent(operationID)}`
     );
@@ -127,10 +124,8 @@ test("operator can navigate the settings shell and complete a restart-aware gene
     )
     .toBe("ready");
 
-  if (await settingsUI.general.restartBanner.isVisible().catch(() => false)) {
-    await expect(settingsUI.general.restartBannerMessage).toContainText(
-      "Daemon restarted successfully"
-    );
+  if (await settingsUI.general.restartNotice.isVisible().catch(() => false)) {
+    await expect(settingsUI.general.restartNotice).toContainText("Restarted");
   }
   await browserArtifacts.captureScreenshot("tc-int-016-general-restart-ready", appPage);
 });
@@ -163,8 +158,8 @@ test("operator can distinguish skills actions that apply now from policy changes
     await expect(settingsUI.skills.disabledSave).toBeEnabled();
     await settingsUI.skills.disabledSave.click();
 
-    await expect(settingsUI.skills.disabledApplied).toContainText("applied immediately");
-    await expect(settingsUI.skills.restartBanner).not.toBeVisible();
+    await expect(settingsUI.skills.disabledMessage).toContainText("applied immediately");
+    await expect(settingsUI.skills.restartNotice).not.toBeVisible();
 
     await settingsUI.skills.operationalLink.click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
@@ -177,9 +172,9 @@ test("operator can distinguish skills actions that apply now from policy changes
     await expect(settingsUI.skills.policySave).toBeEnabled();
     await settingsUI.skills.policySave.click();
 
-    await expect(settingsUI.skills.policyApplied).toContainText("restart required");
-    await expect(settingsUI.skills.restartBanner).toBeVisible();
-    await expect(settingsUI.skills.restartBanner).toContainText("Restart the daemon");
+    await expect(settingsUI.skills.policyMessage).toContainText("restart required");
+    await expect(settingsUI.skills.restartNotice).toBeVisible();
+    await expect(settingsUI.skills.restartNotice).toContainText("Restart needed");
     await browserArtifacts.captureScreenshot("tc-func-005-skills-applied-now-vs-restart", appPage);
   } finally {
     await cleanupBrowserSettingsFixtures(runtime, seeded);
@@ -203,7 +198,7 @@ test("operator can replace a builtin provider with a config overlay and delete i
   await expect(settingsUI.providers.list).toBeVisible();
   await expect(settingsUI.providers.card(builtinProviderName)).toBeVisible();
 
-  await appPage.getByTestId(`settings-page-providers-card-${builtinProviderName}-open`).click();
+  await settingsUI.providers.card(builtinProviderName).click();
   await appPage.getByTestId("provider-inspector-edit").click();
   await expect(settingsUI.providers.editor).toBeVisible();
   await settingsUI.providers.editorCommandInput.fill(
@@ -222,9 +217,8 @@ test("operator can replace a builtin provider with a config overlay and delete i
   await expect(settingsUI.providers.cardCommand(builtinProviderName)).toContainText(
     browserSettingsOperatorFlowScenario.providers.overlayCommand
   );
-  await expect(settingsUI.providers.cardSource(builtinProviderName)).toContainText(/config/i);
-
-  await appPage.getByTestId(`settings-page-providers-card-${builtinProviderName}-open`).click();
+  await settingsUI.providers.card(builtinProviderName).click();
+  await expect(settingsUI.providers.inspectorSource).toContainText(/config/i);
   await appPage.getByTestId("provider-inspector-delete").click();
   await expect(settingsUI.providers.deleteDialog).toBeVisible();
   await settingsUI.providers.deleteConfirm.click();
@@ -234,7 +228,8 @@ test("operator can replace a builtin provider with a config overlay and delete i
   );
   await expect(settingsUI.providers.actionResult).toContainText("builtin fallback now effective");
   await expect(settingsUI.providers.card(builtinProviderName)).toBeVisible();
-  await expect(settingsUI.providers.cardSource(builtinProviderName)).toContainText(/builtin/i);
+  await settingsUI.providers.card(builtinProviderName).click();
+  await expect(settingsUI.providers.inspectorSource).toContainText(/builtin/i);
   await browserArtifacts.captureScreenshot(
     "tc-func-008-providers-crud-and-builtin-fallback",
     appPage
@@ -369,7 +364,7 @@ test("operator can manage restart-aware hooks and extension policy on split sett
     await expect(
       settingsUI.hooks.hookToggle(browserSettingsOperatorFlowScenario.hooks.hookName)
     ).not.toBeChecked();
-    await expect(settingsUI.hooks.restartBanner).toBeVisible();
+    await expect(settingsUI.hooks.restartNotice).toBeVisible();
 
     // Prove failure-fatality (`required`) and dispatch enablement (`enabled`) are
     // independent fields: disabling the hook flips `enabled` to false while
@@ -396,7 +391,7 @@ test("operator can manage restart-aware hooks and extension policy on split sett
     await expect(settingsUI.extensions.policySave).toBeEnabled();
     await settingsUI.extensions.policySave.click();
 
-    await expect(settingsUI.extensions.restartBanner).toBeVisible();
+    await expect(settingsUI.extensions.restartNotice).toBeVisible();
     await browserArtifacts.captureScreenshot("tc-func-012-extensions-policy", appPage);
   } finally {
     await cleanupBrowserSettingsFixtures(runtime, seeded);

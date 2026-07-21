@@ -1198,6 +1198,9 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 			}),
 		)
 		preparation := &recordingUnregisterPreparation{}
+		order := make([]string, 0, 3)
+		preparation.order = &order
+		store.deleteHook = func() { order = append(order, "delete") }
 		resolver.SetUnregisterPreparer(
 			func(context.Context, Workspace) (UnregisterPreparation, error) {
 				return preparation, nil
@@ -1220,6 +1223,9 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 				preparation.rollbacks,
 			)
 		}
+		if want := []string{"before_delete", "delete", "commit"}; !slices.Equal(order, want) {
+			t.Fatalf("unregister order = %v, want %v", order, want)
+		}
 		if _, err := store.GetWorkspace(ctx, existing.ID); !errors.Is(err, ErrWorkspaceNotFound) {
 			t.Fatalf("GetWorkspace(committed unregister) error = %v, want %v", err, ErrWorkspaceNotFound)
 		}
@@ -1227,17 +1233,33 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 }
 
 type recordingUnregisterPreparation struct {
-	commits   int
-	rollbacks int
+	beforeDeletes int
+	commits       int
+	rollbacks     int
+	order         *[]string
+}
+
+func (p *recordingUnregisterPreparation) BeforeDelete(context.Context) error {
+	p.beforeDeletes++
+	if p.order != nil {
+		*p.order = append(*p.order, "before_delete")
+	}
+	return nil
 }
 
 func (p *recordingUnregisterPreparation) Commit(context.Context) error {
 	p.commits++
+	if p.order != nil {
+		*p.order = append(*p.order, "commit")
+	}
 	return nil
 }
 
 func (p *recordingUnregisterPreparation) Rollback(context.Context) error {
 	p.rollbacks++
+	if p.order != nil {
+		*p.order = append(*p.order, "rollback")
+	}
 	return nil
 }
 
@@ -1818,6 +1840,7 @@ type mockWorkspaceStore struct {
 
 	workspaces map[string]Workspace
 	deleteErr  error
+	deleteHook func()
 
 	insertCalls       []Workspace
 	updateCalls       []Workspace
@@ -1883,6 +1906,9 @@ func (m *mockWorkspaceStore) DeleteWorkspace(_ context.Context, id string) error
 	defer m.mu.Unlock()
 
 	m.deleteCalls = append(m.deleteCalls, id)
+	if m.deleteHook != nil {
+		m.deleteHook()
+	}
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}

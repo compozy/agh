@@ -92,7 +92,8 @@ describe("AgentStatsGrid", () => {
   it("Should format runtime durations for display", () => {
     expect(formatAgentRuntimeDuration(0)).toBe("0s");
     expect(formatAgentRuntimeDuration(45)).toBe("45s");
-    expect(formatAgentRuntimeDuration(125)).toBe("2m");
+    expect(formatAgentRuntimeDuration(125)).toBe("2m 5s");
     expect(formatAgentRuntimeDuration(3720)).toBe("1h 2m");
+    expect(formatAgentRuntimeDuration(90_061)).toBe("1d 1h");
   });
 });

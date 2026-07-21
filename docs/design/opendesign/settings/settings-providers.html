@@ -45,7 +45,7 @@
   button{font-family:inherit;letter-spacing:inherit}
   svg{display:block}
   code,.mono{-webkit-font-smoothing:subpixel-antialiased;font-feature-settings:normal}
-  :is(.btn,.back,.snav a,.breadcrumb__link,.pill-group__item,.filter-chip,.pcard,.prov-row,.sheet__close,.lane-tab,.menu button,.ssearch input,.search input):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  :is(.btn,.back,.snav a,.w2-back,.w2-crumb,.pill-group__item,.filter-chip,.pcard,.prov-row,.sheet__close,.lane-tab,.menu button,.ssearch input,.search input):focus-visible{outline:none;box-shadow:var(--focus-ring)}
 
   /* ============ settings shell (same contract as settings-general.html) ============ */
   .shell{display:grid;grid-template-columns:264px minmax(0,1fr);height:100vh;min-width:0}
@@ -79,21 +79,28 @@
   .sside__foot .d{width:6px;height:6px;border-radius:50%;background:var(--success);flex:none}
   .sside__foot .ver{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
 
-  /* ============ main + topbar ============ */
+  /* ============ main + unified head v2 (os/pagehead-redesign.html contract: 44px, drill-in trail) ============ */
   .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
-  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;
-    min-height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas);min-width:0}
-  .topbar__context{min-width:0;overflow:hidden}
-  .topbar__trailing{display:flex;align-items:center;justify-content:flex-end;gap:8px;justify-self:end;min-width:0}
-  .breadcrumb__list{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;list-style:none;white-space:nowrap;color:var(--muted)}
-  .breadcrumb__item{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:none}
-  .breadcrumb__link,.breadcrumb__page{display:inline-flex;align-items:center;min-width:0;border-radius:var(--radius-sm);padding:2px 6px;
-    font-size:13px;line-height:18px;letter-spacing:-.006em;white-space:nowrap}
-  .breadcrumb__link{color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
-  .breadcrumb__link:hover{background:var(--row-hover);color:var(--fg)}
-  .breadcrumb__page{color:var(--fg-strong)}
-  .breadcrumb__separator{display:inline-flex;color:var(--faint);flex:none}
-  .breadcrumb__separator svg{width:12px;height:12px}
+  .w2head{flex:none;min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-status[data-tone="ok"]{color:var(--success)}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
 
   /* ============ buttons ============ */
   .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
@@ -115,16 +122,10 @@
   .scroll{flex:1;min-height:0;overflow-y:auto}
   .page{max-width:960px;margin:0 auto;padding:28px 40px 120px}
 
-  /* ============ page head ============ */
-  .head{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px}
-  .head__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;
-    border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent);margin-top:2px}
-  .head__icon svg{width:12px;height:12px}
-  .head__main{min-width:0;flex:1}
-  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25}
-  .head__desc{margin-top:5px;font-size:13px;color:var(--muted);line-height:1.55;max-width:62ch;text-wrap:pretty}
-  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--subtle)}
-  .head__actions{display:flex;align-items:center;gap:8px;flex:none}
+  /* ============ subhead (demoted page-head meta, 12px subtle line) ============ */
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:18px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
   .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
 
   /* ============ listing toolbar (design-system.html §09 contract) ============ */
@@ -384,43 +385,31 @@
 
   <!-- ============ main ============ -->
   <div class="main">
-    <header class="topbar" data-od-id="topbar">
-      <div class="topbar__context">
-        <nav class="breadcrumb" aria-label="Breadcrumb">
-          <ol class="breadcrumb__list">
-            <li class="breadcrumb__item"><a class="breadcrumb__link" href="settings-general.html">Settings</a></li>
-            <li class="breadcrumb__separator" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
-            <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Providers</span></li>
-          </ol>
-        </nav>
+    <header class="w2head" data-od-id="page-head">
+      <a class="w2-back" href="settings-general.html" aria-label="Back to Settings"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <nav class="w2-crumbs" aria-label="Breadcrumb">
+        <a class="w2-crumb" href="settings-general.html">Settings</a>
+        <span class="w2-sep">/</span>
+        <span class="w2-title">Providers</span>
+      </nav>
+      <span class="w2-flex"></span>
+      <div class="w2-actions">
+        <button class="btn btn--primary" data-od-id="new-provider">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          New provider
+        </button>
       </div>
-      <div></div>
-      <div class="topbar__trailing"></div>
     </header>
 
     <div class="scroll">
       <main class="page" data-view="cards" id="page" data-od-id="settings-providers-page">
 
-        <header class="head" data-od-id="page-head">
-          <span class="head__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>
-          </span>
-          <div class="head__main">
-            <h1 class="head__title">Providers</h1>
-            <p class="head__desc">The agent CLIs and model providers your sessions run on. Each provider is saved on its own.</p>
-            <div class="head__meta">
-              <span>3 ready</span><span class="dotsep"></span>
-              <span>1 needs setup</span><span class="dotsep"></span>
-              <span>1 not installed</span>
-            </div>
-          </div>
-          <div class="head__actions">
-            <button class="btn btn--primary" data-od-id="new-provider">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-              New provider
-            </button>
-          </div>
-        </header>
+        <div class="subhead">
+          <span>The agent CLIs and model providers your sessions run on. Each provider is saved on its own.</span><span class="dotsep"></span>
+          <span>3 ready</span><span class="dotsep"></span>
+          <span>1 needs setup</span><span class="dotsep"></span>
+          <span>1 not installed</span>
+        </div>
 
         <div class="listing-toolbar" data-od-id="listing-toolbar">
           <div class="listing-toolbar__leading">

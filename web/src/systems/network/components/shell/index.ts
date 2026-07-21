@@ -15,8 +15,6 @@ export type { ChannelRailRowProps } from "./channel-rail-row";
 export type { ChannelTab } from "./channel-tabs-types";
 export { ChannelToolbar } from "./channel-toolbar";
 export type { ChannelToolbarProps } from "./channel-toolbar";
-export { InspectorActivityFeed } from "./inspector-activity-feed";
-export type { InspectorActivityFeedProps } from "./inspector-activity-feed";
 export { InspectorMembersList } from "./inspector-members-list";
 export type { InspectorMembersListProps } from "./inspector-members-list";
 export { NetworkInspector } from "./network-inspector";

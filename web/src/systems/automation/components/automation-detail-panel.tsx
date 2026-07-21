@@ -6,13 +6,13 @@ import {
   Eyebrow,
   Metric,
   PAGE_CONTENT_GUTTER,
-  PageHead,
   Pill,
   Section,
   Spinner,
   useTopbarSlot,
   type MetricTone,
 } from "@agh/ui";
+import { useNavigate } from "@tanstack/react-router";
 
 import {
   automationScopeLabel,
@@ -337,6 +337,7 @@ function AutomationDetailLoadedPanel({
   runsLoading,
   state,
 }: AutomationDetailLoadedPanelProps) {
+  const navigate = useNavigate();
   const { isDeleting, isTogglePending, isTriggerDisabled, isTriggerPending } = state;
   const isJob = kind === "jobs";
   const isDynamic = item.source === "dynamic";
@@ -345,14 +346,16 @@ function AutomationDetailLoadedPanel({
   const target = projectAutomationTarget(item);
   const enabledTone = automationStatusTone(item.enabled ? "enabled" : "disabled");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const catalogLabel = isJob ? "Jobs" : "Triggers";
+  const catalogPath = isJob ? "/jobs" : "/triggers";
+  const backToCatalog = () => {
+    void navigate({ to: catalogPath });
+  };
   const showRunNow = isJob && Boolean(onTriggerNow);
-  // When Edit/Run claim the action row, Enable/Disable (+ Delete) move to overflow.
   const showOverflow = isDynamic || showRunNow;
-  // Route chrome §07: secondary → primary → overflow (Delete / Enable|Disable).
   const detailActions = (
     <AutomationDetailActions
       item={item}
-      onEdit={onEdit}
       onToggleEnabled={onToggleEnabled}
       onTriggerNow={showRunNow ? onTriggerNow : undefined}
       state={{
@@ -368,6 +371,7 @@ function AutomationDetailLoadedPanel({
       item={item}
       kind={kind}
       onDelete={() => setDeleteOpen(true)}
+      onEdit={onEdit}
       onToggleEnabled={onToggleEnabled}
     />
   ) : undefined;
@@ -378,12 +382,6 @@ function AutomationDetailLoadedPanel({
   );
   const detailPills = (
     <>
-      <span className="flex items-center gap-1.5">
-        <Pill.Dot tone={enabledTone} />
-        <Pill mono tone={enabledTone}>
-          {item.enabled ? "ENABLED" : "DISABLED"}
-        </Pill>
-      </span>
       <Pill mono tone={item.source === "dynamic" ? "info" : "neutral"}>
         {automationSourceLabel(item.source)}
       </Pill>
@@ -391,10 +389,17 @@ function AutomationDetailLoadedPanel({
     </>
   );
 
-  // Single publisher: crumb + actions/overflow must share one slot push (store is last-writer).
   useTopbarSlot({
-    actions: detailActions,
+    onBack: backToCatalog,
+    crumbs: [{ id: "catalog", label: catalogLabel, onSelect: backToCatalog }],
     crumb: item.name,
+    status: (
+      <Pill mono tone={enabledTone}>
+        <Pill.Dot tone={enabledTone} />
+        {item.enabled ? "ENABLED" : "DISABLED"}
+      </Pill>
+    ),
+    actions: detailActions,
     overflow: detailOverflow,
   });
 
@@ -414,14 +419,9 @@ function AutomationDetailLoadedPanel({
           open={deleteOpen}
         />
       ) : null}
-      <div className="pt-5">
-        <PageHead
-          data-testid="automation-detail-header"
-          title={item.name}
-          variant="detail"
-          meta={detailMeta}
-          pills={detailPills}
-        />
+      <div className="flex flex-col gap-2 pt-4" data-testid="automation-detail-header">
+        <div className="flex flex-wrap items-center gap-1.5">{detailPills}</div>
+        <div className="text-small-body text-subtle">{detailMeta}</div>
       </div>
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-5">

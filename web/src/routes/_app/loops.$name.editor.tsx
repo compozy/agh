@@ -1,8 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
+import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { LoopEditor } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
 import { preloadLoopEditorRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loops/$name/editor")({
@@ -10,20 +9,5 @@ export const Route = createFileRoute("/_app/loops/$name/editor")({
     topbar: { crumb: { label: "Editor" } },
   }),
   loader: ({ context, params }) => preloadLoopEditorRoute(context.queryClient, params.name),
-  component: LoopEditorRoute,
+  component: createOsRouteSync("loops"),
 });
-
-function LoopEditorRoute() {
-  const { name } = Route.useParams();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const navigate = useNavigate();
-
-  return (
-    <LoopEditor
-      workspaceId={activeWorkspaceId ?? ""}
-      name={name}
-      // Publish → continue to the run form for the freshly published definition.
-      onPublished={loop => void navigate({ to: "/loops/$name/run", params: { name: loop.name } })}
-    />
-  );
-}

@@ -416,7 +416,7 @@ async function openBridgesPage(
   await ensureGlobalWorkspace(runtime);
   await page.goto(targetURL, { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(page);
-  await expect(page.getByTestId("app-sidebar")).toBeVisible();
+  await expect(page.getByTestId("os-desktop")).toBeVisible();
 }
 
 async function openBridgeDetail(

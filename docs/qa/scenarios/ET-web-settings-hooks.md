@@ -6,7 +6,7 @@ persona: Vera
 journey: J-extension-policy-admin
 expected: Settings Hooks survives refresh, renders hook and notification preset management without any installed-extension or extension-policy controls, and reports restart-required hook mutations truthfully.
 entry_points: /settings/hooks; Settings section navigation
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

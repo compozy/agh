@@ -48,3 +48,16 @@ export {
 } from "./components";
 
 export { vaultSecretTitle } from "./lib/vault-secret-title";
+
+export {
+  normalizeVaultPrefixForNamespace,
+  parseVaultNamespaceFilter,
+  useVaultPage,
+  validateVaultSearch,
+  type VaultDraft,
+  type VaultEditorState,
+  type VaultLastAction,
+  type VaultNamespaceFilter,
+  type VaultRouteSearch,
+} from "./hooks/use-vault-page";
+export { VaultPage } from "./routes/vault-page";

@@ -238,24 +238,19 @@ review-gate documentation; the profile tools never assert reviewer authority.
 
 ## Inspect and edit from the operator web UI
 
-Open a task on the web UI and switch to the **Orchestration** tab. The tab is rendered by
-`TasksDetailOrchestrationPanel` and is wired against the task 26 data layer in
-`web/src/systems/tasks`.
+Open a task on the web UI and choose **Edit setup** in the properties rail. The **Task setup** sheet
+shows the effective profile, or the inherited workspace defaults when no task profile is persisted.
+Its form covers worker policy and runtime, coordinator guidance, review routing, sandbox selection,
+participants, and required capabilities. **View JSON** is a read-only operator aid; profile writes
+remain form-first and call the same `PUT /api/tasks/{id}/execution-profile` endpoint as the CLI and
+the native `task_execution_profile_set` tool.
 
-The tab surfaces:
+Editing and clearing are unavailable while the task has an active run. Clearing a persisted profile
+requires confirmation. The UI mirrors the runtime's mutation guard rather than inventing a parallel
+rule.
 
-- **Execution Profile.** Shows the effective profile (or the default state when none is persisted).
-  The JSON edit dialog calls the same `PUT /api/tasks/{id}/execution-profile` endpoint as the CLI
-  and the native `task_execution_profile_set` tool. Edit and Delete buttons are disabled while the
-  task has an active run; the UI mirrors the runtime's mutation guard rather than inventing a
-  parallel rule.
-- **Reviews.** Read-only list of persisted task-run reviews (status, outcome, missing work, next
-  round guidance). Verdict authority remains the reviewer-bound `submit_run_review` tool; the card
-  surfaces a permanent disclaimer reinforcing that operator sessions cannot submit a verdict from
-  the web UI.
-- **Bridge Notifications.** Cursor diagnostics for terminal task notifications, including a zero
-  state when no delivery has happened.
-- **Stream Resume.** `latest_event_seq` and connection state for cursor-seeded SSE.
+Task detail keeps operational data outside Setup: reviews appear with their attempts under **Runs**,
+while bridge subscriptions and SSE resume state live behind **Inspect**.
 
 Server rejections (validation errors, active-run guard, missing task) surface as toasts. The web UI
 does not infer authority locally; it reflects what `task.Service` returns.

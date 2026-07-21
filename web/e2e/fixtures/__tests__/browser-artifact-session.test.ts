@@ -374,7 +374,7 @@ describe("captureRouteState", () => {
         <form data-testid="settings-sandbox-editor"></form>
         <section data-testid="settings-sandboxes-delete"></section>
         <section data-testid="sandbox-page-action-result"></section>
-        <section data-testid="settings-page-sandbox-restart-banner"></section>
+        <section data-testid="settings-page-sandbox-restart-notice"></section>
       </main>
     `;
 
@@ -389,7 +389,7 @@ describe("captureRouteState", () => {
       sandbox_editor_open: true,
       sandbox_profile_count: 2,
       sandbox_profile_names: ["browser-local-sandbox", "browser-blocked-sandbox"],
-      sandbox_restart_banner_visible: true,
+      sandbox_restart_notice_visible: true,
       sandbox_total_text: "2 profiles",
       sandbox_view_visible: true,
       sandbox_workspace_references_text: "1 workspace reference",
@@ -408,7 +408,7 @@ describe("captureRouteState", () => {
         <section data-testid="settings-page-network-action-result"></section>
         <form data-testid="settings-vault-editor"></form>
         <section data-testid="settings-vault-delete"></section>
-        <section data-testid="settings-page-network-restart-banner"></section>
+        <section data-testid="settings-page-network-restart-notice"></section>
         <footer data-testid="settings-page-network-save-bar"></footer>
         <table data-testid="vault-page-table">
           <tr data-testid="vault-secrets-row"></tr>
@@ -440,7 +440,7 @@ describe("captureRouteState", () => {
       settings_active_section: "network",
       settings_mcp_server_count: 1,
       settings_provider_card_count: 2,
-      settings_restart_banner_visible: true,
+      settings_restart_notice_visible: true,
       settings_save_bar_visible: true,
       settings_section_count: 2,
       settings_view_visible: true,
@@ -471,7 +471,7 @@ describe("captureRouteState", () => {
       settings_active_section: "general",
       settings_mcp_server_count: 0,
       settings_provider_card_count: 0,
-      settings_restart_banner_visible: false,
+      settings_restart_notice_visible: false,
       settings_save_bar_visible: false,
       settings_section_count: 2,
       settings_view_visible: true,

@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { MessagesSquare } from "lucide-react";
 
 import { Button, ListingRow, Pill, Skeleton, SkeletonRows } from "@agh/ui";
 
@@ -57,10 +56,12 @@ function ThreadsListRow({ workspaceId, channel, thread, active }: ThreadsListRow
   return (
     <ListingRow
       aria-current={active ? "page" : undefined}
+      className="grid-cols-[minmax(0,1fr)]"
       data-testid={`network-thread-list-row-${thread.thread_id}`}
       selected={active}
     >
       <ListingRow.Link
+        className="col-span-1 grid-cols-[minmax(0,1fr)]"
         render={
           <Link
             params={{ workspaceId, channel, threadId: thread.thread_id }}
@@ -69,9 +70,6 @@ function ThreadsListRow({ workspaceId, channel, thread, active }: ThreadsListRow
           />
         }
       >
-        <ListingRow.Icon>
-          <MessagesSquare aria-hidden="true" className="size-4" />
-        </ListingRow.Icon>
         <ListingRow.Main>
           <ListingRow.Name>
             <ListingRow.Title
@@ -81,6 +79,12 @@ function ThreadsListRow({ workspaceId, channel, thread, active }: ThreadsListRow
               {title}
             </ListingRow.Title>
             <ThreadWorkPill openWorkCount={openWorkCount} />
+            <span
+              className="ml-auto shrink-0 text-eyebrow text-faint"
+              data-testid="network-thread-list-row-meta-time"
+            >
+              {lastActivity}
+            </span>
           </ListingRow.Name>
           <ListingRow.Description
             data-testid={`network-thread-list-row-preview-${thread.thread_id}`}
@@ -101,14 +105,6 @@ function ThreadsListRow({ workspaceId, channel, thread, active }: ThreadsListRow
           </ListingRow.Meta>
         </ListingRow.Main>
       </ListingRow.Link>
-      <ListingRow.Trail>
-        <span
-          className="shrink-0 text-eyebrow text-faint"
-          data-testid="network-thread-list-row-meta-time"
-        >
-          {lastActivity}
-        </span>
-      </ListingRow.Trail>
     </ListingRow>
   );
 }
@@ -120,15 +116,10 @@ function ThreadsListSkeleton() {
       data-testid="network-thread-list-skeleton"
       rowClassName="border-b border-line px-4 py-3"
     >
-      {/* Mirror the real row's 34px leading icon well so the text column starts at
-          the same offset and the skeleton doesn't shift when content resolves. */}
-      <div className="flex items-start gap-3.5">
-        <Skeleton className="size-[34px] shrink-0" />
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <Skeleton className="h-3.5 w-2/3" />
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-3 w-3/4" />
-        </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <Skeleton className="h-3.5 w-2/3" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-3/4" />
       </div>
     </SkeletonRows>
   );
@@ -170,15 +161,17 @@ export function ThreadsList({
       data-dim={dim ? "true" : "false"}
       data-testid="network-thread-list"
     >
-      {threads.map(thread => (
-        <ThreadsListRow
-          active={thread.thread_id === activeThreadId}
-          channel={channel}
-          key={thread.thread_id}
-          thread={thread}
-          workspaceId={workspaceId}
-        />
-      ))}
+      <div className="mx-5 mt-1 mb-4 overflow-hidden rounded-lg border border-line bg-canvas-soft">
+        {threads.map(thread => (
+          <ThreadsListRow
+            active={thread.thread_id === activeThreadId}
+            channel={channel}
+            key={thread.thread_id}
+            thread={thread}
+            workspaceId={workspaceId}
+          />
+        ))}
+      </div>
       {paginationStatus && onLoadMore ? (
         <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
           <span className="text-small-body text-muted">

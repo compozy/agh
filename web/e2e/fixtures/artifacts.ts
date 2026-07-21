@@ -124,7 +124,7 @@ export interface BrowserRouteState {
   sandbox_empty_visible?: boolean;
   sandbox_profile_count?: number;
   sandbox_profile_names?: string[];
-  sandbox_restart_banner_visible?: boolean;
+  sandbox_restart_notice_visible?: boolean;
   sandbox_total_text?: string;
   sandbox_view_visible?: boolean;
   sandbox_workspace_references_text?: string;
@@ -132,7 +132,7 @@ export interface BrowserRouteState {
   settings_active_section?: string;
   settings_mcp_server_count?: number;
   settings_provider_card_count?: number;
-  settings_restart_banner_visible?: boolean;
+  settings_restart_notice_visible?: boolean;
   settings_save_bar_visible?: boolean;
   settings_section_count?: number;
   settings_view_visible?: boolean;

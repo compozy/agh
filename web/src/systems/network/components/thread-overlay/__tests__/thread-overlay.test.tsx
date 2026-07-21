@@ -6,6 +6,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const navigateMock = vi.fn();
+const closeMock = vi.fn();
+const openMainMock = vi.fn();
 const threadDetailMock = vi.hoisted(() => vi.fn());
 const threadDetailArgsMock = vi.hoisted(() => vi.fn());
 const messagesArgsMock = vi.hoisted(() => vi.fn());
@@ -110,6 +112,8 @@ function renderOverlay({ fullPage = false }: { fullPage?: boolean } = {}) {
         workspaceId={WORKSPACE_ID}
         channel="ops"
         fullPage={fullPage}
+        onClose={closeMock}
+        onOpenMain={openMainMock}
         threadId="thread-test"
       />
     </QueryClientProvider>
@@ -120,6 +124,8 @@ describe("ThreadOverlay", () => {
   beforeEach(() => {
     threadDetailArgsMock.mockClear();
     messagesArgsMock.mockClear();
+    closeMock.mockReset();
+    openMainMock.mockReset();
     threadDetailMock.mockReturnValue({
       thread: {
         channel: "ops",
@@ -161,31 +167,22 @@ describe("ThreadOverlay", () => {
   });
 
   it("Should close on the X button (overlay mode)", async () => {
-    navigateMock.mockClear();
     renderOverlay({ fullPage: false });
     const user = userEvent.setup();
     await user.click(screen.getByTestId("network-thread-overlay-close"));
-    expect(navigateMock).toHaveBeenCalledWith({
-      params: { workspaceId: WORKSPACE_ID, channel: "ops" },
-      to: "/network/$workspaceId/$channel/threads",
-    });
+    expect(closeMock).toHaveBeenCalledTimes(1);
   });
 
-  it("Should close on Escape key when in overlay mode", () => {
-    navigateMock.mockClear();
+  it("Should request the controller-owned location close on Escape in overlay mode", () => {
     renderOverlay({ fullPage: false });
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(navigateMock).toHaveBeenCalledWith({
-      params: { workspaceId: WORKSPACE_ID, channel: "ops" },
-      to: "/network/$workspaceId/$channel/threads",
-    });
+    expect(closeMock).toHaveBeenCalledTimes(1);
   });
 
   it("Should NOT close on Escape when in fullPage mode", () => {
-    navigateMock.mockClear();
     renderOverlay({ fullPage: true });
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(navigateMock).not.toHaveBeenCalled();
+    expect(closeMock).not.toHaveBeenCalled();
   });
 
   it("Should expose data-fullpage attribute reflecting the mode", () => {

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 import { Button, Pill, Section } from "@agh/ui";
 
-import { useMCPAuthorize } from "@/hooks/routes/use-mcp-authorize";
+import { useMCPAuthorize } from "@/systems/settings";
 import {
   authorizeLabel,
   composeMCPRowStatus,

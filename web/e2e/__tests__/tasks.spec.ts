@@ -66,7 +66,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
 
   await useGlobalWorkspaceIfPrompted(tasksUI);
 
-  await expect(tasksUI.appSidebar).toBeVisible();
+  await expect(tasksUI.osDesktop).toBeVisible();
   await expect(tasksUI.navTasks).toBeVisible();
   await tasksUI.navTasks.click();
 
@@ -141,18 +141,14 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
 
   await expect(tasksUI.detailContent).toBeVisible();
   await expect(tasksUI.detailContent).toContainText(createdDraftTitle);
-  await expect(tasksUI.detailTab("timeline")).toBeVisible();
+  await expect(tasksUI.detailTab("overview")).toBeVisible();
+  await expect(tasksUI.detailTab("runs")).toBeVisible();
+  await expect(tasksUI.detailTab("activity")).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-detail-route", appPage);
 
-  await tasksUI.detailTabAgents.click();
-  await expect(tasksUI.multiAgentPanel).toBeVisible();
-  await expect(tasksUI.multiAgentSummary).toContainText("1 running");
-  await expect(tasksUI.multiAgentAgentLink(createdDraftId)).toBeVisible();
-  await expect(tasksUI.multiAgentAgentLink(createdDraftId)).toHaveAttribute(
-    "href",
-    `/tasks/${createdDraftId}`
-  );
-  await browserArtifacts.captureScreenshot("tasks-live-agents", appPage);
+  await tasksUI.detailTab("activity").click();
+  await expect(tasksUI.detailTab("activity")).toHaveAttribute("aria-selected", "true");
+  await browserArtifacts.captureScreenshot("tasks-activity", appPage);
 
   await tasksUI.detailBreadcrumbTasks.click();
   await expect(appPage).toHaveURL(/\/tasks$/);

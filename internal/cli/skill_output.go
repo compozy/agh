@@ -156,7 +156,7 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 			for _, entry := range sortedSkillMetadataEntries(item.Metadata) {
 				metadataRows = append(metadataRows, []string{entry.Label, entry.Value})
 			}
-			metadata := renderHumanTable("Metadata", []string{"Key", skillOutputValueValue}, metadataRows)
+			metadata := renderHumanTable("Metadata", []string{cliKeyValue, skillOutputValueValue}, metadataRows)
 
 			resourceRows := make([][]string, 0, len(item.Resources))
 			for _, resource := range item.Resources {
@@ -206,7 +206,7 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 					[]string{"field", skillOutputValueKey},
 					skillProvenanceRows(item.Provenance),
 				),
-				renderToonArray("metadata", []string{"key", skillOutputValueKey}, metadataRows),
+				renderToonArray("metadata", []string{cliKeyKey, skillOutputValueKey}, metadataRows),
 				renderToonArray("resources", []string{skillOutputPathKey}, resourceRows),
 			), nil
 		},

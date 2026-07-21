@@ -41,6 +41,8 @@ export const Header: Story = {
           workspaceId={storyDefaultWorkspaceId}
           channel="ops"
           detail={networkThreadDetailFixture}
+          onClose={() => undefined}
+          onOpenMain={() => undefined}
           threadId="thread_launch_command"
         />
       </div>

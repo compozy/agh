@@ -125,15 +125,17 @@ export function NetworkShell({
                   workspaceId={workspaceId}
                   channel={activeChannel}
                   detail={activeChannelDetail}
-                  inspectorOpen={inspectorOpen}
-                  onInspectorToggle={onInspectorToggle}
                   openWorkCount={openWorkCount}
+                  threadCount={threadCount}
                 />
                 <ChannelToolbar
                   workspaceId={workspaceId}
                   activeTab={activeTab}
-                  channel={activeChannel.channel}
+                  channel={activeChannel}
+                  detail={activeChannelDetail}
                   directCount={directCount}
+                  inspectorOpen={inspectorOpen}
+                  onInspectorToggle={onInspectorToggle}
                   threadCount={threadCount}
                 />
               </>

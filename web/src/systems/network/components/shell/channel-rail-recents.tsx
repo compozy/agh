@@ -2,15 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { AtSign, MessagesSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import {
-  Eyebrow,
-  Item,
-  ItemContent,
-  ItemMedia,
-  SidebarSectionLabel,
-  Skeleton,
-  SkeletonRows,
-} from "@agh/ui";
+import { Item, ItemContent, ItemMedia, SidebarSectionLabel, Skeleton, SkeletonRows } from "@agh/ui";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkRecentEntry } from "../../types";
@@ -31,7 +23,7 @@ function RecentEntryContent({
   timestampLabel: string | null;
 }) {
   return (
-    <ItemContent className="min-w-0 flex-1 gap-0.5">
+    <ItemContent className="min-w-0 flex-1">
       <div
         className="flex min-w-0 items-center gap-2"
         data-testid={`network-recents-preview-row-${entry.containerId}`}
@@ -42,24 +34,18 @@ function RecentEntryContent({
             entry.hasUnread ? "font-medium text-fg" : "text-muted"
           )}
           data-testid={`network-recents-preview-${entry.containerId}`}
-          title={entry.preview}
+          title={`${entry.preview} — #${entry.channel}`}
         >
           {entry.preview}
         </span>
         {timestampLabel ? (
-          <Eyebrow className="shrink-0" data-testid={`network-recents-time-${entry.containerId}`}>
+          <span
+            className="shrink-0 font-mono text-mono-id tabular-nums text-faint"
+            data-testid={`network-recents-time-${entry.containerId}`}
+          >
             {timestampLabel}
-          </Eyebrow>
+          </span>
         ) : null}
-      </div>
-      <div
-        className="flex items-center gap-2"
-        data-testid={`network-recents-channel-row-${entry.containerId}`}
-      >
-        {entry.surface === "direct" ? (
-          <span className="shrink-0 text-subtle text-xs">in</span>
-        ) : null}
-        <Eyebrow className="shrink-0">#{entry.channel}</Eyebrow>
       </div>
     </ItemContent>
   );

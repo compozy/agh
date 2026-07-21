@@ -44,6 +44,7 @@ export {
   addTaskDependency,
   approveTask,
   cancelTask,
+  clearTaskBlock,
   createChildTask,
   createTask,
   deleteTask,

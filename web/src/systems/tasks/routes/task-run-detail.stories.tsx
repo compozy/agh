@@ -33,7 +33,25 @@ type Story = StoryObj<typeof meta>;
  */
 export const Running: Story = {
   args: {},
-  parameters: appRouteParameters("/tasks/task_001/runs/run_001"),
+  parameters: {
+    ...appRouteParameters("/tasks/task_001/runs/run_001"),
+    ...storybookMswParameters({
+      tasks: [
+        aghApiMock.get("/api/task-runs/{id}", () => {
+          const now = Date.now();
+          return HttpResponse.json({
+            run: buildTaskRunDetailFixture({
+              run: {
+                ...taskRunDetailFixture.run,
+                queued_at: new Date(now - 5 * 60_000).toISOString(),
+                started_at: new Date(now - 4 * 60_000).toISOString(),
+              },
+            }),
+          });
+        }),
+      ],
+    }),
+  },
   render: () => <StorybookWorkspaceSetup />,
 };
 

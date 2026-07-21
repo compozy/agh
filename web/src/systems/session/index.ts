@@ -99,11 +99,6 @@ export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 export { sessionKeys } from "./lib/query-keys";
 export {
-  createSessionReturnHistoryState,
-  sessionReturnWorkspaceIdFromState,
-  type SessionReturnNavigationState,
-} from "./lib/session-return-navigation";
-export {
   sessionByIdOptions,
   sessionClarificationsOptions,
   sessionDetailOptions,
@@ -161,11 +156,13 @@ export {
   useSessionCatalogStreams,
   type SessionCatalogEventSource,
   type SessionCatalogEventSourceFactory,
+  type SessionCatalogStreamStatus,
 } from "./hooks/use-session-catalog-streams";
 export {
   useSessionTranscriptThreadMessages,
   useSessionTranscriptThreadState,
 } from "./hooks/use-session-transcript-thread-messages";
+export { useSessionTopbarSlot } from "./hooks/use-session-topbar-slot";
 export type {
   SessionTranscriptThreadState,
   SessionTranscriptThreadStatus,

@@ -1,6 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
 import { fn } from "storybook/test";
 
 import { PanelSurface } from "@/storybook/story-layout";
@@ -8,14 +6,13 @@ import type { SettingsProviderEntry } from "@/systems/settings";
 import { settingsProviderFixtures } from "@/systems/settings/mocks";
 
 import { ProviderCard } from "../provider-card";
-import { ProviderLogo } from "../provider-logo";
-import { ProviderModelCatalogStatus } from "../provider-model-catalog-status";
-import { ProvidersGrid } from "../providers-grid";
+import { ProviderRow } from "../provider-row";
 
-const claudeFixture = settingsProviderFixtures[0]!;
+const claudeFixture: SettingsProviderEntry = {
+  ...settingsProviderFixtures[0]!,
+  auth_status: { ...settingsProviderFixtures[0]!.auth_status!, state: "authenticated" },
+};
 const codexFixture = settingsProviderFixtures[1]!;
-
-const openRouterFixture = settingsProviderFixtures.find(entry => entry.name === "openrouter")!;
 
 const binaryMissingFixture: SettingsProviderEntry = {
   ...codexFixture,
@@ -34,285 +31,91 @@ const binaryMissingFixture: SettingsProviderEntry = {
   credentials: undefined,
 };
 
-const freshCatalogHandler = aghApiMock.get(
-  "/api/model-catalog/providers/{provider_id}/models/status",
-  () =>
-    HttpResponse.json({
-      sources: [
-        {
-          source_id: "models.dev",
-          source_kind: "models_dev",
-          priority: 0,
-          provider_id: "claude",
-          refresh_state: "succeeded",
-          row_count: 42,
-          stale: false,
-          last_success: "2026-04-17T18:10:00Z",
-        },
-      ],
-    })
-);
+const needsSetupFixture: SettingsProviderEntry = {
+  ...codexFixture,
+  name: "hermes",
+  default: false,
+  settings: {
+    ...codexFixture.settings,
+    command: "hermes --acp",
+    display_name: "Hermes",
+    auth_mode: "bound_secret",
+  },
+  credentials: [
+    {
+      name: "api_key",
+      target_env: "HERMES_API_KEY",
+      secret_ref: "env:HERMES_API_KEY",
+      required: true,
+      present: false,
+    },
+  ] as SettingsProviderEntry["credentials"],
+  auth_status: {
+    mode: "bound_secret",
+    env_policy: "filtered",
+    home_policy: "operator",
+    state: "missing_credential",
+  },
+};
 
-const refreshHandler = aghApiMock.post(
-  "/api/model-catalog/providers/{provider_id}/models/refresh",
-  () =>
-    HttpResponse.json({
-      sources: [
-        {
-          source_id: "models.dev",
-          source_kind: "models_dev",
-          priority: 0,
-          provider_id: "claude",
-          refresh_state: "queued",
-          row_count: 42,
-          stale: false,
-          next_refresh: "2026-04-17T18:12:00Z",
-        },
-      ],
-    })
-);
+const needsSignInFixture: SettingsProviderEntry = {
+  ...codexFixture,
+  auth_status: { ...codexFixture.auth_status!, state: "needs_login" },
+};
 
-const staleCatalogHandler = aghApiMock.get(
-  "/api/model-catalog/providers/{provider_id}/models/status",
-  () =>
-    HttpResponse.json({
-      sources: [
-        {
-          source_id: "models.dev",
-          source_kind: "models_dev",
-          priority: 0,
-          provider_id: "claude",
-          refresh_state: "succeeded",
-          row_count: 42,
-          stale: true,
-          last_success: "2026-04-10T08:00:00Z",
-        },
-        {
-          source_id: "provider_live:claude",
-          source_kind: "provider_live",
-          priority: 1,
-          provider_id: "claude",
-          refresh_state: "succeeded",
-          row_count: 3,
-          stale: false,
-          last_success: "2026-04-17T18:10:00Z",
-        },
-      ],
-    })
-);
-
-const failedCatalogHandler = aghApiMock.get(
-  "/api/model-catalog/providers/{provider_id}/models/status",
-  () =>
-    HttpResponse.json({
-      sources: [
-        {
-          source_id: "models.dev",
-          source_kind: "models_dev",
-          priority: 0,
-          provider_id: "claude",
-          refresh_state: "failed",
-          row_count: 0,
-          stale: false,
-          last_error: "registry timeout",
-        },
-      ],
-    })
-);
-
-const emptyCatalogHandler = aghApiMock.get(
-  "/api/model-catalog/providers/{provider_id}/models/status",
-  () => HttpResponse.json({ sources: [] })
-);
+const unknownAuthFixture: SettingsProviderEntry = {
+  ...codexFixture,
+  name: "codex-unverified",
+  auth_status: { ...codexFixture.auth_status!, state: "unknown" },
+};
 
 const meta: Meta<typeof ProviderCard> = {
   title: "systems/settings/components/ProviderCard",
   component: ProviderCard,
   parameters: {
     layout: "fullscreen",
-    msw: { handlers: [freshCatalogHandler, refreshHandler] },
     docs: {
       description: {
         component:
-          "Provider card with header (logo + name + DEFAULT + status), inline hint for warnings, summary block, and state-aware footer + overflow menu. Detailed config and per-source catalog list live in the right-side Details sheet.",
+          "Provider card per the settings redesign: logo well, name + Default pill, mono command, one humanized status line, plain-language sign-in summary. The whole card opens the inspector sheet.",
       },
     },
   },
-  decorators: [
-    Story => (
-      <PanelSurface className="block min-h-[640px] p-6">
-        <Story />
-      </PanelSurface>
-    ),
-  ],
 };
-
-function CardFrame({ children }: { children: React.ReactNode }) {
-  return <div className="w-full max-w-[420px]">{children}</div>;
-}
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Default provider card -- builtin claude, DEFAULT chip, catalog fresh.
+ * The truthful listing states: ready, setup, sign-in, unknown auth, and missing binary.
  */
-export const Default: Story = {
-  args: {
-    provider: claudeFixture,
-    onOpen: fn(),
-  },
-  render: args => (
-    <CardFrame>
-      <ProviderCard {...args} />
-    </CardFrame>
-  ),
-};
-
-/**
- * Non-default provider with all credentials configured and a fresh catalog.
- */
-export const Installed: Story = {
-  args: {
-    provider: codexFixture,
-    onOpen: fn(),
-  },
-  render: args => (
-    <CardFrame>
-      <ProviderCard {...args} />
-    </CardFrame>
-  ),
-};
-
-/**
- * Binary missing -- the provider command is not on PATH, catalog row is suppressed
- * and the inline hint points at the missing command. Primary CTA stays "Edit settings".
- */
-export const BinaryMissing: Story = {
-  args: {
-    provider: binaryMissingFixture,
-    onOpen: fn(),
-  },
-  render: args => (
-    <CardFrame>
-      <ProviderCard {...args} />
-    </CardFrame>
-  ),
-};
-
-/**
- * Bound-secret provider missing the required credential. CTA becomes
- * "Configure credentials" and the hint cites the env slot to bind.
- */
-export const Unconfigured: Story = {
-  args: {
-    provider: openRouterFixture,
-    onOpen: fn(),
-  },
-  render: args => (
-    <CardFrame>
-      <ProviderCard {...args} />
-    </CardFrame>
-  ),
-};
-
-/**
- * Aggregated catalog chip flips to warning when any source is stale.
- */
-export const CatalogStale: Story = {
-  args: {
-    provider: claudeFixture,
-    onOpen: fn(),
-  },
-  parameters: {
-    msw: { handlers: [staleCatalogHandler, refreshHandler] },
-  },
-  render: args => (
-    <CardFrame>
-      <ProviderCard {...args} />
-    </CardFrame>
-  ),
-};
-
-/**
- * Aggregated catalog chip flips to danger when any source failed to refresh.
- */
-export const CatalogFailed: Story = {
-  args: {
-    provider: claudeFixture,
-    onOpen: fn(),
-  },
-  parameters: {
-    msw: { handlers: [failedCatalogHandler, refreshHandler] },
-  },
-  render: args => (
-    <CardFrame>
-      <ProviderCard {...args} />
-    </CardFrame>
-  ),
-};
-
-/**
- * Neutral catalog chip when no sources are reporting yet.
- */
-export const CatalogEmpty: Story = {
-  args: {
-    provider: claudeFixture,
-    onOpen: fn(),
-  },
-  parameters: {
-    msw: { handlers: [emptyCatalogHandler, refreshHandler] },
-  },
-  render: args => (
-    <CardFrame>
-      <ProviderCard {...args} />
-    </CardFrame>
-  ),
-};
-
-/**
- * Grid layout -- exercises the responsive 2/3-column behaviour at sample widths.
- */
-export const Grid: Story = {
-  args: {},
-  decorators: [
-    Story => (
-      <PanelSurface className="block min-h-[640px] p-6">
-        <Story />
-      </PanelSurface>
-    ),
-  ],
-  render: () => <ProvidersGrid providers={settingsProviderFixtures.slice(0, 6)} onOpen={fn()} />,
-};
-
-/**
- * ProviderLogo set used across cards and the details sheet header.
- */
-export const Logos: Story = {
+export const CardStates: Story = {
   args: {},
   render: () => (
-    <div className="flex flex-wrap items-center gap-4">
-      {["claude", "codex", "gemini", "opencode", "hermes"].map(provider => (
-        <span
-          key={provider}
-          className="flex size-12 items-center justify-center rounded-icon-well border border-line bg-elevated"
-          title={provider}
-        >
-          <ProviderLogo provider={provider} />
-        </span>
-      ))}
-    </div>
+    <PanelSurface className="grid max-w-[1100px] gap-3 p-6 sm:grid-cols-3">
+      <ProviderCard onOpen={fn()} provider={claudeFixture} />
+      <ProviderCard onOpen={fn()} provider={needsSetupFixture} />
+      <ProviderCard onOpen={fn()} provider={needsSignInFixture} />
+      <ProviderCard onOpen={fn()} provider={unknownAuthFixture} />
+      <ProviderCard onOpen={fn()} provider={binaryMissingFixture} />
+    </PanelSurface>
   ),
 };
 
 /**
- * ProviderModelCatalogStatus rendered standalone -- used inside the Details sheet
- * to list every source with refresh state, stale chip, row count, and timestamp.
+ * Rows view of the same listing data.
  */
-export const CatalogStatus: Story = {
+export const RowStates: Story = {
   args: {},
-  parameters: {
-    msw: { handlers: [staleCatalogHandler, refreshHandler] },
-  },
-  render: () => <ProviderModelCatalogStatus providerId="codex" testId="provider-catalog-story" />,
+  render: () => (
+    <PanelSurface className="max-w-[860px] p-6">
+      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+        <ProviderRow onOpen={fn()} provider={claudeFixture} />
+        <ProviderRow onOpen={fn()} provider={needsSetupFixture} />
+        <ProviderRow onOpen={fn()} provider={needsSignInFixture} />
+        <ProviderRow onOpen={fn()} provider={unknownAuthFixture} />
+        <ProviderRow onOpen={fn()} provider={binaryMissingFixture} />
+      </div>
+    </PanelSurface>
+  ),
 };

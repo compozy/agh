@@ -29,29 +29,6 @@ export async function resolveActiveWorkspaceId(queryClient: QueryClient): Promis
   return selectActiveWorkspace(workspacesResult.value, selectedWorkspaceId)?.id ?? null;
 }
 
-export async function adoptRouteWorkspaceWhenSelectionInvalid(
-  queryClient: QueryClient,
-  routeWorkspaceId: string
-): Promise<void> {
-  const [hydrationResult, workspacesResult] = await loadWorkspaceSelection(queryClient);
-  if (hydrationResult.status === "rejected" || workspacesResult.status === "rejected") {
-    return;
-  }
-
-  const workspaces = workspacesResult.value;
-  if (!workspaces.some(workspace => workspace.id === routeWorkspaceId)) {
-    return;
-  }
-
-  const workspaceStore = useActiveWorkspaceStore.getState();
-  const selectedWorkspaceIsValid = workspaces.some(
-    workspace => workspace.id === workspaceStore.selectedWorkspaceId
-  );
-  if (!selectedWorkspaceIsValid) {
-    workspaceStore.setSelectedWorkspaceId(routeWorkspaceId);
-  }
-}
-
 export async function selectRouteWorkspaceForNavigation(
   queryClient: QueryClient,
   routeWorkspaceId: string

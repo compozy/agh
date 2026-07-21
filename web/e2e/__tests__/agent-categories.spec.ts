@@ -47,7 +47,7 @@ test("categorized agents surface on the fleet page and group inside the session-
   const ui = sessionLifecycleSelectors(appPage);
 
   await useGlobalWorkspaceIfPrompted(ui);
-  await expect(ui.appSidebar).toBeVisible();
+  await expect(ui.osDesktop).toBeVisible();
   await appPage.getByTestId("nav-agents").click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
 

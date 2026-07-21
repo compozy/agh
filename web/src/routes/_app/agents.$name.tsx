@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { validateAgentDetailSearch } from "@/systems/agent";
+import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { AgentDetailPage } from "./-agent-detail-page";
 import { preloadAgentDetailRoute } from "./-app-preload";
 
 export const Route = createFileRoute("/_app/agents/$name")({
@@ -11,11 +11,5 @@ export const Route = createFileRoute("/_app/agents/$name")({
   }),
   validateSearch: validateAgentDetailSearch,
   loader: ({ context, params }) => preloadAgentDetailRoute(context.queryClient, params.name),
-  component: AgentDetailRoute,
+  component: createOsRouteSync("agents"),
 });
-
-function AgentDetailRoute() {
-  const { name } = Route.useParams();
-  const rawSearch = Route.useSearch();
-  return <AgentDetailPage name={name} rawSearch={rawSearch} />;
-}

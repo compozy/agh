@@ -1,6 +1,882 @@
 {
   "components": {
     "schemas": {
+      "DesktopStateAckFrame": {
+        "properties": {
+          "op": {
+            "enum": [
+              "ack"
+            ],
+            "type": "string"
+          },
+          "req": {
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "rev": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "seq": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "key",
+                "rev",
+                "seq"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "op",
+          "req",
+          "results"
+        ],
+        "type": "object"
+      },
+      "DesktopStateAckResult": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "rev": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "seq": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "rev",
+          "seq"
+        ],
+        "type": "object"
+      },
+      "DesktopStateApplyFrame": {
+        "properties": {
+          "op": {
+            "enum": [
+              "apply"
+            ],
+            "type": "string"
+          },
+          "ops": {
+            "items": {
+              "properties": {
+                "if_rev": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "put",
+                    "delete"
+                  ],
+                  "type": "string"
+                },
+                "value": {
+                  "additionalProperties": {},
+                  "nullable": true,
+                  "type": "object"
+                }
+              },
+              "required": [
+                "key",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "req": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "ops",
+          "req"
+        ],
+        "type": "object"
+      },
+      "DesktopStateApplyOp": {
+        "properties": {
+          "if_rev": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "put",
+              "delete"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "additionalProperties": {},
+            "nullable": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "key",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "DesktopStateApplyRequest": {
+        "properties": {
+          "ops": {
+            "items": {
+              "properties": {
+                "if_rev": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "put",
+                    "delete"
+                  ],
+                  "type": "string"
+                },
+                "value": {
+                  "additionalProperties": {},
+                  "nullable": true,
+                  "type": "object"
+                }
+              },
+              "required": [
+                "key",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ops"
+        ],
+        "type": "object"
+      },
+      "DesktopStateApplyResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "properties": {
+                "deleted": {
+                  "type": "boolean"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "rev": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "seq": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "updated_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "value": {
+                  "additionalProperties": {},
+                  "nullable": true,
+                  "type": "object"
+                }
+              },
+              "required": [
+                "deleted",
+                "key",
+                "rev",
+                "seq",
+                "updated_at",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "type": "object"
+      },
+      "DesktopStateEntry": {
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "string"
+          },
+          "rev": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "seq": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "value": {
+            "additionalProperties": {},
+            "nullable": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "deleted",
+          "key",
+          "rev",
+          "seq",
+          "updated_at",
+          "value"
+        ],
+        "type": "object"
+      },
+      "DesktopStateErrorFrame": {
+        "properties": {
+          "code": {
+            "enum": [
+              "desktop_state_not_found",
+              "workspace_not_found",
+              "desktop_state_rev_conflict",
+              "desktop_state_value_too_large",
+              "desktop_state_key_quota_exceeded",
+              "desktop_state_invalid_key",
+              "desktop_state_invalid_value",
+              "desktop_state_slow_consumer"
+            ],
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "op": {
+            "enum": [
+              "error"
+            ],
+            "type": "string"
+          },
+          "req": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "op"
+        ],
+        "type": "object"
+      },
+      "DesktopStateErrorPayload": {
+        "properties": {
+          "code": {
+            "enum": [
+              "desktop_state_not_found",
+              "workspace_not_found",
+              "desktop_state_rev_conflict",
+              "desktop_state_value_too_large",
+              "desktop_state_key_quota_exceeded",
+              "desktop_state_invalid_key",
+              "desktop_state_invalid_value",
+              "desktop_state_slow_consumer"
+            ],
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "error"
+        ],
+        "type": "object"
+      },
+      "DesktopStateEventFrame": {
+        "properties": {
+          "entry": {
+            "properties": {
+              "deleted": {
+                "type": "boolean"
+              },
+              "key": {
+                "type": "string"
+              },
+              "rev": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "seq": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "value": {
+                "additionalProperties": {},
+                "nullable": true,
+                "type": "object"
+              }
+            },
+            "required": [
+              "deleted",
+              "key",
+              "rev",
+              "seq",
+              "updated_at",
+              "value"
+            ],
+            "type": "object"
+          },
+          "op": {
+            "enum": [
+              "event"
+            ],
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry",
+          "op",
+          "origin"
+        ],
+        "type": "object"
+      },
+      "DesktopStateListResponse": {
+        "properties": {
+          "as_of_seq": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "entries": {
+            "items": {
+              "properties": {
+                "deleted": {
+                  "type": "boolean"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "rev": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "seq": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "updated_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "value": {
+                  "additionalProperties": {},
+                  "nullable": true,
+                  "type": "object"
+                }
+              },
+              "required": [
+                "deleted",
+                "key",
+                "rev",
+                "seq",
+                "updated_at",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of_seq",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "DesktopStatePingFrame": {
+        "properties": {
+          "op": {
+            "enum": [
+              "ping"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      },
+      "DesktopStatePongFrame": {
+        "properties": {
+          "op": {
+            "enum": [
+              "pong"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      },
+      "DesktopStatePutRequest": {
+        "properties": {
+          "if_rev": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "value": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "DesktopStateSnapshotFrame": {
+        "properties": {
+          "as_of_seq": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "entries": {
+            "items": {
+              "properties": {
+                "deleted": {
+                  "type": "boolean"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "rev": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "seq": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "updated_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "value": {
+                  "additionalProperties": {},
+                  "nullable": true,
+                  "type": "object"
+                }
+              },
+              "required": [
+                "deleted",
+                "key",
+                "rev",
+                "seq",
+                "updated_at",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "op": {
+            "enum": [
+              "snapshot"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of_seq",
+          "entries",
+          "op"
+        ],
+        "type": "object"
+      },
+      "DesktopStateSubscribeFrame": {
+        "properties": {
+          "op": {
+            "enum": [
+              "sub"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      },
+      "DesktopStateWebSocketContract": {
+        "properties": {
+          "ack": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "ack"
+                ],
+                "type": "string"
+              },
+              "req": {
+                "type": "string"
+              },
+              "results": {
+                "items": {
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "seq": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "rev",
+                    "seq"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "op",
+              "req",
+              "results"
+            ],
+            "type": "object"
+          },
+          "apply": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "apply"
+                ],
+                "type": "string"
+              },
+              "ops": {
+                "items": {
+                  "properties": {
+                    "if_rev": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "put",
+                        "delete"
+                      ],
+                      "type": "string"
+                    },
+                    "value": {
+                      "additionalProperties": {},
+                      "nullable": true,
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "req": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "op",
+              "ops",
+              "req"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "desktop_state_not_found",
+                  "workspace_not_found",
+                  "desktop_state_rev_conflict",
+                  "desktop_state_value_too_large",
+                  "desktop_state_key_quota_exceeded",
+                  "desktop_state_invalid_key",
+                  "desktop_state_invalid_value",
+                  "desktop_state_slow_consumer"
+                ],
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              },
+              "op": {
+                "enum": [
+                  "error"
+                ],
+                "type": "string"
+              },
+              "req": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "op"
+            ],
+            "type": "object"
+          },
+          "event": {
+            "properties": {
+              "entry": {
+                "properties": {
+                  "deleted": {
+                    "type": "boolean"
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "rev": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "seq": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "value": {
+                    "additionalProperties": {},
+                    "nullable": true,
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "deleted",
+                  "key",
+                  "rev",
+                  "seq",
+                  "updated_at",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "op": {
+                "enum": [
+                  "event"
+                ],
+                "type": "string"
+              },
+              "origin": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "entry",
+              "op",
+              "origin"
+            ],
+            "type": "object"
+          },
+          "ping": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "ping"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "op"
+            ],
+            "type": "object"
+          },
+          "pong": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "pong"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "op"
+            ],
+            "type": "object"
+          },
+          "snapshot": {
+            "properties": {
+              "as_of_seq": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "entries": {
+                "items": {
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "seq": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "updated_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "value": {
+                      "additionalProperties": {},
+                      "nullable": true,
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "key",
+                    "rev",
+                    "seq",
+                    "updated_at",
+                    "value"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "op": {
+                "enum": [
+                  "snapshot"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "as_of_seq",
+              "entries",
+              "op"
+            ],
+            "type": "object"
+          },
+          "subscribe": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "sub"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "op"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "ack",
+          "apply",
+          "error",
+          "event",
+          "ping",
+          "pong",
+          "snapshot",
+          "subscribe"
+        ],
+        "type": "object"
+      },
       "LoopGraph": {
         "additionalProperties": false,
         "properties": {
@@ -164304,7 +165180,7 @@
                 }
               }
             },
-            "description": "Task event stream"
+            "description": "Standard SSE message stream; the payload type identifies each task event"
           },
           "404": {
             "content": {
@@ -186341,6 +187217,1492 @@
         "summary": "Durably dismiss one automation suggestion",
         "tags": [
           "automation"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/desktop-state": {
+      "get": {
+        "operationId": "listDesktopState",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "as_of_seq": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "entries": {
+                      "items": {
+                        "properties": {
+                          "deleted": {
+                            "type": "boolean"
+                          },
+                          "key": {
+                            "type": "string"
+                          },
+                          "rev": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "seq": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "updated_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "value": {
+                            "additionalProperties": {},
+                            "nullable": true,
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "deleted",
+                          "key",
+                          "rev",
+                          "seq",
+                          "updated_at",
+                          "value"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "as_of_seq",
+                    "entries"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "List one workspace desktop-state snapshot",
+        "tags": [
+          "workspaces"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/desktop-state/apply": {
+      "post": {
+        "operationId": "applyDesktopState",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "ops": {
+                    "items": {
+                      "properties": {
+                        "if_rev": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "enum": [
+                            "put",
+                            "delete"
+                          ],
+                          "type": "string"
+                        },
+                        "value": {
+                          "additionalProperties": {},
+                          "nullable": true,
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "kind"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "ops"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "deleted": {
+                            "type": "boolean"
+                          },
+                          "key": {
+                            "type": "string"
+                          },
+                          "rev": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "seq": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "updated_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "value": {
+                            "additionalProperties": {},
+                            "nullable": true,
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "deleted",
+                          "key",
+                          "rev",
+                          "seq",
+                          "updated_at",
+                          "value"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "results"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Applied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Desktop state or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Revision conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Payload too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid desktop-state mutation"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Atomically mutate workspace desktop state",
+        "tags": [
+          "workspaces"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/desktop-state/stream": {
+      "get": {
+        "operationId": "streamDesktopState",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ack": {
+                      "properties": {
+                        "op": {
+                          "enum": [
+                            "ack"
+                          ],
+                          "type": "string"
+                        },
+                        "req": {
+                          "type": "string"
+                        },
+                        "results": {
+                          "items": {
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "rev": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "seq": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "rev",
+                              "seq"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "op",
+                        "req",
+                        "results"
+                      ],
+                      "type": "object"
+                    },
+                    "apply": {
+                      "properties": {
+                        "op": {
+                          "enum": [
+                            "apply"
+                          ],
+                          "type": "string"
+                        },
+                        "ops": {
+                          "items": {
+                            "properties": {
+                              "if_rev": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "key": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "put",
+                                  "delete"
+                                ],
+                                "type": "string"
+                              },
+                              "value": {
+                                "additionalProperties": {},
+                                "nullable": true,
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "kind"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "req": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "op",
+                        "ops",
+                        "req"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "desktop_state_not_found",
+                            "workspace_not_found",
+                            "desktop_state_rev_conflict",
+                            "desktop_state_value_too_large",
+                            "desktop_state_key_quota_exceeded",
+                            "desktop_state_invalid_key",
+                            "desktop_state_invalid_value",
+                            "desktop_state_slow_consumer"
+                          ],
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "op": {
+                          "enum": [
+                            "error"
+                          ],
+                          "type": "string"
+                        },
+                        "req": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "op"
+                      ],
+                      "type": "object"
+                    },
+                    "event": {
+                      "properties": {
+                        "entry": {
+                          "properties": {
+                            "deleted": {
+                              "type": "boolean"
+                            },
+                            "key": {
+                              "type": "string"
+                            },
+                            "rev": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "seq": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "updated_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "value": {
+                              "additionalProperties": {},
+                              "nullable": true,
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "deleted",
+                            "key",
+                            "rev",
+                            "seq",
+                            "updated_at",
+                            "value"
+                          ],
+                          "type": "object"
+                        },
+                        "op": {
+                          "enum": [
+                            "event"
+                          ],
+                          "type": "string"
+                        },
+                        "origin": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "entry",
+                        "op",
+                        "origin"
+                      ],
+                      "type": "object"
+                    },
+                    "ping": {
+                      "properties": {
+                        "op": {
+                          "enum": [
+                            "ping"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "op"
+                      ],
+                      "type": "object"
+                    },
+                    "pong": {
+                      "properties": {
+                        "op": {
+                          "enum": [
+                            "pong"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "op"
+                      ],
+                      "type": "object"
+                    },
+                    "snapshot": {
+                      "properties": {
+                        "as_of_seq": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "entries": {
+                          "items": {
+                            "properties": {
+                              "deleted": {
+                                "type": "boolean"
+                              },
+                              "key": {
+                                "type": "string"
+                              },
+                              "rev": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "seq": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "updated_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "value": {
+                                "additionalProperties": {},
+                                "nullable": true,
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "deleted",
+                              "key",
+                              "rev",
+                              "seq",
+                              "updated_at",
+                              "value"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "op": {
+                          "enum": [
+                            "snapshot"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "as_of_seq",
+                        "entries",
+                        "op"
+                      ],
+                      "type": "object"
+                    },
+                    "subscribe": {
+                      "properties": {
+                        "op": {
+                          "enum": [
+                            "sub"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "op"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "ack",
+                    "apply",
+                    "error",
+                    "event",
+                    "ping",
+                    "pong",
+                    "snapshot",
+                    "subscribe"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "WebSocket upgrade and frame contract"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          }
+        },
+        "summary": "Stream one workspace desktop-state snapshot and deltas",
+        "tags": [
+          "workspaces"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/desktop-state/{key}": {
+      "delete": {
+        "operationId": "deleteDesktopState",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Desktop-state key",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Expected current revision",
+            "in": "query",
+            "name": "if_rev",
+            "schema": {
+              "format": "int32",
+              "maximum": 9007199254740991,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Desktop state or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Revision conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Payload too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid desktop-state mutation"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Delete one workspace desktop-state value",
+        "tags": [
+          "workspaces"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "get": {
+        "operationId": "getDesktopState",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Desktop-state key",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "seq": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "updated_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "value": {
+                      "additionalProperties": {},
+                      "nullable": true,
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "key",
+                    "rev",
+                    "seq",
+                    "updated_at",
+                    "value"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Desktop state or workspace not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Read one workspace desktop-state value",
+        "tags": [
+          "workspaces"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "put": {
+        "operationId": "putDesktopState",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Desktop-state key",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "if_rev": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "value": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "seq": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "updated_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "value": {
+                      "additionalProperties": {},
+                      "nullable": true,
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "key",
+                    "rev",
+                    "seq",
+                    "updated_at",
+                    "value"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Updated"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Desktop state or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Revision conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Payload too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid desktop-state mutation"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        "desktop_state_not_found",
+                        "workspace_not_found",
+                        "desktop_state_rev_conflict",
+                        "desktop_state_value_too_large",
+                        "desktop_state_key_quota_exceeded",
+                        "desktop_state_invalid_key",
+                        "desktop_state_invalid_value",
+                        "desktop_state_slow_consumer"
+                      ],
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Create or replace one workspace desktop-state value",
+        "tags": [
+          "workspaces"
         ],
         "x-agh-transports": [
           "http",

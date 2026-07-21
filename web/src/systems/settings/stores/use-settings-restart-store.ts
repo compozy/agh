@@ -12,7 +12,13 @@ const settingsRestartStorageKey = "agh:settings:restart";
 
 type PersistedSettingsRestartState = Pick<
   SettingsRestartState,
-  "operationId" | "status" | "activeSessionCount" | "failureReason" | "lastMutation"
+  | "operationId"
+  | "status"
+  | "activeSessionCount"
+  | "failureReason"
+  | "lastMutation"
+  | "mutationGeneration"
+  | "snoozedMutationGeneration"
 >;
 
 const settingsRestartStorage = createJSONStorage<PersistedSettingsRestartState>(() => {
@@ -24,7 +30,7 @@ const settingsRestartStorage = createJSONStorage<PersistedSettingsRestartState>(
 });
 
 function resetStateSnapshot(): SettingsRestartStore {
-  const { startRestart, updateRestart, clearRestart, recordMutation } =
+  const { startRestart, updateRestart, clearRestart, dismissRestartNotice, recordMutation } =
     useSettingsRestartStore.getState();
 
   return {
@@ -32,6 +38,7 @@ function resetStateSnapshot(): SettingsRestartStore {
     startRestart,
     updateRestart,
     clearRestart,
+    dismissRestartNotice,
     recordMutation,
   };
 }
@@ -46,6 +53,8 @@ export const useSettingsRestartStore = create<SettingsRestartStore>()(
       activeSessionCount: state.activeSessionCount,
       failureReason: state.failureReason,
       lastMutation: state.lastMutation,
+      mutationGeneration: state.mutationGeneration,
+      snoozedMutationGeneration: state.snoozedMutationGeneration,
     }),
   })
 );

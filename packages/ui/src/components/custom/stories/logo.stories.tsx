@@ -10,7 +10,7 @@ const meta: Meta<typeof Logo> = {
     docs: {
       description: {
         component:
-          "AGH brand mark. Use `logo` for full lockups, `symbol` for square app surfaces, and `lettering` only where the symbol is already present nearby.",
+          "AGH brand mark. Use `logo` for full lockups, `symbol` for square app surfaces (including OS-shell menubar chrome at a smaller size class), and `lettering` only where the symbol is already present nearby.",
       },
     },
   },

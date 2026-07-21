@@ -1,6 +1,13 @@
 import { Activity, AlertCircle, AlertTriangle, Info } from "lucide-react";
 
-import { Alert, AlertDescription, AlertMeta, AlertTitle, Pill } from "@agh/ui";
+import {
+  Alert,
+  AlertDescription,
+  AlertMeta,
+  AlertTitle,
+  formatDuration as formatCanonicalDuration,
+  Pill,
+} from "@agh/ui";
 
 import type { AgentEventPayload, RuntimeActivityPayload, TranscriptMarkerPayload } from "../types";
 import {
@@ -14,20 +21,7 @@ function formatDuration(seconds: number | undefined): string | null {
   if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) {
     return null;
   }
-
-  const wholeSeconds = Math.floor(seconds);
-  if (wholeSeconds < 60) {
-    return `${wholeSeconds}s`;
-  }
-
-  const wholeMinutes = Math.floor(wholeSeconds / 60);
-  if (wholeMinutes < 60) {
-    return `${wholeMinutes}m`;
-  }
-
-  const hours = Math.floor(wholeMinutes / 60);
-  const minutes = wholeMinutes % 60;
-  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+  return formatCanonicalDuration(Math.floor(seconds) * 1_000);
 }
 
 function humanizeKind(kind: string | undefined): string | null {

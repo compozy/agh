@@ -3,64 +3,38 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   addTaskDependency,
   approveTask,
-  archiveTask,
-  attachTaskRunSession,
   cancelTask,
-  cancelTaskRun,
-  completeTaskRun,
+  clearTaskBlock,
   createChildTask,
   createTask,
   deleteTask,
-  dismissTask,
   enqueueTaskRun,
   fanOutTaskRuns,
-  failTaskRun,
-  forceFailTaskRun,
-  forceReleaseTaskRun,
-  markTaskRead,
   pauseTask,
   publishTask,
   recoverTask,
   rejectTask,
   removeTaskDependency,
-  retryTaskRun,
   resumeTask,
-  startTaskRun,
   updateTask,
 } from "../adapters/tasks-api";
-import {
-  invalidateAggregateQueries,
-  invalidateTaskQueries,
-  invalidateTriageQueries,
-} from "./task-query-invalidation";
+import { invalidateAggregateQueries, invalidateTaskQueries } from "./task-query-invalidation";
 import { tasksKeys } from "../lib/query-keys";
 import type {
   AddTaskDependencyRequest,
-  AttachTaskRunSessionRequest,
   CancelTaskRequest,
-  CancelTaskRunRequest,
-  CompleteTaskRunRequest,
   CreateChildTaskRequest,
   CreateTaskRequest,
   EnqueueTaskRunRequest,
-  FailTaskRunRequest,
   FanOutTaskRunsRequest,
-  ForceFailTaskRunRequest,
-  ForceReleaseTaskRunRequest,
   PauseTaskRequest,
   RecoverTaskRequest,
-  RetryTaskRunRequest,
   ResumeTaskRequest,
-  StartTaskRunRequest,
   UpdateTaskRequest,
 } from "../types";
 
 interface TaskIdParams {
   id: string;
-}
-
-interface TaskRunIdParams {
-  runId: string;
 }
 
 interface UpdateTaskParams extends TaskIdParams {
@@ -81,6 +55,11 @@ interface ResumeTaskParams extends TaskIdParams {
 
 interface RecoverTaskParams extends TaskIdParams {
   data?: RecoverTaskRequest;
+}
+
+interface ClearTaskBlockParams extends TaskIdParams {
+  blockId: string;
+  note?: string;
 }
 
 interface CreateChildTaskParams {
@@ -104,36 +83,10 @@ interface FanOutTaskRunsParams extends TaskIdParams {
   data: FanOutTaskRunsRequest;
 }
 
-interface AttachTaskRunSessionParams extends TaskRunIdParams {
-  data: AttachTaskRunSessionRequest;
-}
-
-interface CancelTaskRunParams extends TaskRunIdParams {
-  data?: CancelTaskRunRequest;
-}
-
-interface StartTaskRunParams extends TaskRunIdParams {
-  data?: StartTaskRunRequest;
-}
-
-interface CompleteTaskRunParams extends TaskRunIdParams {
-  data?: CompleteTaskRunRequest;
-}
-
-interface FailTaskRunParams extends TaskRunIdParams {
-  data: FailTaskRunRequest;
-}
-
-interface ForceReleaseTaskRunParams extends TaskRunIdParams {
-  data?: ForceReleaseTaskRunRequest;
-}
-
-interface ForceFailTaskRunParams extends TaskRunIdParams {
-  data: ForceFailTaskRunRequest;
-}
-
-interface RetryTaskRunParams extends TaskRunIdParams {
-  data?: RetryTaskRunRequest;
+function acknowledgeMutationSettlement(error: unknown): void {
+  // mutateAsync callers own user-visible failure reporting. Settled handlers
+  // only converge cached reads and intentionally run after either outcome.
+  void error;
 }
 
 export function useCreateTask() {
@@ -151,11 +104,13 @@ export function useUpdateTask() {
 
   return useMutation({
     mutationFn: ({ id, data }: UpdateTaskParams) => updateTask(id, data),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -164,7 +119,8 @@ export function useDeleteTask() {
 
   return useMutation({
     mutationFn: ({ id }: TaskIdParams) => deleteTask(id),
-    onSettled: (_result, _error, { id }) => {
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
       queryClient.removeQueries({ queryKey: tasksKeys.detail(id) });
 
       return Promise.all([
@@ -180,11 +136,13 @@ export function usePublishTask() {
 
   return useMutation({
     mutationFn: ({ id }: TaskIdParams) => publishTask(id),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -193,11 +151,13 @@ export function useCancelTask() {
 
   return useMutation({
     mutationFn: ({ id, data }: CancelTaskParams) => cancelTask(id, data ?? {}),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -206,11 +166,13 @@ export function usePauseTask() {
 
   return useMutation({
     mutationFn: ({ id, data }: PauseTaskParams) => pauseTask(id, data),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -219,11 +181,13 @@ export function useResumeTask() {
 
   return useMutation({
     mutationFn: ({ id, data }: ResumeTaskParams) => resumeTask(id, data ?? {}),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -232,11 +196,13 @@ export function useRecoverTask() {
 
   return useMutation({
     mutationFn: ({ id, data }: RecoverTaskParams) => recoverTask(id, data ?? {}),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -245,11 +211,13 @@ export function useApproveTask() {
 
   return useMutation({
     mutationFn: ({ id }: TaskIdParams) => approveTask(id),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -258,11 +226,28 @@ export function useRejectTask() {
 
   return useMutation({
     mutationFn: ({ id }: TaskIdParams) => rejectTask(id),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
+  });
+}
+
+export function useClearTaskBlock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, blockId, note }: ClearTaskBlockParams) => clearTaskBlock(id, blockId, note),
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
+        invalidateTaskQueries(queryClient, id),
+        invalidateAggregateQueries(queryClient),
+      ]);
+    },
   });
 }
 
@@ -271,11 +256,13 @@ export function useCreateChildTask() {
 
   return useMutation({
     mutationFn: ({ parentId, data }: CreateChildTaskParams) => createChildTask(parentId, data),
-    onSettled: (_result, _error, { parentId }) =>
-      Promise.all([
+    onSettled: (_result, error, { parentId }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, parentId),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -284,11 +271,13 @@ export function useAddTaskDependency() {
 
   return useMutation({
     mutationFn: ({ id, data }: AddTaskDependencyParams) => addTaskDependency(id, data),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -298,11 +287,13 @@ export function useRemoveTaskDependency() {
   return useMutation({
     mutationFn: ({ id, dependsOnId }: RemoveTaskDependencyParams) =>
       removeTaskDependency(id, dependsOnId),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -311,11 +302,13 @@ export function useEnqueueTaskRun() {
 
   return useMutation({
     mutationFn: ({ id, data }: EnqueueTaskRunParams) => enqueueTaskRun(id, data ?? {}),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -324,148 +317,12 @@ export function useFanOutTaskRuns() {
 
   return useMutation({
     mutationFn: ({ id, data }: FanOutTaskRunsParams) => fanOutTaskRuns(id, data),
-    onSettled: (_result, _error, { id }) =>
-      Promise.all([
+    onSettled: (_result, error, { id }) => {
+      acknowledgeMutationSettlement(error);
+      return Promise.all([
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
-      ]),
-  });
-}
-
-export function useAttachTaskRunSession() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ runId, data }: AttachTaskRunSessionParams) => attachTaskRunSession(runId, data),
-    onSettled: (_result, _error, { runId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-        invalidateTaskQueries(queryClient),
-      ]),
-  });
-}
-
-export function useCancelTaskRun() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ runId, data }: CancelTaskRunParams) => cancelTaskRun(runId, data ?? {}),
-    onSettled: (_result, _error, { runId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-        invalidateTaskQueries(queryClient),
-        invalidateAggregateQueries(queryClient),
-      ]),
-  });
-}
-
-export function useStartTaskRun() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ runId, data }: StartTaskRunParams) => startTaskRun(runId, data ?? {}),
-    onSettled: (_result, _error, { runId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-        invalidateTaskQueries(queryClient),
-      ]),
-  });
-}
-
-export function useCompleteTaskRun() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ runId, data }: CompleteTaskRunParams) => completeTaskRun(runId, data ?? {}),
-    onSettled: (_result, _error, { runId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-        invalidateTaskQueries(queryClient),
-        invalidateAggregateQueries(queryClient),
-      ]),
-  });
-}
-
-export function useFailTaskRun() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ runId, data }: FailTaskRunParams) => failTaskRun(runId, data),
-    onSettled: (_result, _error, { runId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-        invalidateTaskQueries(queryClient),
-        invalidateAggregateQueries(queryClient),
-      ]),
-  });
-}
-
-export function useForceReleaseTaskRun() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ runId, data }: ForceReleaseTaskRunParams) =>
-      forceReleaseTaskRun(runId, data ?? {}),
-    onSettled: (_result, _error, { runId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-        invalidateTaskQueries(queryClient),
-        invalidateAggregateQueries(queryClient),
-      ]),
-  });
-}
-
-export function useForceFailTaskRun() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ runId, data }: ForceFailTaskRunParams) => forceFailTaskRun(runId, data),
-    onSettled: (_result, _error, { runId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-        invalidateTaskQueries(queryClient),
-        invalidateAggregateQueries(queryClient),
-      ]),
-  });
-}
-
-export function useRetryTaskRun() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ runId, data }: RetryTaskRunParams) => retryTaskRun(runId, data ?? {}),
-    onSettled: (_result, _error, { runId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-        invalidateTaskQueries(queryClient),
-        invalidateAggregateQueries(queryClient),
-      ]),
-  });
-}
-
-export function useMarkTaskRead() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id }: TaskIdParams) => markTaskRead(id),
-    onSettled: (_result, _error, { id }) => invalidateTriageQueries(queryClient, id),
-  });
-}
-
-export function useArchiveTask() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id }: TaskIdParams) => archiveTask(id),
-    onSettled: (_result, _error, { id }) => invalidateTriageQueries(queryClient, id),
-  });
-}
-
-export function useDismissTask() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id }: TaskIdParams) => dismissTask(id),
-    onSettled: (_result, _error, { id }) => invalidateTriageQueries(queryClient, id),
+      ]);
+    },
   });
 }

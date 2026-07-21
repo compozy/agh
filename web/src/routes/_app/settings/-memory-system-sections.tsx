@@ -1,5 +1,5 @@
-import { SettingsFieldRow, SettingsNumberInput } from "@/systems/settings";
-import { Input, Section, Switch } from "@agh/ui";
+import { SettingsFieldRow, SettingsGroup, SettingsNumberInput } from "@/systems/settings";
+import { Input, Switch } from "@agh/ui";
 import {
   type DraftSectionProps,
   type ValidatedSectionProps,
@@ -8,7 +8,7 @@ import {
 
 export function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <Section divided label="Memory system">
+    <SettingsGroup title="Memory system">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-enabled`}
         label="Memory persistence"
@@ -30,7 +30,6 @@ export function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
         data-testid={`${TEST_PREFIX}-global-dir`}
         label="Global memory directory"
         description="Root for global-scope memory files"
-        hint="DEFAULT"
         control={
           <Input
             className="w-72 font-mono"
@@ -49,7 +48,7 @@ export function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -60,10 +59,9 @@ export function ProviderResilienceSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <Section
-      divided
-      label="Memory provider"
-      note="circuit-breaker policy when an external memory provider is configured"
+    <SettingsGroup
+      title="Memory provider"
+      description="circuit-breaker policy when an external memory provider is configured"
     >
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-provider-name`}
@@ -155,6 +153,6 @@ export function ProviderResilienceSection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }

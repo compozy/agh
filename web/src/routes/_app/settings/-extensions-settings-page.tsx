@@ -1,13 +1,26 @@
 import { AlertCircle } from "lucide-react";
 
-import { useSettingsExtensionsPage } from "@/hooks/routes/use-settings-extensions-page";
-import { restartBannerPropsFor } from "@/systems/settings";
-import { Button, PageShell, RestartBanner, Spinner } from "@agh/ui";
+import { useSettingsExtensionsPage } from "@/systems/settings/hooks/use-settings-extensions-page";
+import {
+  SettingsPageFrame,
+  SettingsSaveBar,
+  useSettingsSaveBarState,
+  useSettingsTopbar,
+} from "@/systems/settings";
+import { Button, Spinner } from "@agh/ui";
 
 import { PolicySection } from "./-extensions-policy-section";
 
 export function ExtensionsSettingsPage() {
   const page = useSettingsExtensionsPage();
+  useSettingsTopbar("extensions");
+  const saveBarState = useSettingsSaveBarState({
+    isDirty: page.isPolicyDirty,
+    isSaving: page.isSavingPolicy,
+    error: page.savePolicyError,
+    warnings: page.policyWarnings,
+  });
+
   if (page.isLoading)
     return (
       <div
@@ -34,22 +47,44 @@ export function ExtensionsSettingsPage() {
         </div>
       </div>
     );
-  const banner = restartBannerPropsFor("extensions", page.restart);
+  const registry = page.draft.marketplace.registry?.trim();
   return (
-    <PageShell banner={banner ? <RestartBanner {...banner} /> : null} slug="extensions">
+    <SettingsPageFrame
+      description="What extensions are allowed to run on this daemon, and from where."
+      meta={[
+        {
+          key: "source",
+          content: (
+            <span>
+              Source <span className="font-medium text-muted">{registry || "unset"}</span>
+            </span>
+          ),
+        },
+        {
+          key: "unverified",
+          content: page.draft.marketplace.allow_unverified
+            ? "Unverified allowed"
+            : "Unverified blocked",
+        },
+      ]}
+      restart={page.restart}
+      saveBar={
+        <SettingsSaveBar
+          onReset={page.handleResetPolicy}
+          onSave={page.handleSavePolicy}
+          slug="extensions"
+          state={saveBarState}
+        />
+      }
+      slug="extensions"
+    >
       <PolicySection
         canMutate={page.canMutatePolicy}
         draft={page.draft}
-        error={page.savePolicyError}
-        isDirty={page.isPolicyDirty}
-        isSaving={page.isSavingPolicy}
-        onReset={page.handleResetPolicy}
-        onSave={page.handleSavePolicy}
         setDraft={value =>
           page.updatePolicyDraft(current => (typeof value === "function" ? value(current) : value))
         }
-        warnings={page.policyWarnings}
       />
-    </PageShell>
+    </SettingsPageFrame>
   );
 }

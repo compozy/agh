@@ -1,8 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { Network as NetworkIcon } from "lucide-react";
 
 import {
-  PageHead,
   SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
   SIDEBAR_PANEL_WIDTH_DEFAULT,
   SIDEBAR_PANEL_WIDTH_MD,
@@ -20,6 +18,7 @@ import {
 } from "@/components/sidebar-nav-classes";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
+import { getOtherDirectSessionId } from "../../lib/network-window-location";
 import type {
   NetworkChannelSummary,
   NetworkDirectRoomSummary,
@@ -30,7 +29,7 @@ import { ChannelRailRecents } from "./channel-rail-recents";
 import { ChannelRailRow } from "./channel-rail-row";
 
 const CHANNELS_HEADING = "Channels";
-const DIRECT_ROOMS_HEADING = "Direct Rooms";
+const DIRECT_ROOMS_HEADING = "Direct rooms";
 
 export const CHANNEL_RAIL_WIDTH_DEFAULT = SIDEBAR_PANEL_WIDTH_DEFAULT;
 export const CHANNEL_RAIL_WIDTH_MD = SIDEBAR_PANEL_WIDTH_MD;
@@ -62,19 +61,6 @@ export interface ChannelRailProps {
   hasUnread: (channel: string) => boolean;
 }
 
-function pickOtherSessionId(
-  direct: NetworkDirectRoomSummary,
-  selfSessionId: string | null | undefined
-): string {
-  if (!selfSessionId) {
-    return direct.session_a;
-  }
-  if (direct.session_a === selfSessionId) {
-    return direct.session_b;
-  }
-  return direct.session_a;
-}
-
 interface DirectRoomRailRowProps {
   workspaceId: string;
   channel: string;
@@ -90,7 +76,7 @@ function DirectRoomRailRow({
   active,
   selfSessionId,
 }: DirectRoomRailRowProps) {
-  const otherSessionId = pickOtherSessionId(direct, selfSessionId);
+  const otherSessionId = getOtherDirectSessionId(direct, selfSessionId) ?? "unknown";
   const lastActivity = direct.last_activity_at
     ? formatNetworkRelativeTime(direct.last_activity_at)
     : null;
@@ -158,14 +144,6 @@ export function ChannelRail({
       data-viewport={viewport}
       style={{ width: panelWidth }}
     >
-      <PageHead
-        className="border-b border-line-soft px-4 py-3"
-        count={hasAnyChannel ? pinnedChannels.length + unpinnedChannels.length : undefined}
-        data-testid="network-page-head"
-        icon={NetworkIcon}
-        title="Network"
-        variant="compact"
-      />
       <div className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
         <section aria-label="Channels" className="space-y-1">
           <SidebarSectionLabel>{CHANNELS_HEADING}</SidebarSectionLabel>
@@ -217,7 +195,7 @@ export function ChannelRail({
               className="px-2 py-1 text-eyebrow text-subtle"
               data-testid="network-rail-directs-empty"
             >
-              Select a channel to see direct rooms.
+              No direct rooms yet.
             </p>
           ) : isDirectsLoading && !hasAnyDirect ? (
             <div className="space-y-1.5 px-2 py-1" data-testid="network-rail-directs-loading">

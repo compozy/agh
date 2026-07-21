@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
   cn,
+  formatDuration as formatCanonicalDuration,
 } from "@agh/ui";
 
 import { getAgentSessionStatus } from "../lib/session-status";
@@ -220,14 +221,7 @@ const AGENT_SESSION_SKELETON_IDS = [
 
 function formatDuration(seconds: number | undefined | null): string {
   if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return "--";
-  const total = Math.round(seconds);
-  if (total < 60) return `${total}s`;
-  const minutes = Math.floor(total / 60);
-  const remainder = total % 60;
-  if (minutes < 60) return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
-  const hours = Math.floor(minutes / 60);
-  const remainderMinutes = minutes % 60;
-  return remainderMinutes === 0 ? `${hours}h` : `${hours}h ${remainderMinutes}m`;
+  return formatCanonicalDuration(Math.round(seconds) * 1_000);
 }
 
 function formatIterations(current: number | undefined, max: number | undefined): string {

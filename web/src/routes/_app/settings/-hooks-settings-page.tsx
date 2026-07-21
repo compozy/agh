@@ -1,27 +1,15 @@
 import { AlertCircle } from "lucide-react";
 
-import { useSettingsHooksPage } from "@/hooks/routes/use-settings-hooks-page";
+import { useSettingsHooksPage } from "@/systems/settings/hooks/use-settings-hooks-page";
 import { NotificationPresetsPanel } from "@/systems/notifications";
-import { restartBannerPropsFor, SettingsPageHead } from "@/systems/settings";
-import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";
+import { SettingsPageFrame, useSettingsTopbar } from "@/systems/settings";
+import { Button, Spinner } from "@agh/ui";
 
 import { HooksSection } from "./-hooks-section";
 
 export function HooksSettingsPage() {
   const page = useSettingsHooksPage();
-  const statusLine = page.envelope ? (
-    <StatusLine
-      data-testid="settings-page-hooks-status-line"
-      items={[
-        {
-          key: "hooks",
-          value: `${page.hooksCounts.enabled}/${page.hooksCounts.total} hooks enabled`,
-          tone: "neutral",
-        },
-      ]}
-      status="connected"
-    />
-  ) : null;
+  useSettingsTopbar("hooks");
   if (page.isLoading)
     return (
       <div
@@ -48,11 +36,21 @@ export function HooksSettingsPage() {
         </div>
       </div>
     );
-  const banner = restartBannerPropsFor("hooks", page.restart);
   return (
-    <PageShell
-      banner={banner ? <RestartBanner {...banner} /> : null}
-      head={<SettingsPageHead slug="hooks" statusLine={statusLine} />}
+    <SettingsPageFrame
+      description="What the daemon does on lifecycle events — each hook applies the moment you flip it."
+      meta={[
+        {
+          key: "hooks",
+          content: (
+            <span>
+              <span className="font-medium text-muted">{page.hooksCounts.enabled}</span> of{" "}
+              {page.hooksCounts.total} hooks enabled
+            </span>
+          ),
+        },
+      ]}
+      restart={page.restart}
       slug="hooks"
     >
       <HooksSection
@@ -72,6 +70,6 @@ export function HooksSettingsPage() {
         pendingName={page.pendingNotificationPresetName}
         presets={page.notificationPresets}
       />
-    </PageShell>
+    </SettingsPageFrame>
   );
 }
