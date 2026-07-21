@@ -55,10 +55,13 @@ describe("formatDuration", () => {
     expect(formatDuration(Number.NaN)).toBe("0s");
   });
 
-  it("Should compose hours, minutes, seconds", () => {
+  it("Should compose the two largest duration units including days", () => {
     expect(formatDuration(125_000)).toBe("2m 5s");
-    expect(formatDuration(3_600_000)).toBe("1h 0m");
+    expect(formatDuration(120_000)).toBe("2m");
+    expect(formatDuration(3_600_000)).toBe("1h");
     expect(formatDuration(3_725_000)).toBe("1h 2m");
+    expect(formatDuration(86_400_000)).toBe("1d");
+    expect(formatDuration(86_700_000)).toBe("1d 5m");
     expect(formatDuration(90_061_000)).toBe("1d 1h");
   });
 });

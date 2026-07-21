@@ -35,7 +35,7 @@ export function StorybookUserHomeDirSetup({ userHomeDir }: { userHomeDir: string
   return null;
 }
 
-export function StorybookRestartBannerSetup({ section }: { section: SettingsSectionName }) {
+export function StorybookRestartNoticeSetup({ section }: { section: SettingsSectionName }) {
   useEffect(() => {
     useSettingsRestartStore.getState().recordMutation({
       section,

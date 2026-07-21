@@ -10,7 +10,6 @@ import {
   ListingToolbar,
   NativeSelect,
   NativeSelectOption,
-  RestartBanner,
   useTopbarSlot,
 } from "@agh/ui";
 
@@ -22,9 +21,9 @@ import {
 } from "../hooks/use-sandbox-page";
 import { SandboxListFilters, SandboxProfilesList, SandboxProfileSheet } from "../components";
 import {
-  restartBannerPropsFor,
   SettingsEditorDialog,
   SettingsFieldRow,
+  SettingsRestartNotice,
   SettingsSourceBadge,
 } from "@/systems/settings";
 import { SandboxDeleteDialog, SandboxLastActionAlert } from "../components/sandbox-dialogs";
@@ -85,10 +84,13 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
     return <BlockLoading className="flex-1" data-testid="sandbox-page-loading" />;
   }
 
-  const bannerProps = restartBannerPropsFor("sandbox", page.restart);
   const banner = (
     <>
-      {bannerProps ? <RestartBanner {...bannerProps} className="px-9" /> : null}
+      {page.restart.isVisible ? (
+        <div className="px-9 pt-4">
+          <SettingsRestartNotice restart={page.restart} slug="sandbox" />
+        </div>
+      ) : null}
       {page.lastAction ? (
         <div className="px-9 pt-4">
           <SandboxLastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />

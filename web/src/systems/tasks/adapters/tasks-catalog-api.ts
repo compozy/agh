@@ -278,7 +278,9 @@ export async function clearTaskBlock(
     signal,
   });
   if (apiRequestFailed(response, error)) {
-    if (response.status === 404) throw new TasksApiError(`Task block not found: ${blockId}`, 404);
+    if (response.status === 404) {
+      throw new TasksApiError(`Task "${id}" or block "${blockId}" was not found`, 404);
+    }
     throw new TasksApiError(
       defaultApiErrorMessage(`Failed to clear block "${blockId}" on task "${id}"`, response, error),
       response.status

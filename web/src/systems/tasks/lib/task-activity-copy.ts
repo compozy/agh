@@ -17,7 +17,9 @@ function payloadString(item: TaskTimelineItem, key: string): string | undefined 
   const payload = item.payload;
   if (!payload || typeof payload !== "object") return undefined;
   const value = (payload as Record<string, unknown>)[key];
-  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function payloadDetail(item: TaskTimelineItem): string | undefined {
@@ -29,7 +31,7 @@ function payloadDetail(item: TaskTimelineItem): string | undefined {
 }
 
 function actorRef(item: TaskTimelineItem): string | undefined {
-  const ref = item.origin?.ref;
+  const ref = item.actor?.ref;
   return typeof ref === "string" && ref.trim().length > 0 ? ref : undefined;
 }
 
@@ -44,11 +46,13 @@ function byActor(base: string, item: TaskTimelineItem): string {
 }
 
 /**
- * Humanizes a task timeline event into plain product language (§7.2 of the
- * task-details redesign plan). Raw `event_type` + `sequence` stay available on
+ * Humanizes a task timeline event into plain product language. Raw
+ * `event_type` + `sequence` stay available on
  * the item for the operator microtext; this map owns only the words.
  * Unmapped types fall back to a generic "System event" title so new runtime
  * events degrade gracefully instead of leaking scheduler vocabulary.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §7.2
  */
 export function humanizeTaskEvent(item: TaskTimelineItem): TaskActivityView {
   const detail = payloadDetail(item);
@@ -71,8 +75,10 @@ export function humanizeTaskEvent(item: TaskTimelineItem): TaskActivityView {
       return { title: `${attemptLabel(item)} started`, detail, category: "runs" };
     case "task.run_session_bound":
       return { title: "Session attached", detail, category: "runs" };
+    case "task.run.completed":
     case "task.run_completed":
       return { title: `${attemptLabel(item)} completed`, detail, category: "runs" };
+    case "task.run.failed":
     case "task.run_failed":
       return {
         title: `${attemptLabel(item)} failed`,

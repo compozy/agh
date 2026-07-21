@@ -640,8 +640,13 @@ func TestTaskStreamHandlerUsesSharedSSEPathIntegration(t *testing.T) {
 		t.Fatal("stream response was not flushed")
 	}
 	records := testutil.ParseSSE(t, resp.Body.String())
-	if len(records) != 1 || records[0].ID != "21" || records[0].Event != "task.run.started" {
+	if len(records) != 1 || records[0].ID != "21" || records[0].Event != "" {
 		t.Fatalf("stream records = %#v", records)
+	}
+	var payload contract.TaskStreamEventPayload
+	testutil.DecodeSSEData(t, records[0], &payload)
+	if payload.Type != "task.run.started" {
+		t.Fatalf("stream payload type = %q, want %q", payload.Type, "task.run.started")
 	}
 	if streamQuery.AfterSequence != 7 || streamActor.Origin.Ref != "tasks.stream" {
 		t.Fatalf("stream query/actor = %#v / %#v", streamQuery, streamActor)

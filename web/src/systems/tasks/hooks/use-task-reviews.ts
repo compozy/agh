@@ -7,6 +7,7 @@ import {
   taskRunReviewsOptions,
 } from "../lib/query-options";
 import { tasksKeys } from "../lib/query-keys";
+import { acknowledgeTaskMutationSettlement } from "../lib/task-mutation";
 import type {
   TaskReviewsFilter,
   TaskRunReviewRequest,
@@ -90,12 +91,14 @@ export function useRequestTaskRunReview() {
 
   return useMutation({
     mutationFn: ({ runId, data }: RequestReviewParams) => requestTaskRunReview(runId, data),
-    onSettled: (result, _error, { runId, data }) =>
-      invalidateReviewQueries(queryClient, {
+    onSettled: (result, error, { runId, data }) => {
+      acknowledgeTaskMutationSettlement(error);
+      return invalidateReviewQueries(queryClient, {
         runId,
         taskId: result?.review.task_id ?? data.task_id,
         reviewId: result?.review.review_id,
-      }),
+      });
+    },
   });
 }
 
@@ -105,11 +108,13 @@ export function useSubmitTaskRunReviewVerdict() {
   return useMutation({
     mutationFn: ({ reviewId, data }: SubmitVerdictParams) =>
       submitTaskRunReviewVerdict(reviewId, data),
-    onSettled: (result, _error, { reviewId, data }) =>
-      invalidateReviewQueries(queryClient, {
+    onSettled: (result, error, { reviewId, data }) => {
+      acknowledgeTaskMutationSettlement(error);
+      return invalidateReviewQueries(queryClient, {
         runId: data.run_id,
         taskId: result?.review.task_id,
         reviewId,
-      }),
+      });
+    },
   });
 }

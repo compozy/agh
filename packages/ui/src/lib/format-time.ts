@@ -68,8 +68,8 @@ export function formatAbsoluteTime(iso: string): string {
 }
 
 /**
- * Formats a millisecond duration into a compact `Hh Mm Ss` style string.
- * Returns `"0s"` for non-positive durations.
+ * Formats a millisecond duration to its two largest non-zero units, including days.
+ * Returns `"0s"` for non-positive or non-finite durations.
  */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return "0s";
@@ -80,10 +80,17 @@ export function formatDuration(ms: number): string {
   const seconds = total % 60;
   // Humanized to two units max ("3d 2h", "5m 12s") — long raw chains like
   // "2176h 38m 26s" are banned product vocabulary.
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
+  const units = [
+    { value: days, suffix: "d" },
+    { value: hours, suffix: "h" },
+    { value: minutes, suffix: "m" },
+    { value: seconds, suffix: "s" },
+  ];
+  const formatted = units
+    .filter(unit => unit.value > 0)
+    .slice(0, 2)
+    .map(unit => `${unit.value}${unit.suffix}`);
+  return formatted.join(" ") || "0s";
 }
 
 /** Sentinel string returned when an ISO input cannot be parsed. */

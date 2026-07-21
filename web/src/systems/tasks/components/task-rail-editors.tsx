@@ -1,5 +1,4 @@
 import { ChevronsUpDown } from "lucide-react";
-import { toast } from "sonner";
 
 import {
   cn,
@@ -11,39 +10,28 @@ import {
   Switch,
 } from "@agh/ui";
 
-import { useUpdateTask } from "../hooks/use-task-actions";
-import { taskPriorityLabel } from "../lib/task-formatters";
-import type { TaskPriority, TaskRecord } from "../types";
-
-const PRIORITY_DOT: Record<TaskPriority, string> = {
-  urgent: "bg-danger",
-  high: "bg-warning",
-  medium: "bg-muted",
-  low: "bg-faint",
-};
+import { taskPriorityPresentation } from "../lib/task-properties-presentation";
+import type { TaskPriority } from "../types";
 
 const PRIORITY_ORDER: readonly TaskPriority[] = ["urgent", "high", "medium", "low"];
 
 /** Inline PATCH-backed priority editor for the properties rail. */
-export function TaskPriorityEditor({ task }: { task: TaskRecord }) {
-  const updateTask = useUpdateTask();
-  const priority = task.priority ?? "medium";
-
-  const handleSelect = async (next: string) => {
-    if (next === priority) return;
-    try {
-      await updateTask.mutateAsync({ id: task.id, data: { priority: next as TaskPriority } });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't change priority");
-    }
-  };
-
+export function TaskPriorityEditor({
+  priority,
+  pending,
+  onChange,
+}: {
+  priority: TaskPriority;
+  pending: boolean;
+  onChange: (priority: TaskPriority) => void;
+}) {
+  const presentation = taskPriorityPresentation(priority);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Change priority"
         data-testid="tasks-rail-priority"
-        disabled={updateTask.isPending}
+        disabled={pending}
         render={
           <button
             className={cn(
@@ -56,24 +44,17 @@ export function TaskPriorityEditor({ task }: { task: TaskRecord }) {
           />
         }
       >
-        <span aria-hidden="true" className={cn("size-1.5 rounded-full", PRIORITY_DOT[priority])} />
-        {taskPriorityLabel(priority)}
+        <span aria-hidden="true" className={cn("size-1.5 rounded-full", presentation.dotClass)} />
+        {presentation.label}
         <ChevronsUpDown aria-hidden="true" className="size-[11px] text-faint" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="tasks-rail-priority-menu">
-        <DropdownMenuRadioGroup onValueChange={value => void handleSelect(value)} value={priority}>
+        <DropdownMenuRadioGroup
+          onValueChange={value => onChange(value as TaskPriority)}
+          value={priority}
+        >
           {PRIORITY_ORDER.map(option => (
-            <DropdownMenuRadioItem
-              data-testid={`tasks-rail-priority-${option}`}
-              key={option}
-              value={option}
-            >
-              <span
-                aria-hidden="true"
-                className={cn("size-1.5 rounded-full", PRIORITY_DOT[option])}
-              />
-              {taskPriorityLabel(option)}
-            </DropdownMenuRadioItem>
+            <TaskPriorityOption key={option} priority={option} />
           ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
@@ -81,26 +62,33 @@ export function TaskPriorityEditor({ task }: { task: TaskRecord }) {
   );
 }
 
+function TaskPriorityOption({ priority }: { priority: TaskPriority }) {
+  const presentation = taskPriorityPresentation(priority);
+  return (
+    <DropdownMenuRadioItem data-testid={`tasks-rail-priority-${priority}`} value={priority}>
+      <span aria-hidden="true" className={cn("size-1.5 rounded-full", presentation.dotClass)} />
+      {presentation.label}
+    </DropdownMenuRadioItem>
+  );
+}
+
 /** Inline PATCH-backed auto-enqueue toggle (instant-effect boolean → switch). */
-export function TaskAutoEnqueueSwitch({ task }: { task: TaskRecord }) {
-  const updateTask = useUpdateTask();
-  const enabled = Boolean(task.auto_enqueue_on_ready);
-
-  const handleToggle = async (next: boolean) => {
-    try {
-      await updateTask.mutateAsync({ id: task.id, data: { auto_enqueue_on_ready: next } });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't change auto-enqueue");
-    }
-  };
-
+export function TaskAutoEnqueueSwitch({
+  enabled,
+  pending,
+  onChange,
+}: {
+  enabled: boolean;
+  pending: boolean;
+  onChange: (enabled: boolean) => void;
+}) {
   return (
     <Switch
       aria-label="Auto-enqueue when ready"
       checked={enabled}
       data-testid="tasks-rail-auto-enqueue"
-      disabled={updateTask.isPending}
-      onCheckedChange={next => void handleToggle(next)}
+      disabled={pending}
+      onCheckedChange={onChange}
     />
   );
 }

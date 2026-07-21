@@ -4,7 +4,11 @@ import { TaskPageActions, TaskPageOverflow, TaskPageStatus } from "@/systems/tas
 
 import type { TaskDetailLocationController } from "./use-task-detail-location";
 
-/** Publishes the task-detail head (crumbs · status · §6 actions) into the window topbar. */
+/**
+ * Publishes task-detail crumbs, status, and actions into the window topbar.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §6
+ */
 export function TaskDetailTopbar({ controller }: { controller: TaskDetailLocationController }) {
   const { page, record, command } = controller;
 
@@ -33,15 +37,18 @@ export function TaskDetailTopbar({ controller }: { controller: TaskDetailLocatio
                 onRecover: () => void page.handleRecoverTask(),
                 onRetry: runId => void page.handleRetryRun(runId),
                 onEdit: controller.openEdit,
+                onPause: controller.pauseDialog.open,
+                onReject: () => void page.handleRejectTask(),
               }}
-              pending={
-                page.isPublishPending ||
-                page.isApprovePending ||
-                page.isEnqueuePending ||
-                page.isResumePending ||
-                page.isRecoverPending ||
-                page.isRetryPending
-              }
+              pending={{
+                approve: page.isApprovePending,
+                publish: page.isPublishPending,
+                recover: page.isRecoverPending,
+                reject: page.isRejectPending,
+                resume: page.isResumePending,
+                retry: page.isRetryPending,
+                start: page.isEnqueuePending,
+              }}
             />
           ),
           overflow: (

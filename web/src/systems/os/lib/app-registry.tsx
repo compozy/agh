@@ -26,7 +26,7 @@ export interface OsAppDefinition {
   icon: LucideIcon;
   /** Route prefixes owned by this app's window subtree. */
   paths: string[];
-  /** Hand-tuned cascade from the prototype (os-v2.js APPS). */
+  /** App-specific opening geometry; enlarged work surfaces override the prototype cascade. */
   defaultRect: OsRect;
   /** Dock strip group, rail toggle, or null for menubar-only settings. */
   dock: { group: 1 | 2 | 3 | 4 } | "rail-toggle" | null;

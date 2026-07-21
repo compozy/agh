@@ -89,7 +89,7 @@ describe("useSettingsPage", () => {
     expect(result.current.activeSectionSlug).toBe("skills");
   });
 
-  it("keeps the restart banner hidden when no mutation is pending", () => {
+  it("keeps the restart notice hidden when no mutation is pending", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsPage(), { wrapper });
 
@@ -98,7 +98,7 @@ describe("useSettingsPage", () => {
     expect(result.current.restart.isPolling).toBe(false);
   });
 
-  it("shows the banner and polling state once restart begins", async () => {
+  it("shows the notice and polling state once restart begins", async () => {
     vi.mocked(getSettingsRestartStatus).mockResolvedValue({
       operation_id: "op_page",
       status: "stopping",

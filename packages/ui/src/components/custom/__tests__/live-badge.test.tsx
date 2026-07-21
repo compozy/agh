@@ -5,10 +5,11 @@ import { LiveBadge } from "../live-badge";
 
 describe("LiveBadge", () => {
   it("Should render the default live label with the success tone", () => {
-    render(<LiveBadge data-testid="live-badge" />);
-    const badge = screen.getByTestId("live-badge");
+    render(<LiveBadge />);
+    const badge = screen.getByRole("status");
     expect(badge).toHaveTextContent("Live");
     expect(badge).toHaveAttribute("data-tone", "success");
+    expect(badge).toHaveAttribute("aria-live", "polite");
   });
 
   it("Should render a custom label and tone without pulse", () => {

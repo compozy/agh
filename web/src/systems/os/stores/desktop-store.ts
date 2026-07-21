@@ -98,12 +98,13 @@ export function createDesktopStore(): DesktopStoreApi {
       }
       const app = getOsApp(target.app);
       const z = state.zCounter + 1;
+      const defaultRect = { ...app.defaultRect };
       const win: OsWindow = {
         id,
         app: target.app,
         instanceKey: target.app === "session" ? (target.instanceKey ?? null) : null,
         location: target.location ?? { pathname: app.paths[0], search: {} },
-        rect: { ...app.defaultRect },
+        rect: state.desktopBounds ? clampRect(defaultRect, state.desktopBounds) : defaultRect,
         prevRect: null,
         z,
         minimized: false,

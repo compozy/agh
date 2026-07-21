@@ -3,18 +3,25 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import {
+  computeElapsed,
   resolveTaskCommandState,
-  resolveTaskDetailSearch,
   TASK_RESULT_ANCHOR_ID,
+  useProfileEditor,
   useDeleteTask,
+  useLiveElapsed,
   useTaskDetailPage,
   useTaskOperatorLayer,
   useTaskPauseDialog,
-  type TaskDetailSearch,
+  useTaskSetupRuntime,
+  useUpdateTask,
+  type ResolvedTaskDetailSearch,
   type TaskDetailTab,
+  type TaskInspectTarget,
+  type TaskPriority,
 } from "@/systems/tasks";
 
 import { useOsShell } from "../../hooks/use-os-shell";
+import { copyTaskRecordId } from "./copy-record-id";
 
 function scrollToResult() {
   document.getElementById(TASK_RESULT_ANCHOR_ID)?.scrollIntoView({ block: "start" });
@@ -23,31 +30,71 @@ function scrollToResult() {
 /**
  * Controller for the task-detail window location: data (via
  * `useTaskDetailPage` + `useTaskOperatorLayer`), overlay state, WM-location
- * navigation, and the §6 command state. The location component only renders.
+ * navigation, and the runtime-backed command state. The location component only renders.
  */
-export function useTaskDetailLocation(taskId: string, rawSearch: TaskDetailSearch) {
+export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetailSearch) {
   const navigate = useNavigate();
   const { coordinator } = useOsShell();
   const page = useTaskDetailPage(taskId);
   const deleteMutation = useDeleteTask();
-  const search = resolveTaskDetailSearch(rawSearch);
-  const [inspectOpen, setInspectOpen] = useState(false);
-  const [setupOpen, setSetupOpen] = useState(false);
-  const [fanOutOpen, setFanOutOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const updateMutation = useUpdateTask();
+  const [overlay, setOverlay] = useState<"setup" | "setup_clear" | "fan_out" | "delete" | null>(
+    null
+  );
+  const inspectOpen = search.inspect !== undefined;
   const pauseDialog = useTaskPauseDialog(page.handlePauseTask);
   const latestEventSeq = page.detail?.task?.latest_event_seq ?? null;
   const operator = useTaskOperatorLayer(taskId, { enabled: inspectOpen, latestEventSeq });
+  const setupRuntime = useTaskSetupRuntime(page.detail?.task.workspace_id);
+  const setupEditor = useProfileEditor({
+    onSetProfile: operator.handleSetProfile,
+    profile: page.profile,
+    taskId,
+  });
 
   const detail = page.detail;
   const record = detail?.task ?? null;
+  const activeElapsed = useLiveElapsed(page.activeRun?.started_at, page.isLive);
+  const runDurations = new Map(
+    page.runs.map(run => [
+      run.id,
+      run.id === page.activeRun?.id && page.isLive ? activeElapsed : computeElapsed(run),
+    ])
+  );
   const command = detail ? resolveTaskCommandState(detail, page.runs) : null;
   // Fan-out designations are supplied per invocation, so the entry stays
   // available for any non-terminal, published task.
-  const showFanOut = Boolean(command?.overflow.edit && record && !record.draft);
+  const showFanOut = Boolean(command?.canFanOut);
 
   const setTab = (tab: TaskDetailTab) => {
-    void navigate({ to: "/tasks/$id", params: { id: taskId }, search: { tab }, replace: true });
+    void navigate({
+      to: "/tasks/$id",
+      params: { id: taskId },
+      search: { tab, inspect: search.inspect },
+      replace: true,
+    });
+  };
+
+  const setInspectTarget = (inspect: TaskInspectTarget) => {
+    void navigate({
+      to: "/tasks/$id",
+      params: { id: taskId },
+      search: { tab: search.tab, inspect },
+      replace: true,
+    });
+  };
+
+  const setInspectOpen = (open: boolean) => {
+    if (open) {
+      setInspectTarget(search.inspect ?? "diagnostics");
+      return;
+    }
+    void navigate({
+      to: "/tasks/$id",
+      params: { id: taskId },
+      search: { tab: search.tab },
+      replace: true,
+    });
   };
 
   const openRun = (runId: string) => {
@@ -76,12 +123,39 @@ export function useTaskDetailLocation(taskId: string, rawSearch: TaskDetailSearc
     }
   };
 
+  const handlePriorityChange = async (priority: TaskPriority) => {
+    if (!record || record.priority === priority) return;
+    try {
+      await updateMutation.mutateAsync({ id: record.id, data: { priority } });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't change priority");
+    }
+  };
+
+  const handleAutoEnqueueChange = async (enabled: boolean) => {
+    if (!record || Boolean(record.auto_enqueue_on_ready) === enabled) return;
+    try {
+      await updateMutation.mutateAsync({
+        id: record.id,
+        data: { auto_enqueue_on_ready: enabled },
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't change auto-enqueue");
+    }
+  };
+
+  const handleClearSetup = async () => {
+    try {
+      await operator.handleDeleteProfile();
+      setOverlay("setup");
+    } catch {
+      // The mutation helper reports the failure; keep the confirmation open.
+    }
+  };
+
   const copyTaskId = () => {
-    if (!record || !navigator.clipboard) return;
-    navigator.clipboard
-      .writeText(record.id)
-      .then(() => toast.success("Task id copied."))
-      .catch(() => toast.error("Couldn't copy the task id"));
+    if (!record) return;
+    void copyTaskRecordId(record.id, "Task");
   };
 
   return {
@@ -89,10 +163,13 @@ export function useTaskDetailLocation(taskId: string, rawSearch: TaskDetailSearc
     command,
     copyTaskId,
     deleteMutation,
-    deleteOpen,
+    deleteOpen: overlay === "delete",
     detail,
-    fanOutOpen,
+    fanOutOpen: overlay === "fan_out",
     handleDeleteTask,
+    handleAutoEnqueueChange,
+    handleClearSetup,
+    handlePriorityChange,
     inspectOpen,
     latestEventSeq,
     openEdit,
@@ -102,16 +179,23 @@ export function useTaskDetailLocation(taskId: string, rawSearch: TaskDetailSearc
     page,
     pauseDialog,
     record,
+    runDurations,
     scrollToResult,
     search,
-    setDeleteOpen,
-    setFanOutOpen,
+    setDeleteOpen: (open: boolean) => setOverlay(open ? "delete" : null),
+    setFanOutOpen: (open: boolean) => setOverlay(open ? "fan_out" : null),
     setInspectOpen,
-    setSetupOpen,
+    setInspectTarget,
+    setSetupOpen: (open: boolean) => setOverlay(open ? "setup" : null),
+    setSetupClearOpen: (open: boolean) => setOverlay(open ? "setup_clear" : "setup"),
     setTab,
-    setupOpen,
+    setupClearOpen: overlay === "setup_clear",
+    setupEditor,
+    setupOpen: overlay === "setup" || overlay === "setup_clear",
+    setupRuntime,
     showFanOut,
     taskId,
+    updatePending: updateMutation.isPending,
   };
 }
 

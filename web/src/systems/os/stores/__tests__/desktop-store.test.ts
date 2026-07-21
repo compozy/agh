@@ -48,6 +48,17 @@ describe("desktop store", () => {
     expect(win.z).toBe(Math.max(...zValues));
   });
 
+  it("Should clamp a new default rect when desktop bounds are already measured", () => {
+    const store = createDesktopStore();
+    store.getState().clampToViewport({ width: 1000, height: 700 });
+
+    const id = store.getState().openOrFocus({ app: "network" });
+    const rect = store.getState().windows[id].rect;
+
+    expect(rect.x + rect.w).toBeLessThanOrEqual(1000 - 8);
+    expect(rect.y + rect.h).toBeLessThanOrEqual(700);
+  });
+
   it("Should focus the existing window instead of duplicating (UT-041, invariant 14)", () => {
     const store = createDesktopStore();
     store.getState().openOrFocus({ app: "tasks" });

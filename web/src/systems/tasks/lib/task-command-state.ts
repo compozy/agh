@@ -1,13 +1,8 @@
 import { taskRunCanRecover } from "./task-run-recovery";
 import { taskCanRecover, taskHasApprovalPending, taskIsDraft } from "./task-formatters";
-import type { TaskDetailView, TaskRun } from "../types";
+import type { TaskDetailView, TaskRun, TaskRunStatus } from "../types";
 
-/**
- * The single accent action for the task head (§6 of the redesign plan).
- * Exactly one primary per state; every kind maps to a real HTTP/CLI verb
- * (publish / approve / enqueue / retry / recover / resume) or a navigation
- * (open_run). `null` means the state carries no primary action.
- */
+/** The single accent action for a task, mapped to one runtime verb or navigation. */
 export type TaskPrimaryCommand =
   | { kind: "publish" }
   | { kind: "approve" }
@@ -19,8 +14,13 @@ export type TaskPrimaryCommand =
 
 export interface TaskCommandState {
   primary: TaskPrimaryCommand | null;
-  /** Ghost "Edit" beside the primary — only for quiet terminal states. */
-  showEditButton: boolean;
+  secondary: {
+    edit: boolean;
+    pause: boolean;
+    reject: boolean;
+  };
+  /** Fan-out enqueues runs and therefore shares the one-open-run gate. */
+  canFanOut: boolean;
   overflow: {
     edit: boolean;
     pause: boolean;
@@ -32,7 +32,7 @@ export interface TaskCommandState {
   };
 }
 
-function isOpenRunStatus(status: string | undefined | null): boolean {
+function isOpenRunStatus(status: TaskRunStatus | undefined | null): boolean {
   return (
     status === "queued" || status === "claimed" || status === "starting" || status === "running"
   );
@@ -47,16 +47,21 @@ function latestFailedRun(runs: readonly TaskRun[]): TaskRun | null {
   return best;
 }
 
-function attemptsUsed(runs: readonly TaskRun[], activeRun: { attempt?: number } | null): number {
-  let used = typeof activeRun?.attempt === "number" ? activeRun.attempt : 0;
+export function taskHighestAttemptOrdinal(
+  runs: readonly TaskRun[],
+  activeRun: { attempt?: number } | null
+): number {
+  let highestAttempt = typeof activeRun?.attempt === "number" ? activeRun.attempt : 0;
   for (const run of runs) {
-    if (typeof run.attempt === "number" && run.attempt > used) used = run.attempt;
+    if (typeof run.attempt === "number" && run.attempt > highestAttempt) {
+      highestAttempt = run.attempt;
+    }
   }
-  return used;
+  return highestAttempt;
 }
 
 /**
- * Derives the §6 primary-action state machine from runtime truth. Precedence:
+ * Derives the primary-action state machine from runtime truth. Precedence:
  * recover > publish > approve > resume > open run > retry > start. States with
  * no truthful next verb (blocked, completed, canceled, failed-exhausted) render
  * no accent target — resolving actions live on the Now-strip cards instead.
@@ -77,13 +82,25 @@ export function resolveTaskCommandState(
     : taskCanRecover(record);
   const hasOpenRun = isOpenRunStatus(activeRun?.status) || activeRunNeedsAttention;
   const maxAttempts = record.max_attempts ?? null;
-  const used = attemptsUsed(runs, activeRun);
-  const attemptsRemain = maxAttempts === null || used < maxAttempts;
+  const highestAttempt = taskHighestAttemptOrdinal(runs, activeRun);
+  const attemptsRemain = maxAttempts === null || highestAttempt < maxAttempts;
   const failedRun = record.status === "failed" ? latestFailedRun(runs) : null;
   const isTerminal =
     record.status === "completed" ||
     record.status === "canceled" ||
     (record.status === "failed" && (!attemptsRemain || !failedRun));
+  const canEdit = isDraft || record.status === "ready" || isDirectlyPaused || isTerminal;
+  const canPause =
+    !isDraft &&
+    !isDirectlyPaused &&
+    !isTerminal &&
+    (record.status === "ready" || record.status === "in_progress" || record.status === "blocked");
+  const canFanOut =
+    !isDraft &&
+    !hasOpenRun &&
+    !isEffectivelyPaused &&
+    !approvalPending &&
+    (record.status === "pending" || record.status === "ready");
 
   let primary: TaskPrimaryCommand | null = null;
   if (record.status === "needs_attention" || activeRunNeedsAttention) {
@@ -112,10 +129,15 @@ export function resolveTaskCommandState(
 
   return {
     primary,
-    showEditButton: isTerminal,
+    secondary: {
+      edit: canEdit,
+      pause: canPause,
+      reject: approvalPending,
+    },
+    canFanOut,
     overflow: {
-      edit: !isTerminal,
-      pause: !isDirectlyPaused && !isTerminal && !isDraft,
+      edit: !canEdit,
+      pause: !canPause && !isDirectlyPaused && !isTerminal && !isDraft,
       resume: isDirectlyPaused,
       cancel: canCancel,
       startNewRun: record.status === "failed" && attemptsRemain && !hasOpenRun,
@@ -123,5 +145,3 @@ export function resolveTaskCommandState(
     },
   };
 }
-
-export { attemptsUsed as taskAttemptsUsed };

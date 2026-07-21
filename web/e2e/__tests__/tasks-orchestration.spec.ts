@@ -34,7 +34,7 @@ test.use({
   },
 });
 
-test("operator inspects orchestration tab on a real seeded task", async ({
+test("operator uses the three-tab task detail, setup, inspect, and run review surfaces", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -49,27 +49,39 @@ test("operator inspects orchestration tab on a real seeded task", async ({
   await tasksUI.navTasks.click();
   await expect(appPage).toHaveURL(/\/tasks$/);
 
-  await appPage.goto(runtime.url(`/tasks/${seeded.referenceTask.id}`), {
+  await appPage.goto(runtime.url(`/tasks/${seeded.referenceTask.id}?tab=activity&inspect=stream`), {
     waitUntil: "domcontentloaded",
   });
   await expect(tasksUI.detailContent).toBeVisible();
+  await expect(tasksUI.detailTab("overview")).toBeVisible();
+  await expect(tasksUI.detailTab("runs")).toBeVisible();
+  await expect(tasksUI.detailTab("activity")).toHaveAttribute("aria-selected", "true");
+  await expect(tasksUI.detailInspectDrawer).toBeVisible();
+  await expect(tasksUI.detailInspectStream).toBeVisible();
+  await expect(appPage).toHaveURL(/tab=activity.*inspect=stream|inspect=stream.*tab=activity/);
 
-  await tasksUI.detailTabOrchestration.click();
-  await expect(tasksUI.orchestrationPanel).toBeVisible();
-  await expect(tasksUI.orchestrationProfileCard).toBeVisible();
-  await expect(tasksUI.orchestrationReviewsCard).toBeVisible();
-  await expect(tasksUI.orchestrationNotificationsCard).toBeVisible();
-  await expect(tasksUI.orchestrationStreamCard).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(tasksUI.detailInspectDrawer).not.toBeVisible();
+  await expect(appPage).not.toHaveURL(/inspect=/);
 
-  // Seeded tasks land with a default execution profile (all `inherit`); reviews and bridge
-  // notification subscriptions are unset, so those cards stay in their empty branches.
-  await expect(tasksUI.orchestrationProfileSummary).toBeVisible();
-  await expect(tasksUI.orchestrationReviewsEmpty).toBeVisible();
-  await expect(tasksUI.orchestrationNotificationsEmpty).toBeVisible();
+  await tasksUI.detailSetupOpen.click();
+  await expect(tasksUI.detailSetupSheet).toBeVisible();
+  await tasksUI.detailSetupEdit.click();
+  await expect(tasksUI.detailSetupForm).toBeVisible();
+  await expect(tasksUI.detailSetupWorkerRuntime).toBeVisible();
 
-  await expect(tasksUI.orchestrationStreamLatest).toBeVisible();
-  await expect(tasksUI.orchestrationStreamSeed).toBeVisible();
-  await expect(tasksUI.orchestrationStreamStatus).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await appPage.goto(runtime.url(`/tasks/${seeded.runningTask.id}?tab=runs`), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(tasksUI.detailContent).toBeVisible();
+  await expect(tasksUI.runsRow(seeded.runningRun.id)).toBeVisible();
+  await tasksUI
+    .runsRow(seeded.runningRun.id)
+    .getByRole("link", { name: `Attempt ${seeded.runningRun.attempt}` })
+    .click();
+  await expect(tasksUI.runDetailContent).toBeVisible();
+  await expect(tasksUI.runReviews).toContainText("No reviews recorded for this run.");
 
-  await browserArtifacts.captureScreenshot("tasks-orchestration-tab", appPage);
+  await browserArtifacts.captureScreenshot("tasks-three-tab-detail", appPage);
 });

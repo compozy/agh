@@ -51,11 +51,11 @@ func WriteSSE(writer FlushWriter, msg SSEMessage) error {
 	return writeSSERaw(writer, msg.ID, payload, msg.Name)
 }
 
-// WriteTaskStreamEvent writes one task-native live event through the shared SSE helper path.
+// WriteTaskStreamEvent writes one task-native live event as a standard SSE message.
+// TaskStreamEventPayload.Type is the event identity consumed by clients.
 func WriteTaskStreamEvent(writer FlushWriter, event taskpkg.StreamEvent) error {
 	return WriteSSE(writer, SSEMessage{
 		ID:   strconv.FormatInt(event.Sequence, 10),
-		Name: event.Type,
 		Data: TaskStreamEventPayloadFromEvent(event),
 	})
 }

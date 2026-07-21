@@ -17,12 +17,12 @@ import {
   type ProviderLastAction,
 } from "@/systems/settings/hooks/use-settings-providers-page";
 import {
-  deriveProviderStateLabel,
   ProviderCard,
   ProviderInspectorSheet,
   ProviderRow,
   ProvidersToolbar,
   SettingsPageFrame,
+  useSettingsTopbar,
   type ProvidersViewMode,
   type SettingsProviderEntry,
 } from "@/systems/settings";
@@ -32,6 +32,21 @@ export function ProvidersSettingsPage() {
   const [view, setView] = useState<ProvidersViewMode>("cards");
   const inspectorOpen = page.inspector.mode !== "closed";
   const createProviderButtonRef = useCreateProviderFocusRestore(page.inspector.mode);
+  useSettingsTopbar("providers", {
+    actions:
+      !page.isLoading && !page.error && page.envelope ? (
+        <Button
+          data-testid="settings-page-providers-create"
+          onClick={page.openCreate}
+          ref={createProviderButtonRef}
+          size="sm"
+          type="button"
+        >
+          <Plus aria-hidden="true" className="size-3" />
+          New provider
+        </Button>
+      ) : undefined,
+  });
 
   if (page.isLoading) {
     return (
@@ -67,29 +82,13 @@ export function ProvidersSettingsPage() {
       ? page.inspector.draft
       : null;
   const existingNames = page.providers.map(provider => provider.name);
-  const readyCount = page.providers.filter(
-    provider => deriveProviderStateLabel(provider) === "installed"
-  ).length;
-  const setupCount = page.providers.filter(
-    provider => deriveProviderStateLabel(provider) === "unconfigured"
-  ).length;
+  const readyCount = page.counts.installed;
+  const setupCount = page.counts.needsSetup;
   const missingCount = page.counts.binaryMissing;
 
   return (
     <SettingsPageFrame
       description="The agent CLIs and model providers your sessions run on. Each provider is saved on its own."
-      headActions={
-        <Button
-          data-testid="settings-page-providers-create"
-          onClick={page.openCreate}
-          ref={createProviderButtonRef}
-          size="sm"
-          type="button"
-        >
-          <Plus aria-hidden="true" className="size-3" />
-          New provider
-        </Button>
-      }
       meta={[
         {
           key: "ready",

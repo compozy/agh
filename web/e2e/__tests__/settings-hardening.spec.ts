@@ -44,7 +44,7 @@ test("operator applies Memory, Network, Automation, and Observability settings w
   await appPage.getByTestId("settings-page-memory-recall-top-k-input").fill(String(nextTopK));
   await expect(appPage.getByTestId("settings-page-memory-save")).toBeEnabled();
   await appPage.getByTestId("settings-page-memory-save").click();
-  await expect(appPage.getByTestId("settings-page-memory-save-applied")).toContainText(
+  await expect(appPage.getByTestId("settings-page-memory-save-message")).toContainText(
     /restart required/i
   );
 
@@ -59,10 +59,10 @@ test("operator applies Memory, Network, Automation, and Observability settings w
   await appPage.getByTestId("settings-page-network-max-replay-age").fill(String(nextMaxReplayAge));
   await expect(appPage.getByTestId("settings-page-network-save")).toBeEnabled();
   await appPage.getByTestId("settings-page-network-save").click();
-  await expect(appPage.getByTestId("settings-page-network-save-applied")).toContainText(
+  await expect(appPage.getByTestId("settings-page-network-save-message")).toContainText(
     /restart required/i
   );
-  await expect(appPage.getByTestId("settings-page-network-restart-banner")).toBeVisible();
+  await expect(appPage.getByTestId("settings-page-network-restart-notice")).toBeVisible();
 
   const automationBefore = await runtime.requestJSON<{
     config: { max_concurrent_jobs: number };
@@ -75,7 +75,7 @@ test("operator applies Memory, Network, Automation, and Observability settings w
     .fill(String(nextMaxConcurrent));
   await expect(appPage.getByTestId("settings-page-automation-save")).toBeEnabled();
   await appPage.getByTestId("settings-page-automation-save").click();
-  await expect(appPage.getByTestId("settings-page-automation-save-applied")).toContainText(
+  await expect(appPage.getByTestId("settings-page-automation-save-message")).toContainText(
     /restart required/i
   );
 
@@ -86,7 +86,7 @@ test("operator applies Memory, Network, Automation, and Observability settings w
   await appPage.goto(runtime.url("/settings/observability"), { waitUntil: "domcontentloaded" });
   await expect(appPage.getByTestId("settings-page-observability-retention-days")).toBeVisible();
   await appPage.getByTestId("settings-page-observability-retention-days").fill("-1");
-  await expect(appPage.getByTestId("settings-page-observability-save-invalid")).toContainText(
+  await expect(appPage.getByTestId("settings-page-observability-save-message")).toContainText(
     "Resolve validation errors"
   );
   await expect(appPage.getByTestId("settings-page-observability-save")).toBeDisabled();
@@ -95,7 +95,7 @@ test("operator applies Memory, Network, Automation, and Observability settings w
     .fill(String(nextRetentionDays));
   await expect(appPage.getByTestId("settings-page-observability-save")).toBeEnabled();
   await appPage.getByTestId("settings-page-observability-save").click();
-  await expect(appPage.getByTestId("settings-page-observability-save-applied")).toContainText(
+  await expect(appPage.getByTestId("settings-page-observability-save-message")).toContainText(
     /restart required/i
   );
 
@@ -251,24 +251,17 @@ test("operator sees restart failure and active-session warning without losing re
     .fill(nextNumberString(currentTimeout));
   await expect(appPage.getByTestId("settings-page-general-save")).toBeEnabled();
   await appPage.getByTestId("settings-page-general-save").click();
-  await expect(appPage.getByTestId("settings-page-general-restart-banner")).toBeVisible();
+  const restartNotice = appPage.getByTestId("settings-page-general-restart-notice");
+  await expect(restartNotice).toBeVisible();
 
-  await restartBannerTrigger(appPage, "general").click();
-  await expect(appPage.getByTestId("settings-page-general-restart-banner-message")).toContainText(
-    "Daemon restart failed: browser restart fault injection"
-  );
-  await expect(
-    appPage.getByTestId("settings-page-general-restart-banner-active-sessions")
-  ).toContainText("2 active sessions");
-  await expect(restartBannerTrigger(appPage, "general")).toBeEnabled();
+  await restartNoticeTrigger(appPage, "general").click();
+  await expect(restartNotice).toContainText("Restart failed");
+  await expect(restartNotice).toContainText("browser restart fault injection");
+  await expect(restartNotice).toContainText("2 active sessions");
+  await expect(restartNoticeTrigger(appPage, "general")).toBeEnabled();
 
   const snapshot = {
-    restart_failure_message: await appPage
-      .getByTestId("settings-page-general-restart-banner-message")
-      .textContent(),
-    active_sessions: await appPage
-      .getByTestId("settings-page-general-restart-banner-active-sessions")
-      .textContent(),
+    restart_notice: await restartNotice.textContent(),
   };
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", snapshot);
   await browserArtifacts.captureScreenshot("settings-restart-failure-active-sessions", appPage);
@@ -429,8 +422,6 @@ function nextNumberString(value: string): string {
   return String(Number.isFinite(parsed) ? parsed + 1 : 46);
 }
 
-function restartBannerTrigger(page: Page, slug: string) {
-  return page.getByTestId(`settings-page-${slug}-restart-banner`).getByRole("button", {
-    name: "Restart daemon",
-  });
+function restartNoticeTrigger(page: Page, slug: string) {
+  return page.getByTestId(`settings-page-${slug}-restart-trigger`);
 }

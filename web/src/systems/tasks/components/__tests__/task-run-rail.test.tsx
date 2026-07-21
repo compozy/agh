@@ -1,7 +1,20 @@
 import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildTaskRunDetailFixture } from "../../mocks/fixtures";
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({ children, to, params, ...props }: Record<string, unknown>) => (
+      <a data-params={JSON.stringify(params)} href={typeof to === "string" ? to : "#"} {...props}>
+        {children as ReactNode}
+      </a>
+    ),
+  };
+});
+
+import { buildTaskRunDetailFixture, buildTaskRunRecordFixture } from "../../mocks/fixtures";
 import { TaskRunRail } from "../task-run-rail";
 
 type CostSummary = NonNullable<ReturnType<typeof buildTaskRunDetailFixture>["summary"]>;
@@ -85,5 +98,60 @@ describe("TaskRunRail cost provenance", () => {
   it("Should omit the cost row when the daemon reports no cost provenance", () => {
     renderRail({ cost_status: undefined, cost_source: undefined, total_cost: 0.18 });
     expect(screen.queryByTestId("task-run-detail-cost")).not.toBeInTheDocument();
+  });
+});
+
+describe("TaskRunRail lineage", () => {
+  const currentRecord = buildTaskRunRecordFixture({
+    id: "run_current",
+    attempt: 2,
+    previous_run_id: "run_previous",
+  });
+  const currentRun = buildTaskRunDetailFixture({ run: currentRecord });
+  const previousRun = buildTaskRunRecordFixture({
+    id: "run_previous",
+    attempt: 1,
+    status: "failed",
+  });
+
+  it("Should distinguish loading, error, empty, and linked states", () => {
+    const { rerender } = render(
+      <TaskRunRail
+        onInspect={vi.fn()}
+        run={currentRun}
+        taskId="task_001"
+        taskRuns={[]}
+        taskRunsLoading
+      />
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading lineage");
+    expect(screen.queryByText("No linked attempts")).toBeNull();
+
+    rerender(
+      <TaskRunRail
+        onInspect={vi.fn()}
+        run={currentRun}
+        taskId="task_001"
+        taskRuns={[]}
+        taskRunsErrorMessage="Lineage unavailable"
+      />
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Lineage unavailable");
+    expect(screen.queryByText("No linked attempts")).toBeNull();
+
+    rerender(<TaskRunRail onInspect={vi.fn()} run={currentRun} taskId="task_001" taskRuns={[]} />);
+    expect(screen.getByText("No linked attempts")).toBeInTheDocument();
+
+    rerender(
+      <TaskRunRail
+        onInspect={vi.fn()}
+        run={currentRun}
+        taskId="task_001"
+        taskRuns={[previousRun, currentRun.run]}
+      />
+    );
+    expect(screen.getByText("Attempt 1 · Failed")).toBeInTheDocument();
+    expect(screen.queryByText("No linked attempts")).toBeNull();
   });
 });

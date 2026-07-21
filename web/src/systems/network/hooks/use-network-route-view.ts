@@ -6,6 +6,7 @@ import { useOpenWork } from "./use-work";
 import { useThreadViewMode } from "./use-thread-view-mode";
 import { useNetworkThreadDetail } from "./use-threads";
 import { useNetworkDirectDetail } from "./use-directs";
+import { resolveNetworkConversationLabel } from "../lib/network-window-location";
 import type { UseNetworkRouteShellArgs } from "./use-network-route-shell";
 
 export function useNetworkRouteView(args: UseNetworkRouteShellArgs) {
@@ -51,14 +52,22 @@ export function useNetworkRouteView(args: UseNetworkRouteShellArgs) {
     enabled: route.page.isNetworkEnabled,
     workspaceId: route.activeWorkspaceId,
   });
+  const conversationLabel = resolveNetworkConversationLabel(route.location, {
+    thread: threadDetail.thread,
+    direct: directDetail.direct,
+    selfSessionId: railView.session.session?.sessionId ?? null,
+  });
 
   return {
     ...route,
     inspectorView,
     networkCreate,
+    conversationLabel,
+    directDetail,
     openWork,
     railView,
     showOverlayInRightRail,
+    threadDetail,
     threadIsFullPage,
   };
 }

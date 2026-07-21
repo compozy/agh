@@ -178,6 +178,8 @@ describe("useSettingsRestart", () => {
           status: "waiting_release",
           activeSessionCount: 2,
           failureReason: undefined,
+          mutationGeneration: 1,
+          snoozedMutationGeneration: null,
           lastMutation: {
             section: "general",
             restartRequired: true,
@@ -220,7 +222,7 @@ describe("useSettingsRestart", () => {
     expect(result.current.activeSessionCount).toBe(2);
   });
 
-  it("dismisses the operation state but preserves the last mutation record", () => {
+  it("snoozes only the current mutation generation while preserving restart truth", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsRestart(), { wrapper });
 
@@ -245,5 +247,18 @@ describe("useSettingsRestart", () => {
     expect(result.current.operationId).toBeNull();
     expect(result.current.status).toBeNull();
     expect(result.current.isRestartRequired).toBe(true);
+    expect(result.current.isNoticeSnoozed).toBe(true);
+
+    act(() => {
+      useSettingsRestartStore.getState().recordMutation({
+        section: "memory",
+        restartRequired: true,
+        warnings: [],
+        completedAt: new Date().toISOString(),
+      });
+    });
+
+    expect(result.current.isRestartRequired).toBe(true);
+    expect(result.current.isNoticeSnoozed).toBe(false);
   });
 });

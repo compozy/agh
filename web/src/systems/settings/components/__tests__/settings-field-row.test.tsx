@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { PillGroup } from "@agh/ui";
 
+import { SettingRow } from "../setting-row";
 import { SettingsFieldRow } from "../settings-field-row";
 
 describe("SettingsFieldRow", () => {
@@ -94,5 +95,30 @@ describe("SettingsFieldRow", () => {
     );
 
     expect(screen.getByRole("group", { name: "Catalog scope" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["SettingRow", SettingRow],
+    ["SettingsFieldRow", SettingsFieldRow],
+  ])("associates a Fragment control through a native group root in %s", (_, Row) => {
+    render(
+      <Row
+        label="Session timeout"
+        description="Ends inactive sessions"
+        error="Enter a whole number."
+        control={
+          <>
+            <input aria-label="Seconds" />
+            <span>seconds</span>
+          </>
+        }
+        data-testid="fragment-row"
+      />
+    );
+
+    const group = screen.getByRole("group", { name: "Session timeout" });
+    expect(group).toHaveAttribute("aria-describedby", expect.stringContaining("description"));
+    expect(group).toHaveAttribute("aria-describedby", expect.stringContaining("error"));
+    expect(group).toHaveAttribute("aria-invalid", "true");
   });
 });

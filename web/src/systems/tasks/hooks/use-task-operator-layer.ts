@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { toast } from "sonner";
 
 import {
   useCreateTaskBridgeNotificationSubscription,
@@ -8,6 +7,8 @@ import {
 } from "./use-task-notifications";
 import { useDeleteTaskExecutionProfile, useSetTaskExecutionProfile } from "./use-task-profile";
 import { useTaskStream } from "./use-task-stream";
+import { submitTaskMutation } from "../lib/task-mutation";
+import type { TaskStreamState } from "../lib/task-stream-state";
 import type {
   TaskBridgeNotificationSubscriptionCreateRequest,
   TaskExecutionProfileSetRequest,
@@ -19,12 +20,12 @@ interface UseTaskOperatorLayerOptions {
   latestEventSeq?: number | null;
 }
 
-type StreamConnectionState = "idle" | "connected" | "error" | "disabled";
-
 /**
- * Operator-layer data for the Inspect drawer and Setup sheet (§4.7–4.8):
+ * Operator-layer data for the Inspect drawer and Setup sheet:
  * bridge subscriptions, execution-profile writes, and a status-bearing SSE
  * probe whose connection state feeds the drawer's Stream pane.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.7–4.8
  */
 function useTaskOperatorLayer(taskId: string, options: UseTaskOperatorLayerOptions = {}) {
   const enabled = options.enabled ?? true;
@@ -49,7 +50,7 @@ function useTaskOperatorLayer(taskId: string, options: UseTaskOperatorLayerOptio
   const [streamStatus, setStreamStatus] = useState<{
     error: string | null;
     key: string;
-    state: StreamConnectionState;
+    state: TaskStreamState;
   }>(() => ({ error: null, key: streamKey, state: layerEnabled ? "idle" : "disabled" }));
   const currentStreamStatus =
     streamStatus.key === streamKey
@@ -63,7 +64,7 @@ function useTaskOperatorLayer(taskId: string, options: UseTaskOperatorLayerOptio
   useTaskStream(taskId, {
     enabled: layerEnabled && hasLatestEventSeq,
     afterSequence: seedSequence,
-    onEvent: () => setStreamStatus({ error: null, key: streamKey, state: "connected" }),
+    onEvent: () => setStreamStatus({ error: null, key: streamKey, state: "receiving" }),
     onError: error =>
       setStreamStatus({
         error:
@@ -78,38 +79,37 @@ function useTaskOperatorLayer(taskId: string, options: UseTaskOperatorLayerOptio
   });
 
   const handleSetProfile = async (data: TaskExecutionProfileSetRequest) => {
-    try {
-      await setProfileMutation.mutateAsync({ id: taskId, data });
-      toast.success("Setup saved.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save setup");
-      throw error;
-    }
+    await submitTaskMutation(
+      () => setProfileMutation.mutateAsync({ id: taskId, data }),
+      "Setup saved.",
+      "Failed to save setup"
+    );
   };
 
   const handleDeleteProfile = async () => {
-    await deleteProfileMutation.mutateAsync({ id: taskId });
+    await submitTaskMutation(
+      () => deleteProfileMutation.mutateAsync({ id: taskId }),
+      "Setup cleared.",
+      "Failed to clear setup"
+    );
   };
 
   const handleCreateSubscription = async (
     request: TaskBridgeNotificationSubscriptionCreateRequest
   ) => {
-    try {
-      await createSubscriptionMutation.mutateAsync({ taskId, data: request });
-      toast.success("Subscription added.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add subscription");
-      throw error;
-    }
+    await submitTaskMutation(
+      () => createSubscriptionMutation.mutateAsync({ taskId, data: request }),
+      "Subscription added.",
+      "Failed to add subscription"
+    );
   };
 
   const handleDeleteSubscription = async (subscriptionId: string) => {
-    try {
-      await deleteSubscriptionMutation.mutateAsync({ taskId, subscriptionId });
-      toast.success("Subscription removed.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove subscription");
-    }
+    await submitTaskMutation(
+      () => deleteSubscriptionMutation.mutateAsync({ taskId, subscriptionId }),
+      "Subscription removed.",
+      "Failed to remove subscription"
+    );
   };
 
   return {

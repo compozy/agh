@@ -135,8 +135,7 @@ export function describeEvent(item: TaskTimelineItem): string {
 
 /**
  * Resolves the `<TimelineEvent>` tone for an event, factoring in the
- * top-level kind (failure / success) and the live state of the surface.
- * Both `tasks-timeline-panel` and `task-run-timeline-panel` consume this.
+ * top-level kind (failure / success) and the live state of the activity row.
  */
 export function resolveEventTone(eventType: string, isLive: boolean): PillTone {
   if (isFailureEvent(eventType)) return "danger";

@@ -1,4 +1,3 @@
-// Types
 export type {
   AddTaskDependencyRequest,
   AgentContextView,
@@ -101,7 +100,6 @@ export type {
   UpdateTaskRequest,
 } from "./types";
 
-// Adapters
 export {
   TasksApiError,
   addTaskDependency,
@@ -159,7 +157,6 @@ export {
   updateTask,
 } from "./adapters/tasks-api";
 
-// Query infrastructure
 export { tasksKeys } from "./lib/query-keys";
 export {
   agentContextOptions,
@@ -181,7 +178,6 @@ export {
   tasksListOptions,
 } from "./lib/query-options";
 
-// Formatters and helpers
 export type { BlockedReasonChip, TaskStatusSignal } from "./lib/task-formatters";
 export {
   computeElapsed,
@@ -223,7 +219,7 @@ export {
 } from "./lib/task-location-search";
 export type { TaskCreateSearch, TasksRouteSearch } from "./lib/task-location-search";
 export {
-  resolveTaskDetailSearch,
+  TASK_INSPECT_TARGETS,
   TASK_DETAIL_TABS,
   validateTaskDetailSearch,
 } from "./lib/task-detail-search";
@@ -231,6 +227,7 @@ export type {
   ResolvedTaskDetailSearch,
   TaskDetailSearch,
   TaskDetailTab,
+  TaskInspectTarget,
 } from "./lib/task-detail-search";
 export {
   humanizeTaskEvent,
@@ -242,14 +239,13 @@ export type {
   TaskActivityFilter,
   TaskActivityView,
 } from "./lib/task-activity-copy";
-export { resolveTaskCommandState, taskAttemptsUsed } from "./lib/task-command-state";
+export { resolveTaskCommandState, taskHighestAttemptOrdinal } from "./lib/task-command-state";
 export type { TaskCommandState, TaskPrimaryCommand } from "./lib/task-command-state";
 export { projectTaskExceptionPills } from "./lib/task-detail-pills";
 export type { TaskExceptionPill } from "./lib/task-detail-pills";
 export { DEFAULT_TASK_LIST_LIMIT, defaultTaskCatalogFilter } from "./lib/task-catalog-filter";
 export { taskScopeForActiveWorkspace } from "./lib/workspace-scope";
 
-// Templates and grouping
 export {
   DEFAULT_TASK_TEMPLATE_ID,
   TASK_TEMPLATES,
@@ -297,7 +293,6 @@ export type {
   InboxUiLane,
 } from "./lib/inbox-grouping";
 
-// Read hooks
 export { useTask, useTaskRuns, useTasks } from "./hooks/use-tasks";
 export {
   useTaskInspect,
@@ -328,6 +323,9 @@ export { useTaskEditState } from "./hooks/use-task-edit-state";
 export { useTaskDetailPage } from "./hooks/use-task-detail-page";
 export type { UseTaskDetailPageOptions } from "./hooks/use-task-detail-page";
 export { useTaskOperatorLayer } from "./hooks/use-task-operator-layer";
+export { useTaskSetupRuntime } from "./hooks/use-task-setup-runtime";
+export { useProfileEditor } from "./hooks/use-profile-editor";
+export type { TaskProfileEditor } from "./hooks/use-profile-editor";
 export type { UseTaskOperatorLayerOptions } from "./hooks/use-task-operator-layer";
 export { useTaskRunPage } from "./hooks/use-task-run-page";
 export type { UseTaskRunPageOptions } from "./hooks/use-task-run-page";
@@ -336,36 +334,7 @@ export { useTaskPauseDialog } from "./hooks/use-task-pause-dialog";
 export { useForceFailDialog } from "./hooks/use-force-fail-dialog";
 export { useTaskFanOutDialog } from "./hooks/use-task-fan-out-dialog";
 
-// Mutation hooks
-export {
-  useAddTaskDependency,
-  useApproveTask,
-  useArchiveTask,
-  useAttachTaskRunSession,
-  useCancelTask,
-  useCancelTaskRun,
-  useClearTaskBlock,
-  useCompleteTaskRun,
-  useCreateChildTask,
-  useCreateTask,
-  useDeleteTask,
-  useDismissTask,
-  useEnqueueTaskRun,
-  useFanOutTaskRuns,
-  useFailTaskRun,
-  useForceFailTaskRun,
-  useForceReleaseTaskRun,
-  useMarkTaskRead,
-  usePauseTask,
-  usePublishTask,
-  useRecoverTask,
-  useRejectTask,
-  useRemoveTaskDependency,
-  useRetryTaskRun,
-  useResumeTask,
-  useStartTaskRun,
-  useUpdateTask,
-} from "./hooks/use-task-actions";
+export * from "./hooks/task-actions-public-api";
 export { useRecoverTaskRun } from "./hooks/use-task-run-recovery";
 export {
   useDeleteTaskExecutionProfile,
@@ -377,19 +346,6 @@ export {
   useDeleteTaskBridgeNotificationSubscription,
 } from "./hooks/use-task-notifications";
 
-// Components
-export { TaskCard } from "./components/task-card";
-export type { TaskCardProps } from "./components/task-card";
-export { TasksListRow } from "./components/tasks-list-row";
-export type { TasksListRowProps } from "./components/tasks-list-row";
-export { TasksListSurface } from "./components/tasks-list-surface";
-export type { TasksListSurfaceProps } from "./components/tasks-list-surface";
-export { TasksListToolbar } from "./components/tasks-list-toolbar";
-export type { TasksListToolbarProps } from "./components/tasks-list-toolbar";
-export { TasksListFilters } from "./components/tasks-list-filters";
-export type { TasksListFiltersProps } from "./components/tasks-list-filters";
-export { TasksListSort } from "./components/tasks-list-sort";
-export type { TasksListSortProps } from "./components/tasks-list-sort";
 export {
   applyTaskFilterChips,
   buildTaskFilterFields,
@@ -413,95 +369,105 @@ export type {
   InboxFilterState,
   InboxLaneCount,
 } from "./lib/inbox-filters";
-export { TaskGroup } from "./components/task-group";
-export type { TaskGroupProps } from "./components/task-group";
-export { TasksKanbanBoard } from "./components/tasks-kanban-board";
-export type { TasksKanbanBoardProps } from "./components/tasks-kanban-board";
-export { TasksEmptyState } from "./components/tasks-empty-state";
-export type { TasksEmptyStateProps } from "./components/tasks-empty-state";
-export { TaskEditorModal } from "./components/task-editor-modal";
-export type { TaskEditorModalMode, TaskEditorModalProps } from "./components/task-editor-modal";
-export { TaskEditorSurface } from "./components/task-editor-surface";
-export type {
-  TaskEditorSurfaceMode,
-  TaskEditorSurfaceProps,
-} from "./components/task-editor-surface";
-
-// Task detail page
-export { TaskPageActions, TaskPageOverflow, TaskPageStatus } from "./components/task-page-head";
-export type {
-  TaskPageActionHandlers,
-  TaskPageActionsProps,
-  TaskPageOverflowProps,
-} from "./components/task-page-head";
-export { TasksDetailSubhead } from "./components/tasks-detail-subhead";
-export { TaskStateBand } from "./components/task-state-band";
-export type { TaskStateBandProps } from "./components/task-state-band";
-export { TaskNowStrip } from "./components/task-now-strip";
-export type { TaskNowStripHandlers, TaskNowStripProps } from "./components/task-now-strip";
-export { TaskLinkedRow } from "./components/task-linked-row";
-export type { TaskLinkedRowProps, TaskLinkedRowState } from "./components/task-linked-row";
-export { TaskSubtasksSection } from "./components/task-subtasks-section";
-export { TaskDependenciesSection } from "./components/task-dependencies-section";
-export { TaskActivityItem } from "./components/task-activity-item";
-export { TaskActivityPanel } from "./components/task-activity-panel";
-export type { TaskActivityPanelProps } from "./components/task-activity-panel";
-export { TASK_RESULT_ANCHOR_ID, TaskOverviewPanel } from "./components/task-overview-panel";
-export type { TaskOverviewPanelProps } from "./components/task-overview-panel";
-export { TaskRunsPanel } from "./components/task-runs-panel";
-export type { TaskRunsPanelProps } from "./components/task-runs-panel";
-export { TaskPropertiesRail } from "./components/task-properties-rail";
-export type { TaskPropertiesRailProps } from "./components/task-properties-rail";
-export { TaskAutoEnqueueSwitch, TaskPriorityEditor } from "./components/task-rail-editors";
-export { TaskInspectDrawer } from "./components/task-inspect-drawer";
-export type {
-  TaskInspectDrawerProps,
-  TaskInspectDrawerTab,
-} from "./components/task-inspect-drawer";
-export { TaskRawPane } from "./components/task-raw-pane";
-export { TaskBridgeSubscriptionsPane } from "./components/task-bridge-subscriptions-pane";
-export type { TaskBridgeSubscriptionsPaneProps } from "./components/task-bridge-subscriptions-pane";
-export { TaskSetupSheet } from "./components/task-setup-sheet";
-export type { TaskSetupSheetProps } from "./components/task-setup-sheet";
-export { TaskFanOutDialog } from "./components/task-fan-out-dialog";
-export type { TaskFanOutDialogProps } from "./components/task-fan-out-dialog";
-export { TaskPauseDialog } from "./components/task-pause-dialog";
-export type { TaskPauseDialogProps } from "./components/task-pause-dialog";
-export { TaskDeleteAction } from "./components/task-delete-action";
-
-// Run detail page
 export {
+  TaskActivityItem,
+  TaskActivityPanel,
+  TaskAutoEnqueueSwitch,
+  TaskBridgeSubscriptionsPane,
+  TaskCard,
+  TaskDeleteAction,
+  TaskDependenciesSection,
+  TaskEditorModal,
+  TaskEditorSurface,
+  TaskFanOutDialog,
+  TaskGroup,
+  TaskInspectDrawer,
+  TaskLinkedRow,
+  TaskNowStrip,
+  TaskOverviewPanel,
+  TaskPageActions,
+  TaskPageOverflow,
+  TaskPageStatus,
+  TaskPauseDialog,
+  TaskPriorityEditor,
+  TaskPropertiesRail,
+  TaskRawPane,
   TaskRunForceFailDialog,
+  TaskRunActivitySection,
+  TaskRunInspectDrawer,
+  TaskRunOutcome,
+  TaskResultSection,
   TaskRunPageActions,
   TaskRunPageOverflow,
   TaskRunPageStatus,
-} from "./components/task-run-page-head";
+  TaskRunRail,
+  TaskRunReviewCard,
+  TaskRunSubhead,
+  TaskRunsPanel,
+  TaskSetupSheet,
+  TaskStateBand,
+  TaskSubtasksSection,
+  TasksDashboardActiveRuns,
+  TasksDashboardCards,
+  TasksDashboardQueueHealth,
+  TasksDashboardStatusBreakdown,
+  TasksDashboardView,
+  TasksDetailSubhead,
+  TasksEmptyState,
+  TasksInboxItem,
+  TasksInboxView,
+  TasksKanbanBoard,
+  TasksListFilters,
+  TasksListRow,
+  TasksListSort,
+  TasksListSurface,
+  TasksListToolbar,
+  TASK_RESULT_ANCHOR_ID,
+} from "./components/public-api";
 export type {
+  TaskActivityPanelProps,
+  TaskBridgeSubscriptionsPaneProps,
+  TaskCardProps,
+  TaskEditorModalMode,
+  TaskEditorModalProps,
+  TaskEditorSurfaceMode,
+  TaskEditorSurfaceProps,
+  TaskFanOutDialogProps,
+  TaskGroupProps,
+  TaskInspectDrawerProps,
+  TaskInspectDrawerTab,
+  TaskLinkedRowProps,
+  TaskLinkedRowState,
+  TaskNowStripHandlers,
+  TaskNowStripProps,
+  TaskOverviewPanelProps,
+  TaskPageActionHandlers,
+  TaskPageActionsProps,
+  TaskPageOverflowProps,
+  TaskPauseDialogProps,
+  TaskPropertiesRailProps,
   TaskRunForceFailDialogProps,
+  TaskRunActivitySectionProps,
+  TaskRunInspectDrawerProps,
+  TaskResultSectionProps,
   TaskRunPageActionsProps,
   TaskRunPageOverflowProps,
-} from "./components/task-run-page-head";
-export { TaskRunRail } from "./components/task-run-rail";
-export type { TaskRunRailProps } from "./components/task-run-rail";
-export { TaskRunSubhead } from "./components/task-run-subhead";
-export { TaskRunOutcome } from "./components/task-run-outcome";
-export { TaskRunReviewCard } from "./components/task-run-review-card";
-export { TaskRunInspectDrawer } from "./components/task-run-inspect-drawer";
-export type { TaskRunInspectDrawerProps } from "./components/task-run-inspect-drawer";
-
-// Dashboard + Inbox aggregate components
-export { TasksDashboardCards } from "./components/tasks-dashboard-cards";
-export type { TasksDashboardCardsProps } from "./components/tasks-dashboard-cards";
-export { TasksDashboardStatusBreakdown } from "./components/tasks-dashboard-status-breakdown";
-export type { TasksDashboardStatusBreakdownProps } from "./components/tasks-dashboard-status-breakdown";
-export { TasksDashboardQueueHealth } from "./components/tasks-dashboard-queue-health";
-export type { TasksDashboardQueueHealthProps } from "./components/tasks-dashboard-queue-health";
-export { TasksDashboardActiveRuns } from "./components/tasks-dashboard-active-runs";
-export type { TasksDashboardActiveRunsProps } from "./components/tasks-dashboard-active-runs";
-export { TasksDashboardView } from "./components/tasks-dashboard-view";
-export type { TasksDashboardViewProps } from "./components/tasks-dashboard-view";
-
-export { TasksInboxItem } from "./components/tasks-inbox-item";
-export type { TasksInboxItemProps } from "./components/tasks-inbox-item";
-export { TasksInboxView } from "./components/tasks-inbox-view";
-export type { TasksInboxViewProps } from "./components/tasks-inbox-view";
+  TaskRunRailProps,
+  TaskRunsPanelProps,
+  TaskSetupSheetProps,
+  TaskStateBandProps,
+  TasksDashboardActiveRunsProps,
+  TasksDashboardCardsProps,
+  TasksDashboardQueueHealthProps,
+  TasksDashboardStatusBreakdownProps,
+  TasksDashboardViewProps,
+  TasksEmptyStateProps,
+  TasksInboxItemProps,
+  TasksInboxViewProps,
+  TasksKanbanBoardProps,
+  TasksListFiltersProps,
+  TasksListRowProps,
+  TasksListSortProps,
+  TasksListSurfaceProps,
+  TasksListToolbarProps,
+} from "./components/public-api";

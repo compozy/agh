@@ -1,4 +1,4 @@
-import { AlertCircle, Download, ExternalLink } from "lucide-react";
+import { AlertCircle, ExternalLink } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsObservabilityPage } from "@/systems/settings/hooks/use-settings-observability-page";
@@ -7,11 +7,13 @@ import {
   SettingsGroup,
   SettingsPageFrame,
   SettingsSaveBar,
+  SettingsRuntimeUnavailable,
+  useSettingsSaveBarState,
+  useSettingsTopbar,
   SettingsTile,
   SettingsTiles,
   type SettingsObservabilitySection,
 } from "@/systems/settings";
-import { useSupportBundleDownload } from "@/systems/support";
 import { Button, Eyebrow, Pill, Spinner, Switch } from "@agh/ui";
 
 type ObservabilityConfig = SettingsObservabilitySection["config"];
@@ -20,6 +22,7 @@ type Runtime = SettingsObservabilitySection["runtime"];
 
 import { ObservabilityNumberField as NumberField, UsageBreakdown } from "./-observability-fields";
 import { formatBytes } from "./-observability-format";
+import { ObservabilitySupportBundleSection } from "./-observability-support-bundle-section";
 
 function safeLogTailURL(value: string | undefined): string | null {
   if (!value || !URL.canParse(value, "http://localhost")) return null;
@@ -29,6 +32,7 @@ function safeLogTailURL(value: string | undefined): string | null {
 
 export function ObservabilitySettingsPage() {
   const page = useSettingsObservabilityPage();
+  useSettingsTopbar("observability");
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
   const setValidationError = (key: string) => (message: string | null) => {
     setValidationErrors(current =>
@@ -36,6 +40,14 @@ export function ObservabilitySettingsPage() {
     );
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
+  const saveBarState = useSettingsSaveBarState({
+    isDirty: page.isDirty,
+    isInvalid,
+    isSaving: page.isSaving,
+    error: page.saveError,
+    warnings: page.warnings,
+    lastAppliedLabel: page.lastAppliedLabel,
+  });
 
   if (page.isLoading) {
     return (
@@ -77,35 +89,34 @@ export function ObservabilitySettingsPage() {
   return (
     <SettingsPageFrame
       description="What this daemon records about sessions, and how much disk it may use."
-      meta={[
-        {
-          key: "sessions",
-          content: (
-            <span>
-              <span className="font-medium text-muted">{runtime.active_sessions}</span> active
-              sessions
-            </span>
-          ),
-        },
-        {
-          key: "storage",
-          content: (
-            <span data-testid="settings-page-observability-storage-summary">
-              storage {formatBytes(totalStorage)} of {formatBytes(cap)}
-            </span>
-          ),
-        },
-      ]}
+      meta={
+        runtime.available
+          ? [
+              {
+                key: "sessions",
+                content: (
+                  <span>
+                    <span className="font-medium text-muted">{runtime.active_sessions}</span> active
+                    sessions
+                  </span>
+                ),
+              },
+              {
+                key: "storage",
+                content: (
+                  <span data-testid="settings-page-observability-storage-summary">
+                    storage {formatBytes(totalStorage)} of {formatBytes(cap)}
+                  </span>
+                ),
+              },
+            ]
+          : [{ key: "runtime", content: <span>runtime unavailable</span> }]
+      }
       restart={restart}
       saveBar={
         <SettingsSaveBar
           slug="observability"
-          isDirty={page.isDirty}
-          isInvalid={isInvalid}
-          isSaving={page.isSaving}
-          error={page.saveError}
-          warnings={page.warnings}
-          lastAppliedLabel={page.lastAppliedLabel}
+          state={saveBarState}
           onSave={page.handleSave}
           onReset={() => {
             setValidationErrors({});
@@ -115,18 +126,31 @@ export function ObservabilitySettingsPage() {
       }
       slug="observability"
     >
-      <OverviewMetrics
-        activeSessions={runtime.active_sessions}
-        activeAgents={runtime.active_agents}
-        totalStorage={totalStorage}
-        cap={cap}
-      />
+      {runtime.available ? (
+        <OverviewMetrics
+          activeSessions={runtime.active_sessions}
+          activeAgents={runtime.active_agents}
+          totalStorage={totalStorage}
+          cap={cap}
+        />
+      ) : (
+        <SettingsRuntimeUnavailable
+          slug="observability"
+          description="Session, agent, and storage measurements could not be read."
+        />
+      )}
       <CaptureSection
         draft={draft}
         setDraft={setDraft}
-        capPercent={capPercent}
-        globalBytes={runtime.global_db_size_bytes}
-        sessionBytes={runtime.session_db_size_bytes}
+        usage={
+          runtime.available
+            ? {
+                capPercent,
+                globalBytes: runtime.global_db_size_bytes,
+                sessionBytes: runtime.session_db_size_bytes,
+              }
+            : null
+        }
         cap={cap}
         validationErrors={validationErrors}
         setValidationError={setValidationError}
@@ -137,7 +161,7 @@ export function ObservabilitySettingsPage() {
         validationErrors={validationErrors}
         setValidationError={setValidationError}
       />
-      <SupportBundleSection />
+      <ObservabilitySupportBundleSection />
       <LogTailSection logTail={logTail} runtime={runtime} />
     </SettingsPageFrame>
   );
@@ -194,9 +218,7 @@ interface DraftSectionProps {
 }
 
 interface CaptureSectionProps extends DraftSectionProps {
-  capPercent: number;
-  globalBytes: number;
-  sessionBytes: number;
+  usage: { capPercent: number; globalBytes: number; sessionBytes: number } | null;
   cap: number;
   validationErrors: Record<string, string | null>;
   setValidationError: (key: string) => (message: string | null) => void;
@@ -205,9 +227,7 @@ interface CaptureSectionProps extends DraftSectionProps {
 function CaptureSection({
   draft,
   setDraft,
-  capPercent,
-  globalBytes,
-  sessionBytes,
+  usage,
   cap,
   validationErrors,
   setValidationError,
@@ -217,13 +237,15 @@ function CaptureSection({
       title="Capture"
       description="events, transcripts, logs"
       action={
-        <Pill
-          mono
-          tone={capPercent > 85 ? "warning" : "neutral"}
-          data-testid="settings-page-observability-cap-percent"
-        >
-          {capPercent}% of cap
-        </Pill>
+        usage ? (
+          <Pill
+            mono
+            tone={usage.capPercent > 85 ? "warning" : "neutral"}
+            data-testid="settings-page-observability-cap-percent"
+          >
+            {usage.capPercent}% of cap
+          </Pill>
+        ) : null
       }
     >
       <SettingsFieldRow
@@ -273,7 +295,13 @@ function CaptureSection({
           }
         />
       </div>
-      <UsageBreakdown globalBytes={globalBytes} sessionBytes={sessionBytes} cap={cap} />
+      {usage ? (
+        <UsageBreakdown
+          globalBytes={usage.globalBytes}
+          sessionBytes={usage.sessionBytes}
+          cap={cap}
+        />
+      ) : null}
     </SettingsGroup>
   );
 }
@@ -384,92 +412,6 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
             <ExternalLink className="size-3" />
             Open stream
           </a>
-        ) : null}
-      </div>
-    </SettingsGroup>
-  );
-}
-
-function SupportBundleSection() {
-  const supportBundle = useSupportBundleDownload();
-  const [approved, setApproved] = useState(false);
-  const [consentError, setConsentError] = useState<string | null>(null);
-  const operation = supportBundle.operation;
-  const operationStatus = operation?.status ?? "idle";
-  const errorMessage =
-    consentError ??
-    (supportBundle.error instanceof Error ? supportBundle.error.message : undefined);
-
-  const handleCreate = async () => {
-    if (!approved) {
-      setConsentError("Approval is required before creating a support bundle.");
-      return;
-    }
-    setConsentError(null);
-    await supportBundle.create({ includeStatus: true, yes: true });
-  };
-
-  return (
-    <SettingsGroup title="Support bundle" description="redacted daemon archive">
-      <div
-        className="flex flex-col gap-4 rounded-md border border-line bg-elevated px-4 py-3"
-        data-testid="settings-page-observability-support-bundle"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm text-fg">Create support bundle</span>
-            <Eyebrow
-              className="text-muted"
-              data-testid="settings-page-observability-support-bundle-status"
-            >
-              status: {operationStatus}
-            </Eyebrow>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            disabled={supportBundle.isPending}
-            onClick={() => {
-              void handleCreate().catch(() => undefined);
-            }}
-            data-testid="settings-page-observability-support-bundle-button"
-          >
-            {supportBundle.isPending ? (
-              <Spinner className="size-3.5" />
-            ) : (
-              <Download className="size-3.5" />
-            )}
-            {supportBundle.isPending ? "Preparing" : "Create bundle"}
-          </Button>
-        </div>
-        <label className="flex items-start gap-3 text-sm text-subtle">
-          <input
-            type="checkbox"
-            checked={approved}
-            onChange={event => {
-              setApproved(event.currentTarget.checked);
-              if (event.currentTarget.checked) {
-                setConsentError(null);
-              }
-            }}
-            className="mt-0.5 size-4 rounded border border-line bg-canvas-soft accent-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            data-testid="settings-page-observability-support-bundle-consent"
-          />
-          <span>I approve creating a redacted diagnostics archive.</span>
-        </label>
-        {operation?.size_bytes ? (
-          <Eyebrow className="text-muted" data-testid="settings-page-observability-support-size">
-            size: {formatBytes(operation.size_bytes)}
-          </Eyebrow>
-        ) : null}
-        {errorMessage ? (
-          <p
-            role="alert"
-            className="text-sm text-danger"
-            data-testid="settings-page-observability-support-bundle-error"
-          >
-            {errorMessage}
-          </p>
         ) : null}
       </div>
     </SettingsGroup>

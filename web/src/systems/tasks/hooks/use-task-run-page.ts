@@ -5,7 +5,7 @@ import {
   useForceFailTaskRun,
   useForceReleaseTaskRun,
   useRetryTaskRun,
-} from "./use-task-actions";
+} from "./use-task-run-actions";
 import { useTaskRunDetail, useTaskRunInspect } from "./use-task-live";
 import { useRecoverTaskRun } from "./use-task-run-recovery";
 import { useTaskRunReviews } from "./use-task-reviews";
@@ -25,8 +25,8 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
 
   const runQuery = useTaskRunDetail(runId, { enabled: hasRunId });
   const run = runQuery.data ?? null;
-  const authoritativeTaskId = run?.task?.id ?? "";
-  const routeTaskMismatch = Boolean(run?.task && run.task.id !== taskId);
+  const authoritativeTaskId = run?.run.task_id ?? run?.task?.id ?? "";
+  const routeTaskMismatch = Boolean(authoritativeTaskId && authoritativeTaskId !== taskId);
   const inspectQuery = useTaskRunInspect(runId, { enabled: hasRunId && enableInspect });
   const taskQuery = useTask(authoritativeTaskId, {
     enabled: Boolean(authoritativeTaskId) && enableTaskDetail,
@@ -126,6 +126,7 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     handleForceFailRun,
     handleForceReleaseRun,
     handleRecoverRun,
+    handleRetryLoad: () => runQuery.refetch(),
     handleRetryRun,
     isCancelPending: cancelMutation.isPending,
     isForceFailPending: forceFailMutation.isPending,

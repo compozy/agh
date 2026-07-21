@@ -1,7 +1,5 @@
-import { Time } from "@agh/ui";
+import { MonoId, Time } from "@agh/ui";
 
-import { useLiveElapsed } from "../hooks/use-live-elapsed";
-import { computeElapsed } from "../lib/task-formatters";
 import type { TaskRunDetailView } from "../types";
 
 function MetaDot() {
@@ -13,11 +11,8 @@ function MetaDot() {
 }
 
 /** Demoted run meta line: mono ids, claimant, freshness, live-ticking elapsed. */
-export function TaskRunSubhead({ run }: { run: TaskRunDetailView }) {
+export function TaskRunSubhead({ run, duration }: { run: TaskRunDetailView; duration?: string }) {
   const record = run.run;
-  const isRunning = record.status === "running" || record.status === "starting";
-  const liveElapsed = useLiveElapsed(record.started_at ?? undefined, isRunning);
-  const duration = isRunning ? liveElapsed : computeElapsed(record);
   const sessionId = record.session_id ?? run.session?.session_id ?? null;
 
   return (
@@ -25,10 +20,13 @@ export function TaskRunSubhead({ run }: { run: TaskRunDetailView }) {
       className="mb-5 flex min-w-0 flex-wrap items-center gap-2 border-b border-line pb-3.5 text-form-label text-subtle"
       data-testid="tasks-run-subhead"
     >
-      <span className="font-mono text-eyebrow tabular-nums">
-        {record.id}
-        {sessionId ? ` · ${sessionId}` : null}
-      </span>
+      <MonoId value={record.id} />
+      {sessionId ? (
+        <>
+          <MetaDot />
+          <MonoId value={sessionId} />
+        </>
+      ) : null}
       {record.claimed_by?.ref ? (
         <>
           <MetaDot />

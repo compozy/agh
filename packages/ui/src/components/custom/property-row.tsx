@@ -11,6 +11,8 @@ export interface PropertyRowProps extends React.ComponentProps<"div"> {
   mono?: boolean;
   /** Value content; ignored when `editor` is provided. */
   children?: React.ReactNode;
+  /** Full value exposed when a composed child cannot provide an intrinsic title. */
+  valueTitle?: string;
   /**
    * Inline editor trigger replacing the static value (e.g. a DropdownMenu
    * trigger). The slot is rendered flush-right and owns its own semantics.
@@ -26,14 +28,21 @@ function PropertyRow({
   label,
   mono = false,
   editor,
+  valueTitle,
   className,
   children,
   ...props
 }: PropertyRowProps) {
+  const hasPrimitiveValue = typeof children === "string" || typeof children === "number";
+  const recoverableValue = valueTitle ?? (hasPrimitiveValue ? String(children) : undefined);
+
   return (
     <div
       data-slot="property-row"
-      className={cn("flex min-h-[26px] items-center justify-between gap-3 py-[3px]", className)}
+      className={cn(
+        "flex min-h-property-row items-center justify-between gap-3 py-property-row-y",
+        className
+      )}
       {...props}
     >
       <span data-slot="property-row-label" className="shrink-0 text-form-label text-subtle">
@@ -43,14 +52,15 @@ function PropertyRow({
         <span
           data-slot="property-row-value"
           data-mono={mono ? "true" : undefined}
+          title={recoverableValue}
           className={cn(
-            "inline-flex min-w-0 items-center gap-1.5 text-right font-medium",
+            "inline-flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden text-right whitespace-nowrap font-medium",
             mono
               ? "font-mono text-eyebrow font-normal tabular-nums text-muted"
               : "text-small-body text-fg"
           )}
         >
-          {children}
+          {hasPrimitiveValue ? <span className="min-w-0 truncate">{children}</span> : children}
         </span>
       )}
     </div>

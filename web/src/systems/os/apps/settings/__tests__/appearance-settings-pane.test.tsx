@@ -13,7 +13,7 @@ import { createDesktopStore } from "../../../stores/desktop-store";
 import { AppearanceSettingsPane } from "../appearance-settings-pane";
 
 vi.mock("@/systems/settings", () => ({
-  SettingsTopbarPublisher: () => null,
+  useSettingsTopbar: vi.fn(),
 }));
 
 function matchMediaStub(matches: boolean) {

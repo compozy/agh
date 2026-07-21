@@ -118,6 +118,7 @@ let pageState: {
   restart: RestartBanner;
   update: {
     data: UpdateStatus | null;
+    isError: boolean;
     isLoading: boolean;
     isFetching: boolean;
     error: Error | null;
@@ -209,6 +210,7 @@ beforeEach(() => {
         checked_at: "2026-05-03T19:00:00Z",
       },
       isLoading: false,
+      isError: false,
       isFetching: false,
       error: null,
       refetch: vi.fn(),
@@ -361,7 +363,7 @@ describe("GeneralSettingsPage", () => {
     render(<GeneralSettingsPage />);
 
     expect(screen.getByTestId("settings-page-general-update-status")).toHaveTextContent(
-      "unsupported"
+      /unsupported/i
     );
     expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
       "replace `agh.exe` manually"
@@ -374,6 +376,7 @@ describe("GeneralSettingsPage", () => {
   it("surfaces transport errors and retries the update query when refresh fails", () => {
     pageState.update = {
       data: null,
+      isError: true,
       isLoading: false,
       isFetching: false,
       error: new Error("update refresh timed out"),

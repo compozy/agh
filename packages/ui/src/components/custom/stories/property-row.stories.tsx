@@ -45,6 +45,19 @@ export const Default: Story = {
 };
 
 /**
+ * Long runtime values stay on one line and retain the complete value as a
+ * native title affordance.
+ */
+export const LongValue: Story = {
+  args: {},
+  render: () => (
+    <PropertyRow label="Workspace" mono>
+      workspace_01J7GJ67XQ6S0C8R1DVKPX9F5N
+    </PropertyRow>
+  ),
+};
+
+/**
  * Inline editor slot replacing the static value.
  */
 export const WithEditor: Story = {

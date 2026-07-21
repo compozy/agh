@@ -2,27 +2,19 @@ import { ArrowUpRight, LifeBuoy, RotateCw } from "lucide-react";
 
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Pill,
-  Textarea,
   TopbarOverflowIcon,
 } from "@agh/ui";
 
-import type { useForceFailDialog } from "../hooks/use-force-fail-dialog";
 import { taskRunStatusLabel, taskRunStatusTone } from "../lib/task-formatters";
 import type { TaskRunDetailView, TaskRunStatus } from "../types";
 
-const ACTIVE_STATUSES: ReadonlySet<TaskRunStatus> = new Set([
+const CANCELABLE_STATUSES: ReadonlySet<TaskRunStatus> = new Set([
   "queued",
   "claimed",
   "starting",
@@ -31,9 +23,10 @@ const ACTIVE_STATUSES: ReadonlySet<TaskRunStatus> = new Set([
 
 export function TaskRunPageStatus({ status }: { status: TaskRunStatus }) {
   const isActive = status === "running" || status === "starting";
+  const tone = taskRunStatusTone(status);
   return (
-    <Pill data-testid="tasks-run-status" tone={taskRunStatusTone(status)}>
-      <Pill.Dot pulse={isActive} tone={taskRunStatusTone(status)} />
+    <Pill data-testid="tasks-run-status" tone={tone}>
+      <Pill.Dot pulse={isActive} tone={tone} />
       {taskRunStatusLabel(status)}
     </Pill>
   );
@@ -47,7 +40,7 @@ export interface TaskRunPageActionsProps {
   onRetry: () => void;
 }
 
-/** Run-detail primary action (§6): Open session while live, Retry when failed. */
+/** Opens the live session or retries a failed run when another attempt is available. */
 export function TaskRunPageActions({
   run,
   maxAttempts,
@@ -57,7 +50,8 @@ export function TaskRunPageActions({
 }: TaskRunPageActionsProps) {
   const record = run.run;
   const sessionId = record.session_id ?? run.session?.session_id ?? null;
-  const attemptsRemain = maxAttempts == null || record.attempt < maxAttempts;
+  const attemptsRemain =
+    maxAttempts !== undefined && (maxAttempts === null || record.attempt < maxAttempts);
 
   if (record.status === "failed" && attemptsRemain) {
     return (
@@ -120,16 +114,16 @@ export function TaskRunPageOverflow({
   onCopyRunId,
 }: TaskRunPageOverflowProps) {
   const status = run.run.status;
-  const isActive = ACTIVE_STATUSES.has(status);
-  const isClaimedPhase = status === "claimed" || status === "starting" || status === "running";
-  const showForceFail = isClaimedPhase || status === "needs_attention";
+  const isCancelable = CANCELABLE_STATUSES.has(status);
+  const canRelease = status === "claimed";
+  const canForceFail = status === "queued" || status === "claimed";
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="More actions"
         data-testid="tasks-run-overflow"
-        render={<Button type="button" variant="ghost" size="icon-sm" />}
+        render={<Button className="size-6" type="button" variant="ghost" size="icon-sm" />}
       >
         <TopbarOverflowIcon aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
@@ -144,7 +138,7 @@ export function TaskRunPageOverflow({
             Recover
           </DropdownMenuItem>
         ) : null}
-        {isClaimedPhase ? (
+        {canRelease ? (
           <DropdownMenuItem
             data-testid="tasks-run-release"
             disabled={pending.release}
@@ -153,7 +147,7 @@ export function TaskRunPageOverflow({
             Release claim
           </DropdownMenuItem>
         ) : null}
-        {isActive ? (
+        {isCancelable ? (
           <DropdownMenuItem
             data-testid="tasks-run-cancel"
             disabled={pending.cancel}
@@ -165,7 +159,7 @@ export function TaskRunPageOverflow({
         <DropdownMenuItem data-testid="tasks-run-copy-id" onClick={onCopyRunId}>
           Copy run id
         </DropdownMenuItem>
-        {showForceFail ? (
+        {canForceFail ? (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -179,71 +173,5 @@ export function TaskRunPageOverflow({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-export interface TaskRunForceFailDialogProps {
-  dialog: ReturnType<typeof useForceFailDialog>;
-  isPending?: boolean;
-}
-
-/** Force-fail confirmation with a required reason (recorded in the audit log). */
-export function TaskRunForceFailDialog({ dialog, isPending = false }: TaskRunForceFailDialogProps) {
-  return (
-    <Dialog onOpenChange={dialog.handleOpenChange} open={dialog.isOpen}>
-      <DialogContent
-        className="max-w-md"
-        data-testid="tasks-run-force-fail-dialog"
-        showCloseButton={!isPending}
-      >
-        <DialogHeader>
-          <DialogTitle>Force fail this run?</DialogTitle>
-          <DialogDescription>
-            The run is marked failed immediately. The reason is recorded in the audit log.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-2">
-          <label className="eyebrow text-muted" htmlFor={dialog.reasonId}>
-            Reason
-          </label>
-          <Textarea
-            aria-describedby={dialog.reasonHintId}
-            aria-invalid={Boolean(dialog.error)}
-            data-testid="tasks-run-force-fail-reason"
-            disabled={isPending}
-            id={dialog.reasonId}
-            onChange={event => dialog.changeReason(event.target.value)}
-            rows={3}
-            value={dialog.reason}
-          />
-          {dialog.error ? (
-            <p className="text-form-hint text-danger" id={dialog.reasonHintId} role="alert">
-              {dialog.error}
-            </p>
-          ) : null}
-        </div>
-        <DialogFooter className="gap-2">
-          <Button
-            disabled={isPending}
-            onClick={() => dialog.handleOpenChange(false)}
-            size="sm"
-            type="button"
-            variant="neutral"
-          >
-            Cancel
-          </Button>
-          <Button
-            data-testid="tasks-run-force-fail-confirm"
-            disabled={isPending}
-            onClick={() => void dialog.confirm()}
-            size="sm"
-            type="button"
-            variant="destructive"
-          >
-            Force fail run
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

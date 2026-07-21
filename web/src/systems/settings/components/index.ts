@@ -23,8 +23,8 @@ export { SettingsDecimalInput } from "./settings-decimal-input";
 export { SettingsDisabledSkillsSection } from "./settings-disabled-skills-section";
 export { SettingsFieldRow } from "./settings-field-row";
 export type { SettingsFieldRowVariant } from "./settings-field-row";
-export { SettingLinkRow, SettingRow, SettingValue } from "./setting-row";
-export type { SettingLinkRowProps, SettingRowProps } from "./setting-row";
+export { SettingActionRow, SettingLinkRow, SettingRow, SettingValue } from "./setting-row";
+export type { SettingActionRowProps, SettingLinkRowProps, SettingRowProps } from "./setting-row";
 export { SettingsGroup } from "./settings-group";
 export type { SettingsGroupProps } from "./settings-group";
 export { SettingsChoiceGroup } from "./settings-choice-group";
@@ -33,6 +33,11 @@ export { SettingsTile, SettingsTiles } from "./settings-tiles";
 export type { SettingsTileProps } from "./settings-tiles";
 export { SettingsAdvancedFold, SettingsProvChip } from "./settings-advanced-fold";
 export { SettingsRestartNotice } from "./settings-restart-notice";
+export { SettingsRuntimeUnavailable } from "./settings-runtime-unavailable";
+export {
+  SettingsInlineSaveControls,
+  type SettingsInlineSaveControlsProps,
+} from "./settings-inline-save-controls";
 export { SettingsPageFrame } from "./settings-page-frame";
 export type { SettingsPageFrameProps } from "./settings-page-frame";
 export { SettingsNumberInput } from "./settings-number-input";

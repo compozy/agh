@@ -1,39 +1,33 @@
 import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
+import type * as React from "react";
 
-import { Button, MonoId, OwnerAvatar, Pill, PropertyRow, Time } from "@agh/ui";
+import { Button, cn, MonoId, OwnerAvatar, Pill, PropertyRow, Time } from "@agh/ui";
 
 import { describeCost } from "@/lib/cost-provenance";
-
-import { useLiveElapsed } from "../hooks/use-live-elapsed";
-import {
-  computeElapsed,
-  ownerAvatarKindFor,
-  taskRunStatusLabel,
-  taskRunStatusTone,
-} from "../lib/task-formatters";
+import { ownerAvatarKindFor, taskRunStatusLabel, taskRunStatusTone } from "../lib/task-formatters";
+import { formatTaskRunMetric, taskRunLineage } from "../lib/task-run-presentation";
 import type { TaskRun, TaskRunDetailView } from "../types";
 
-export interface TaskRunRailProps {
+export interface TaskRunRailProps extends React.ComponentProps<"div"> {
   run: TaskRunDetailView;
   taskId: string;
   /** Sibling runs of the parent task, used for lineage rows. */
   taskRuns: readonly TaskRun[];
+  taskRunsLoading?: boolean;
+  taskRunsErrorMessage?: string | null;
   onInspect: () => void;
+  duration?: string;
 }
 
 const METRIC_PLACEHOLDER = "—";
-
-function formatCount(value?: number | null): string {
-  return typeof value === "number" ? value.toLocaleString() : METRIC_PLACEHOLDER;
-}
 
 function LineageRow({ label, taskId, target }: { label: string; taskId: string; target: TaskRun }) {
   return (
     <PropertyRow
       editor={
         <Link
-          className="inline-flex min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
+          className="inline-flex min-h-6 min-w-6 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
           data-testid={`tasks-run-lineage-${target.id}`}
           params={{ id: taskId, runId: target.id }}
           to="/tasks/$id/runs/$runId"
@@ -50,17 +44,26 @@ function LineageRow({ label, taskId, target }: { label: string; taskId: string; 
 }
 
 /**
- * Run-detail rail (§4.9): session binding, best-effort operational metrics
+ * Run-detail rail: session binding, best-effort operational metrics
  * ("—" when the runtime has no number, never an invented zero), timing, and
  * attempt lineage. Tier-c internals stay behind Inspect.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.9
  */
-export function TaskRunRail({ run, taskId, taskRuns, onInspect }: TaskRunRailProps) {
+export function TaskRunRail({
+  run,
+  taskId,
+  taskRuns,
+  taskRunsLoading = false,
+  taskRunsErrorMessage = null,
+  onInspect,
+  duration,
+  className,
+  ...props
+}: TaskRunRailProps) {
   const record = run.run;
   const session = run.session ?? null;
   const summary = run.summary ?? null;
-  const isActive = record.status === "running" || record.status === "starting";
-  const liveElapsed = useLiveElapsed(record.started_at ?? undefined, isActive);
-  const duration = isActive ? liveElapsed : computeElapsed(record);
   const sessionId = record.session_id ?? session?.session_id ?? null;
   const claimant = record.claimed_by?.ref ?? null;
   const cost = describeCost({
@@ -69,14 +72,13 @@ export function TaskRunRail({ run, taskId, taskRuns, onInspect }: TaskRunRailPro
     amount: summary?.total_cost,
     currency: summary?.cost_currency,
   });
-  const previous = record.previous_run_id
-    ? (taskRuns.find(candidate => candidate.id === record.previous_run_id) ?? null)
-    : null;
-  const next = taskRuns.find(candidate => candidate.previous_run_id === record.id) ?? null;
+  const { previous, next } = taskRunLineage(record, taskRuns);
+  const hasLineage = Boolean(previous || next);
 
   return (
     <div
-      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      {...props}
+      className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}
       data-testid="tasks-run-rail"
     >
       <section className="border-t border-line-soft px-4 py-3.5 first:border-t-0">
@@ -102,13 +104,13 @@ export function TaskRunRail({ run, taskId, taskRuns, onInspect }: TaskRunRailPro
           </PropertyRow>
         ) : null}
         <PropertyRow label="Tool calls" mono>
-          {formatCount(summary?.tool_call_count)}
+          {formatTaskRunMetric(summary?.tool_call_count)}
         </PropertyRow>
         <PropertyRow label="Turns" mono>
-          {formatCount(summary?.turn_count)}
+          {formatTaskRunMetric(summary?.turn_count)}
         </PropertyRow>
         <PropertyRow label="Tokens" mono>
-          {formatCount(summary?.total_tokens)}
+          {formatTaskRunMetric(summary?.total_tokens)}
         </PropertyRow>
         {cost.hasCost ? (
           <PropertyRow
@@ -148,10 +150,32 @@ export function TaskRunRail({ run, taskId, taskRuns, onInspect }: TaskRunRailPro
         </PropertyRow>
       </section>
 
-      <section className="border-t border-line-soft px-4 py-3.5">
+      <section
+        aria-busy={taskRunsLoading || undefined}
+        className="border-t border-line-soft px-4 py-3.5"
+      >
         <h3 className="eyebrow mb-2 text-subtle">Lineage</h3>
-        {previous ? <LineageRow label="Previous" target={previous} taskId={taskId} /> : null}
-        {next ? <LineageRow label="Next" target={next} taskId={taskId} /> : null}
+        {taskRunsLoading ? (
+          <p className="py-1 text-form-label text-muted" role="status">
+            Loading lineage…
+          </p>
+        ) : null}
+        {taskRunsErrorMessage ? (
+          <p className="py-1 text-form-label text-danger" role="alert">
+            {taskRunsErrorMessage}
+          </p>
+        ) : null}
+        {!taskRunsLoading ? (
+          <>
+            {previous ? <LineageRow label="Previous" target={previous} taskId={taskId} /> : null}
+            {next ? <LineageRow label="Next" target={next} taskId={taskId} /> : null}
+            {!taskRunsErrorMessage && !hasLineage ? (
+              <PropertyRow label="Attempts">
+                <span className="text-muted">No linked attempts</span>
+              </PropertyRow>
+            ) : null}
+          </>
+        ) : null}
         <PropertyRow label="Run id" mono>
           <MonoId value={record.id} />
         </PropertyRow>
@@ -159,6 +183,7 @@ export function TaskRunRail({ run, taskId, taskRuns, onInspect }: TaskRunRailPro
 
       <footer className="flex items-center justify-between gap-2 border-t border-line-soft px-3 py-2.5">
         <Button
+          className="min-h-6"
           data-testid="tasks-run-inspect"
           onClick={onInspect}
           size="sm"

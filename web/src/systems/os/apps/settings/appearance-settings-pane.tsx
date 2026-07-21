@@ -1,12 +1,10 @@
-import { useRef, useSyncExternalStore } from "react";
+import { useRef } from "react";
 
 import { FieldRow, PageShell, Switch, cn } from "@agh/ui";
 
-import { SettingsTopbarPublisher } from "@/systems/settings";
+import { useSettingsTopbar } from "@/systems/settings";
 
-import { useDesktop } from "../../hooks/use-desktop";
-import { useOsShell } from "../../hooks/use-os-shell";
-import { getSystemReducedMotion, subscribeSystemReducedMotion } from "../../lib/reduced-motion";
+import { useAppearanceSettingsPane } from "../../hooks/use-appearance-settings-pane";
 import type { OsWallpaper } from "../../lib/os-types";
 
 const WALLPAPERS: Array<{ id: OsWallpaper; label: string }> = [
@@ -110,27 +108,17 @@ function WallpaperPicker({
  * preference always wins over the toggle (US-015.EC-1).
  */
 export function AppearanceSettingsPane() {
-  const { store } = useOsShell();
-  const wallpaper = useDesktop(state => state.wallpaper);
-  const dockMagnify = useDesktop(state => state.dockMagnify);
-  const reduceMotion = useDesktop(state => state.reduceMotion);
-  const systemReducedMotion = useSyncExternalStore(
-    subscribeSystemReducedMotion,
-    getSystemReducedMotion,
-    () => false
-  );
+  useSettingsTopbar("appearance");
+  const appearance = useAppearanceSettingsPane();
 
   return (
-    <PageShell slug="appearance" head={<SettingsTopbarPublisher slug="appearance" />}>
+    <PageShell slug="appearance">
       <div className="flex max-w-2xl flex-col gap-8" data-testid="os-appearance-pane">
         <FieldRow
           label="Wallpaper"
           description="Backdrop for this workspace's space. Each space keeps its own."
           control={
-            <WallpaperPicker
-              value={wallpaper}
-              onChange={next => store.getState().setWallpaper(next)}
-            />
+            <WallpaperPicker value={appearance.wallpaper} onChange={appearance.setWallpaper} />
           }
         />
         <FieldRow
@@ -141,15 +129,15 @@ export function AppearanceSettingsPane() {
             <Switch
               id="os-appearance-magnify"
               data-testid="os-appearance-magnify"
-              checked={dockMagnify}
-              onCheckedChange={checked => store.getState().setDockMagnify(checked === true)}
+              checked={appearance.dockMagnify}
+              onCheckedChange={checked => appearance.setDockMagnify(checked === true)}
             />
           }
         />
         <FieldRow
           label="Reduce motion"
           description={
-            systemReducedMotion
+            appearance.systemReducedMotion
               ? "Your system already prefers reduced motion — that preference wins while it is on."
               : "Window, dock, and minimize animations become instant."
           }
@@ -158,8 +146,8 @@ export function AppearanceSettingsPane() {
             <Switch
               id="os-appearance-reduce-motion"
               data-testid="os-appearance-reduce-motion"
-              checked={reduceMotion}
-              onCheckedChange={checked => store.getState().setReduceMotion(checked === true)}
+              checked={appearance.reduceMotion}
+              onCheckedChange={checked => appearance.setReduceMotion(checked === true)}
             />
           }
         />

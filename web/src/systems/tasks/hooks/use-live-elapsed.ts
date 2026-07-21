@@ -1,21 +1,40 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { formatDuration } from "@agh/ui";
 
-/**
- * Live-ticking elapsed label for an active run. Recomputes once per second
- * while `active`; renders a stable formatted duration otherwise. Interval sync
- * with wall-clock time is an external-system concern, so the effect is the
- * right tool here.
- */
-export function useLiveElapsed(startedAt?: string | null, active = false): string | undefined {
-  const [now, setNow] = useState(() => Date.now());
+let clockNow = Date.now();
+let clockTimer: number | null = null;
+const clockListeners = new Set<() => void>();
 
-  useEffect(() => {
-    if (!active) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [active]);
+function notifyClockListeners() {
+  clockNow = Date.now();
+  for (const listener of clockListeners) listener();
+}
+
+function subscribeClock(listener: () => void): () => void {
+  clockListeners.add(listener);
+  notifyClockListeners();
+  clockTimer ??= window.setInterval(notifyClockListeners, 1000);
+  return () => {
+    clockListeners.delete(listener);
+    if (clockListeners.size === 0 && clockTimer !== null) {
+      window.clearInterval(clockTimer);
+      clockTimer = null;
+    }
+  };
+}
+
+function subscribePausedClock(): () => void {
+  return () => undefined;
+}
+
+function clockSnapshot(): number {
+  return clockNow;
+}
+
+/** Returns an elapsed label that ticks once per second while the run is active. */
+export function useLiveElapsed(startedAt?: string | null, active = false): string | undefined {
+  const now = useSyncExternalStore(active ? subscribeClock : subscribePausedClock, clockSnapshot);
 
   if (!startedAt) return undefined;
   const startedMs = Date.parse(startedAt);

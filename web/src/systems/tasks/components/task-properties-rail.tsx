@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
-import { Button, MonoId, OwnerAvatar, Pill, PropertyRow, Time } from "@agh/ui";
+import { Button, cn, MonoId, OwnerAvatar, Pill, PropertyRow, Spinner, Time } from "@agh/ui";
 
 import {
   computeElapsed,
@@ -11,11 +11,14 @@ import {
   taskRunStatusLabel,
   taskRunStatusTone,
 } from "../lib/task-formatters";
-import { taskAttemptsUsed } from "../lib/task-command-state";
-import type { TaskDetailView, TaskExecutionProfile, TaskRun } from "../types";
+import {
+  taskExecutionProfileSummary,
+  taskPropertiesRunSummary,
+} from "../lib/task-properties-presentation";
+import type { TaskDetailView, TaskExecutionProfile, TaskPriority, TaskRun } from "../types";
 import { TaskAutoEnqueueSwitch, TaskPriorityEditor } from "./task-rail-editors";
 
-export interface TaskPropertiesRailProps {
+export interface TaskPropertiesRailProps extends ComponentPropsWithoutRef<"div"> {
   detail: TaskDetailView;
   runs: readonly TaskRun[];
   profile?: TaskExecutionProfile | null;
@@ -24,6 +27,9 @@ export interface TaskPropertiesRailProps {
   onApprove: () => void;
   onReject: () => void;
   approvalPending?: { approve?: boolean; reject?: boolean };
+  updatePending?: boolean;
+  onPriorityChange: (priority: TaskPriority) => void;
+  onAutoEnqueueChange: (enabled: boolean) => void;
 }
 
 function RailSection({
@@ -38,7 +44,7 @@ function RailSection({
   return (
     <section className="border-t border-line-soft px-4 py-3.5 first:border-t-0">
       <header className="mb-2 flex items-center justify-between gap-2">
-        <span className="eyebrow text-subtle">{label}</span>
+        <h3 className="eyebrow text-subtle">{label}</h3>
         {action}
       </header>
       {children}
@@ -46,43 +52,12 @@ function RailSection({
   );
 }
 
-function workerSummary(profile?: TaskExecutionProfile | null): string | null {
-  const worker = profile?.worker;
-  if (!worker) return null;
-  if (worker.agent_name) return worker.agent_name;
-  if (worker.allowed_agent_names && worker.allowed_agent_names.length > 0) {
-    const [first, ...rest] = worker.allowed_agent_names;
-    return rest.length > 0 ? `${first} +${rest.length}` : (first ?? null);
-  }
-  return worker.mode === "inherit" ? "Inherited" : null;
-}
-
-function modelSummary(profile?: TaskExecutionProfile | null): string | null {
-  const worker = profile?.worker;
-  if (!worker?.model) return null;
-  return worker.provider ? `${worker.provider} · ${worker.model}` : worker.model;
-}
-
-function sandboxSummary(profile?: TaskExecutionProfile | null): string | null {
-  const sandbox = profile?.sandbox;
-  if (!sandbox) return null;
-  if (sandbox.mode === "ref") return sandbox.sandbox_ref ?? null;
-  if (sandbox.mode === "none") return "None";
-  return "Inherited";
-}
-
-function networkChannel(profile?: TaskExecutionProfile | null): string | null {
-  const participation = profile?.network_participation;
-  if (participation && participation.mode === "live" && "channel_id" in participation) {
-    return participation.channel_id ?? null;
-  }
-  return null;
-}
-
 /**
- * 320px properties rail (§4.4): tier a/b fields only, grouped, with the sole
+ * 320px properties rail: tier a/b fields only, grouped, with the sole
  * operator entry point (Inspect) in the footer. No lease, heartbeat, claim
  * hash, or seq here — those stay behind Inspect.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.4
  */
 export function TaskPropertiesRail({
   detail,
@@ -93,28 +68,24 @@ export function TaskPropertiesRail({
   onApprove,
   onReject,
   approvalPending = {},
+  updatePending = false,
+  onPriorityChange,
+  onAutoEnqueueChange,
+  className,
+  ...props
 }: TaskPropertiesRailProps) {
   const record = detail.task;
   const activeRun = detail.summary?.active_run ?? null;
   const owner = record.owner ?? null;
   const ownerName = owner ? taskOwnerLabel(owner) : "Unassigned";
-  const attemptsMax = record.max_attempts ?? null;
-  const attemptsLabel = attemptsMax
-    ? `${taskAttemptsUsed(runs, activeRun)} of ${attemptsMax}`
-    : String(taskAttemptsUsed(runs, activeRun));
-  const worker = workerSummary(profile);
-  const model = modelSummary(profile);
-  const sandbox = sandboxSummary(profile);
-  const channel = networkChannel(profile);
-  const stuckRun = activeRun?.status === "needs_attention" ? activeRun : null;
-  const lastFailedRun =
-    !activeRun && record.status === "failed"
-      ? [...runs].filter(run => run.status === "failed").sort((a, b) => b.attempt - a.attempt)[0]
-      : null;
+  const { worker, model, sandbox, channel } = taskExecutionProfileSummary(profile);
+  const { attemptsLabel, lastFailedRun, stuckRun } = taskPropertiesRunSummary(detail, runs);
+  const approvalBusy = Boolean(approvalPending.approve || approvalPending.reject);
 
   return (
     <div
-      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      {...props}
+      className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}
       data-testid="tasks-detail-rail"
     >
       {record.approval_state === "pending" ? (
@@ -126,24 +97,30 @@ export function TaskPropertiesRail({
           <PropertyRow label="Requested by">{record.created_by?.ref ?? "unknown"}</PropertyRow>
           <div className="mt-2 flex items-center justify-end gap-2">
             <Button
+              aria-busy={approvalPending.reject || undefined}
+              className="min-h-6"
               data-testid="tasks-rail-reject"
-              disabled={approvalPending.reject}
+              disabled={approvalBusy}
               onClick={onReject}
               size="sm"
               type="button"
               variant="ghost"
             >
-              Reject
+              {approvalPending.reject ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {approvalPending.reject ? "Rejecting…" : "Reject"}
             </Button>
             <Button
+              aria-busy={approvalPending.approve || undefined}
+              className="min-h-6"
               data-testid="tasks-rail-approve"
-              disabled={approvalPending.approve}
+              disabled={approvalBusy}
               onClick={onApprove}
               size="sm"
               type="button"
               variant="neutral"
             >
-              Approve
+              {approvalPending.approve ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {approvalPending.approve ? "Approving…" : "Approve"}
             </Button>
           </div>
         </RailSection>
@@ -164,11 +141,6 @@ export function TaskPropertiesRail({
                 size="sm"
               />
               <span className="truncate">{stuckRun.claimed_by.ref}</span>
-            </PropertyRow>
-          ) : null}
-          {stuckRun.heartbeat_at ? (
-            <PropertyRow label="Last heartbeat">
-              <Time iso={stuckRun.heartbeat_at} mode="relative" />
             </PropertyRow>
           ) : null}
           <PropertyRow label="Run id" mono>
@@ -198,7 +170,16 @@ export function TaskPropertiesRail({
       ) : null}
 
       <RailSection label="Properties">
-        <PropertyRow editor={<TaskPriorityEditor task={record} />} label="Priority" />
+        <PropertyRow
+          editor={
+            <TaskPriorityEditor
+              onChange={onPriorityChange}
+              pending={updatePending}
+              priority={record.priority ?? "medium"}
+            />
+          }
+          label="Priority"
+        />
         <PropertyRow label="Owner">
           {owner ? (
             <>
@@ -221,7 +202,7 @@ export function TaskPropertiesRail({
           <PropertyRow
             editor={
               <Link
-                className="inline-flex min-w-0 items-center rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
+                className="inline-flex min-h-6 min-w-0 items-center rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
                 data-testid="tasks-rail-parent"
                 params={{ id: record.parent_task_id }}
                 to="/tasks/$id"
@@ -237,7 +218,7 @@ export function TaskPropertiesRail({
       <RailSection
         action={
           <Button
-            className="-mr-1.5 h-auto px-1.5 py-0.5 text-eyebrow font-medium text-muted"
+            className="-mr-1.5 min-h-6 px-1.5 py-0.5 text-eyebrow font-medium text-muted"
             data-testid="tasks-rail-edit-setup"
             onClick={onEditSetup}
             size="sm"
@@ -257,7 +238,16 @@ export function TaskPropertiesRail({
         ) : null}
         {sandbox ? <PropertyRow label="Sandbox">{sandbox}</PropertyRow> : null}
         <PropertyRow label="Attempts">{attemptsLabel}</PropertyRow>
-        <PropertyRow editor={<TaskAutoEnqueueSwitch task={record} />} label="Auto-enqueue" />
+        <PropertyRow
+          editor={
+            <TaskAutoEnqueueSwitch
+              enabled={Boolean(record.auto_enqueue_on_ready)}
+              onChange={onAutoEnqueueChange}
+              pending={updatePending}
+            />
+          }
+          label="Auto-enqueue"
+        />
         {channel ? (
           <PropertyRow label="Channel" mono>
             {channel}
@@ -290,6 +280,7 @@ export function TaskPropertiesRail({
 
       <footer className="flex items-center justify-between gap-2 border-t border-line-soft px-3 py-2.5">
         <Button
+          className="min-h-6"
           data-testid="tasks-rail-inspect"
           onClick={onInspect}
           size="sm"

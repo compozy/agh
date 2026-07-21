@@ -357,23 +357,14 @@ describe("settings operator selectors", () => {
     expect(selectors.shell.sectionNav).toBe(`locator:${settingsShellTestIds.sectionNav}`);
     expect(selectors.shell.sectionLink("general")).toBe("locator:settings-section-general");
     expect(selectors.shell.sectionActive("network")).toBe(
-      "locator:settings-section-active-network"
+      'locator:[data-testid="settings-section-network"][aria-current="page"]'
     );
 
     expect(selectors.general.page).toBe(`locator:${settingsGeneralTestIds.page}`);
     expect(selectors.general.saveButton).toBe(`locator:${settingsGeneralTestIds.saveButton}`);
-    expect(selectors.general.restartAction).toBe(
-      'locator:[data-testid="' +
-        settingsGeneralTestIds.restartBanner +
-        '"] [data-slot="restart-banner-action"]'
-    );
-    expect(selectors.general.restartBannerTrigger).toBe(
-      'locator:[data-testid="' +
-        settingsGeneralTestIds.restartBanner +
-        '"] [data-slot="restart-banner-action"]'
-    );
-    expect(selectors.general.restartBannerOp).toBe(
-      `locator:${settingsGeneralTestIds.restartBannerOp}`
+    expect(selectors.general.restartNotice).toBe(`locator:${settingsGeneralTestIds.restartNotice}`);
+    expect(selectors.general.restartTrigger).toBe(
+      `locator:${settingsGeneralTestIds.restartTrigger}`
     );
     expect(selectors.general.sessionTimeoutInput).toBe(
       `locator:${settingsGeneralTestIds.sessionTimeoutInput}`
@@ -390,7 +381,7 @@ describe("settings operator selectors", () => {
     expect(selectors.skills.policyBaseURLInput).toBe(
       `locator:${settingsSkillsTestIds.policyBaseURLInput}`
     );
-    expect(selectors.skills.policyApplied).toBe(`locator:${settingsSkillsTestIds.policyApplied}`);
+    expect(selectors.skills.policyMessage).toBe(`locator:${settingsSkillsTestIds.policyMessage}`);
 
     expect(selectors.providers.page).toBe(`locator:${settingsProvidersTestIds.page}`);
     expect(selectors.providers.create).toBe(`locator:${settingsProvidersTestIds.create}`);
@@ -400,17 +391,9 @@ describe("settings operator selectors", () => {
     expect(selectors.providers.editorSave).toBe("locator:provider-inspector-save");
     expect(selectors.providers.card("codex")).toBe("locator:settings-page-providers-card-codex");
     expect(selectors.providers.cardCommand("codex")).toBe(
-      "locator:settings-page-providers-card-codex-hint"
+      "locator:settings-page-providers-card-codex-command"
     );
-    expect(selectors.providers.cardSource("codex")).toBe(
-      "locator:settings-page-providers-card-codex-source"
-    );
-    expect(selectors.providers.editCard("codex")).toBe(
-      "locator:settings-page-providers-card-codex-edit"
-    );
-    expect(selectors.providers.deleteCard("codex")).toBe(
-      "locator:settings-page-providers-card-codex-delete"
-    );
+    expect(selectors.providers.inspectorSource).toBe("locator:inspect-source");
 
     expect(selectors.mcpServers.page).toBe(`locator:${settingsMCPServersTestIds.page}`);
     expect(selectors.mcpServers.create).toBe(`locator:${settingsMCPServersTestIds.create}`);
@@ -506,8 +489,7 @@ describe("tasks operator selectors", () => {
     expect(selectors.detailContent).toBe(`locator:${tasksOperatorTestIds.detailContent}`);
     expect(selectors.detailBreadcrumbTasks).toBe("breadcrumb-role:link:Tasks");
     expect(selectors.detailTabRuns).toBe(`locator:${tasksOperatorTestIds.detailTabRuns}`);
-    expect(selectors.detailTabAgents).toBe(`locator:${tasksOperatorTestIds.detailTabAgents}`);
-    expect(selectors.detailTab("timeline")).toBe("locator:tasks-detail-tab-timeline");
+    expect(selectors.detailTab("activity")).toBe("locator:tasks-detail-tab-activity");
     expect(selectors.detailRunsLink("run_browser_01")).toBe(
       "locator:tasks-detail-runs-link-run_browser_01"
     );
@@ -540,6 +522,12 @@ describe("tasks operator selectors", () => {
       `locator:${tasksOperatorTestIds.multiAgentDisconnected}`
     );
     expect(selectors.detailLifecycle).toBe(`locator:${tasksOperatorTestIds.detailLifecycle}`);
+    expect(selectors.detailInspectDrawer).toBe(
+      `locator:${tasksOperatorTestIds.detailInspectDrawer}`
+    );
+    expect(selectors.detailInspectStream).toBe(
+      `locator:${tasksOperatorTestIds.detailInspectStream}`
+    );
     expect(selectors.detailLifecycleHint).toBe(
       `locator:${tasksOperatorTestIds.detailLifecycleHint}`
     );
@@ -564,30 +552,14 @@ describe("tasks operator selectors", () => {
     expect(selectors.detailPreviewCoordination).toBe(
       `locator:${tasksOperatorTestIds.detailPreviewCoordination}`
     );
-    expect(selectors.detailTabOrchestration).toBe(
-      `locator:${tasksOperatorTestIds.detailTabOrchestration}`
+    expect(selectors.detailSetupOpen).toBe(`locator:${tasksOperatorTestIds.detailSetupOpen}`);
+    expect(selectors.detailSetupSheet).toBe(`locator:${tasksOperatorTestIds.detailSetupSheet}`);
+    expect(selectors.detailSetupEdit).toBe(`locator:${tasksOperatorTestIds.detailSetupEdit}`);
+    expect(selectors.detailSetupForm).toBe(`locator:${tasksOperatorTestIds.detailSetupForm}`);
+    expect(selectors.detailSetupWorkerRuntime).toBe(
+      `locator:${tasksOperatorTestIds.detailSetupWorkerRuntime}`
     );
-    expect(selectors.orchestrationPanel).toBe(`locator:${tasksOperatorTestIds.orchestrationPanel}`);
-    expect(selectors.orchestrationProfileEmpty).toBe(
-      `locator:${tasksOperatorTestIds.orchestrationProfileEmpty}`
-    );
-    expect(selectors.orchestrationProfileSummary).toBe(
-      `locator:${tasksOperatorTestIds.orchestrationProfileSummary}`
-    );
-    expect(selectors.orchestrationReviewsEmpty).toBe(
-      `locator:${tasksOperatorTestIds.orchestrationReviewsEmpty}`
-    );
-    expect(selectors.orchestrationNotificationsEmpty).toBe(
-      `locator:${tasksOperatorTestIds.orchestrationNotificationsEmpty}`
-    );
-    expect(selectors.orchestrationStreamCard).toBe(
-      `locator:${tasksOperatorTestIds.orchestrationStreamCard}`
-    );
-    expect(selectors.orchestrationStreamLatest).toBe(
-      `locator:${tasksOperatorTestIds.orchestrationStreamLatest}`
-    );
-    expect(selectors.orchestrationStreamSeed).toBe(
-      `locator:${tasksOperatorTestIds.orchestrationStreamSeed}`
-    );
+    expect(selectors.runsRow("run_browser_01")).toBe("locator:tasks-runs-row-run_browser_01");
+    expect(selectors.runReviews).toBe(`locator:${tasksOperatorTestIds.runReviews}`);
   });
 });

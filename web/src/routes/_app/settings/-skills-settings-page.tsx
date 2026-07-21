@@ -12,6 +12,9 @@ import {
   SettingsFieldRow,
   SettingsGroup,
   SettingsPageFrame,
+  SettingsRuntimeUnavailable,
+  SettingsInlineSaveControls,
+  useSettingsTopbar,
   type SettingsScope,
   type SettingsSkillsSection,
 } from "@/systems/settings";
@@ -25,11 +28,12 @@ import {
   Spinner,
   Switch,
 } from "@agh/ui";
-import { AllowListField, SaveControls } from "./-skills-controls";
+import { AllowListField } from "./-skills-controls";
 
 type SkillsConfig = SettingsSkillsSection["config"];
 export function SkillsSettingsPage() {
   const page = useSettingsSkillsPage();
+  useSettingsTopbar("skills");
 
   if (page.isLoading) {
     return (
@@ -71,22 +75,28 @@ export function SkillsSettingsPage() {
     <SettingsPageFrame
       description="Which skills your agents can use, and where new ones may come from."
       meta={[
-        {
-          key: "discovered",
-          content: (
-            <span>
-              <span className="font-medium text-muted">{envelope.discovered_count}</span> discovered
-            </span>
-          ),
-        },
-        {
-          key: "disabled",
-          content: (
-            <span>
-              <span className="font-medium text-muted">{envelope.disabled_count}</span> disabled
-            </span>
-          ),
-        },
+        ...(envelope.runtime_available
+          ? [
+              {
+                key: "discovered",
+                content: (
+                  <span>
+                    <span className="font-medium text-muted">{envelope.discovered_count}</span>{" "}
+                    discovered
+                  </span>
+                ),
+              },
+              {
+                key: "disabled",
+                content: (
+                  <span>
+                    <span className="font-medium text-muted">{envelope.disabled_count}</span>{" "}
+                    disabled
+                  </span>
+                ),
+              },
+            ]
+          : [{ key: "runtime", content: <span>runtime unavailable</span> }]),
         {
           key: "scope",
           content: <span data-testid="settings-page-skills-scope-label">scope {scopeLabel}</span>,
@@ -95,6 +105,12 @@ export function SkillsSettingsPage() {
       restart={restart}
       slug="skills"
     >
+      {!envelope.runtime_available ? (
+        <SettingsRuntimeUnavailable
+          slug="skills"
+          description="Skill discovery counts could not be measured. Policy settings remain editable."
+        />
+      ) : null}
       <ScopeSelector
         selection={page.selection}
         availableScopes={page.availableScopes}
@@ -124,8 +140,9 @@ export function SkillsSettingsPage() {
         }
         onToggle={page.toggleDisabled}
         controls={
-          <SaveControls
-            slug="disabled"
+          <SettingsInlineSaveControls
+            controlTestIdPrefix="settings-page-skills-disabled"
+            testId="settings-page-skills-disabled-controls"
             saveLabel="Apply"
             isDirty={page.isDisabledDirty}
             isSaving={page.isSavingDisabled}
@@ -322,8 +339,9 @@ function PolicySection({
       title="Marketplace & policy"
       description="restart required to apply"
       action={
-        <SaveControls
-          slug="policy"
+        <SettingsInlineSaveControls
+          controlTestIdPrefix="settings-page-skills-policy"
+          testId="settings-page-skills-policy-controls"
           saveLabel="Save"
           isDirty={isDirty}
           isSaving={isSaving}

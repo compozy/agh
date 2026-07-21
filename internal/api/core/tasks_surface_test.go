@@ -1546,12 +1546,12 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		if len(records) != 1 {
 			t.Fatalf("stream records = %d, want 1; body=%s", len(records), streamResp.Body.String())
 		}
-		if records[0].ID != "13" || records[0].Event != "task.run.started" {
+		if records[0].ID != "13" || records[0].Event != "" {
 			t.Fatalf("stream record = %#v", records[0])
 		}
 		var payload contract.TaskStreamEventPayload
 		testutil.DecodeSSEData(t, records[0], &payload)
-		if payload.Sequence != 13 || payload.Timeline.EventID != "evt-13" {
+		if payload.Sequence != 13 || payload.Type != "task.run.started" || payload.Timeline.EventID != "evt-13" {
 			t.Fatalf("stream payload = %#v", payload)
 		}
 		if streamActor.Origin.Ref != "tasks.stream" || streamQuery.AfterSequence != 9 {

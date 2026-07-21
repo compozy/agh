@@ -11,18 +11,16 @@ import {
   type SettingsProviderEntry,
   type SettingsProviderModelRequest,
   type SettingsProviderRequest,
-  type SettingsSourceKind,
 } from "@/systems/settings";
 import {
   applyProviderFilters,
   DEFAULT_PROVIDER_FILTERS,
-  providerCredentialsConfigured,
-  type ProviderAuthMode,
-  type ProviderDefaultFilter,
   type ProviderFilterState,
-  type ProviderHarness,
 } from "@/systems/settings/lib/providers-list-filters";
-import type { ProviderStateLabel } from "@/systems/settings/lib/provider-state";
+import {
+  deriveProviderStateLabel,
+  type ProviderStateLabel,
+} from "@/systems/settings/lib/provider-state";
 
 type ProviderCredentialSlotDraft = ProviderDraft["credential_slots"][number];
 
@@ -273,33 +271,19 @@ export function useSettingsProvidersPage() {
   const envelope = query.data ?? null;
   const providers = envelope?.providers ?? [];
 
+  const providerStates = providers.map(deriveProviderStateLabel);
   const counts = {
     total: providers.length,
-    installed: providers.filter(
-      provider => provider.command_available && providerCredentialsConfigured(provider)
-    ).length,
-    binaryMissing: providers.filter(provider => !provider.command_available).length,
-    unconfigured: providers.filter(
-      provider => provider.command_available && !providerCredentialsConfigured(provider)
-    ).length,
+    installed: providerStates.filter(state => state === "installed").length,
+    binaryMissing: providerStates.filter(state => state === "binary-missing").length,
+    needsSetup: providerStates.filter(state => state !== "installed" && state !== "binary-missing")
+      .length,
   };
 
   const filteredProviders = applyProviderFilters(providers, filters);
 
   const setStatusFilter = (next: ProviderStateLabel | null) => {
     setFilters(current => ({ ...current, statusFilter: next }));
-  };
-  const setSourceFilter = (next: SettingsSourceKind | null) => {
-    setFilters(current => ({ ...current, sourceFilter: next }));
-  };
-  const setHarnessFilter = (next: ProviderHarness | null) => {
-    setFilters(current => ({ ...current, harnessFilter: next }));
-  };
-  const setAuthModeFilter = (next: ProviderAuthMode | null) => {
-    setFilters(current => ({ ...current, authModeFilter: next }));
-  };
-  const setDefaultFilter = (next: ProviderDefaultFilter | null) => {
-    setFilters(current => ({ ...current, defaultFilter: next }));
   };
   const setNameQuery = (next: string) => {
     setFilters(current => ({ ...current, nameQuery: next }));
@@ -408,10 +392,6 @@ export function useSettingsProvidersPage() {
     filteredProviders,
     filters,
     setStatusFilter,
-    setSourceFilter,
-    setHarnessFilter,
-    setAuthModeFilter,
-    setDefaultFilter,
     setNameQuery,
     counts,
     restart: page.restart,

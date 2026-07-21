@@ -28,11 +28,14 @@ function useSettingsPage(options: UseSettingsPageOptions = {}) {
       ) ?? null;
   }
 
-  const isRestartBannerVisible =
-    restart.isRestartRequired || restart.isPolling || restart.isSuccessful || restart.isFailed;
+  const isRestartNoticeVisible =
+    (restart.isRestartRequired && !restart.isNoticeSnoozed) ||
+    restart.isPolling ||
+    restart.isSuccessful ||
+    restart.isFailed;
 
-  const restartBanner = {
-    isVisible: isRestartBannerVisible,
+  const restartNotice = {
+    isVisible: isRestartNoticeVisible,
     isRestartRequired: restart.isRestartRequired,
     isPolling: restart.isPolling,
     isSuccessful: restart.isSuccessful,
@@ -54,7 +57,7 @@ function useSettingsPage(options: UseSettingsPageOptions = {}) {
     activeSection: matchedSection,
     activeSectionSlug: matchedSection?.slug ?? null,
     sectionPath: (slug: SettingsSectionDescriptor["slug"]) => settingsSectionPath(slug),
-    restart: restartBanner,
+    restart: restartNotice,
   };
 }
 

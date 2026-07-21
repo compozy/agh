@@ -7,6 +7,7 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import { SettingsNumberInput } from "../settings-number-input";
+import { SettingsAdvancedFold } from "../settings-advanced-fold";
 
 describe("SettingsNumberInput", () => {
   it("Should preserve focus across controlled value updates", () => {
@@ -24,5 +25,26 @@ describe("SettingsNumberInput", () => {
 
     expect(input).toHaveValue("12");
     expect(input).toHaveFocus();
+  });
+});
+
+describe("SettingsAdvancedFold", () => {
+  it("Should keep invalid controls mounted when the fold closes", () => {
+    render(
+      <SettingsAdvancedFold defaultOpen>
+        <SettingsNumberInput aria-label="Retry limit" onValueChange={() => undefined} value={1} />
+      </SettingsAdvancedFold>
+    );
+
+    const input = screen.getByRole("textbox", { name: "Retry limit" });
+    fireEvent.change(input, { target: { value: "invalid" } });
+    fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
+
+    expect(input).toBeInTheDocument();
+    expect(input).not.toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
+    expect(input).toHaveValue("invalid");
+    expect(input).toHaveAttribute("aria-invalid", "true");
   });
 });

@@ -8,9 +8,8 @@ import { cn } from "@/lib/utils";
  * a ≥24px target. Action association comes from the wiring in Task 04.
  *
  * Compact (<960px, os-v2.css mobile block): the zoom control disappears
- * (meaningless in a stack), glyphs grow to 15px, gaps to 12px, and each
- * control gets a non-overlapping 44px touch target. This intentionally exceeds
- * the prototype's 33px pseudo-hitbox to satisfy the product accessibility floor.
+ * (meaningless in a stack), glyphs grow to 15px, and interactive controls get
+ * non-overlapping 44px touch targets. Inert chrome uses the visual 12px gap.
  */
 export type OsTrafficLightAction = "close" | "minimize" | "zoom";
 
@@ -64,12 +63,12 @@ function Light({
       aria-label={ACTION_LABEL[action]}
       data-action={action}
       className={cn(
-        "group/traffic grid place-items-center rounded-xs focus-visible:shadow-focus-ring focus-visible:outline-none",
+        "group/traffic grid place-items-center rounded-xs focus-visible:outline-none",
         compact
-          ? "size-traffic-light-compact-target"
+          ? "size-traffic-light-compact-target focus-visible:shadow-focus-inset"
           : // ≥24px target around the 12px glyph; -mx-1.5 (-6px each side) so
             // adjacent button starts are 19px apart and the glyph edge gap is 7px.
-            "-mx-1.5 size-6"
+            "-mx-1.5 size-6 focus-visible:shadow-focus-ring"
       )}
       onClick={() => onSelect(action)}
     >
@@ -91,9 +90,7 @@ export function OsTrafficLights({
       data-presentation={compact ? "compact" : undefined}
       className={cn(
         "flex items-center",
-        // Compact targets are real, non-overlapping 44px boxes. The wider
-        // visual separation is an accessibility-authorized prototype delta.
-        compact ? "gap-0" : "gap-traffic-light-gap",
+        compact ? (onSelect ? "gap-0" : "gap-traffic-light-compact-gap") : "gap-traffic-light-gap",
         className
       )}
       {...props}

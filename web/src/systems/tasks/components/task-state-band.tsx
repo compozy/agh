@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { cn, type PillTone } from "@agh/ui";
+import { cn, StatusCard, type PillTone } from "@agh/ui";
 
 export interface TaskStateBandProps extends Omit<React.ComponentProps<"section">, "title"> {
   tone: PillTone;
@@ -32,8 +32,8 @@ const TONE_TITLE: Record<PillTone, string> = {
 };
 
 /**
- * Flat tint band for the Overview "Now" strip (§4.3): one state, one plain
- * sentence, its resolving action. Replaces banner prose and stacked pills.
+ * Flat tint band shared by the Overview state strip and run outcomes: one
+ * state, one plain sentence, and its resolving action.
  */
 export function TaskStateBand({
   tone,
@@ -45,7 +45,7 @@ export function TaskStateBand({
   ...props
 }: TaskStateBandProps) {
   return (
-    <section
+    <StatusCard
       data-slot="task-state-band"
       data-tone={tone}
       className={cn(
@@ -53,6 +53,7 @@ export function TaskStateBand({
         TONE_SURFACE[tone],
         className
       )}
+      tone={tone}
       {...props}
     >
       <h3 className={cn("text-[13px] font-medium", TONE_TITLE[tone])}>{title}</h3>
@@ -69,6 +70,6 @@ export function TaskStateBand({
           ) : null}
         </div>
       ) : null}
-    </section>
+    </StatusCard>
   );
 }

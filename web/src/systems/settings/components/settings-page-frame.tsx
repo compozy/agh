@@ -2,10 +2,9 @@ import type { ReactNode } from "react";
 
 import { cn } from "@agh/ui";
 
-import type { SettingsRestartViewState } from "../lib/restart-banner-mapper";
+import type { SettingsRestartViewState } from "../lib/restart-presentation";
 import type { SettingsSectionSlug } from "../types";
 import { SettingsRestartNotice } from "./settings-restart-notice";
-import { SettingsTopbarPublisher } from "./settings-topbar-publisher";
 
 export interface SettingsPageFrameProps {
   slug: SettingsSectionSlug;
@@ -16,8 +15,6 @@ export interface SettingsPageFrameProps {
   restart?: SettingsRestartViewState;
   /** Listing pages (Providers) get the wide column. */
   wide?: boolean;
-  /** Head actions published into the window topbar (one accent target). */
-  headActions?: ReactNode;
   /** Floating save bar (or null for per-item / immediate pages). */
   saveBar?: ReactNode;
   children: ReactNode;
@@ -34,7 +31,6 @@ export function SettingsPageFrame({
   meta,
   restart,
   wide = false,
-  headActions,
   saveBar,
   children,
 }: SettingsPageFrameProps) {
@@ -43,19 +39,18 @@ export function SettingsPageFrame({
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       data-testid={`settings-page-${slug}`}
     >
-      <SettingsTopbarPublisher actions={headActions} slug={slug} />
       <div className="min-h-0 flex-1 overflow-y-auto" data-testid={`settings-page-${slug}-body`}>
         <div
           className={cn(
-            "mx-auto flex w-full flex-col gap-6 px-6 pt-5 pb-24",
-            wide ? "max-w-[960px]" : "max-w-[768px]"
+            "mx-auto flex w-full flex-col gap-6 px-6 pt-5 pb-settings-page-bottom",
+            wide ? "max-w-settings-page-wide" : "max-w-settings-page-form"
           )}
         >
           <div
             className="flex min-w-0 flex-wrap items-center gap-2 border-b border-line pb-3.5 text-form-label text-subtle"
             data-testid={`settings-page-${slug}-subhead`}
           >
-            <span className="max-w-[72ch]">{description}</span>
+            <span className="max-w-settings-page-description">{description}</span>
             {meta?.map(entry => (
               <span className="inline-flex items-center gap-2" key={entry.key}>
                 <span aria-hidden="true" className="text-faint">

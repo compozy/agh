@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronLeft, Search } from "lucide-react";
-import { useState, type Ref } from "react";
+import { ChevronLeft } from "lucide-react";
+import { useState, type ComponentProps, type Ref } from "react";
 
-import { cn, ConnectionIndicator, Kbd } from "@agh/ui";
+import { cn, ConnectionIndicator, SearchInput, type ConnectionStatus } from "@agh/ui";
 
 import {
   filterSettingsSections,
@@ -10,42 +10,42 @@ import {
   settingsSectionPath,
   type SettingsSectionDescriptor,
 } from "@/systems/settings";
-import { useDaemonConnectionStatus } from "@/systems/status";
+import { settingsConnectionLabel } from "./settings-connection-label";
 
-/**
- * Settings takeover sidebar (design system §02–03): back row, live search,
- * three nav groups, daemon status foot. Collapses to a horizontal chip strip
- * when the window is narrow. Active section comes from the WINDOW's location
- * so an unfocused settings window keeps its own highlight.
- */
+export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "children"> {
+  activeSlug: string;
+  connection: ConnectionStatus;
+  onBackToApp: () => void;
+  searchInputRef?: Ref<HTMLInputElement>;
+}
+
+/** Window-owned Settings navigation for compact and desktop layouts. */
 export function SettingsWindowNav({
   activeSlug,
+  connection,
   onBackToApp,
   searchInputRef,
-}: {
-  activeSlug: string;
-  onBackToApp: () => void;
-  /** Focus target for the window-scoped `/` shortcut. */
-  searchInputRef?: Ref<HTMLInputElement>;
-}) {
+  className,
+  ...navProps
+}: SettingsWindowNavProps) {
   const [query, setQuery] = useState("");
-  const connection = useDaemonConnectionStatus();
   const visible = filterSettingsSections(query);
-  const visibleSlugs = new Set(visible.map(section => section.slug));
 
   return (
     <nav
       aria-label="Settings navigation"
       className={cn(
         "flex w-full shrink-0 flex-row items-center gap-1 overflow-x-auto border-b border-line-soft bg-canvas-soft px-2 py-1.5",
-        "@min-[56rem]:w-[264px] @min-[56rem]:flex-col @min-[56rem]:items-stretch @min-[56rem]:gap-0 @min-[56rem]:overflow-y-auto @min-[56rem]:border-r @min-[56rem]:border-b-0 @min-[56rem]:px-2.5 @min-[56rem]:py-0"
+        "@min-settings-takeover:w-settings-nav @min-settings-takeover:flex-col @min-settings-takeover:items-stretch @min-settings-takeover:gap-0 @min-settings-takeover:overflow-y-auto @min-settings-takeover:border-r @min-settings-takeover:border-b-0 @min-settings-takeover:px-2.5 @min-settings-takeover:py-0",
+        className
       )}
       data-testid="settings-section-nav"
+      {...navProps}
     >
-      <div className="hidden @min-[56rem]:block">
+      <div className="hidden @min-settings-takeover:block">
         <button
           className={cn(
-            "mt-2 flex h-[30px] w-full items-center gap-1.5 rounded-md px-2 text-small-body font-medium text-muted",
+            "mt-2 flex h-button-lg w-full items-center gap-1.5 rounded-md px-2 text-small-body font-medium text-muted",
             "transition-colors duration-base hover:bg-row-hover hover:text-fg",
             "focus-visible:outline-none focus-visible:shadow-focus-ring"
           )}
@@ -56,38 +56,29 @@ export function SettingsWindowNav({
           <ChevronLeft aria-hidden="true" className="size-3.5 text-subtle" />
           Back to app
         </button>
-        <label
-          className={cn(
-            "mt-1.5 flex h-7 items-center gap-1.5 rounded-md border border-line-soft bg-canvas px-2",
-            "focus-within:border-line-strong focus-within:shadow-focus-ring"
-          )}
-        >
-          <Search aria-hidden="true" className="size-3 shrink-0 text-subtle" />
-          <input
-            aria-label="Search settings"
-            autoComplete="off"
-            className="min-w-0 flex-1 bg-transparent text-form-label text-fg outline-none placeholder:text-subtle"
-            data-testid="settings-nav-search"
-            onChange={event => setQuery(event.target.value)}
-            placeholder="Search settings"
-            ref={searchInputRef}
-            type="search"
-            value={query}
-          />
-          <Kbd className="shrink-0">/</Kbd>
-        </label>
+        <SearchInput
+          aria-label="Search settings"
+          autoComplete="off"
+          containerClassName="mt-1.5 w-full min-w-0 bg-canvas"
+          data-testid="settings-nav-search"
+          kbd="/"
+          onChange={setQuery}
+          placeholder="Search settings"
+          ref={searchInputRef}
+          value={query}
+        />
       </div>
 
-      <div className="flex flex-row items-center gap-1 @min-[56rem]:flex-1 @min-[56rem]:flex-col @min-[56rem]:items-stretch @min-[56rem]:gap-0 @min-[56rem]:pb-2">
+      <div className="flex flex-row items-center gap-1 @min-settings-takeover:flex-1 @min-settings-takeover:flex-col @min-settings-takeover:items-stretch @min-settings-takeover:gap-0 @min-settings-takeover:pb-2">
         {SETTINGS_SECTION_GROUPS.map(group => {
           const sections = visible.filter(section => section.group === group.id);
           if (sections.length === 0) return null;
           return (
             <div
-              className="flex flex-row items-center gap-1 @min-[56rem]:flex-col @min-[56rem]:items-stretch @min-[56rem]:gap-0"
+              className="flex flex-row items-center gap-1 @min-settings-takeover:flex-col @min-settings-takeover:items-stretch @min-settings-takeover:gap-0"
               key={group.id}
             >
-              <span className="eyebrow hidden px-2 pt-3 pb-1 text-faint @min-[56rem]:block">
+              <span className="eyebrow hidden px-2 pt-3 pb-1 text-faint @min-settings-takeover:block">
                 {group.label}
               </span>
               {sections.map(section => (
@@ -100,9 +91,9 @@ export function SettingsWindowNav({
             </div>
           );
         })}
-        {visibleSlugs.size === 0 ? (
+        {visible.length === 0 ? (
           <p
-            className="hidden px-2 py-3 text-form-label text-subtle @min-[56rem]:block"
+            className="hidden px-2 py-3 text-form-label text-subtle @min-settings-takeover:block"
             data-testid="settings-nav-empty"
           >
             No settings match “{query.trim()}”
@@ -111,36 +102,39 @@ export function SettingsWindowNav({
       </div>
 
       <div
-        className="hidden items-center gap-2 border-t border-line-soft px-2 py-2.5 @min-[56rem]:flex"
+        className="hidden items-center gap-2 border-t border-line-soft px-2 py-2.5 @min-settings-takeover:flex"
         data-testid="settings-daemon-status"
       >
-        <ConnectionIndicator
-          label={connection === "connected" ? "Daemon running" : "Daemon unreachable"}
-          status={connection}
-        />
+        <ConnectionIndicator label={settingsConnectionLabel(connection)} status={connection} />
       </div>
     </nav>
   );
 }
 
-function SettingsSectionLink({
-  section,
-  isActive,
-}: {
+interface SettingsSectionLinkProps extends Omit<ComponentProps<typeof Link>, "children" | "to"> {
   section: SettingsSectionDescriptor;
   isActive: boolean;
-}) {
+}
+
+export function SettingsSectionLink({
+  section,
+  isActive,
+  className,
+  ...linkProps
+}: SettingsSectionLinkProps) {
   const Icon = section.icon;
 
   return (
     <Link
+      {...linkProps}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "flex h-8 shrink-0 items-center gap-2.5 rounded-md px-2 text-ws-name font-medium",
+        "flex h-11 shrink-0 items-center gap-2.5 rounded-md px-2 text-ws-name font-medium @min-settings-takeover:h-8",
         "transition-colors duration-base focus-visible:outline-none focus-visible:shadow-focus-ring",
         isActive
           ? "bg-accent-tint text-accent-strong"
-          : "text-muted hover:bg-row-hover hover:text-fg"
+          : "text-muted hover:bg-row-hover hover:text-fg",
+        className
       )}
       data-active={isActive ? "true" : "false"}
       data-testid={`settings-section-${section.slug}`}
@@ -150,7 +144,7 @@ function SettingsSectionLink({
         aria-hidden="true"
         className={cn("size-4 shrink-0", isActive ? "text-accent-strong" : "text-subtle")}
       />
-      <span className="whitespace-nowrap @min-[56rem]:truncate" title={section.label}>
+      <span className="whitespace-nowrap @min-settings-takeover:truncate" title={section.label}>
         {section.label}
       </span>
     </Link>

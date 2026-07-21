@@ -18,9 +18,13 @@ export function useSettingsRestart() {
   const activeSessionCount = useSettingsRestartStore(state => state.activeSessionCount);
   const failureReason = useSettingsRestartStore(state => state.failureReason);
   const lastMutation = useSettingsRestartStore(state => state.lastMutation);
+  const mutationGeneration = useSettingsRestartStore(state => state.mutationGeneration);
+  const snoozedMutationGeneration = useSettingsRestartStore(
+    state => state.snoozedMutationGeneration
+  );
   const startRestart = useSettingsRestartStore(state => state.startRestart);
   const updateRestart = useSettingsRestartStore(state => state.updateRestart);
-  const clearRestart = useSettingsRestartStore(state => state.clearRestart);
+  const dismissRestartNotice = useSettingsRestartStore(state => state.dismissRestartNotice);
 
   const statusQuery = useQuery(
     settingsRestartStatusOptions(
@@ -57,6 +61,7 @@ export function useSettingsRestart() {
 
   const isPolling = Boolean(operationId) && !isTerminalRestartStatus(status);
   const isRestartRequired = Boolean(lastMutation?.restartRequired);
+  const isNoticeSnoozed = isRestartRequired && snoozedMutationGeneration === mutationGeneration;
   const isSuccessful = isSuccessfulRestart(status);
   const isFailed = isFailedRestart(status);
 
@@ -72,9 +77,10 @@ export function useSettingsRestart() {
     triggerError: triggerMutation.error,
     isPolling,
     isRestartRequired,
+    isNoticeSnoozed,
     isSuccessful,
     isFailed,
-    dismiss: clearRestart,
+    dismiss: dismissRestartNotice,
     statusQueryError: statusQuery.error,
     statusQueryLoading: statusQuery.isLoading,
   };

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SettingsSandboxEntry } from "@/systems/settings";
 import { SandboxPage } from "@/systems/sandbox";
 
-type RestartBanner = {
+type RestartNotice = {
   isVisible: boolean;
   isRestartRequired: boolean;
   isPolling: boolean;
@@ -74,7 +74,7 @@ type PageState = {
   openInspect: ReturnType<typeof vi.fn>;
   closeInspect: ReturnType<typeof vi.fn>;
   refetch: ReturnType<typeof vi.fn>;
-  restart: RestartBanner;
+  restart: RestartNotice;
   editor: { mode: "closed" | "create" | "edit"; [key: string]: unknown };
   editorIsValid: boolean;
   editorError: string | null;
@@ -100,7 +100,7 @@ type PageState = {
   dismissLastAction: ReturnType<typeof vi.fn>;
 };
 
-const restartBanner: RestartBanner = {
+const restartNotice: RestartNotice = {
   isVisible: false,
   isRestartRequired: false,
   isPolling: false,
@@ -150,7 +150,7 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     openInspect: vi.fn(),
     closeInspect: vi.fn(),
     refetch: vi.fn(),
-    restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
+    restart: { ...restartNotice, trigger: vi.fn(), dismiss: vi.fn() },
     editor: { mode: "closed" },
     editorIsValid: false,
     editorError: null,

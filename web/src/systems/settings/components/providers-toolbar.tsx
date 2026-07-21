@@ -4,9 +4,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-  PillGroup,
-  SearchInput,
-  type PillGroupItem,
+  ListingToolbar,
 } from "@agh/ui";
 
 import type { ProviderStateLabel } from "../lib/provider-state";
@@ -18,12 +16,10 @@ const STATUS_LABEL: Record<ProviderStateLabel | "all", string> = {
   installed: "Ready",
   unconfigured: "Needs setup",
   "binary-missing": "Not installed",
+  "needs-sign-in": "Needs sign-in",
+  "auth-unknown": "Sign-in unverified",
+  "auth-unavailable": "Sign-in unavailable",
 };
-
-const VIEW_ITEMS: ReadonlyArray<PillGroupItem<ProvidersViewMode>> = [
-  { value: "rows", label: "Rows", testId: "settings-providers-view-rows" },
-  { value: "cards", label: "Cards", testId: "settings-providers-view-cards" },
-];
 
 export interface ProvidersToolbarProps {
   nameQuery: string;
@@ -34,10 +30,6 @@ export interface ProvidersToolbarProps {
   onViewChange: (next: ProvidersViewMode) => void;
 }
 
-/**
- * Provider listing toolbar (settings-providers prototype): search + one
- * status chip + Rows|Cards toggle. The six-select filter bar is gone.
- */
 export function ProvidersToolbar({
   nameQuery,
   onNameQueryChange,
@@ -49,56 +41,52 @@ export function ProvidersToolbar({
   const statusValue = statusFilter ?? "all";
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <SearchInput
+    <ListingToolbar data-testid="settings-providers-toolbar">
+      <ListingToolbar.Leading>
+        <ListingToolbar.Search
           aria-label="Search providers"
-          className="w-56"
           data-testid="settings-providers-search"
           onChange={onNameQueryChange}
           placeholder="Search providers"
           value={nameQuery}
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label="Filter by status"
-            className="inline-flex h-7 items-center gap-1 rounded-md border border-line bg-btn-default-fill px-2.5 text-form-label text-fg transition-colors duration-base hover:bg-btn-default-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
-            data-testid="settings-providers-status-filter"
-          >
-            <span className="text-subtle">Status</span>
-            <span aria-hidden="true" className="text-faint">
-              :
-            </span>
-            <span className="font-medium">{STATUS_LABEL[statusValue]}</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuRadioGroup
-              onValueChange={value =>
-                onStatusChange(value === "all" ? null : (value as ProviderStateLabel))
-              }
-              value={statusValue}
+        <ListingToolbar.Filters>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="Filter by status"
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-line bg-btn-default-fill px-2.5 text-form-label text-fg transition-colors duration-base hover:bg-btn-default-hover focus-visible:outline-none focus-visible:shadow-focus-ring"
+              data-testid="settings-providers-status-filter"
             >
-              {(Object.keys(STATUS_LABEL) as Array<ProviderStateLabel | "all">).map(value => (
-                <DropdownMenuRadioItem
-                  data-testid={`settings-providers-status-${value}`}
-                  key={value}
-                  value={value}
-                >
-                  {STATUS_LABEL[value]}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <PillGroup<ProvidersViewMode>
-        aria-label="View mode"
-        data-testid="settings-providers-view-toggle"
-        items={VIEW_ITEMS}
-        onChange={onViewChange}
-        size="sm"
-        value={view}
-      />
-    </div>
+              <span className="text-subtle">Status</span>
+              <span aria-hidden="true" className="text-faint">
+                :
+              </span>
+              <span className="font-medium">{STATUS_LABEL[statusValue]}</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuRadioGroup
+                onValueChange={value =>
+                  onStatusChange(value === "all" ? null : (value as ProviderStateLabel))
+                }
+                value={statusValue}
+              >
+                {(Object.keys(STATUS_LABEL) as Array<ProviderStateLabel | "all">).map(value => (
+                  <DropdownMenuRadioItem
+                    data-testid={`settings-providers-status-${value}`}
+                    key={value}
+                    value={value}
+                  >
+                    {STATUS_LABEL[value]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </ListingToolbar.Filters>
+      </ListingToolbar.Leading>
+      <ListingToolbar.Trailing>
+        <ListingToolbar.ViewToggle onChange={onViewChange} value={view} />
+      </ListingToolbar.Trailing>
+    </ListingToolbar>
   );
 }

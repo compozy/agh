@@ -18,6 +18,7 @@ import {
 } from "@/components/sidebar-nav-classes";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
+import { getOtherDirectSessionId } from "../../lib/network-window-location";
 import type {
   NetworkChannelSummary,
   NetworkDirectRoomSummary,
@@ -60,19 +61,6 @@ export interface ChannelRailProps {
   hasUnread: (channel: string) => boolean;
 }
 
-function pickOtherSessionId(
-  direct: NetworkDirectRoomSummary,
-  selfSessionId: string | null | undefined
-): string {
-  if (!selfSessionId) {
-    return direct.session_a;
-  }
-  if (direct.session_a === selfSessionId) {
-    return direct.session_b;
-  }
-  return direct.session_a;
-}
-
 interface DirectRoomRailRowProps {
   workspaceId: string;
   channel: string;
@@ -88,7 +76,7 @@ function DirectRoomRailRow({
   active,
   selfSessionId,
 }: DirectRoomRailRowProps) {
-  const otherSessionId = pickOtherSessionId(direct, selfSessionId);
+  const otherSessionId = getOtherDirectSessionId(direct, selfSessionId) ?? "unknown";
   const lastActivity = direct.last_activity_at
     ? formatNetworkRelativeTime(direct.last_activity_at)
     : null;

@@ -37,6 +37,12 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
   name: "claude",
   default: true,
   command_available: true,
+  auth_status: {
+    mode: "native_cli",
+    env_policy: "filtered",
+    home_policy: "operator",
+    state: "authenticated",
+  },
   settings: {
     command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
     models: {
@@ -67,6 +73,12 @@ const codexEntry: SettingsProviderCollection["providers"][number] = {
   name: "codex",
   default: false,
   command_available: true,
+  auth_status: {
+    mode: "native_cli",
+    env_policy: "filtered",
+    home_policy: "operator",
+    state: "unknown",
+  },
   settings: {
     command: "npx -y @agentclientprotocol/codex-acp@latest",
     models: {
@@ -150,9 +162,9 @@ describe("useSettingsProvidersPage", () => {
 
     expect(result.current.counts).toEqual({
       total: 2,
-      installed: 2,
+      installed: 1,
       binaryMissing: 0,
-      unconfigured: 0,
+      needsSetup: 1,
     });
   });
 

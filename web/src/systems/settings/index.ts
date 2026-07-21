@@ -213,12 +213,11 @@ export {
   isTerminalRestartStatus,
   RESTART_TERMINAL_STATUSES,
 } from "./lib/restart-status";
-export { restartBannerPropsFor } from "./lib/restart-banner-mapper";
 export {
-  SettingsTopbarPublisher,
-  type SettingsTopbarPublisherProps,
-} from "./components/settings-topbar-publisher";
-
+  settingsRestartPresentation,
+  type SettingsRestartPresentation,
+  type SettingsRestartViewState,
+} from "./lib/restart-presentation";
 // Components
 export {
   MCPAuthorizeDialog,
@@ -235,6 +234,7 @@ export {
   NetworkSettingsSections,
   ProviderRow,
   ProvidersToolbar,
+  SettingActionRow,
   SettingLinkRow,
   SettingRow,
   SettingValue,
@@ -250,6 +250,8 @@ export {
   SettingsPageFrame,
   SettingsProvChip,
   SettingsRestartNotice,
+  SettingsRuntimeUnavailable,
+  SettingsInlineSaveControls,
   SettingsSaveBar,
   SettingsSourceBadge,
   SettingsTile,
@@ -318,3 +320,6 @@ export {
 
 // Hooks -- restart
 export { useSettingsRestart } from "./hooks/use-settings-restart";
+export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";
+export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-settings-topbar";
+export type { SettingsSaveBarState } from "./lib/save-state";

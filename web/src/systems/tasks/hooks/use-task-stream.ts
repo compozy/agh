@@ -6,8 +6,6 @@ import { tasksKeys } from "../lib/query-keys";
 import type { TaskStreamFilter, TaskStreamPayload } from "../types";
 
 interface TaskStreamEventSource {
-  addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
-  removeEventListener?: (type: string, listener: EventListenerOrEventListenerObject) => void;
   close: () => void;
   onmessage: ((event: MessageEvent) => void) | null;
   onerror: ((event: Event) => void) | null;
@@ -24,75 +22,6 @@ interface UseTaskStreamOptions {
   onError?: (error: unknown) => void;
 }
 
-// AGH task SSE emits named events via `event: <type>` from internal/api/core/sse.go
-// (WriteTaskStreamEvent sets Name = event.Type). EventSource routes named SSE events
-// to listeners registered with addEventListener("<type>", ...); they never reach
-// onmessage, which only handles unnamed `message` frames. Keep this list aligned with
-// every task event type persisted by the task manager, transactional task hooks,
-// and the review / notification surfaces in internal/api.
-const TASK_STREAM_EVENT_TYPES = [
-  "task.created",
-  "task.updated",
-  "task.published",
-  "task.approved",
-  "task.rejected",
-  "task.canceled",
-  // Transactional hook events are appended to the durable task stream under
-  // their dot names inside the same transaction as the state change.
-  "task.blocked",
-  "task.unblocked",
-  "task.needs_attention",
-  "task.recovered",
-  "task.status_changed",
-  "task.run.completed",
-  "task.run.failed",
-  "task.child_created",
-  "task.dependency_added",
-  "task.dependency_removed",
-  "task.paused",
-  "task.resumed",
-  "task.block.created",
-  "task.block.cleared",
-  "task.block.expired",
-  "task.run_enqueued",
-  "task.run_claimed",
-  "task.run_starting",
-  "task.run_session_bound",
-  "task.run_started",
-  "task.run_completed",
-  "task.run_failed",
-  "task.run_canceled",
-  "task.run_force_stopped",
-  "task.run_recovered",
-  "task.run_rejected",
-  "task.run_lease_extended",
-  "task.run_lease_expired",
-  "task.run_released",
-  "task.run_operator_forced_fail",
-  "task.run_operator_retry",
-  "task.run_recovered_from_attention",
-  "task.run_starved",
-  "task.run_needs_attention",
-  "task.execution_profile_updated",
-  "task.execution_profile_deleted",
-  "task.run_review_requested",
-  "task.run_review_bound",
-  "task.run_review_recorded",
-  "task.run_review_approved",
-  "task.run_review_rejected",
-  "task.run_review_blocked",
-  "task.run_review_error",
-  "task.run_review_timeout",
-  "task.run_review_invalid_output",
-  "task.run_review_retry_enqueued",
-  "task.auto_enqueue.triggered",
-  "task.completion.hallucination_blocked",
-  "task.completion.hallucination_suspected",
-  "task.wake.delivered",
-  "task.wake.suppressed",
-  "task.notification_delivered",
-] as const;
-
 function defaultEventSourceFactory(url: string): TaskStreamEventSource {
   return new EventSource(url);
 }
@@ -104,16 +33,7 @@ function attachTaskStreamSource(
 ): () => void {
   source.onmessage = handleMessage;
   source.onerror = handleError;
-  const namedListener = handleMessage as EventListener;
-  for (const type of TASK_STREAM_EVENT_TYPES) {
-    source.addEventListener(type, namedListener);
-  }
   return () => {
-    if (source.removeEventListener) {
-      for (const type of TASK_STREAM_EVENT_TYPES) {
-        source.removeEventListener(type, namedListener);
-      }
-    }
     source.onmessage = null;
     source.onerror = null;
     source.close();

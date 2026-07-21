@@ -1,6 +1,3 @@
-import { Search } from "lucide-react";
-import { useState } from "react";
-
 import {
   BlockLoading,
   CodeBlock,
@@ -10,9 +7,6 @@ import {
   Pill,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   StatusCard,
   TabsContent,
   Time,
@@ -28,19 +22,25 @@ import type {
   TaskInspectView,
 } from "../types";
 import { TaskBridgeSubscriptionsPane } from "./task-bridge-subscriptions-pane";
+import { TaskOperatorSheetHeader } from "./task-operator-sheet-header";
 import { TaskRawPane } from "./task-raw-pane";
 
-export type TaskInspectDrawerTab = "diagnostics" | "stream" | "bridges" | "raw";
+import type { TaskInspectTarget } from "../lib/task-detail-search";
+import type { TaskStreamState } from "../lib/task-stream-state";
+
+export type TaskInspectDrawerTab = TaskInspectTarget;
 
 export interface TaskInspectDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  activeTab: TaskInspectDrawerTab;
+  onTabChange: (tab: TaskInspectDrawerTab) => void;
   detail: TaskDetailView;
   inspect: TaskInspectView | null;
   inspectLoading?: boolean;
   inspectErrorMessage?: string | null;
   stream: {
-    state: "idle" | "connected" | "error" | "disabled";
+    state: TaskStreamState;
     errorMessage: string | null;
     seedSequence: number;
     latestEventSeq: number | null;
@@ -63,7 +63,11 @@ const TABS: ReadonlyArray<LaneTabsItem<TaskInspectDrawerTab>> = [
   { value: "raw", label: "Raw", testId: "tasks-inspect-tab-raw" },
 ];
 
-/** §7.3 next-action vocabulary — plain language first, enum as microtext. */
+/**
+ * Next-action vocabulary uses plain language first and the enum as microtext.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §7.3
+ */
 const NEXT_ACTION_COPY: Record<string, string> = {
   claim_available: "A worker can pick this up now",
   waiting_for_session: "Waiting for the agent session to attach",
@@ -81,6 +85,16 @@ const SEVERITY_TONE: Record<string, PillTone> = {
   critical: "danger",
 };
 
+const STREAM_STATE_PRESENTATION: Record<
+  TaskStreamState,
+  { label: string; pulse: boolean; tone: PillTone }
+> = {
+  disabled: { label: "Disabled", pulse: false, tone: "neutral" },
+  error: { label: "Error", pulse: false, tone: "danger" },
+  idle: { label: "Idle", pulse: false, tone: "neutral" },
+  receiving: { label: "Receiving", pulse: true, tone: "success" },
+};
+
 function DiagnosticsPane({
   taskId,
   inspect,
@@ -95,10 +109,17 @@ function DiagnosticsPane({
   if (isLoading && !inspect) {
     return <BlockLoading label="Loading inspect snapshot" size="sm" surface="bare" />;
   }
+  if (errorMessage && !inspect) {
+    return (
+      <p className="text-small-body text-danger" role="alert">
+        {errorMessage}
+      </p>
+    );
+  }
   if (!inspect) {
     return (
       <p className="text-small-body text-muted" data-testid="tasks-inspect-diagnostics-empty">
-        {errorMessage ?? "No inspect snapshot is available for this task state."}
+        No inspect snapshot is available for this task state.
       </p>
     );
   }
@@ -110,6 +131,11 @@ function DiagnosticsPane({
 
   return (
     <div className="flex flex-col gap-4" data-testid="tasks-inspect-diagnostics">
+      {errorMessage ? (
+        <p className="text-small-body text-danger" role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
       <div className="grid grid-cols-2 gap-2.5">
         <MetadataTile
           className="border border-line-soft bg-input-fill"
@@ -142,7 +168,7 @@ function DiagnosticsPane({
 
       {diagnostics.length === 0 ? (
         <p className="rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted">
-          No findings. The run is claiming, heartbeating, and reporting on schedule.
+          No diagnostics were reported in this snapshot.
         </p>
       ) : (
         diagnostics.map(diagnostic => (
@@ -175,10 +201,7 @@ function DiagnosticsPane({
 }
 
 function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
-  const connection =
-    stream.state === "connected" ? "Connected" : stream.state === "error" ? "Error" : "Idle";
-  const connectionTone: PillTone =
-    stream.state === "connected" ? "success" : stream.state === "error" ? "danger" : "neutral";
+  const presentation = STREAM_STATE_PRESENTATION[stream.state];
 
   return (
     <div className="flex flex-col gap-4" data-testid="tasks-inspect-stream">
@@ -188,8 +211,8 @@ function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
           label="Connection"
           value={
             <span className="inline-flex items-center gap-1.5">
-              <Pill.Dot pulse={stream.state === "connected"} tone={connectionTone} />
-              {connection}
+              <Pill.Dot pulse={presentation.pulse} tone={presentation.tone} />
+              {presentation.label}
             </span>
           }
         />
@@ -215,14 +238,12 @@ function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
   );
 }
 
-/**
- * Operator drawer (§4.8): Diagnostics · Stream · Bridges · Raw. Everything the
- * old Orchestration tab exposed stays reachable here in ≤2 clicks; none of it
- * is the default view anymore.
- */
+/** Operator drawer with Diagnostics, Stream, Bridges, and Raw panes. */
 export function TaskInspectDrawer({
   open,
   onOpenChange,
+  activeTab,
+  onTabChange,
   detail,
   inspect,
   inspectLoading = false,
@@ -230,8 +251,6 @@ export function TaskInspectDrawer({
   stream,
   bridges,
 }: TaskInspectDrawerProps) {
-  const [tab, setTab] = useState<TaskInspectDrawerTab>("diagnostics");
-
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
       <SheetContent
@@ -239,31 +258,22 @@ export function TaskInspectDrawer({
         data-testid="tasks-inspect-drawer"
         side="right"
       >
-        <SheetHeader>
-          <div className="flex items-start gap-3">
-            <span
-              aria-hidden="true"
-              className="grid size-9 shrink-0 place-items-center rounded-md bg-accent-tint text-accent-strong"
-            >
-              <Search className="size-4" />
-            </span>
-            <div className="min-w-0">
-              <span className="eyebrow font-mono text-subtle">Operator</span>
-              <SheetTitle>Inspect</SheetTitle>
-              <SheetDescription>
-                Runtime internals for this task. Everything here maps to{" "}
-                <span className="font-mono text-eyebrow">agh task inspect</span>.
-              </SheetDescription>
-            </div>
-          </div>
-        </SheetHeader>
+        <TaskOperatorSheetHeader
+          description={
+            <>
+              Runtime internals for this task. Everything here maps to{" "}
+              <span className="font-mono text-eyebrow">agh task inspect</span>.
+            </>
+          }
+          title="Inspect"
+        />
         <LaneTabs<TaskInspectDrawerTab>
           ariaLabel="Inspect views"
           className="flex min-h-0 flex-1 flex-col gap-0 px-4"
           items={TABS}
           listClassName="w-full"
-          onChange={setTab}
-          value={tab}
+          onChange={onTabChange}
+          value={activeTab}
         >
           <div className="min-h-0 flex-1 overflow-y-auto py-4">
             <TabsContent value="diagnostics">
@@ -286,6 +296,7 @@ export function TaskInspectDrawer({
                 onCreate={bridges.onCreate}
                 onDelete={bridges.onDelete}
                 subscriptions={bridges.subscriptions}
+                workspaceId={detail.task.workspace_id ?? null}
               />
             </TabsContent>
             <TabsContent value="raw">

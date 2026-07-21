@@ -17,19 +17,18 @@ import {
 import { NetworkParticipationFields } from "@/systems/network";
 
 import { useTaskFanOutDialog } from "../hooks/use-task-fan-out-dialog";
-import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
+import type { FanOutTaskRunsRequest } from "../types";
 
 export interface TaskFanOutDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isPending?: boolean;
-  onFanOut: (data: FanOutTaskRunsRequest) => Promise<FanOutTaskRunsResponse | void>;
+  onFanOut: (data: FanOutTaskRunsRequest) => Promise<void>;
 }
 
 /**
- * Fan-out dialog (§4.7): scoped assignments under one designation group.
- * Opened from the head overflow when the execution profile carries
- * designations; structured rows, one brief per line.
+ * Fan-out dialog for scoped assignments under one designation group. It opens
+ * from the head overflow and accepts one assignment brief per line.
  */
 export function TaskFanOutDialog({
   open,
@@ -37,10 +36,10 @@ export function TaskFanOutDialog({
   isPending = false,
   onFanOut,
 }: TaskFanOutDialogProps) {
-  const state = useTaskFanOutDialog({ open, onOpenChange, onFanOut });
+  const state = useTaskFanOutDialog({ onOpenChange, onFanOut });
 
   return (
-    <Dialog onOpenChange={state.handleOpenChange} open={state.open}>
+    <Dialog onOpenChange={state.handleOpenChange} open={open}>
       <DialogContent
         className="gap-0 p-0 text-fg sm:max-w-2xl"
         data-testid="tasks-fan-out-runs-dialog"

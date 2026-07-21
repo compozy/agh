@@ -4,7 +4,6 @@ import { useTopbarSlot } from "@agh/ui";
 
 import { NetworkHeadStatus } from "../components/shell/network-head-status";
 import {
-  networkThreadsLocation,
   networkWindowTrail,
   type ParsedNetworkWindowLocation,
 } from "../lib/network-window-location";
@@ -15,10 +14,9 @@ import type { NetworkStatus } from "../types";
 export interface UseNetworkWindowTopbarArgs {
   location: ParsedNetworkWindowLocation;
   navigation: NetworkWindowNavigation;
-  workspaceId: string;
-  activeChannelKey: string | null;
   channelCount: number;
   status: NetworkStatus | null;
+  openWorkCount: number;
   workEntries: ReadonlyArray<OpenWorkEntry>;
   createAction: React.ReactNode;
   conversationLabel?: string | null;
@@ -33,23 +31,15 @@ export interface UseNetworkWindowTopbarArgs {
 export function useNetworkWindowTopbar({
   location,
   navigation,
-  workspaceId,
-  activeChannelKey,
   channelCount,
   status,
+  openWorkCount,
   workEntries,
   createAction,
   conversationLabel,
 }: UseNetworkWindowTopbarArgs) {
   const trail = networkWindowTrail(location, conversationLabel);
-  const goToRoot = () => navigation.push({ pathname: "/network", search: {} });
-  const goToChannel = () => {
-    if (workspaceId && activeChannelKey) {
-      navigation.push(networkThreadsLocation(workspaceId, activeChannelKey));
-    } else {
-      goToRoot();
-    }
-  };
+  const backTarget = trail.parents.at(-1)?.location;
 
   useTopbarSlot({
     glyph: <NetworkIcon />,
@@ -57,13 +47,14 @@ export function useNetworkWindowTopbar({
     crumbs: trail.parents.map(parent => ({
       id: parent.id,
       label: parent.label,
-      onSelect: parent.id === "root" ? goToRoot : goToChannel,
+      onSelect: () => navigation.push(parent.location),
     })),
-    onBack: trail.drilledIn ? goToChannel : undefined,
+    onBack: backTarget ? () => navigation.push(backTarget) : undefined,
     count: !trail.drilledIn && channelCount > 0 ? channelCount : undefined,
     status: status ? (
       <NetworkHeadStatus
         drilledIntoConversation={trail.drilledIn}
+        openWorkCount={openWorkCount}
         status={status}
         workEntries={workEntries}
       />

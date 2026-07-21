@@ -1,13 +1,14 @@
 import { AlertCircle } from "lucide-react";
 
 import { useSettingsExtensionsPage } from "@/systems/settings/hooks/use-settings-extensions-page";
-import { SettingsPageFrame } from "@/systems/settings";
+import { SettingsPageFrame, useSettingsTopbar } from "@/systems/settings";
 import { Button, Spinner } from "@agh/ui";
 
 import { PolicySection } from "./-extensions-policy-section";
 
 export function ExtensionsSettingsPage() {
   const page = useSettingsExtensionsPage();
+  useSettingsTopbar("extensions");
   if (page.isLoading)
     return (
       <div

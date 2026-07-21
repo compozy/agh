@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 
@@ -11,6 +10,8 @@ import {
   SettingsNumberInput,
   SettingsPageFrame,
   SettingsSaveBar,
+  useSettingsSaveBarState,
+  useSettingsTopbar,
   SettingsTile,
   SettingsTiles,
   type SettingsAutomationSection,
@@ -22,6 +23,7 @@ type AutomationRuntime = SettingsAutomationSection["runtime"];
 
 export function AutomationSettingsPage() {
   const page = useSettingsAutomationPage();
+  useSettingsTopbar("automation");
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
   const setValidationError = (key: string) => (message: string | null) => {
     setValidationErrors(current =>
@@ -29,6 +31,14 @@ export function AutomationSettingsPage() {
     );
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
+  const saveBarState = useSettingsSaveBarState({
+    isDirty: page.isDirty,
+    isInvalid,
+    isSaving: page.isSaving,
+    error: page.saveError,
+    warnings: page.warnings,
+    lastAppliedLabel: page.lastAppliedLabel,
+  });
   const runtime = page.envelope?.runtime;
 
   if (page.isLoading) {
@@ -93,12 +103,7 @@ export function AutomationSettingsPage() {
       saveBar={
         <SettingsSaveBar
           slug="automation"
-          isDirty={page.isDirty}
-          isInvalid={isInvalid}
-          isSaving={page.isSaving}
-          error={page.saveError}
-          warnings={page.warnings}
-          lastAppliedLabel={page.lastAppliedLabel}
+          state={saveBarState}
           onSave={page.handleSave}
           onReset={page.handleReset}
         />
@@ -148,7 +153,6 @@ function AutomationRuntimeUnavailable({ runtime }: { runtime: AutomationRuntime 
 }
 
 function OperationalLinksSection() {
-  const navigate = useNavigate();
   return (
     <SettingsGroup
       data-testid="settings-page-automation-operational-links"
@@ -159,13 +163,13 @@ function OperationalLinksSection() {
         data-testid="settings-page-automation-link-jobs"
         description="Scheduled work with run history."
         label="Open Jobs"
-        onClick={() => void navigate({ to: "/jobs" })}
+        to="/jobs"
       />
       <SettingLinkRow
         data-testid="settings-page-automation-link-triggers"
         description="Event rules that start work when something happens."
         label="Open Triggers"
-        onClick={() => void navigate({ to: "/triggers" })}
+        to="/triggers"
       />
     </SettingsGroup>
   );

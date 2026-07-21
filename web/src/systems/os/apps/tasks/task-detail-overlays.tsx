@@ -36,19 +36,32 @@ export function TaskDetailOverlays({ controller }: { controller: TaskDetailLocat
         open={controller.fanOutOpen}
       />
       <TaskSetupSheet
+        clearOpen={controller.setupClearOpen}
+        editor={controller.setupEditor}
         hasActiveRun={Boolean(page.activeRun)}
         isDeletePending={operator.isDeleteProfilePending}
         isSetPending={operator.isSetProfilePending}
-        onDeleteProfile={operator.handleDeleteProfile}
+        onClearOpenChange={controller.setSetupClearOpen}
+        onClearProfile={controller.handleClearSetup}
         onOpenChange={controller.setSetupOpen}
-        onSetProfile={operator.handleSetProfile}
         open={controller.setupOpen}
         profile={page.profile}
         profileErrorMessage={page.profileError?.message ?? null}
         profileLoading={page.profileLoading}
-        taskId={controller.taskId}
+        runtime={{
+          providers: controller.setupRuntime.providers,
+          models: controller.setupRuntime.models,
+          providersLoading: controller.setupRuntime.providersLoading,
+          catalogLoading: controller.setupRuntime.catalogLoading,
+          catalogLoaded: controller.setupRuntime.catalogLoaded,
+          catalogRefreshing: controller.setupRuntime.catalogRefreshing,
+          errorMessage:
+            controller.setupRuntime.providersError ?? controller.setupRuntime.catalogError,
+          onRefreshCatalog: controller.setupRuntime.onRefreshCatalog,
+        }}
       />
       <TaskInspectDrawer
+        activeTab={controller.search.inspect ?? "diagnostics"}
         bridges={{
           subscriptions: operator.subscriptions,
           isLoading: operator.subscriptionsLoading,
@@ -63,6 +76,7 @@ export function TaskDetailOverlays({ controller }: { controller: TaskDetailLocat
         inspectErrorMessage={page.inspectError?.message ?? null}
         inspectLoading={page.inspectLoading}
         onOpenChange={controller.setInspectOpen}
+        onTabChange={controller.setInspectTarget}
         open={controller.inspectOpen}
         stream={{
           state: operator.streamState,

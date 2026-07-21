@@ -9,4 +9,17 @@ describe("parseTaskWindowLocation", () => {
       mode: "list",
     });
   });
+
+  it("Should resolve task detail tab and inspect defaults at the window boundary", () => {
+    expect(
+      parseTaskWindowLocation({
+        pathname: "/tasks/task_1",
+        search: { inspect: "stream", tab: "activity" },
+      })
+    ).toEqual({
+      kind: "detail",
+      taskId: "task_1",
+      search: { inspect: "stream", tab: "activity" },
+    });
+  });
 });

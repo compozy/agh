@@ -3,8 +3,8 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsGeneralPage } from "@/systems/settings/hooks/use-settings-general-page";
 import {
+  SettingActionRow,
   SettingRow,
-  SettingLinkRow,
   SettingValue,
   SettingsAdvancedFold,
   SettingsApplyRecordsPanel,
@@ -14,6 +14,9 @@ import {
   SettingsPageFrame,
   SettingsProvChip,
   SettingsSaveBar,
+  SettingsRuntimeUnavailable,
+  useSettingsSaveBarState,
+  useSettingsTopbar,
   SettingsTile,
   SettingsTiles,
   type SettingsGeneralSection,
@@ -22,7 +25,7 @@ import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
 import { Button, Input, Sheet, SheetContent, SheetHeader, SheetTitle, Spinner } from "@agh/ui";
 
 import { DaemonSection, RedactionSection } from "./-general-daemon-sections";
-import { GeneralUpdateAdvancedRow, GeneralUpdateGroup } from "./-general-update-group";
+import { GeneralUpdateSection } from "./-general-update-section";
 
 const PERMISSION_OPTIONS = [
   {
@@ -62,6 +65,7 @@ function formatSessionTimeout(seconds: number): string {
 
 export function GeneralSettingsPage() {
   const page = useSettingsGeneralPage();
+  useSettingsTopbar("general");
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
   const [applyRecordsOpen, setApplyRecordsOpen] = useState(false);
   const setValidationError = (key: string) => (message: string | null) => {
@@ -70,6 +74,14 @@ export function GeneralSettingsPage() {
     );
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
+  const saveBarState = useSettingsSaveBarState({
+    isDirty: page.isDirty,
+    isInvalid,
+    isSaving: page.isSaving,
+    error: page.saveError,
+    warnings: page.warnings,
+    lastAppliedLabel: page.lastAppliedLabel,
+  });
 
   if (page.isLoading) {
     return (
@@ -107,35 +119,35 @@ export function GeneralSettingsPage() {
   return (
     <SettingsPageFrame
       description="Defaults and day-to-day behavior for this runtime. Changes here apply to new sessions on this machine."
-      meta={[
-        {
-          key: "sessions",
-          content: (
-            <span>
-              <span className="font-medium text-muted">{runtime.active_sessions}</span> active
-              sessions
-            </span>
-          ),
-        },
-        {
-          key: "agents",
-          content: (
-            <span>
-              <span className="font-medium text-muted">{runtime.active_agents}</span> agents working
-            </span>
-          ),
-        },
-      ]}
+      meta={
+        runtime.available
+          ? [
+              {
+                key: "sessions",
+                content: (
+                  <span>
+                    <span className="font-medium text-muted">{runtime.active_sessions}</span> active
+                    sessions
+                  </span>
+                ),
+              },
+              {
+                key: "agents",
+                content: (
+                  <span>
+                    <span className="font-medium text-muted">{runtime.active_agents}</span> agents
+                    working
+                  </span>
+                ),
+              },
+            ]
+          : [{ key: "runtime", content: <span>runtime unavailable</span> }]
+      }
       restart={restart}
       saveBar={
         <SettingsSaveBar
           slug="general"
-          isDirty={page.isDirty}
-          isInvalid={isInvalid}
-          isSaving={page.isSaving}
-          error={page.saveError}
-          warnings={page.warnings}
-          lastAppliedLabel={page.lastAppliedLabel}
+          state={saveBarState}
           onSave={page.handleSave}
           onReset={page.handleReset}
         />
@@ -200,34 +212,48 @@ export function GeneralSettingsPage() {
         description="Where this daemon is listening right now. Read-only."
         title="Runtime"
       >
-        <SettingsTiles>
-          <SettingsTile
-            label="Local socket"
-            mono
-            value={runtime.socket ?? envelope.config.daemon.socket}
+        {runtime.available ? (
+          <SettingsTiles>
+            <SettingsTile
+              label="Local socket"
+              mono
+              value={runtime.socket ?? envelope.config.daemon.socket}
+            />
+            <SettingsTile
+              label="HTTP address"
+              mono
+              value={
+                runtime.http_host && runtime.http_port
+                  ? `${runtime.http_host}:${runtime.http_port}`
+                  : `${envelope.config.http.host}:${envelope.config.http.port}`
+              }
+            />
+            <SettingsTile
+              dotTone={runtime.active_sessions > 0 ? "success" : "neutral"}
+              label="Active sessions"
+              value={String(runtime.active_sessions)}
+            />
+            <SettingsTile
+              label="Agents running"
+              value={`${runtime.active_agents} of ${envelope.config.limits.max_concurrent_agents} max`}
+            />
+          </SettingsTiles>
+        ) : (
+          <SettingsRuntimeUnavailable
+            slug="general"
+            description="Session, agent, socket, and uptime facts could not be measured."
           />
-          <SettingsTile
-            label="HTTP address"
-            mono
-            value={
-              runtime.http_host && runtime.http_port
-                ? `${runtime.http_host}:${runtime.http_port}`
-                : `${envelope.config.http.host}:${envelope.config.http.port}`
-            }
-          />
-          <SettingsTile
-            dotTone={runtime.active_sessions > 0 ? "success" : "neutral"}
-            label="Active sessions"
-            value={String(runtime.active_sessions)}
-          />
-          <SettingsTile
-            label="Agents running"
-            value={`${runtime.active_agents} of ${envelope.config.limits.max_concurrent_agents} max`}
-          />
-        </SettingsTiles>
+        )}
       </SettingsGroup>
 
-      <GeneralUpdateGroup update={update} />
+      <GeneralUpdateSection
+        data={update.data}
+        error={update.error}
+        isError={update.isError}
+        isFetching={update.isFetching}
+        isLoading={update.isLoading}
+        onRetry={() => void update.refetch()}
+      />
 
       <SettingsAdvancedFold data-testid="settings-page-general-advanced">
         <SettingRow
@@ -252,7 +278,7 @@ export function GeneralSettingsPage() {
             </Button>
           }
         />
-        <SettingLinkRow
+        <SettingActionRow
           data-testid="settings-page-general-apply-records"
           description={
             page.applyRecords.data?.entries?.length
@@ -267,12 +293,26 @@ export function GeneralSettingsPage() {
           label="Config file"
           control={<SettingValue mono>{envelope.config_paths?.global_config ?? "—"}</SettingValue>}
         />
-        <GeneralUpdateAdvancedRow update={update} />
+        {update.data ? (
+          <SettingRow
+            data-testid="settings-page-general-update-detail"
+            description={
+              update.data.recommendation ??
+              "Latest stable and install-method detail for this machine."
+            }
+            label="Update detail"
+            control={
+              <SettingValue mono>
+                {update.data.latest_version ?? "—"} · {update.data.install_method ?? "—"}
+              </SettingValue>
+            }
+          />
+        ) : null}
       </SettingsAdvancedFold>
 
       <Sheet onOpenChange={setApplyRecordsOpen} open={applyRecordsOpen}>
         <SheetContent
-          className="w-[min(640px,calc(100vw-24px))] sm:max-w-none"
+          className="w-[min(var(--width-settings-sheet),calc(100vw-var(--spacing-settings-sheet-viewport-gutter)))] sm:max-w-none"
           data-testid="settings-page-general-apply-records-sheet"
           side="right"
         >

@@ -1,15 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import {
-  cn,
-  Empty,
-  JsonViewer,
-  LiveBadge,
-  Markdown,
-  PAGE_CONTENT_GUTTER,
-  Section,
-  Skeleton,
-} from "@agh/ui";
+import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Section, Skeleton } from "@agh/ui";
 
 import {
   formatTaskRunBounds,
@@ -18,43 +9,19 @@ import {
   useTaskRunConversation,
 } from "@/systems/network";
 import {
-  TaskActivityItem,
+  TaskRunActivitySection,
   TaskRunForceFailDialog,
   TaskRunInspectDrawer,
   TaskRunOutcome,
   TaskRunRail,
   TaskRunReviewCard,
+  TaskResultSection,
   TaskRunSubhead,
 } from "@/systems/tasks";
 
 import { TaskRunTopbar } from "./task-run-topbar";
-import { useTaskRunLocation, type TaskRunLocationController } from "./use-task-run-location";
-
-function TaskRunResultSection({ controller }: { controller: TaskRunLocationController }) {
-  const record = controller.record;
-  if (!record) return null;
-  const result = record.result;
-
-  return (
-    <Section data-testid="tasks-run-result" label="Result">
-      {result == null ? (
-        <p className="rounded-lg border border-line bg-canvas-soft px-4 py-3.5 text-small-body text-muted">
-          {record.status === "completed"
-            ? "No result recorded."
-            : record.ended_at
-              ? "No result recorded. The run ended before reaching a checkpoint."
-              : "No result yet. It lands here the moment the run completes."}
-        </p>
-      ) : typeof result === "string" ? (
-        <div className="rounded-lg border border-line bg-canvas-soft px-4 py-3.5">
-          <Markdown>{result}</Markdown>
-        </div>
-      ) : (
-        <JsonViewer data-testid="tasks-run-result-json" value={result} />
-      )}
-    </Section>
-  );
-}
+import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
+import { useTaskRunLocation } from "./use-task-run-location";
 
 export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: string }) {
   const controller = useTaskRunLocation(taskId, runId);
@@ -64,17 +31,37 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
   if (page.runLoading) {
     return (
       <div
-        className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-4 py-5")}
+        className={cn(PAGE_CONTENT_GUTTER, "@container flex min-h-0 flex-1 flex-col gap-4 py-5")}
         data-testid="tasks-run-detail-loading"
       >
         <Skeleton className="h-6 w-72" />
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className={TASK_DETAIL_GRID_CLASS}>
           <div className="flex flex-col gap-3">
             <Skeleton className="h-24 rounded-lg" />
             <Skeleton className="h-48 rounded-lg" />
           </div>
-          <Skeleton className="hidden h-72 rounded-lg lg:block" />
+          <Skeleton className="hidden h-72 rounded-lg @min-task-detail-rail:block" />
         </div>
+      </div>
+    );
+  }
+
+  if (!page.notFound && page.runError) {
+    return (
+      <div
+        className={cn(PAGE_CONTENT_GUTTER, "flex flex-1 items-center justify-center py-8")}
+        data-testid="tasks-run-detail-error"
+      >
+        <Empty
+          action={
+            <Button onClick={() => void page.handleRetryLoad()} size="sm" type="button">
+              Retry
+            </Button>
+          }
+          description={page.runError.message}
+          icon={AlertCircle}
+          title="Couldn't load run"
+        />
       </div>
     );
   }
@@ -94,7 +81,6 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
     );
   }
 
-  const timelineItems = controller.timelineItems.filter(item => item.run?.id === record.id);
   const participation = record.resolved_network_participation;
   const coordinationWorkspaceId =
     (participation?.mode === "live" ? participation.workspace_id : undefined) ??
@@ -114,7 +100,9 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
         isPending={page.isForceFailPending}
       />
       <TaskRunInspectDrawer
+        errorMessage={page.inspectError?.message ?? null}
         inspect={page.inspect}
+        isLoading={page.inspectLoading}
         onOpenChange={controller.setInspectOpen}
         open={controller.inspectOpen}
         run={page.run}
@@ -122,26 +110,45 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className={cn(PAGE_CONTENT_GUTTER, "@container pt-5 pb-16")}>
-          <TaskRunSubhead run={page.run} />
+          <TaskRunSubhead duration={controller.runDuration} run={page.run} />
 
-          <div className="grid items-start gap-8 @min-[64rem]:grid-cols-[minmax(0,1fr)_320px]">
+          <div className={TASK_DETAIL_GRID_CLASS}>
             <main className="flex min-w-0 flex-col gap-6" data-testid="tasks-run-detail-main">
               <TaskRunOutcome nextAttempt={nextAttempt} run={page.run} />
-              <TaskRunResultSection controller={controller} />
+              <TaskResultSection
+                data-testid="tasks-run-result"
+                emptyMessage={
+                  record.status === "completed"
+                    ? "No result recorded."
+                    : record.ended_at
+                      ? "No result recorded. The run ended before reaching a checkpoint."
+                      : "No result yet. It lands here the moment the run completes."
+                }
+                jsonTestId="tasks-run-result-json"
+                result={record.result}
+              />
 
-              {page.reviews.length > 0 ? (
-                <Section
-                  count={page.reviews.length}
-                  data-testid="tasks-run-reviews"
-                  label="Reviews"
-                >
+              <Section
+                count={page.reviews.length || undefined}
+                data-testid="tasks-run-reviews"
+                label="Reviews"
+              >
+                {page.reviewsLoading ? (
+                  <Skeleton className="h-20 rounded-lg" />
+                ) : page.reviewsError ? (
+                  <p className="text-small-body text-danger" role="alert">
+                    {page.reviewsError.message}
+                  </p>
+                ) : page.reviews.length > 0 ? (
                   <div className="flex flex-col gap-2.5">
                     {page.reviews.map(review => (
                       <TaskRunReviewCard key={review.review_id} review={review} />
                     ))}
                   </div>
-                </Section>
-              ) : null}
+                ) : (
+                  <p className="text-small-body text-muted">No reviews recorded for this run.</p>
+                )}
+              </Section>
 
               {controller.authoritativeTaskId && coordinationWorkspaceId ? (
                 <TaskRunCoordinationInvitationHost
@@ -164,33 +171,24 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
                 />
               ) : null}
 
-              <Section
-                data-testid="tasks-run-activity"
-                label="Run activity"
-                right={
-                  page.isLive ? <LiveBadge data-testid="tasks-run-activity-live" /> : undefined
-                }
-              >
-                {timelineItems.length === 0 ? (
-                  <p className="rounded-lg border border-line bg-canvas-soft px-4 py-3.5 text-small-body text-muted">
-                    No events recorded for this attempt yet.
-                  </p>
-                ) : (
-                  <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-                    {timelineItems.map(item => (
-                      <TaskActivityItem isLive={page.isLive} item={item} key={item.event_id} />
-                    ))}
-                  </div>
-                )}
-              </Section>
+              <TaskRunActivitySection
+                errorMessage={controller.timelineError?.message}
+                isLive={page.isLive}
+                isLoading={controller.timelineLoading}
+                runId={record.id}
+                timeline={controller.timelineItems}
+              />
             </main>
 
-            <aside className="min-w-0 @min-[64rem]:sticky @min-[64rem]:top-0">
+            <aside className={TASK_DETAIL_RAIL_CLASS}>
               <TaskRunRail
+                duration={controller.runDuration}
                 onInspect={() => controller.setInspectOpen(true)}
                 run={page.run}
                 taskId={controller.authoritativeTaskId || taskId}
                 taskRuns={controller.taskRuns}
+                taskRunsErrorMessage={controller.taskRunsError?.message ?? null}
+                taskRunsLoading={controller.taskRunsLoading}
               />
             </aside>
           </div>

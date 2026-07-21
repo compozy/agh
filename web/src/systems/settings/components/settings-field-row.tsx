@@ -1,6 +1,7 @@
-import { cloneElement, isValidElement, useId, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 import { cn, Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@agh/ui";
+import { associateSettingsControl } from "../lib/control-association";
 
 type SettingsFieldRowVariant = "default" | "modal";
 
@@ -13,28 +14,6 @@ interface SettingsFieldRowProps {
   variant?: SettingsFieldRowVariant;
   className?: string;
   "data-testid"?: string;
-}
-
-const LABELABLE_TAGS = new Set([
-  "button",
-  "input",
-  "meter",
-  "output",
-  "progress",
-  "select",
-  "textarea",
-]);
-
-function mergeAttributeTokens(...values: Array<string | undefined>): string | undefined {
-  const tokens: string[] = [];
-  for (const value of values) {
-    if (!value) continue;
-    for (const token of value.split(" ")) {
-      const trimmed = token.trim();
-      if (trimmed) tokens.push(trimmed);
-    }
-  }
-  return tokens.length > 0 ? Array.from(new Set(tokens)).join(" ") : undefined;
 }
 
 /**
@@ -59,53 +38,13 @@ function SettingsFieldRow({
   const descriptionId = description ? `${baseId}-description` : undefined;
   const errorId = error ? `${baseId}-error` : undefined;
 
-  type ControlProps = {
-    id?: string;
-    role?: string;
-    "aria-describedby"?: string;
-    "aria-labelledby"?: string;
-    "aria-invalid"?: boolean;
-  };
-  const controlElement = isValidElement<ControlProps>(control) ? control : null;
-  const isGroupWrapper =
-    controlElement !== null &&
-    typeof controlElement.type === "string" &&
-    controlElement.type === "div";
-  const supportsNativeLabelAssociation =
-    controlElement !== null &&
-    typeof controlElement.type === "string" &&
-    LABELABLE_TAGS.has(controlElement.type);
-
-  let renderedControl = control;
-  let labelHtmlFor: string | undefined;
-
-  if (controlElement) {
-    const describedBy = mergeAttributeTokens(
-      controlElement.props["aria-describedby"],
-      descriptionId,
-      errorId
-    );
-    const labelledBy = mergeAttributeTokens(controlElement.props["aria-labelledby"], labelId);
-
-    if (isGroupWrapper) {
-      renderedControl = cloneElement(controlElement, {
-        role: controlElement.props.role ?? "group",
-        "aria-labelledby": labelledBy,
-        "aria-describedby": describedBy,
-      });
-    } else {
-      const controlId = controlElement.props.id ?? `${baseId}-control`;
-      renderedControl = cloneElement(controlElement, {
-        id: controlId,
-        "aria-describedby": describedBy,
-        "aria-labelledby": supportsNativeLabelAssociation
-          ? controlElement.props["aria-labelledby"]
-          : labelledBy,
-        "aria-invalid": error ? true : controlElement.props["aria-invalid"],
-      });
-      if (supportsNativeLabelAssociation) labelHtmlFor = controlId;
-    }
-  }
+  const { control: renderedControl, labelHtmlFor } = associateSettingsControl({
+    control,
+    controlId: `${baseId}-control`,
+    labelId,
+    descriptionId,
+    errorId,
+  });
 
   if (variant === "modal") {
     return (
@@ -150,7 +89,7 @@ function SettingsFieldRow({
   return (
     <div
       className={cn(
-        "flex min-h-[54px] items-center justify-between gap-5 border-t border-line-soft px-4 py-3 first:border-t-0",
+        "flex min-h-setting-row items-center justify-between gap-5 border-t border-line-soft px-4 py-3 first:border-t-0",
         className
       )}
       data-slot="settings-field-row"
@@ -167,7 +106,7 @@ function SettingsFieldRow({
         </LabelTag>
         {description ? (
           <p
-            className="mt-0.5 max-w-[52ch] text-form-label leading-normal text-muted"
+            className="mt-0.5 max-w-setting-description text-form-label leading-normal text-muted"
             id={descriptionId}
           >
             {description}

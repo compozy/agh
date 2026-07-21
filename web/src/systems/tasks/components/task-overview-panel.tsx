@@ -1,51 +1,51 @@
 import { ChevronRight } from "lucide-react";
+import type { ComponentPropsWithoutRef } from "react";
 
-import { Button, DescriptionCard, JsonViewer, Markdown, Section } from "@agh/ui";
+import { Button, cn, DescriptionCard, Section, Timeline } from "@agh/ui";
 
 import type { TaskDetailView, TaskRun, TaskTimelineItem } from "../types";
+import { latestTaskRun } from "../lib/task-run-presentation";
 import { TaskActivityItem } from "./task-activity-item";
 import { TaskDependenciesSection } from "./task-dependencies-section";
 import { TaskNowStrip, type TaskNowStripHandlers } from "./task-now-strip";
+import { TaskResultSection } from "./task-result-section";
 import { TaskSubtasksSection } from "./task-subtasks-section";
 
 export const TASK_RESULT_ANCHOR_ID = "tasks-detail-result";
 
 const RECENT_ACTIVITY_LIMIT = 5;
 
-export interface TaskOverviewPanelProps {
+export interface TaskOverviewPanelProps extends ComponentPropsWithoutRef<"div"> {
   detail: TaskDetailView;
-  runs: TaskRun[];
-  timeline: TaskTimelineItem[];
+  runs: readonly TaskRun[];
+  timeline: readonly TaskTimelineItem[];
   isLive: boolean;
   nowHandlers: TaskNowStripHandlers;
   nowPending?: Parameters<typeof TaskNowStrip>[0]["pending"];
   onViewAllActivity: () => void;
 }
 
-function TaskResultSection({ runs }: { runs: readonly TaskRun[] }) {
-  const lastCompleted = [...runs]
-    .filter(run => run.status === "completed")
-    .sort((a, b) => b.attempt - a.attempt)[0];
-  const result = lastCompleted?.result;
-  if (result == null) return null;
+function CompletedTaskResult({ runs }: { runs: readonly TaskRun[] }) {
+  const lastCompleted = latestTaskRun(runs, "completed");
+  if (!lastCompleted) return null;
 
   return (
-    <Section data-testid="tasks-detail-result-section" id={TASK_RESULT_ANCHOR_ID} label="Result">
-      {typeof result === "string" ? (
-        <div className="rounded-lg border border-line bg-canvas-soft px-4 py-3.5">
-          <Markdown>{result}</Markdown>
-        </div>
-      ) : (
-        <JsonViewer data-testid="tasks-detail-result-json" value={result} />
-      )}
-    </Section>
+    <TaskResultSection
+      data-testid="tasks-detail-result-section"
+      emptyMessage="No result was recorded for the completed run."
+      id={TASK_RESULT_ANCHOR_ID}
+      jsonTestId="tasks-detail-result-json"
+      result={lastCompleted.result}
+    />
   );
 }
 
 /**
- * Overview tab (§4.3): Now strip → result (terminal) → description → subtasks
+ * Overview tab: Now strip → result (terminal) → description → subtasks
  * → dependencies → recent activity. Sections self-suppress when empty so a
  * simple task reads as a single quiet column.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.3
  */
 export function TaskOverviewPanel({
   detail,
@@ -55,6 +55,8 @@ export function TaskOverviewPanel({
   nowHandlers,
   nowPending,
   onViewAllActivity,
+  className,
+  ...props
 }: TaskOverviewPanelProps) {
   const record = detail.task;
   const children = detail.children ?? [];
@@ -63,10 +65,14 @@ export function TaskOverviewPanel({
   const description = record.description?.trim();
 
   return (
-    <div className="flex flex-col gap-6" data-testid="tasks-detail-overview">
+    <div
+      {...props}
+      className={cn("flex flex-col gap-6", className)}
+      data-testid="tasks-detail-overview"
+    >
       <TaskNowStrip detail={detail} handlers={nowHandlers} pending={nowPending} runs={runs} />
 
-      {record.status === "completed" ? <TaskResultSection runs={runs} /> : null}
+      {record.status === "completed" ? <CompletedTaskResult runs={runs} /> : null}
 
       <Section data-testid="tasks-detail-description" label="Description">
         {description ? (
@@ -87,7 +93,7 @@ export function TaskOverviewPanel({
           label="Recent activity"
           right={
             <Button
-              className="-mr-1.5 h-auto px-1.5 py-0.5 text-eyebrow font-medium text-muted"
+              className="-mr-1.5 min-h-6 px-1.5 py-0.5 text-eyebrow font-medium text-muted"
               data-testid="tasks-detail-view-all-activity"
               onClick={onViewAllActivity}
               size="sm"
@@ -99,11 +105,14 @@ export function TaskOverviewPanel({
             </Button>
           }
         >
-          <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+          <Timeline
+            ariaLabel="Recent task activity"
+            className="rounded-lg border border-line bg-canvas-soft px-4 pt-3"
+          >
             {recent.map(item => (
               <TaskActivityItem isLive={isLive} item={item} key={item.event_id} />
             ))}
-          </div>
+          </Timeline>
         </Section>
       ) : null}
     </div>

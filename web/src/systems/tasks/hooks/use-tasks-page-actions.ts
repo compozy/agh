@@ -1,14 +1,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  useApproveTask,
-  useArchiveTask,
-  useDismissTask,
-  useMarkTaskRead,
-  useRejectTask,
-  useRetryTaskRun,
-} from "./use-task-actions";
+import { useApproveTask, useRejectTask } from "./use-task-actions";
+import { useRetryTaskRun } from "./use-task-run-actions";
+import { useArchiveTask, useDismissTask, useMarkTaskRead } from "./use-task-triage-actions";
 
 type PendingActionKind = "approve" | "archive" | "dismiss" | "markRead" | "reject" | "retry";
 type PendingActionIds = Record<PendingActionKind, Set<string>>;

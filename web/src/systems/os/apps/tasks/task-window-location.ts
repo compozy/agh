@@ -2,7 +2,7 @@ import {
   parseTasksSurfaceMode,
   validateTaskCreateSearch,
   validateTaskDetailSearch,
-  type TaskDetailSearch,
+  type ResolvedTaskDetailSearch,
   type TaskViewMode,
 } from "@/systems/tasks";
 import type { OsWindowLocation } from "../../lib/os-types";
@@ -10,7 +10,7 @@ import type { OsWindowLocation } from "../../lib/os-types";
 export type TaskWindowLocation =
   | { kind: "catalog"; mode: TaskViewMode }
   | { kind: "create"; search: ReturnType<typeof validateTaskCreateSearch> }
-  | { kind: "detail"; taskId: string; search: TaskDetailSearch }
+  | { kind: "detail"; taskId: string; search: ResolvedTaskDetailSearch }
   | { kind: "edit"; taskId: string }
   | { kind: "run"; taskId: string; runId: string };
 

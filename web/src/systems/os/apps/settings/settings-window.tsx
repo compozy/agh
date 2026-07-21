@@ -10,6 +10,7 @@ import {
 import { Spinner } from "@agh/ui";
 
 import { SETTINGS_SECTIONS } from "@/systems/settings";
+import { useDaemonConnectionStatus } from "@/systems/status";
 
 import { useDesktop } from "../../hooks/use-desktop";
 import { useOsShell } from "../../hooks/use-os-shell";
@@ -93,6 +94,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
   const pathname = useDesktop(state => state.windows[windowId]?.location.pathname ?? "/settings");
   const { coordinator } = useOsShell();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const connection = useDaemonConnectionStatus();
   const activeSlug = sectionSlugFromPathname(pathname);
   const SectionPage = SECTION_PAGES[activeSlug];
 
@@ -108,15 +110,16 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
 
   // The container declaration lives on the outer wrapper: an element cannot
   // resolve a container query against itself, so the flex switch sits one
-  // level down where `@min-[56rem]` reads this wrapper's inline size.
+  // level down where the Settings takeover container query reads this wrapper's inline size.
   return (
     <div className="@container flex min-h-full flex-col" onKeyDown={handleKeyDown}>
       <div
-        className="flex min-h-0 flex-1 flex-col @min-[56rem]:flex-row"
+        className="flex min-h-0 flex-1 flex-col @min-settings-takeover:flex-row"
         data-testid="settings-shell"
       >
         <SettingsWindowNav
           activeSlug={activeSlug}
+          connection={connection}
           onBackToApp={() => coordinator.userClose(windowId)}
           searchInputRef={searchInputRef}
         />

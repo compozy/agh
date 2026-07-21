@@ -66488,7 +66488,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Task event stream */
+      /** @description Standard SSE message stream; the payload type identifies each task event */
       200: {
         headers: {
           [name: string]: unknown;

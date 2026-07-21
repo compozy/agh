@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   RouterProvider,
   createMemoryHistory,
@@ -7,12 +8,35 @@ import {
   createRouter,
   Outlet,
 } from "@tanstack/react-router";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Topbar, TopbarSlotProvider, UIProvider } from "@agh/ui";
 
-import { countTasksByStatus, TasksDetailSubhead, TasksListSurface } from "@/systems/tasks";
-import type { TaskDetailView, TaskListItem } from "@/systems/tasks";
+vi.mock("@/systems/tasks/hooks/use-task-setup-runtime", () => ({
+  useTaskSetupRuntime: () => ({
+    catalogError: null,
+    catalogLoaded: true,
+    catalogLoading: false,
+    catalogRefreshing: false,
+    models: [],
+    onRefreshCatalog: () => undefined,
+    providers: [],
+    providersError: null,
+    providersLoading: false,
+  }),
+}));
+
+import * as taskApi from "@/systems/tasks/adapters/tasks-api";
+import { TaskDetailLocation } from "@/systems/os/apps/tasks/task-detail-location";
+import {
+  createDesktopStore,
+  OsShellContext,
+  RoutingCoordinator,
+  type OsRouterPort,
+  type OsShellHandle,
+} from "@/systems/os";
+import { buildDetailFixture } from "@/systems/tasks/mocks/fixtures";
+import { validateTaskDetailSearch } from "@/systems/tasks";
 
 function buildTestRouter(initialUrl: string) {
   const rootRoute = createRootRoute({
@@ -42,11 +66,10 @@ function buildTestRouter(initialUrl: string) {
   const taskDetailRoute = createRoute({
     getParentRoute: () => tasksRoute,
     path: "$id",
+    validateSearch: validateTaskDetailSearch,
     component: () => {
-      const params = taskDetailRoute.useParams();
       return (
         <div data-testid="tasks-detail">
-          <span data-testid="tasks-detail-id">{params.id}</span>
           <Outlet />
         </div>
       );
@@ -115,7 +138,6 @@ describe("tasks router registration (integration)", () => {
     render(<RouterProvider router={router} />);
     await waitFor(() => expect(screen.getByTestId("tasks-shell")).toBeInTheDocument());
     expect(screen.getByTestId("tasks-detail")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-detail-id")).toHaveTextContent("task_abc");
     expect(screen.queryByTestId("tasks-run-detail")).not.toBeInTheDocument();
   });
 
@@ -150,137 +172,94 @@ describe("tasks router registration (integration)", () => {
     await waitFor(() => expect(screen.getByTestId("tasks-shell")).toBeInTheDocument());
     const baseShell = screen.getByTestId("tasks-shell");
 
-    await router.history.push("/tasks/new");
+    await act(() => router.history.push("/tasks/new"));
     await waitFor(() => expect(screen.getByTestId("tasks-create-route")).toBeInTheDocument());
     expect(screen.getByTestId("tasks-shell")).toBe(baseShell);
 
-    await router.navigate({ to: "/tasks/$id", params: { id: "task_abc" } });
+    await act(() => router.navigate({ to: "/tasks/$id", params: { id: "task_abc" } }));
     await waitFor(() => expect(screen.getByTestId("tasks-detail")).toBeInTheDocument());
     expect(screen.getByTestId("tasks-shell")).toBe(baseShell);
 
-    await router.history.push("/tasks/task_abc/edit");
+    await act(() => router.history.push("/tasks/task_abc/edit"));
     await waitFor(() => expect(screen.getByTestId("tasks-edit-route")).toBeInTheDocument());
     expect(screen.getByTestId("tasks-shell")).toBe(baseShell);
 
-    await router.navigate({
-      to: "/tasks/$id/runs/$runId",
-      params: { id: "task_abc", runId: "run_001" },
-    });
+    await act(() =>
+      router.navigate({
+        to: "/tasks/$id/runs/$runId",
+        params: { id: "task_abc", runId: "run_001" },
+      })
+    );
     await waitFor(() => expect(screen.getByTestId("tasks-run-detail")).toBeInTheDocument());
     expect(screen.getByTestId("tasks-shell")).toBe(baseShell);
   });
 });
 
-// ----- List → detail selection integration -----
+function buildProductionDetailRouter(initialUrl: string) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const store = createDesktopStore();
+  const port: OsRouterPort = { navigate: () => undefined, replace: () => undefined };
+  store.getState().hydrate([]);
+  const coordinator = new RoutingCoordinator(store, port);
+  coordinator.completeHydration();
+  const shell: OsShellHandle = { store, coordinator, flushPersistence: () => undefined };
 
-const FIXTURE_TASKS: TaskListItem[] = [
-  {
-    id: "task_001",
-    identifier: "TASK-1",
-    title: "Summarize review feedback",
-    status: "in_progress",
-    scope: "workspace",
-    origin: { kind: "web", ref: "op" },
-    created_at: "2026-04-11T09:00:00Z",
-    updated_at: "2026-04-11T09:00:00Z",
-    created_by: { kind: "human", ref: "pedro@" },
-    owner: { kind: "agent_session", ref: "Coder" },
-    priority: "high",
-  } as TaskListItem,
-  {
-    id: "task_002",
-    identifier: "TASK-2",
-    title: "Generate API client",
-    status: "ready",
-    scope: "workspace",
-    origin: { kind: "web", ref: "op" },
-    created_at: "2026-04-11T09:00:00Z",
-    updated_at: "2026-04-11T09:00:00Z",
-    created_by: { kind: "human", ref: "pedro@" },
-    owner: { kind: "agent_session", ref: "Coder" },
-  } as TaskListItem,
-];
-
-function buildSelectionRouter(initialUrl: string) {
   const rootRoute = createRootRoute({
     component: () => (
-      <UIProvider reducedMotion="always">
-        <TopbarSlotProvider>
-          <Topbar title="Tasks" />
-          <Outlet />
-        </TopbarSlotProvider>
-      </UIProvider>
+      <QueryClientProvider client={queryClient}>
+        <UIProvider reducedMotion="always">
+          <OsShellContext.Provider value={shell}>
+            <TopbarSlotProvider>
+              <Topbar title="Tasks" />
+              <Outlet />
+            </TopbarSlotProvider>
+          </OsShellContext.Provider>
+        </UIProvider>
+      </QueryClientProvider>
     ),
   });
-
-  const tasksRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "tasks",
-    component: TasksListRouteComponent,
-  });
-
   const detailRoute = createRoute({
-    getParentRoute: () => tasksRoute,
-    path: "$id",
-    component: TaskDetailRouteComponent,
+    getParentRoute: () => rootRoute,
+    path: "tasks/$id",
+    validateSearch: validateTaskDetailSearch,
+    component: () => {
+      const { id } = detailRoute.useParams();
+      return <TaskDetailLocation search={detailRoute.useSearch()} taskId={id} />;
+    },
   });
-
-  const routeTree = rootRoute.addChildren([tasksRoute.addChildren([detailRoute])]);
-
-  const router = createRouter({
-    routeTree,
+  return createRouter({
+    routeTree: rootRoute.addChildren([detailRoute]),
     history: createMemoryHistory({ initialEntries: [initialUrl] }),
   });
-
-  return { router, detailRoute };
-
-  function TasksListRouteComponent() {
-    return (
-      <div data-testid="tasks-shell">
-        <TasksListSurface
-          searchQuery=""
-          statusCounts={countTasksByStatus(FIXTURE_TASKS)}
-          tasks={FIXTURE_TASKS}
-        />
-        <Outlet />
-      </div>
-    );
-  }
-
-  function TaskDetailRouteComponent() {
-    const params = detailRoute.useParams() as unknown as { id: string };
-    const match = FIXTURE_TASKS.find(task => task.id === params.id);
-    if (!match) return null;
-    const detail = {
-      task: match,
-      summary: match as unknown as TaskDetailView["summary"],
-    } as TaskDetailView;
-    return (
-      <div data-testid="tasks-detail-route">
-        <span data-testid="tasks-detail-title">{match.title}</span>
-        <TasksDetailSubhead detail={detail} />
-      </div>
-    );
-  }
 }
 
-describe("tasks router selection (integration)", () => {
-  it("navigates to /tasks/$id when a list row is clicked and renders the matching detail header", async () => {
-    const { router } = buildSelectionRouter("/tasks");
+describe("production task detail route (integration)", () => {
+  beforeEach(() => {
+    const detail = buildDetailFixture({
+      task: {
+        id: "task_abc",
+        title: "Production route task",
+        latest_event_seq: undefined,
+      },
+      summary: { id: "task_abc", title: "Production route task" },
+    } as never);
+    vi.spyOn(taskApi, "getTask").mockResolvedValue(detail);
+    vi.spyOn(taskApi, "getTaskTimeline").mockResolvedValue([]);
+    vi.spyOn(taskApi, "listTaskRuns").mockResolvedValue([]);
+    vi.spyOn(taskApi, "inspectTask").mockResolvedValue(null as never);
+    vi.spyOn(taskApi, "getTaskExecutionProfile").mockResolvedValue(null as never);
+    vi.spyOn(taskApi, "listTaskReviews").mockResolvedValue([]);
+  });
+
+  it("Should mount TaskDetailLocation and preserve the validated Activity tab", async () => {
+    const router = buildProductionDetailRouter("/tasks/task_abc?tab=activity");
     render(<RouterProvider router={router} />);
 
-    await waitFor(() => expect(screen.getByTestId("tasks-list-surface")).toBeInTheDocument());
-    expect(router.state.location.pathname).toBe("/tasks");
-
-    // Click the second task row's main link region (trail stays outside the link).
-    const row = screen.getByTestId("task-card-task_002");
-    fireEvent.click(within(row).getByRole("link"));
-
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe("/tasks/task_002");
-    });
-
-    const title = await screen.findByTestId("tasks-detail-title");
-    expect(title).toHaveTextContent("Generate API client");
+    await waitFor(() => expect(screen.getByTestId("tasks-detail-content")).toBeInTheDocument());
+    expect(screen.getByTestId("tasks-detail-title")).toHaveTextContent("Production route task");
+    expect(screen.getByTestId("tasks-detail-tab-activity")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 });

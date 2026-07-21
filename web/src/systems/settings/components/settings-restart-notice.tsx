@@ -1,66 +1,61 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
 import { Button, cn, Spinner } from "@agh/ui";
 
-import type { SettingsRestartViewState } from "../lib/restart-banner-mapper";
+import {
+  settingsRestartPresentation,
+  type SettingsRestartViewState,
+} from "../lib/restart-presentation";
 
 type RestartState = SettingsRestartViewState;
 
 /**
  * Inline restart notice (design system §04): states what happens if you don't
- * act, offers Restart / Not now. Replaces the RestartBanner on settings pages.
+ * act, and offers Restart / Not now without leaving the current page.
  */
 export function SettingsRestartNotice({ restart, slug }: { restart: RestartState; slug: string }) {
-  if (!restart.isVisible) return null;
+  const presentation = settingsRestartPresentation(restart);
+  if (!presentation) return null;
 
-  const failed = restart.isFailed;
-  const polling = restart.isPolling;
-  const successful = restart.isSuccessful;
-
-  let title = "Restart needed";
-  let body =
-    "Some saved changes apply after the daemon restarts. Running sessions keep their current rules until then.";
-  if (polling) {
-    title = "Restarting…";
-    body = "The daemon comes back in a few seconds. Sessions reconnect on their own.";
-  } else if (successful) {
-    title = "Restarted";
-    body = "All saved changes are now active.";
-  } else if (failed) {
-    title = "Restart failed";
-    body =
-      restart.failureReason?.trim() ||
-      "The daemon did not come back. Check its logs, then try again.";
-  }
+  const toneClasses = {
+    danger: { surface: "bg-danger-tint", icon: "text-danger" },
+    info: { surface: "bg-info-tint", icon: "text-info" },
+    success: { surface: "bg-success-tint", icon: "text-success" },
+    warning: { surface: "bg-warning-tint", icon: "text-warning" },
+  }[presentation.tone];
 
   return (
     <div
       className={cn(
         "flex items-start gap-2.5 rounded-md px-3.5 py-3 text-form-label leading-normal text-muted",
-        failed ? "bg-danger-tint" : "bg-warning-tint"
+        toneClasses.surface
       )}
       data-testid={`settings-page-${slug}-restart-notice`}
-      role="status"
+      role={presentation.role}
     >
-      {polling ? (
-        <Spinner className="mt-0.5 size-3.5 shrink-0 text-warning" />
+      {presentation.phase === "polling" ? (
+        <Spinner className={cn("mt-0.5 size-3.5 shrink-0", toneClasses.icon)} />
+      ) : presentation.phase === "successful" ? (
+        <CheckCircle2
+          aria-hidden="true"
+          className={cn("mt-0.5 size-3.5 shrink-0", toneClasses.icon)}
+        />
       ) : (
         <AlertTriangle
           aria-hidden="true"
-          className={cn("mt-0.5 size-3.5 shrink-0", failed ? "text-danger" : "text-warning")}
+          className={cn("mt-0.5 size-3.5 shrink-0", toneClasses.icon)}
         />
       )}
       <div className="min-w-0 flex-1">
-        <span className="block text-ws-name font-medium text-fg-strong">{title}</span>
-        {body}
-        {restart.activeSessionCount != null && restart.isRestartRequired && !polling ? (
+        <span className="block text-ws-name font-medium text-fg-strong">{presentation.title}</span>
+        {presentation.body}
+        {presentation.sessionLabel ? (
           <span className="mt-0.5 block text-form-hint text-subtle">
-            {restart.activeSessionCount} active session
-            {restart.activeSessionCount === 1 ? "" : "s"} right now.
+            {presentation.sessionLabel}
           </span>
         ) : null}
       </div>
-      {successful ? (
+      {presentation.dismissLabel && !presentation.triggerLabel ? (
         <div className="ml-2 flex shrink-0 items-center">
           <Button
             data-testid={`settings-page-${slug}-restart-dismiss`}
@@ -69,29 +64,33 @@ export function SettingsRestartNotice({ restart, slug }: { restart: RestartState
             type="button"
             variant="ghost"
           >
-            Dismiss
+            {presentation.dismissLabel}
           </Button>
         </div>
-      ) : !polling ? (
+      ) : presentation.triggerLabel ? (
         <div className="ml-2 flex shrink-0 items-center gap-1.5">
+          {presentation.dismissLabel ? (
+            <Button
+              data-testid={`settings-page-${slug}-restart-dismiss`}
+              onClick={restart.dismiss}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {presentation.dismissLabel}
+            </Button>
+          ) : null}
           <Button
-            data-testid={`settings-page-${slug}-restart-dismiss`}
-            onClick={restart.dismiss}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            Not now
-          </Button>
-          <Button
+            aria-busy={presentation.triggerPending || undefined}
             data-testid={`settings-page-${slug}-restart-trigger`}
-            disabled={restart.isTriggerPending}
+            disabled={presentation.triggerPending}
             onClick={() => restart.trigger()}
             size="sm"
             type="button"
             variant="neutral"
           >
-            {failed ? "Try again" : "Restart daemon"}
+            {presentation.triggerPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {presentation.triggerLabel}
           </Button>
         </div>
       ) : null}

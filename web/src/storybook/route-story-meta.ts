@@ -1,5 +1,5 @@
 export {
-  StorybookRestartBannerSetup,
+  StorybookRestartNoticeSetup,
   StorybookRouteCanvas,
   StorybookUserHomeDirSetup,
   StorybookWorkspaceSetup,

@@ -439,8 +439,8 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       sandbox_empty_visible: document.querySelector('[data-testid="sandbox-page-empty"]') !== null,
       sandbox_profile_count: sandboxProfiles.length,
       sandbox_profile_names: sandboxProfileNames,
-      sandbox_restart_banner_visible:
-        document.querySelector('[data-testid="settings-page-sandbox-restart-banner"]') !== null,
+      sandbox_restart_notice_visible:
+        document.querySelector('[data-testid="settings-page-sandbox-restart-notice"]') !== null,
       sandbox_total_text: readText("sandbox-page-total"),
       sandbox_view_visible: document.querySelector('[data-testid="sandbox-shell"]') !== null,
       sandbox_workspace_references_text: readText("sandbox-page-workspaces"),
@@ -450,9 +450,9 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       settings_active_section: settingsActiveSection,
       settings_mcp_server_count: countSettingsMCPServerRows(),
       settings_provider_card_count: countSettingsProviderCards(),
-      settings_restart_banner_visible:
+      settings_restart_notice_visible:
         document.querySelector(
-          '[data-testid^="settings-page-"][data-testid$="-restart-banner"]'
+          '[data-testid^="settings-page-"][data-testid$="-restart-notice"]'
         ) !== null,
       settings_save_bar_visible:
         document.querySelector('[data-testid^="settings-page-"][data-testid$="-save-bar"]') !==

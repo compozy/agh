@@ -1,4 +1,5 @@
 import type { ChannelTab } from "../components/shell/channel-tabs-types";
+import type { NetworkDirectRoomDetail, NetworkThreadDetail } from "../types";
 
 export interface NetworkWindowLocation {
   pathname: string;
@@ -59,16 +60,61 @@ export function networkThreadsLocation(
   threadId?: string,
   view?: "full"
 ): NetworkWindowLocation {
-  const base = `/network/${encodeURIComponent(workspaceId)}/${encodeURIComponent(channel)}/threads`;
+  const base = networkChannelLocation(workspaceId, channel, "threads").pathname;
   return {
     pathname: threadId ? `${base}/${encodeURIComponent(threadId)}` : base,
     search: view ? { view } : {},
   };
 }
 
+export function networkChannelLocation(
+  workspaceId: string,
+  channel: string,
+  activeTab: ChannelTab
+): NetworkWindowLocation {
+  return {
+    pathname: `/network/${encodeURIComponent(workspaceId)}/${encodeURIComponent(channel)}/${activeTab}`,
+    search: {},
+  };
+}
+
+export function getOtherDirectSessionId(
+  direct: Pick<NetworkDirectRoomDetail, "session_a" | "session_b">,
+  selfSessionId: string | null | undefined
+): string | null {
+  if (!selfSessionId) return null;
+  if (direct.session_a === selfSessionId) return direct.session_b;
+  if (direct.session_b === selfSessionId) return direct.session_a;
+  return null;
+}
+
+export function resolveNetworkConversationLabel(
+  location: ParsedNetworkWindowLocation,
+  detail: {
+    thread: NetworkThreadDetail | null;
+    direct: NetworkDirectRoomDetail | null;
+    selfSessionId: string | null;
+  }
+): string | null {
+  if (location.activeThreadId) {
+    if (detail.thread?.thread_id !== location.activeThreadId) return null;
+    return detail.thread.title?.trim() || null;
+  }
+  if (location.activeDirectId) {
+    if (detail.direct?.direct_id !== location.activeDirectId) return null;
+    const otherSessionId = getOtherDirectSessionId(detail.direct, detail.selfSessionId);
+    return otherSessionId ? `@${otherSessionId}` : null;
+  }
+  return null;
+}
+
 export interface NetworkWindowTrail {
   /** Parent crumbs for the drill-in head (empty at the root). */
-  parents: ReadonlyArray<{ id: "root" | "channel"; label: string }>;
+  parents: ReadonlyArray<{
+    id: "root" | "channel";
+    label: string;
+    location: NetworkWindowLocation;
+  }>;
   /** Leaf title (window H1). */
   leaf: string;
   /** Whether the head shows the back affordance (any drilled-in level). */
@@ -86,13 +132,21 @@ export function networkWindowTrail(
   conversationLabel?: string | null
 ): NetworkWindowTrail {
   const inConversation = Boolean(location.activeThreadId || location.activeDirectId);
-  if (!location.channel || !inConversation) {
+  if (!location.workspaceId || !location.channel || !inConversation) {
     return { parents: [], leaf: "Network", drilledIn: false };
   }
   return {
     parents: [
-      { id: "root", label: "Network" },
-      { id: "channel", label: `#${location.channel}` },
+      { id: "root", label: "Network", location: { pathname: "/network", search: {} } },
+      {
+        id: "channel",
+        label: `#${location.channel}`,
+        location: networkChannelLocation(
+          location.workspaceId,
+          location.channel,
+          location.activeTab
+        ),
+      },
     ],
     leaf: conversationLabel ?? (location.activeThreadId ? "Thread" : "Direct"),
     drilledIn: true,

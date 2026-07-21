@@ -1,7 +1,6 @@
-import { cn, Pill } from "@agh/ui";
+import { CatalogCard, cn, Pill } from "@agh/ui";
 
-import { providerAuthSummary, providerStatusCopy } from "../lib/provider-copy";
-import { getProviderStateView } from "../lib/provider-state";
+import { providerListingView } from "../lib/provider-listing-view";
 import type { SettingsProviderEntry } from "../types";
 import { ProviderLogo } from "./provider-logo";
 
@@ -10,71 +9,63 @@ interface ProviderCardProps {
   onOpen: (entry: SettingsProviderEntry) => void;
 }
 
-/**
- * Provider card (settings-providers prototype): logo well, name + Default
- * pill, command in mono, one humanized status line, and a plain-language
- * sign-in summary. The whole card opens the inspector sheet.
- */
 export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
-  const state = getProviderStateView(provider);
-  const curatedCount = (provider.settings.models?.curated ?? []).length;
-  const status = providerStatusCopy(state, curatedCount);
+  const view = providerListingView(provider);
   const testId = `settings-page-providers-card-${provider.name}`;
-  const command = provider.settings.command?.trim() || provider.name;
 
   return (
-    <button
-      className={cn(
-        "flex flex-col gap-3 rounded-lg border border-line bg-canvas-soft px-4 py-3.5 text-left",
-        "transition-colors duration-base hover:border-line-strong hover:bg-elevated",
-        "focus-visible:outline-none focus-visible:shadow-focus-ring"
-      )}
-      data-state={state.label}
-      data-testid={testId}
-      onClick={() => onOpen(provider)}
-      type="button"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <span
-          className="flex size-9 shrink-0 items-center justify-center rounded-md bg-canvas text-fg"
-          data-testid={`${testId}-logo`}
-        >
-          <ProviderLogo className="size-4.5" provider={provider.name} />
-        </span>
-        <span className="flex min-w-0 flex-col">
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              className="truncate text-ws-name font-semibold text-fg-strong"
-              data-testid={`${testId}-name`}
-            >
-              {provider.settings.display_name?.trim() || provider.name}
-            </span>
-            {provider.default ? (
-              <Pill data-testid={`${testId}-default`} tone="accent">
-                Default
-              </Pill>
-            ) : null}
-          </span>
-          <span className="truncate font-mono text-eyebrow text-subtle">{command}</span>
-        </span>
-      </div>
-      <span
-        className={cn(
-          "inline-flex items-center gap-1.5 text-form-label font-medium",
-          status.tone === "success" ? "text-success" : "text-warning"
-        )}
-        data-state={state.label}
-        data-testid={`${testId}-status`}
+    <CatalogCard actionable className="border border-line p-0" data-state={view.state.label}>
+      <button
+        className="flex min-h-full w-full flex-col gap-3 px-4 py-3.5 text-left focus-visible:outline-none focus-visible:shadow-focus-inset"
+        data-testid={testId}
+        onClick={() => onOpen(provider)}
+        type="button"
       >
-        <Pill.Dot tone={status.tone} />
-        {status.label}
-      </span>
-      <span className="flex items-center justify-between gap-2 border-t border-line-soft pt-2.5 text-form-label text-muted">
-        {providerAuthSummary(provider)}
-        <span className="text-form-label font-medium text-fg">
-          {state.label === "unconfigured" ? "Set up" : "Edit"}
+        <span className="flex min-w-0 items-center gap-3">
+          <CatalogCard.Logo data-testid={`${testId}-logo`} size="lg">
+            <ProviderLogo className="size-4.5" provider={provider.name} />
+          </CatalogCard.Logo>
+          <span className="flex min-w-0 flex-col">
+            <span className="flex min-w-0 items-center gap-2">
+              <CatalogCard.Title data-testid={`${testId}-name`}>
+                {view.displayName}
+              </CatalogCard.Title>
+              {provider.default ? (
+                <Pill data-testid={`${testId}-default`} tone="accent">
+                  Default
+                </Pill>
+              ) : null}
+            </span>
+            <span
+              className="truncate font-mono text-eyebrow text-subtle"
+              data-testid={`${testId}-command`}
+            >
+              {view.command}
+            </span>
+          </span>
         </span>
-      </span>
-    </button>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 text-form-label font-medium",
+            view.status.tone === "success"
+              ? "text-success"
+              : view.status.tone === "danger"
+                ? "text-danger"
+                : view.status.tone === "info"
+                  ? "text-info"
+                  : "text-warning"
+          )}
+          data-state={view.state.label}
+          data-testid={`${testId}-status`}
+        >
+          <Pill.Dot tone={view.status.tone} />
+          {view.status.label}
+        </span>
+        <span className="flex items-center justify-between gap-2 border-t border-line-soft pt-2.5 text-form-label text-muted">
+          {view.authSummary}
+          <span className="text-form-label font-medium text-fg">{view.actionLabel}</span>
+        </span>
+      </button>
+    </CatalogCard>
   );
 }

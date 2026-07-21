@@ -11,25 +11,12 @@ import { useNetworkRouteView } from "../hooks/use-network-route-view";
 import { useNetworkWindowTopbar } from "../hooks/use-network-window-topbar";
 import { networkThreadsLocation, type NetworkWindowLocation } from "../lib/network-window-location";
 import type { NetworkWindowNavigation } from "../hooks/use-network-route-shell";
-import type { NetworkDirectRoomSummary } from "../types";
 import { NetworkWindowContent } from "./network-window-content";
 
 export interface NetworkWindowControllerProps {
   active: boolean;
   location: NetworkWindowLocation;
   navigation: NetworkWindowNavigation;
-}
-
-function directConversationLabel(
-  directs: ReadonlyArray<NetworkDirectRoomSummary>,
-  directId: string,
-  selfSessionId: string | null
-): string | null {
-  const direct = directs.find(candidate => candidate.direct_id === directId);
-  if (!direct) return null;
-  const other =
-    selfSessionId && direct.session_a === selfSessionId ? direct.session_b : direct.session_a;
-  return `@${other}`;
 }
 
 /**
@@ -61,27 +48,15 @@ export function NetworkWindowController({
     navigation.push(networkThreadsLocation(workspaceId, activeChannelKey, activeThreadId, "full"));
   };
 
-  const conversationLabel = activeThreadId
-    ? (filters.threadsQuery.threads.find(thread => thread.thread_id === activeThreadId)?.title ??
-      null)
-    : activeDirectId
-      ? directConversationLabel(
-          view.railView.directs.directs,
-          activeDirectId,
-          view.railView.session.session?.sessionId ?? null
-        )
-      : null;
-
   useNetworkWindowTopbar({
     location: view.location,
     navigation,
-    workspaceId,
-    activeChannelKey,
     channelCount: page.channels.length,
     status: page.status,
+    openWorkCount: view.openWork.openCount,
     workEntries: view.openWork.entries,
     createAction: view.networkCreate.action,
-    conversationLabel,
+    conversationLabel: view.conversationLabel,
   });
 
   if (page.isStatusLoading) {

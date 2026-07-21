@@ -21,7 +21,6 @@ const SPACE_THUMB_HEIGHT = 148;
 const THUMB_MIN_DESK_WIDTH = 1000;
 const THUMB_MIN_DESK_HEIGHT = 600;
 const THUMB_MAX_WINDOWS = 4;
-const THUMB_TOP_OFFSET = 8;
 
 const THUMB_WALLPAPER: Record<OsWallpaper, string> = {
   ember: "var(--wallpaper-thumb-ember)",
@@ -73,7 +72,7 @@ function SpaceThumb({
           className="absolute rounded-xs border border-line-strong bg-line-strong"
           style={{
             left: win.rect.x * sx,
-            top: win.rect.y * sy + THUMB_TOP_OFFSET,
+            top: `calc(${win.rect.y * sy}px + var(--spacing-space-thumb-top-offset))`,
             width: win.rect.w * sx,
             height: win.rect.h * sy,
           }}

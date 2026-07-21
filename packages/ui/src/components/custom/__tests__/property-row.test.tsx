@@ -29,4 +29,11 @@ describe("PropertyRow", () => {
     expect(row).not.toHaveTextContent("ignored");
     expect(screen.getByRole("button", { name: "High" })).toBeInTheDocument();
   });
+
+  it("Should expose the complete primitive value when the visible row truncates", () => {
+    const value = "workspace_01J7GJ67XQ6S0C8R1DVKPX9F5N";
+    render(<PropertyRow label="Workspace">{value}</PropertyRow>);
+
+    expect(screen.getByTitle(value)).toHaveTextContent(value);
+  });
 });

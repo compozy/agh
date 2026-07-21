@@ -13,7 +13,7 @@ export interface TaskLinkedRowProps {
   title: string;
   state: TaskLinkedRowState;
   owner?: TaskChildSummary["owner"] | null;
-  timeIso?: string | null;
+  lastActivityAt?: string | null;
   testId?: string;
 }
 
@@ -23,17 +23,25 @@ const DOT_CLASS: Record<TaskLinkedRowState, string> = {
   todo: "border-[1.5px] border-faint bg-transparent",
 };
 
+const STATE_LABEL: Record<TaskLinkedRowState, string> = {
+  active: "Active",
+  done: "Completed",
+  todo: "Not started",
+};
+
 /**
- * Shared row anatomy for subtasks and dependencies (§4.3): status dot, title,
+ * Shared row anatomy for subtasks and dependencies: status dot, title,
  * owner, freshness, chevron. The whole row is the link — no per-row accent
  * button (accent budget stays with the head primary).
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.3
  */
 export function TaskLinkedRow({
   taskId,
   title,
   state,
   owner,
-  timeIso,
+  lastActivityAt,
   testId,
 }: TaskLinkedRowProps) {
   const ownerName = owner ? taskOwnerLabel(owner) : null;
@@ -43,17 +51,23 @@ export function TaskLinkedRow({
         "grid grid-cols-[14px_minmax(0,1fr)_auto_14px] items-center gap-3 px-4 py-2.5",
         "border-t border-line-soft transition-colors duration-fast first:border-t-0 hover:bg-row-hover",
         "focus-visible:outline-none focus-visible:shadow-focus-ring",
-        timeIso ? "sm:grid-cols-[14px_minmax(0,1fr)_auto_auto_14px]" : null
+        lastActivityAt ? "sm:grid-cols-[14px_minmax(0,1fr)_auto_auto_14px]" : null
       )}
       data-testid={testId}
+      aria-label={`${title}, ${STATE_LABEL[state]}`}
       params={{ id: taskId }}
       to="/tasks/$id"
     >
       <span
-        aria-hidden="true"
+        aria-label={STATE_LABEL[state]}
         className={cn("size-2 justify-self-center rounded-full", DOT_CLASS[state])}
         data-state={state}
-      />
+        role="img"
+      >
+        {state === "active" ? (
+          <span aria-hidden="true" className="m-auto block size-1 rounded-full bg-accent" />
+        ) : null}
+      </span>
       <span className="truncate text-ws-name font-medium text-fg-strong">
         {state === "done" ? <s className="text-muted decoration-faint">{title}</s> : title}
       </span>
@@ -70,9 +84,9 @@ export function TaskLinkedRow({
       ) : (
         <span aria-hidden="true" />
       )}
-      {timeIso ? (
+      {lastActivityAt ? (
         <span className="hidden text-eyebrow tabular-nums text-subtle sm:inline">
-          <Time iso={timeIso} mode="relative" />
+          <Time iso={lastActivityAt} mode="relative" />
         </span>
       ) : null}
       <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />

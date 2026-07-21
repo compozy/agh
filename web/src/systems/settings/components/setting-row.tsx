@@ -1,36 +1,9 @@
 import { ChevronRight } from "lucide-react";
-import {
-  cloneElement,
-  Fragment,
-  isValidElement,
-  useId,
-  type ComponentProps,
-  type ReactNode,
-} from "react";
+import { useId, type ComponentProps, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 
 import { cn } from "@agh/ui";
-
-const LABELABLE_TAGS = new Set([
-  "button",
-  "input",
-  "meter",
-  "output",
-  "progress",
-  "select",
-  "textarea",
-]);
-
-function mergeAttributeTokens(...values: Array<string | undefined>): string | undefined {
-  const tokens: string[] = [];
-  for (const value of values) {
-    if (!value) continue;
-    for (const token of value.split(" ")) {
-      const trimmed = token.trim();
-      if (trimmed) tokens.push(trimmed);
-    }
-  }
-  return tokens.length > 0 ? Array.from(new Set(tokens)).join(" ") : undefined;
-}
+import { associateSettingsControl } from "../lib/control-association";
 
 export interface SettingRowProps {
   /** Plain-language decision name (13px/500). */
@@ -63,55 +36,20 @@ export function SettingRow({
   const descriptionId = description ? `${baseId}-description` : undefined;
   const errorId = error ? `${baseId}-error` : undefined;
 
-  type ControlProps = {
-    id?: string;
-    role?: string;
-    "aria-describedby"?: string;
-    "aria-labelledby"?: string;
-    "aria-invalid"?: boolean;
-  };
-  const controlElement = isValidElement<ControlProps>(control) ? control : null;
-  const isFragment = controlElement?.type === Fragment;
-  const supportsNativeLabel =
-    controlElement !== null &&
-    typeof controlElement.type === "string" &&
-    LABELABLE_TAGS.has(controlElement.type);
-
-  let renderedControl = control;
-  let labelHtmlFor: string | undefined;
-  if (controlElement && isFragment) {
-    renderedControl = (
-      <span
-        aria-describedby={mergeAttributeTokens(descriptionId, errorId)}
-        aria-labelledby={labelId}
-        role="group"
-      >
-        {control}
-      </span>
-    );
-  } else if (controlElement) {
-    const describedBy = mergeAttributeTokens(
-      controlElement.props["aria-describedby"],
-      descriptionId,
-      errorId
-    );
-    const labelledBy = mergeAttributeTokens(controlElement.props["aria-labelledby"], labelId);
-    const controlId = controlElement.props.id ?? `${baseId}-control`;
-    renderedControl = cloneElement(controlElement, {
-      id: controlId,
-      "aria-describedby": describedBy,
-      "aria-labelledby": supportsNativeLabel ? controlElement.props["aria-labelledby"] : labelledBy,
-      "aria-invalid": error ? true : controlElement.props["aria-invalid"],
-    });
-    if (supportsNativeLabel) labelHtmlFor = controlId;
-  }
+  const { control: renderedControl, labelHtmlFor } = associateSettingsControl({
+    control,
+    controlId: `${baseId}-control`,
+    labelId,
+    descriptionId,
+    errorId,
+  });
 
   const LabelTag = labelHtmlFor ? "label" : "span";
 
   return (
     <div
       className={cn(
-        "flex min-h-[54px] items-center justify-between gap-5 border-t border-line-soft px-4 py-3 first:border-t-0",
+        "flex min-h-setting-row items-center justify-between gap-5 border-t border-line-soft px-4 py-3 first:border-t-0",
         className
       )}
       data-slot="setting-row"
@@ -127,7 +65,7 @@ export function SettingRow({
         </LabelTag>
         {description ? (
           <p
-            className="mt-0.5 max-w-[52ch] text-form-label leading-normal text-muted"
+            className="mt-0.5 max-w-setting-description text-form-label leading-normal text-muted"
             id={descriptionId}
           >
             {description}
@@ -146,12 +84,17 @@ export function SettingRow({
   );
 }
 
-export interface SettingLinkRowProps extends Omit<ComponentProps<"button">, "children" | "value"> {
+interface SettingNavigationRowContentProps {
   label: ReactNode;
   description?: ReactNode;
   /** Optional trailing value before the chevron. */
   value?: ReactNode;
 }
+
+export interface SettingLinkRowProps
+  extends
+    Omit<ComponentProps<typeof Link>, "children" | "value">,
+    SettingNavigationRowContentProps {}
 
 /** Row that leads somewhere else — a sheet, a top-level route, a marketplace. */
 export function SettingLinkRow({
@@ -162,14 +105,54 @@ export function SettingLinkRow({
   ...props
 }: SettingLinkRowProps) {
   return (
-    <button
+    <Link
       className={cn(
-        "flex min-h-[54px] w-full items-center justify-between gap-5 border-t border-line-soft px-4 py-3 text-left first:border-t-0",
+        "flex min-h-setting-row w-full items-center justify-between gap-5 border-t border-line-soft px-4 py-3 text-left first:border-t-0",
         "cursor-pointer transition-colors duration-base hover:bg-row-hover",
         "focus-visible:outline-none focus-visible:shadow-focus-ring",
         className
       )}
       data-slot="setting-link-row"
+      {...props}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5 text-ws-name font-medium text-fg-strong">
+          {label}
+        </span>
+        {description ? (
+          <span className="mt-0.5 block max-w-setting-description text-form-label leading-normal text-muted">
+            {description}
+          </span>
+        ) : null}
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        {value}
+        <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />
+      </span>
+    </Link>
+  );
+}
+
+export interface SettingActionRowProps
+  extends Omit<ComponentProps<"button">, "children" | "value">, SettingNavigationRowContentProps {}
+
+/** Row that performs an in-place action, such as opening a settings sheet. */
+export function SettingActionRow({
+  label,
+  description,
+  value,
+  className,
+  ...props
+}: SettingActionRowProps) {
+  return (
+    <button
+      className={cn(
+        "flex min-h-setting-row w-full items-center justify-between gap-5 border-t border-line-soft px-4 py-3 text-left first:border-t-0",
+        "cursor-pointer transition-colors duration-base hover:bg-row-hover",
+        "focus-visible:outline-none focus-visible:shadow-focus-ring",
+        className
+      )}
+      data-slot="setting-action-row"
       type="button"
       {...props}
     >
@@ -178,7 +161,7 @@ export function SettingLinkRow({
           {label}
         </span>
         {description ? (
-          <span className="mt-0.5 block max-w-[52ch] text-form-label leading-normal text-muted">
+          <span className="mt-0.5 block max-w-setting-description text-form-label leading-normal text-muted">
             {description}
           </span>
         ) : null}

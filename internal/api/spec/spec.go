@@ -4277,7 +4277,7 @@ var operationRegistry = append([]OperationSpec{
 		Responses: []ResponseSpec{
 			{
 				Status:      200,
-				Description: "Task event stream",
+				Description: "Standard SSE message stream; the payload type identifies each task event",
 				Body:        contract.TaskStreamEventPayload{},
 				ContentType: specContentTypeEventStream,
 			},

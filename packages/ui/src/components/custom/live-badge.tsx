@@ -6,7 +6,7 @@ import { cn } from "../../lib/utils";
 import type { PillTone } from "./pill";
 import { Pill } from "./pill";
 
-export interface LiveBadgeProps extends React.ComponentProps<"span"> {
+export interface LiveBadgeProps extends Omit<React.ComponentProps<"span">, "children"> {
   /** Signal tone; defaults to `success` (stream attached and healthy). */
   tone?: PillTone;
   /** Label text; defaults to "Live". */
@@ -38,8 +38,10 @@ function LiveBadge({
 }: LiveBadgeProps) {
   return (
     <span
+      aria-live="polite"
       data-slot="live-badge"
       data-tone={tone}
+      role="status"
       className={cn(
         "inline-flex items-center gap-1.5 text-badge font-semibold",
         TONE_TEXT[tone],

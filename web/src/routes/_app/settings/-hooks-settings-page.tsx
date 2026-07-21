@@ -2,13 +2,14 @@ import { AlertCircle } from "lucide-react";
 
 import { useSettingsHooksPage } from "@/systems/settings/hooks/use-settings-hooks-page";
 import { NotificationPresetsPanel } from "@/systems/notifications";
-import { SettingsPageFrame } from "@/systems/settings";
+import { SettingsPageFrame, useSettingsTopbar } from "@/systems/settings";
 import { Button, Spinner } from "@agh/ui";
 
 import { HooksSection } from "./-hooks-section";
 
 export function HooksSettingsPage() {
   const page = useSettingsHooksPage();
+  useSettingsTopbar("hooks");
   if (page.isLoading)
     return (
       <div

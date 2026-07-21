@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Pill,
+  Spinner,
   TopbarOverflowIcon,
 } from "@agh/ui";
 
@@ -36,12 +37,22 @@ export interface TaskPageActionHandlers {
   onRecover: () => void;
   onRetry: (runId: string) => void;
   onEdit: () => void;
+  onPause: () => void;
+  onReject: () => void;
 }
 
 export interface TaskPageActionsProps {
   command: TaskCommandState;
   handlers: TaskPageActionHandlers;
-  pending?: boolean;
+  pending?: {
+    approve?: boolean;
+    publish?: boolean;
+    recover?: boolean;
+    reject?: boolean;
+    resume?: boolean;
+    retry?: boolean;
+    start?: boolean;
+  };
 }
 
 const PRIMARY_LABEL: Record<NonNullable<TaskCommandState["primary"]>["kind"], string> = {
@@ -54,26 +65,31 @@ const PRIMARY_LABEL: Record<NonNullable<TaskCommandState["primary"]>["kind"], st
   retry: "Retry",
 };
 
-/** The one accent target in the head, driven by the §6 state machine. */
-export function TaskPageActions({ command, handlers, pending = false }: TaskPageActionsProps) {
-  const primary = command.primary;
+const PRIMARY_PENDING_LABEL: Record<
+  Exclude<NonNullable<TaskCommandState["primary"]>["kind"], "open_run">,
+  string
+> = {
+  approve: "Approving…",
+  publish: "Publishing…",
+  recover: "Recovering…",
+  resume: "Resuming…",
+  retry: "Retrying…",
+  start: "Starting…",
+};
 
-  if (!primary) {
-    if (!command.showEditButton) return null;
-    return (
-      <Button
-        data-testid="tasks-detail-edit-button"
-        onClick={handlers.onEdit}
-        size="sm"
-        type="button"
-        variant="neutral"
-      >
-        Edit
-      </Button>
-    );
-  }
+/**
+ * The one accent target in the head, driven by the task command state machine.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §6
+ */
+export function TaskPageActions({ command, handlers, pending = {} }: TaskPageActionsProps) {
+  const primary = command.primary;
+  const primaryPending =
+    primary?.kind === "open_run" ? false : Boolean(primary && pending[primary.kind]);
+  const anyPending = Object.values(pending).some(Boolean);
 
   const onClick = () => {
+    if (!primary) return;
     switch (primary.kind) {
       case "publish":
         return handlers.onPublish();
@@ -92,19 +108,83 @@ export function TaskPageActions({ command, handlers, pending = false }: TaskPage
     }
   };
 
+  if (
+    !primary &&
+    !command.secondary.edit &&
+    !command.secondary.pause &&
+    !command.secondary.reject
+  ) {
+    return null;
+  }
+
   return (
-    <Button
-      data-testid={`tasks-detail-primary-${primary.kind}`}
-      disabled={pending}
-      onClick={onClick}
-      size="sm"
-      type="button"
-    >
-      {primary.kind === "recover" ? <LifeBuoy aria-hidden="true" className="size-3" /> : null}
-      {primary.kind === "retry" ? <RotateCw aria-hidden="true" className="size-3" /> : null}
-      {PRIMARY_LABEL[primary.kind]}
-      {primary.kind === "open_run" ? <ArrowUpRight aria-hidden="true" className="size-3" /> : null}
-    </Button>
+    <div className="flex items-center gap-1.5">
+      {command.secondary.edit ? (
+        <Button
+          className="min-h-6"
+          data-testid="tasks-detail-edit-button"
+          disabled={anyPending}
+          onClick={handlers.onEdit}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          Edit
+        </Button>
+      ) : null}
+      {command.secondary.pause ? (
+        <Button
+          className="min-h-6"
+          disabled={anyPending}
+          onClick={handlers.onPause}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          Pause
+        </Button>
+      ) : null}
+      {command.secondary.reject ? (
+        <Button
+          aria-busy={pending.reject || undefined}
+          className="min-h-6"
+          data-testid="tasks-detail-reject-button"
+          disabled={anyPending}
+          onClick={handlers.onReject}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          {pending.reject ? <Spinner aria-hidden="true" className="size-3" /> : null}
+          {pending.reject ? "Rejecting…" : "Reject"}
+        </Button>
+      ) : null}
+      {primary ? (
+        <Button
+          aria-busy={primaryPending || undefined}
+          className="min-h-6"
+          data-testid={`tasks-detail-primary-${primary.kind}`}
+          disabled={anyPending}
+          onClick={onClick}
+          size="sm"
+          type="button"
+        >
+          {primaryPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+          {!primaryPending && primary.kind === "recover" ? (
+            <LifeBuoy aria-hidden="true" className="size-3" />
+          ) : null}
+          {!primaryPending && primary.kind === "retry" ? (
+            <RotateCw aria-hidden="true" className="size-3" />
+          ) : null}
+          {primaryPending && primary.kind !== "open_run"
+            ? PRIMARY_PENDING_LABEL[primary.kind]
+            : PRIMARY_LABEL[primary.kind]}
+          {primary.kind === "open_run" ? (
+            <ArrowUpRight aria-hidden="true" className="size-3" />
+          ) : null}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -147,13 +227,14 @@ export function TaskPageOverflow({
       <DropdownMenuTrigger
         aria-label="More actions"
         data-testid="tasks-detail-overflow"
-        render={<Button type="button" variant="ghost" size="icon-sm" />}
+        render={<Button className="size-6" type="button" variant="ghost" size="icon-sm" />}
       >
         <TopbarOverflowIcon aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="tasks-detail-overflow-menu">
         {overflow.edit ? (
           <DropdownMenuItem
+            aria-busy={pending.pause || undefined}
             data-testid="tasks-detail-edit"
             render={<Link params={{ id: taskId }} to="/tasks/$id/edit" />}
           >
@@ -166,34 +247,41 @@ export function TaskPageOverflow({
             disabled={pending.pause}
             onClick={onPause}
           >
-            Pause
+            {pending.pause ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {pending.pause ? "Pausing…" : "Pause"}
           </DropdownMenuItem>
         ) : null}
         {overflow.resume ? (
           <DropdownMenuItem
+            aria-busy={pending.resume || undefined}
             data-testid="tasks-detail-resume"
             disabled={pending.resume}
             onClick={onResume}
           >
-            Resume
+            {pending.resume ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {pending.resume ? "Resuming…" : "Resume"}
           </DropdownMenuItem>
         ) : null}
         {overflow.cancel ? (
           <DropdownMenuItem
+            aria-busy={pending.cancel || undefined}
             data-testid="tasks-detail-cancel"
             disabled={pending.cancel}
             onClick={onCancel}
           >
-            Cancel task
+            {pending.cancel ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {pending.cancel ? "Canceling…" : "Cancel task"}
           </DropdownMenuItem>
         ) : null}
         {overflow.startNewRun ? (
           <DropdownMenuItem
+            aria-busy={pending.enqueue || undefined}
             data-testid="tasks-detail-start-new-run"
             disabled={pending.enqueue}
             onClick={onStartNewRun}
           >
-            Start new run
+            {pending.enqueue ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {pending.enqueue ? "Starting…" : "Start new run"}
           </DropdownMenuItem>
         ) : null}
         {showFanOut ? (

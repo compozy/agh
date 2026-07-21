@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
 import { Switch } from "@agh/ui";
@@ -10,6 +9,7 @@ import { SettingsAdvancedFold } from "./settings-advanced-fold";
 import { SettingsFieldRow } from "./settings-field-row";
 import { SettingsGroup } from "./settings-group";
 import { SettingsNumberInput } from "./settings-number-input";
+import { SettingsRuntimeUnavailable } from "./settings-runtime-unavailable";
 import { SettingsTile, SettingsTiles } from "./settings-tiles";
 
 type NetworkConfig = SettingsNetworkSection["config"];
@@ -38,7 +38,6 @@ export function NetworkSettingsSections(props: NetworkSettingsSectionsProps) {
 }
 
 function OperationalLinksSection() {
-  const navigate = useNavigate();
   return (
     <SettingsGroup
       description="These settings control Network availability and finite Live defaults and ceilings. They never opt sessions, tasks, loops, or automations into participation."
@@ -48,7 +47,7 @@ function OperationalLinksSection() {
         data-testid="settings-page-network-link-network"
         description="Channels, peers, and live coordination for this workspace."
         label="Open Network"
-        onClick={() => void navigate({ to: "/network" })}
+        to="/network"
       />
     </SettingsGroup>
   );
@@ -61,30 +60,37 @@ function RuntimeStatusSection({ runtime }: { runtime: NetworkRuntime }) {
       description="What the listener is doing right now. Read-only."
       title="Runtime"
     >
-      <SettingsTiles>
-        <SettingsTile
-          data-testid="settings-page-network-runtime-status"
-          dotTone={runtime.enabled ? "success" : "neutral"}
-          label="Status"
-          value={runtime.status ?? (runtime.enabled ? "ready" : "disabled")}
+      {runtime.available ? (
+        <SettingsTiles>
+          <SettingsTile
+            data-testid="settings-page-network-runtime-status"
+            dotTone={runtime.enabled ? "success" : "neutral"}
+            label="Status"
+            value={runtime.status ?? (runtime.enabled ? "ready" : "disabled")}
+          />
+          <SettingsTile
+            data-testid="settings-page-network-runtime-live-participants"
+            label="Live participants"
+            value={String(runtime.local_peers)}
+          />
+          <SettingsTile
+            data-testid="settings-page-network-runtime-channels"
+            label="Channels"
+            value={String(runtime.channels)}
+          />
+          <SettingsTile
+            data-testid="settings-page-network-runtime-messages-received"
+            detail={`${runtime.messages_delivered} delivered · ${runtime.messages_rejected} rejected`}
+            label="Messages received"
+            value={String(runtime.messages_received)}
+          />
+        </SettingsTiles>
+      ) : (
+        <SettingsRuntimeUnavailable
+          slug="network"
+          description="The Network listener did not return live status or traffic counters."
         />
-        <SettingsTile
-          data-testid="settings-page-network-runtime-live-participants"
-          label="Live participants"
-          value={String(runtime.local_peers)}
-        />
-        <SettingsTile
-          data-testid="settings-page-network-runtime-channels"
-          label="Channels"
-          value={String(runtime.channels)}
-        />
-        <SettingsTile
-          data-testid="settings-page-network-runtime-messages-received"
-          detail={`${runtime.messages_delivered} delivered · ${runtime.messages_rejected} rejected`}
-          label="Messages received"
-          value={String(runtime.messages_received)}
-        />
-      </SettingsTiles>
+      )}
     </SettingsGroup>
   );
 }

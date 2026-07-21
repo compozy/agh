@@ -3,9 +3,10 @@ import type { Dispatch, SetStateAction } from "react";
 import {
   SettingsFieldRow,
   SettingsGroup,
+  SettingsInlineSaveControls,
   type SettingsHooksExtensionsSection,
 } from "@/systems/settings";
-import { Button, Input, Spinner, Switch } from "@agh/ui";
+import { Input, Switch } from "@agh/ui";
 
 type PolicyConfig = SettingsHooksExtensionsSection["config"];
 
@@ -37,13 +38,16 @@ export function PolicySection({
       data-testid="settings-page-extensions-policy-section"
       title="Extensions policy"
       action={
-        <SaveControls
-          canMutate={canMutate}
+        <SettingsInlineSaveControls
+          canSave={canMutate}
+          controlTestIdPrefix="settings-page-extensions-policy"
           error={error}
           isDirty={isDirty}
           isSaving={isSaving}
           onReset={onReset}
           onSave={onSave}
+          saveLabel="Save policy"
+          testId="settings-page-extensions-policy-controls"
           warnings={warnings}
         />
       }
@@ -111,57 +115,5 @@ export function PolicySection({
         }
       />
     </SettingsGroup>
-  );
-}
-
-function SaveControls({
-  isDirty,
-  isSaving,
-  canMutate,
-  error,
-  warnings,
-  onSave,
-  onReset,
-}: {
-  isDirty: boolean;
-  isSaving: boolean;
-  canMutate: boolean;
-  error: string | null;
-  warnings?: string[];
-  onSave: () => void;
-  onReset: () => void;
-}) {
-  return (
-    <div
-      className="flex flex-wrap items-center gap-2"
-      data-testid="settings-page-extensions-policy-controls"
-    >
-      <span
-        aria-live={error ? "assertive" : "polite"}
-        className={error ? "text-xs text-danger" : "text-xs text-muted"}
-      >
-        {error ?? (warnings?.length ? warnings.join(" · ") : isDirty ? "Unsaved changes" : "")}
-      </span>
-      <Button
-        data-testid="settings-page-extensions-policy-reset"
-        disabled={!isDirty || isSaving}
-        onClick={onReset}
-        size="sm"
-        type="button"
-        variant="ghost"
-      >
-        Discard
-      </Button>
-      <Button
-        data-testid="settings-page-extensions-policy-save"
-        disabled={!isDirty || isSaving || !canMutate}
-        onClick={onSave}
-        size="sm"
-        type="button"
-      >
-        {isSaving ? <Spinner className="size-3" /> : null}
-        {isSaving ? "Saving…" : "Save policy"}
-      </Button>
-    </div>
   );
 }

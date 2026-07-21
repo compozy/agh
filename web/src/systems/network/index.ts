@@ -414,11 +414,7 @@ export {
 export { NetworkWindowController } from "./routes/network-window-controller";
 export type { NetworkWindowControllerProps } from "./routes/network-window-controller";
 export type { NetworkWindowNavigation } from "./hooks/use-network-route-shell";
-export {
-  networkThreadsLocation,
-  networkWindowTrail,
-  parseNetworkWindowLocation,
-} from "./lib/network-window-location";
+export { networkThreadsLocation, parseNetworkWindowLocation } from "./lib/network-window-location";
 export type {
   NetworkWindowLocation,
   ParsedNetworkWindowLocation,

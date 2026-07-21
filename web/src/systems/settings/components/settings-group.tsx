@@ -38,7 +38,9 @@ export function SettingsGroup({
               <h2 className="text-ws-name font-semibold tracking-tight text-fg-strong">{title}</h2>
             ) : null}
             {description ? (
-              <p className="max-w-[72ch] text-form-label text-muted">{description}</p>
+              <p className="max-w-settings-page-description text-form-label text-muted">
+                {description}
+              </p>
             ) : null}
           </div>
           {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}

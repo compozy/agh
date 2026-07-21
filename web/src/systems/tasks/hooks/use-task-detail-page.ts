@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { toast } from "sonner";
 
 import {
   useApproveTask,
@@ -12,8 +11,8 @@ import {
   useRecoverTask,
   useRejectTask,
   useResumeTask,
-  useRetryTaskRun,
 } from "./use-task-actions";
+import { useRetryTaskRun } from "./use-task-run-actions";
 import { useTask, useTaskRuns } from "./use-tasks";
 import { useTaskInspect, useTaskTimeline } from "./use-task-live";
 import { useTaskExecutionProfile } from "./use-task-profile";
@@ -21,6 +20,7 @@ import { useTaskReviews } from "./use-task-reviews";
 import { useRecoverTaskRun } from "./use-task-run-recovery";
 import { useTaskStream } from "./use-task-stream";
 import { taskRunCanRecover } from "../lib/task-run-recovery";
+import { notifyTaskMutation, submitTaskMutation } from "../lib/task-mutation";
 import type { FanOutTaskRunsRequest, TaskRunsFilter, TaskTimelineFilter } from "../types";
 
 interface UseTaskDetailPageOptions {
@@ -35,19 +35,6 @@ interface UseTaskDetailPageOptions {
 
 const DEFAULT_TIMELINE_LIMIT = 50;
 const TIMELINE_PAGE_SIZE = 50;
-
-async function runAction(
-  action: () => Promise<unknown>,
-  success: string,
-  failure: string
-): Promise<void> {
-  try {
-    await action();
-    toast.success(success);
-  } catch (error) {
-    toast.error(error instanceof Error ? error.message : failure);
-  }
-}
 
 /**
  * View model for the 3-tab task detail page. Tab state lives in the window
@@ -126,7 +113,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
 
   const handlePublishTask = () =>
     hasTaskId
-      ? runAction(
+      ? notifyTaskMutation(
           () => publishMutation.mutateAsync({ id: taskId }),
           "Task published.",
           "Failed to publish task"
@@ -135,7 +122,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
 
   const handleCancelTask = () =>
     hasTaskId
-      ? runAction(
+      ? notifyTaskMutation(
           () => cancelMutation.mutateAsync({ id: taskId }),
           "Task canceled.",
           "Failed to cancel task"
@@ -144,7 +131,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
 
   const handleEnqueueRun = () =>
     hasTaskId
-      ? runAction(
+      ? notifyTaskMutation(
           () => enqueueMutation.mutateAsync({ id: taskId }),
           "Run queued.",
           "Failed to queue run"
@@ -153,7 +140,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
 
   const handleApproveTask = () =>
     hasTaskId
-      ? runAction(
+      ? notifyTaskMutation(
           () => approveMutation.mutateAsync({ id: taskId }),
           "Task approved.",
           "Failed to approve task"
@@ -162,7 +149,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
 
   const handleRejectTask = () =>
     hasTaskId
-      ? runAction(
+      ? notifyTaskMutation(
           () => rejectMutation.mutateAsync({ id: taskId }),
           "Task rejected.",
           "Failed to reject task"
@@ -170,7 +157,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       : Promise.resolve();
 
   const handleRetryRun = (runId: string) =>
-    runAction(
+    notifyTaskMutation(
       () => retryRunMutation.mutateAsync({ runId }),
       "Retry queued.",
       "Failed to retry run"
@@ -178,7 +165,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
 
   const handleClearBlock = (blockId: string) =>
     hasTaskId
-      ? runAction(
+      ? notifyTaskMutation(
           () => clearBlockMutation.mutateAsync({ id: taskId, blockId }),
           "Block cleared.",
           "Failed to clear block"
@@ -187,36 +174,32 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
 
   const handleFanOutRuns = async (data: FanOutTaskRunsRequest) => {
     if (!hasTaskId) return;
-    try {
-      const result = await fanOutMutation.mutateAsync({ id: taskId, data });
-      const count = result?.runs?.length ?? 0;
-      toast.success(count > 0 ? `Created ${count} run${count === 1 ? "" : "s"}.` : "Runs created.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to fan out runs");
-      throw error;
-    }
+    await submitTaskMutation(
+      () => fanOutMutation.mutateAsync({ id: taskId, data }),
+      result => {
+        const count = result?.runs?.length ?? 0;
+        return count > 0 ? `Created ${count} run${count === 1 ? "" : "s"}.` : "Runs created.";
+      },
+      "Failed to fan out runs"
+    );
   };
 
   const handlePauseTask = async (reason: string) => {
     if (!hasTaskId) return;
-    try {
-      await pauseMutation.mutateAsync({ id: taskId, data: { reason } });
-      toast.success("Task paused.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to pause task");
-      throw error;
-    }
+    await submitTaskMutation(
+      () => pauseMutation.mutateAsync({ id: taskId, data: { reason } }),
+      "Task paused.",
+      "Failed to pause task"
+    );
   };
 
   const handleResumeTask = async () => {
     if (!hasTaskId) return;
-    try {
-      await resumeMutation.mutateAsync({ id: taskId });
-      toast.success("Task resumed.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resume task");
-      throw error;
-    }
+    await notifyTaskMutation(
+      () => resumeMutation.mutateAsync({ id: taskId }),
+      "Task resumed.",
+      "Failed to resume task"
+    );
   };
 
   const handleRecoverTask = async () => {
@@ -229,18 +212,14 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       return;
     }
 
-    try {
-      if (recoverableRunId) {
-        await recoverRunMutation.mutateAsync({ runId: recoverableRunId, taskId });
-        toast.success("Run recovered.");
-      } else {
-        await recoverTaskMutation.mutateAsync({ id: taskId });
-        toast.success("Task recovered.");
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to recover task");
-      throw error;
-    }
+    const recoverAction: () => Promise<unknown> = recoverableRunId
+      ? () => recoverRunMutation.mutateAsync({ runId: recoverableRunId, taskId })
+      : () => recoverTaskMutation.mutateAsync({ id: taskId });
+    await notifyTaskMutation(
+      recoverAction,
+      recoverableRunId ? "Run recovered." : "Task recovered.",
+      "Failed to recover task"
+    );
   };
 
   const isTimelineSaturated =
@@ -261,6 +240,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     handlePublishTask,
     handleRecoverTask,
     handleRejectTask,
+    handleRetryDetail: () => detailQuery.refetch(),
     handleResumeTask,
     handleRetryRun,
     handleTimelineLoadMore,

@@ -15,10 +15,12 @@ interface TemplateSlot {
 }
 
 /**
- * Four-card empty-state grid + §3 — `accent / info / warning /
+ * Four-card empty-state grid — `accent / info / warning /
  * neutral` tones only (the prior `violet / amber` palette is gone). Six
  * template definitions remain available to the editor; the empty state
  * surfaces a curated four that match the proposal reference.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §3
  */
 const TEMPLATE_SLOTS: TemplateSlot[] = [
   { id: "one_shot", tone: "accent", icon: <Zap className="size-3" /> },

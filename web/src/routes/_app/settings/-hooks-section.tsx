@@ -1,6 +1,6 @@
 import { Webhook } from "lucide-react";
 
-import type { SettingsHookEntry } from "@/systems/settings";
+import { SettingsGroup, type SettingsHookEntry } from "@/systems/settings";
 import {
   Empty,
   Pill,
@@ -13,8 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from "@agh/ui";
-
-import { SettingsGroup } from "@/systems/settings";
 
 interface HooksSectionProps {
   hooks: SettingsHookEntry[];
@@ -35,7 +33,7 @@ export function HooksSection({
     <SettingsGroup
       data-testid="settings-page-hooks-section"
       title="Lifecycle hooks"
-      description="restart required to re-read declarations · toggles persist now"
+      description="Restart the daemon to re-read hook declarations. Enablement changes persist immediately."
     >
       {hookError ? (
         <span className="text-xs text-danger" data-testid="settings-page-hooks-error-message">

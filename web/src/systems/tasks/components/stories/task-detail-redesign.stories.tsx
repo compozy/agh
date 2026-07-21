@@ -153,8 +153,10 @@ export const PropertiesRail: Story = {
       <TaskPropertiesRail
         detail={runningDetail}
         onApprove={() => undefined}
+        onAutoEnqueueChange={() => undefined}
         onEditSetup={() => undefined}
         onInspect={() => undefined}
+        onPriorityChange={() => undefined}
         onReject={() => undefined}
         runs={runningRuns}
       />

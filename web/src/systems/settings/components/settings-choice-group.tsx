@@ -1,6 +1,7 @@
 import { Check } from "lucide-react";
+import { useRef } from "react";
 
-import { cn } from "@agh/ui";
+import { RadioCard } from "@agh/ui";
 
 export interface SettingsChoiceOption<V extends string> {
   value: V;
@@ -18,11 +19,7 @@ export interface SettingsChoiceGroupProps<V extends string> {
   "data-testid"?: string;
 }
 
-/**
- * Choice cards for decisions with real consequences (design system §06).
- * Selection state is neutral (glaze + inset ring + check) — accent is not a
- * selection color. The machine value whispers at the card foot.
- */
+/** Choice cards with one tab stop and native radio-group keyboard behavior. */
 export function SettingsChoiceGroup<V extends string>({
   options,
   value,
@@ -30,6 +27,32 @@ export function SettingsChoiceGroup<V extends string>({
   ariaLabel,
   "data-testid": testId,
 }: SettingsChoiceGroupProps<V>) {
+  const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const moveSelection = (currentIndex: number, key: string) => {
+    const currentCard = cardRefs.current[currentIndex];
+    const direction = currentCard ? getComputedStyle(currentCard).direction : "ltr";
+    const previousKey = direction === "rtl" ? "ArrowRight" : "ArrowLeft";
+    const nextKey = direction === "rtl" ? "ArrowLeft" : "ArrowRight";
+    const lastIndex = options.length - 1;
+    let nextIndex = currentIndex;
+
+    if (key === "Home") nextIndex = 0;
+    if (key === "End") nextIndex = lastIndex;
+    if (key === previousKey || key === "ArrowUp") {
+      nextIndex = currentIndex === 0 ? lastIndex : currentIndex - 1;
+    }
+    if (key === nextKey || key === "ArrowDown") {
+      nextIndex = currentIndex === lastIndex ? 0 : currentIndex + 1;
+    }
+    if (nextIndex === currentIndex) return;
+
+    const next = options[nextIndex];
+    if (!next) return;
+    onChange(next.value);
+    cardRefs.current[nextIndex]?.focus();
+  };
+
   return (
     <div
       aria-label={ariaLabel}
@@ -37,39 +60,43 @@ export function SettingsChoiceGroup<V extends string>({
       data-testid={testId}
       role="radiogroup"
     >
-      {options.map(option => {
+      {options.map((option, index) => {
         const checked = option.value === value;
         return (
-          <button
-            aria-checked={checked}
-            className={cn(
-              "relative flex flex-col gap-1.5 rounded-md border border-line-soft bg-canvas-tint px-3 py-2.5 text-left",
-              "transition-colors duration-base hover:border-line hover:bg-elevated",
-              "focus-visible:outline-none focus-visible:shadow-focus-ring",
-              checked &&
-                "border-transparent bg-surface-glaze shadow-[inset_0_0_0_1px_var(--color-line-strong)]"
-            )}
-            data-testid={testId ? `${testId}-${option.value}` : undefined}
-            key={option.value}
-            onClick={() => onChange(option.value)}
-            role="radio"
-            type="button"
-          >
-            <span className="flex items-center gap-2">
-              <span className="flex-1 text-small-body font-medium text-fg-strong">
-                {option.name}
-              </span>
+          <RadioCard
+            badge={
               <Check
                 aria-hidden="true"
-                className={cn(
-                  "size-3.5 shrink-0 text-fg-strong transition-opacity duration-base",
-                  checked ? "opacity-100" : "opacity-0"
-                )}
+                className={checked ? "size-3.5 text-fg-strong" : "size-3.5 opacity-0"}
               />
-            </span>
-            <span className="text-form-label leading-snug text-muted">{option.description}</span>
-            <span className="font-mono text-micro text-faint">{option.value}</span>
-          </button>
+            }
+            className="relative rounded-md border border-line-soft bg-canvas-tint"
+            data-testid={testId ? `${testId}-${option.value}` : undefined}
+            description={
+              <>
+                <span className="block leading-snug">{option.description}</span>
+                <span className="font-mono text-micro text-faint">{option.value}</span>
+              </>
+            }
+            key={option.value}
+            onKeyDown={event => {
+              if (
+                ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(
+                  event.key
+                )
+              ) {
+                event.preventDefault();
+                moveSelection(index, event.key);
+              }
+            }}
+            onSelect={() => onChange(option.value)}
+            ref={element => {
+              cardRefs.current[index] = element;
+            }}
+            selected={checked}
+            tabIndex={checked ? 0 : -1}
+            title={option.name}
+          />
         );
       })}
     </div>

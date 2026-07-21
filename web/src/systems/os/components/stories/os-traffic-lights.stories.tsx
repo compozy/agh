@@ -43,3 +43,16 @@ export const PresentationOnly: Story = {
     </div>
   ),
 };
+
+/**
+ * Compact inert chrome keeps the 15px glyphs visibly separated without
+ * pretending the controls are interactive.
+ */
+export const CompactPresentationOnly: Story = {
+  args: { compact: true },
+  render: args => (
+    <div className="rounded-md border border-line bg-canvas p-4">
+      <OsTrafficLights {...args} />
+    </div>
+  ),
+};

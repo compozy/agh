@@ -3,6 +3,18 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  taskExecutionProfileFixture,
+  taskRunReviewListFixture,
+} from "@/systems/tasks/mocks/fixtures";
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
+}));
+
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   listTasks: vi.fn(),
   getTask: vi.fn(),
@@ -21,10 +33,13 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   rejectTask: vi.fn(),
   retryTaskRun: vi.fn(),
   clearTaskBlock: vi.fn(),
+  fanOutTaskRuns: vi.fn(),
 }));
 
 import {
   approveTask,
+  clearTaskBlock,
+  fanOutTaskRuns,
   getTask,
   getTaskExecutionProfile,
   getTaskTimeline,
@@ -35,6 +50,7 @@ import {
   rejectTask,
   retryTaskRun,
 } from "@/systems/tasks/adapters/tasks-api";
+import { toast } from "sonner";
 
 import { useTaskDetailPage } from "../use-task-detail-page";
 
@@ -63,8 +79,8 @@ beforeEach(() => {
   vi.mocked(getTask).mockResolvedValue(detailFixture as never);
   vi.mocked(getTaskTimeline).mockResolvedValue([{ event_id: "evt_1", sequence: 1 }] as never);
   vi.mocked(listTaskRuns).mockResolvedValue([{ id: "run_1", status: "running" }] as never);
-  vi.mocked(getTaskExecutionProfile).mockResolvedValue(null as never);
-  vi.mocked(listTaskReviews).mockResolvedValue([] as never);
+  vi.mocked(getTaskExecutionProfile).mockResolvedValue(taskExecutionProfileFixture);
+  vi.mocked(listTaskReviews).mockResolvedValue(taskRunReviewListFixture);
 });
 
 afterEach(() => {
@@ -81,10 +97,10 @@ describe("useTaskDetailPage", () => {
       expect(result.current.detail?.task.id).toBe("task_001");
       expect(result.current.timeline).toHaveLength(1);
       expect(result.current.runs).toHaveLength(1);
+      expect(result.current.profile).toEqual(taskExecutionProfileFixture);
+      expect(result.current.reviews).toEqual(taskRunReviewListFixture);
     });
 
-    expect(getTaskExecutionProfile).toHaveBeenCalledWith("task_001", expect.anything());
-    expect(listTaskReviews).toHaveBeenCalled();
     expect(result.current.activeRun?.id).toBe("run_active");
   });
 
@@ -106,6 +122,18 @@ describe("useTaskDetailPage", () => {
     expect(listTaskRuns).not.toHaveBeenCalled();
   });
 
+  it("Should expose a profile load error through the detail view model", async () => {
+    const runtimeError = new Error("Profile unavailable");
+    vi.mocked(getTaskExecutionProfile).mockRejectedValue(runtimeError);
+
+    const { result } = renderHook(() => useTaskDetailPage("task_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.profileError).toBe(runtimeError));
+    expect(result.current.profile).toBeNull();
+  });
+
   it("Should report a fatal error when no task id is supplied", () => {
     const { result } = renderHook(() => useTaskDetailPage(""), { wrapper: createWrapper() });
 
@@ -113,7 +141,7 @@ describe("useTaskDetailPage", () => {
     expect(getTask).not.toHaveBeenCalled();
   });
 
-  it("Should advance the timeline cursor when handleTimelineLoadMore is called", () => {
+  it("Should increase the timeline page limit when handleTimelineLoadMore is called", () => {
     const { result } = renderHook(
       () => useTaskDetailPage("task_001", { initialTimelineLimit: 25 }),
       { wrapper: createWrapper() }
@@ -149,9 +177,8 @@ describe("useTaskDetailPage", () => {
     });
   });
 
-  it("Should approve and reject through their runtime verbs", async () => {
+  it("Should approve the current task through the approval verb", async () => {
     vi.mocked(approveTask).mockResolvedValue({ id: "task_001" } as never);
-    vi.mocked(rejectTask).mockResolvedValue({ id: "task_001" } as never);
 
     const { result } = renderHook(() => useTaskDetailPage("task_001"), {
       wrapper: createWrapper(),
@@ -163,11 +190,78 @@ describe("useTaskDetailPage", () => {
       await result.current.handleApproveTask();
     });
     expect(approveTask).toHaveBeenCalledWith("task_001");
+  });
+
+  it("Should reject the current task through the rejection verb", async () => {
+    vi.mocked(rejectTask).mockResolvedValue({ id: "task_001" } as never);
+
+    const { result } = renderHook(() => useTaskDetailPage("task_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.detail?.task.id).toBe("task_001"));
 
     await act(async () => {
       await result.current.handleRejectTask();
     });
     expect(rejectTask).toHaveBeenCalledWith("task_001");
+  });
+
+  it("Should bind clear-block to the current task and consume a notified rejection", async () => {
+    const runtimeError = new Error("Block was already cleared");
+    vi.mocked(clearTaskBlock).mockRejectedValue(runtimeError);
+
+    const { result } = renderHook(() => useTaskDetailPage("task_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.detail?.task.id).toBe("task_001"));
+    await act(async () => {
+      await expect(result.current.handleClearBlock("block_007")).resolves.toBeUndefined();
+    });
+
+    expect(clearTaskBlock).toHaveBeenCalledWith("task_001", "block_007", undefined);
+    expect(toast.error).toHaveBeenCalledWith("Block was already cleared");
+  });
+
+  it("Should bind fan-out payloads to the current task and preserve runtime rejection", async () => {
+    const runtimeError = new Error("Task already has an open run");
+    vi.mocked(fanOutTaskRuns).mockRejectedValue(runtimeError);
+    const request = {
+      designations: [{ brief: "Investigate checkout" }],
+      network_participation: { mode: "local" as const },
+    };
+
+    const { result } = renderHook(() => useTaskDetailPage("task_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.detail?.task.id).toBe("task_001"));
+    await act(async () => {
+      await expect(result.current.handleFanOutRuns(request)).rejects.toBe(runtimeError);
+    });
+
+    expect(fanOutTaskRuns).toHaveBeenCalledWith("task_001", request);
+    expect(toast.error).toHaveBeenCalledWith("Task already has an open run");
+  });
+
+  it("Should report the number of runs created by a successful fan-out", async () => {
+    vi.mocked(fanOutTaskRuns).mockResolvedValue({
+      runs: [{ id: "run_designated" }],
+    } as never);
+    const request = {
+      designations: [{ brief: "Investigate checkout" }],
+      network_participation: { mode: "local" as const },
+    };
+    const { result } = renderHook(() => useTaskDetailPage("task_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.detail?.task.id).toBe("task_001"));
+    await act(async () => result.current.handleFanOutRuns(request));
+
+    expect(fanOutTaskRuns).toHaveBeenCalledWith("task_001", request);
+    expect(toast.success).toHaveBeenCalledWith("Created 1 run.");
   });
 
   it("Should retry a failed run by run id", async () => {

@@ -17,10 +17,12 @@ const PRIORITY_EXCEPTION: Partial<Record<TaskPriority, { label: string; tone: Pi
 };
 
 /**
- * Exception-based subhead pills (§4.2): a pill appears only when it carries
+ * Exception-based subhead pills: a pill appears only when it carries
  * information beyond the single head status — priority away from the medium
  * default, a pending approval gate, or a pause that the derived status does
  * not already express. Normal state renders zero pills (quiet page).
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.2
  */
 export function projectTaskExceptionPills(detail: TaskDetailView): TaskExceptionPill[] {
   const record = detail.task;

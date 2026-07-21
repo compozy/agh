@@ -1,11 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { render } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   multiHunkEditToolMessageFixture,
   sessionFixtures,
   uiMessageFixtures,
 } from "@/systems/session/mocks";
+import {
+  resetSettingsRestartStore,
+  useSettingsRestartStore,
+} from "@/systems/settings/stores/use-settings-restart-store";
 import { workspaceDetailFixture, workspaceFixtures } from "@/systems/workspace/mocks";
+import { StorybookRestartPhaseSetup } from "@/storybook/settings-state-helpers";
+
+afterEach(() => {
+  resetSettingsRestartStore();
+});
 
 describe("storybook story and fixture regressions", () => {
   it("keeps UI message fixture ids unique and workspace paths neutral", () => {
@@ -44,5 +54,25 @@ describe("storybook story and fixture regressions", () => {
     expect(oldString.trim()).not.toBe("");
     expect(newString.trim()).not.toBe("");
     expect(oldString).not.toEqual(newString);
+  });
+
+  it("keeps restart phase seeding stable across equivalent rerenders", () => {
+    const restartPhase = () => (
+      <StorybookRestartPhaseSetup
+        section="general"
+        overrides={{
+          mutationRestartRequired: true,
+          operationId: "op_success",
+          status: "ready",
+        }}
+      />
+    );
+    const view = render(restartPhase());
+
+    expect(useSettingsRestartStore.getState().mutationGeneration).toBe(1);
+
+    view.rerender(restartPhase());
+
+    expect(useSettingsRestartStore.getState().mutationGeneration).toBe(1);
   });
 });

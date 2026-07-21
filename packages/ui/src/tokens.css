@@ -1,32 +1,9 @@
-/*
- * Shared design tokens for AGH (canonical Tailwind v4 single-layer `@theme`).
- *
- * Authority: `DESIGN.md` (repo root).
- *
- * Consumers (`web/`, `packages/site`) own framework-level stylesheet setup,
- * including the single `@import "tailwindcss"` call and any concrete font
- * loading. This file stays font-source agnostic so each surface can choose
- * its own delivery path without shipping duplicate faces.
- *
- * Token contract: every design-system token meant to generate a utility is
- * declared once inside `@theme` with its canonical Tailwind v4 namespace
- * prefix (`--color-*`, `--text-*`, `--tracking-*`, `--leading-*`,
- * `--radius-*`, `--duration-*`, `--ease-*`, `--shadow-*`, `--font-*`,
- * `--font-weight-*`). Tailwind both generates the bare utility (`text-fg`,
- * `bg-canvas-soft`, `duration-base`, `shadow-overlay`, …) AND exposes each
- * token as a global CSS custom property (`var(--color-fg)`, etc.).
- *
- * Component-internal sizing/spacing tokens (modal widths, catalog/provider
- * logo wells, PillGroup segment heights, PillGroup spacing) stay in `:root`
- * and are consumed via arbitrary-value syntax inside the owning component
- * (e.g. `w-(--width-modal-md)` in Dialog, `min-h-(--height-pill-group-segment-md)`
- * in PillGroup). They are NOT in `@theme` because they are not part of a
- * scale that benefits from utility generation, and adding them invites
- * value-matching false positives in third-party tools that infer theme
- * mappings from numeric values.
- */
+/* Canonical AGH Tailwind v4 tokens. DESIGN.md is the generated specification;
+   this file owns utility-facing declarations while tokens-runtime.css owns
+   global base styles, custom utilities, and reduced-motion behavior. */
 
 @import "tw-animate-css";
+@import "./tokens-runtime.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -309,9 +286,13 @@
 
   /* Tabs list + count chip + tab underline. */
   --height-tabs-list: 40px;
-  --size-tab-underline: 1.5px;
+  --height-tab-underline: 1.5px;
   --spacing-count-chip: 19px;
   --spacing-count-chip-sm: 17px;
+
+  /* Detail-rail property rows. */
+  --height-property-row: 26px;
+  --spacing-property-row-y: 3px;
 
   /* Empty / menu primitives. */
   --size-empty-icon: 38px;
@@ -335,7 +316,20 @@
   --width-search-input-min: 220px;
   --width-filters-menu-default: 200px;
   --width-filters-menu-stack: 220px;
-  --width-settings-nav: 224px;
+  --width-settings-nav: 264px;
+  --container-settings-takeover: 56rem;
+  --container-task-detail-rail: 64rem;
+  --width-settings-sheet: 640px;
+  --width-task-properties-rail: 320px;
+  --spacing-settings-sheet-viewport-gutter: 24px;
+  --height-setting-row: 54px;
+  --container-setting-description: 52ch;
+  --container-settings-page-form: 768px;
+  --container-settings-page-wide: 960px;
+  --container-settings-page-description: 72ch;
+  --spacing-settings-page-bottom: 96px;
+  --container-settings-save-bar: 560px;
+  --size-settings-save-dot: 7px;
 
   /* Modal height ceilings — wizard / editor / tall form sheets. */
   --height-modal-md: 760px;
@@ -384,6 +378,7 @@
   --spacing-dock-pad: 7px;
   --spacing-menubar-workspace-gap: 7px;
   --spacing-traffic-light-gap: 7px;
+  --spacing-traffic-light-compact-gap: 12px;
 
   /* Shell backdrop blur tiers — consumed as backdrop-blur-shell etc. */
   --blur-shell: 28px;
@@ -401,6 +396,7 @@
   --height-space-thumb: 148px;
   --spacing-spaces-subtitle-gap: 22px;
   --spacing-spaces-row-gap: 18px;
+  --spacing-space-thumb-top-offset: 8px;
   --text-space-avatar: 9px;
 }
 
@@ -499,111 +495,4 @@
   --wallpaper-thumb-carbon:
     radial-gradient(200px 110px at 50% -14%, rgba(255, 255, 255, 0.05), transparent 58%),
     var(--color-canvas);
-}
-
-.dark {
-  color-scheme: dark;
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-
-  html,
-  body,
-  #app {
-    min-height: 100%;
-  }
-
-  body {
-    @apply bg-background font-sans text-foreground antialiased;
-    /* Body baseline / §9. */
-    font-size: 0.84375rem;
-    line-height: 1.5;
-    letter-spacing: -0.006em;
-    font-feature-settings: "cv01", "ss03", "cv11";
-    font-optical-sizing: auto;
-    text-rendering: optimizeLegibility;
-  }
-
-  /* JetBrains Mono override:
-     Inter is calibrated for grayscale (`antialiased`) and its OpenType
-     features (cv01/ss03/cv11) are inherited from body. Both rules thin and
-     distort JetBrains Mono on macOS Chrome/Safari, where its narrower
-     strokes pay a much higher visual penalty than Inter's. Restore subpixel
-     rendering and reset font-feature-settings so the variable wght axis is
-     read at full stroke weight on every mono surface. */
-  .font-mono,
-  [class*="font-mono"],
-  code,
-  kbd,
-  samp,
-  pre {
-    -webkit-font-smoothing: subpixel-antialiased;
-    -moz-osx-font-smoothing: auto;
-    font-feature-settings: normal;
-  }
-
-  /* Text selection — warm accent at 10%. */
-  ::selection {
-    background: var(--color-accent-tint);
-    color: var(--color-fg-strong);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-@utility animate-shimmer {
-  animation: shimmer 2s ease-in-out infinite;
-}
-
-/*
- * Single eyebrow utility / §11, lesson L-022.
- * Inter UC 11/600/-0.005em is the only eyebrow contract. The previous
- * `eyebrow-badge` (10 px) and `eyebrow-micro` (9 px) variants are deleted
- * (greenfield rule, SD-002 — no transitional alias). Consumers render
- * through `<Eyebrow>` (`@agh/ui`) or this utility on structural HTML.
- */
-@utility eyebrow {
-  @apply font-sans text-(length:--text-eyebrow) font-semibold uppercase;
-  letter-spacing: var(--tracking-eyebrow);
-}
-
-@keyframes typing-bounce {
-  0%,
-  60%,
-  100% {
-    opacity: 0.3;
-    transform: translateY(0);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(-2px);
-  }
-}
-
-/*
- * Reduced-motion guard.
- * Applies to every animation and transition, not only `--duration-*` token
- * references. Required because `tw-animate-css` and the `shimmer` /
- * `typing-bounce` keyframes hardcode their durations and would otherwise
- * keep playing. `0.001ms` (not 0) preserves CSS animation-callback timing
- * (libraries relying on `animationend`).
- */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-delay: 0.001ms !important;
-    transition-duration: 0.001ms !important;
-  }
 }

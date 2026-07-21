@@ -6,6 +6,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Spinner,
   Textarea,
 } from "@agh/ui";
 
@@ -18,8 +19,13 @@ export interface TaskPauseDialogProps {
 
 /** Pause confirmation with a required reason (recorded on the task record). */
 export function TaskPauseDialog({ dialog, isPending = false }: TaskPauseDialogProps) {
+  const handleOpenChange = (open: boolean) => {
+    if (!open && isPending) return;
+    dialog.onOpenChange(open);
+  };
+
   return (
-    <Dialog onOpenChange={dialog.onOpenChange} open={dialog.isOpen}>
+    <Dialog onOpenChange={handleOpenChange} open={dialog.isOpen}>
       <DialogContent
         className="max-w-md"
         data-testid="tasks-detail-pause-dialog"
@@ -36,6 +42,7 @@ export function TaskPauseDialog({ dialog, isPending = false }: TaskPauseDialogPr
             Reason
           </label>
           <Textarea
+            aria-describedby={dialog.error ? "tasks-detail-pause-error" : undefined}
             aria-invalid={Boolean(dialog.error)}
             data-testid="tasks-detail-pause-reason"
             disabled={isPending}
@@ -45,13 +52,20 @@ export function TaskPauseDialog({ dialog, isPending = false }: TaskPauseDialogPr
             value={dialog.reason}
           />
           {dialog.error ? (
-            <p className="text-form-hint text-danger" data-testid="tasks-detail-pause-error">
+            <p
+              className="text-form-hint text-danger"
+              data-testid="tasks-detail-pause-error"
+              id="tasks-detail-pause-error"
+              role="alert"
+            >
               {dialog.error}
             </p>
           ) : null}
         </div>
         <DialogFooter className="gap-2">
           <Button
+            aria-busy={isPending || undefined}
+            className="min-h-6"
             disabled={isPending}
             onClick={dialog.close}
             size="sm"
@@ -61,13 +75,16 @@ export function TaskPauseDialog({ dialog, isPending = false }: TaskPauseDialogPr
             Cancel
           </Button>
           <Button
+            aria-busy={isPending || undefined}
+            className="min-h-6"
             data-testid="tasks-detail-pause-confirm"
             disabled={isPending}
             onClick={() => void dialog.confirm()}
             size="sm"
             type="button"
           >
-            Pause task
+            {isPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {isPending ? "Pausing…" : "Pause task"}
           </Button>
         </DialogFooter>
       </DialogContent>

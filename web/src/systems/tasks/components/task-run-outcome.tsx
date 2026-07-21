@@ -5,8 +5,10 @@ import type { TaskRun, TaskRunDetailView } from "../types";
 import { TaskStateBand } from "./task-state-band";
 
 /**
- * Terminal outcome band for the run page (§4.9): failed, completed, or stuck.
- * Renders nothing while the run is live — the head status already says so.
+ * Outcome band for failed, completed, or attention-required attempts.
+ * It renders nothing while the run is live because the head already owns status.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.9
  */
 export function TaskRunOutcome({
   run,
@@ -36,16 +38,18 @@ export function TaskRunOutcome({
   }
 
   if (record.status === "completed") {
+    const resultMessage =
+      record.result == null ? "No result was recorded." : "The result is ready below.";
     return (
       <TaskStateBand
         body={
           record.ended_at ? (
             <>
               Finished <Time iso={record.ended_at} mode="relative" />
-              {duration ? ` in ${duration}` : null}. The result is ready below.
+              {duration ? ` in ${duration}` : null}. {resultMessage}
             </>
           ) : (
-            "The result is ready below."
+            resultMessage
           )
         }
         data-testid="tasks-run-outcome-completed"
@@ -60,11 +64,11 @@ export function TaskRunOutcome({
       <TaskStateBand
         body={
           record.error ??
-          "The agent stopped responding. Recover requeues the work as a fresh attempt."
+          "This attempt requires operator attention. Recover requeues the work as a fresh attempt."
         }
         data-testid="tasks-run-outcome-stuck"
-        micro={`task_run_stuck · ${record.id}`}
-        title="This attempt looks stuck"
+        micro={`task.run_needs_attention · ${record.id}`}
+        title="This attempt needs attention"
         tone="danger"
       />
     );

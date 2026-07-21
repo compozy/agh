@@ -7,14 +7,13 @@ import {
   type NetworkParticipationDraft,
 } from "@/systems/network";
 
-import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
+import type { FanOutTaskRunsRequest } from "../types";
 
 const FAN_OUT_NETWORK_STRATEGIES = ["named", "run"] as const;
 
 export interface UseTaskFanOutDialogParams {
-  open: boolean;
   onOpenChange: (open: boolean) => void;
-  onFanOut: (data: FanOutTaskRunsRequest) => Promise<FanOutTaskRunsResponse | void>;
+  onFanOut: (data: FanOutTaskRunsRequest) => Promise<void>;
 }
 
 function parseDesignations(value: string): FanOutTaskRunsRequest["designations"] {
@@ -25,8 +24,8 @@ function parseDesignations(value: string): FanOutTaskRunsRequest["designations"]
     .map(brief => ({ brief }));
 }
 
-/** Controlled form state for the fan-out dialog (§4.7: opened from the head overflow). */
-export function useTaskFanOutDialog({ open, onOpenChange, onFanOut }: UseTaskFanOutDialogParams) {
+/** Controlled form state for the fan-out dialog opened from the task head overflow. */
+export function useTaskFanOutDialog({ onOpenChange, onFanOut }: UseTaskFanOutDialogParams) {
   const [designationsText, setDesignationsText] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [networkParticipation, setNetworkParticipation] = useState<NetworkParticipationDraft>({
@@ -79,7 +78,6 @@ export function useTaskFanOutDialog({ open, onOpenChange, onFanOut }: UseTaskFan
     handleSubmit,
     networkParticipation,
     networkStrategies: FAN_OUT_NETWORK_STRATEGIES,
-    open,
     setDesignationsText,
     setNetworkParticipation,
   };

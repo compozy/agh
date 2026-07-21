@@ -17,20 +17,23 @@ import {
   TaskPropertiesRail,
   TaskRunsPanel,
   TasksDetailSubhead,
-  type TaskDetailSearch,
+  type ResolvedTaskDetailSearch,
   type TaskDetailTab,
   type TaskRunReview,
 } from "@/systems/tasks";
 
 import { TaskDetailOverlays } from "./task-detail-overlays";
+import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
 import { TaskDetailTopbar } from "./task-detail-topbar";
 import { useTaskDetailLocation } from "./use-task-detail-location";
 
-const TAB_ITEMS = (runCount: number): ReadonlyArray<LaneTabsItem<TaskDetailTab>> => [
-  { value: "overview", label: "Overview", testId: "tasks-detail-tab-overview" },
-  { value: "runs", label: "Runs", count: runCount, testId: "tasks-detail-tab-runs" },
-  { value: "activity", label: "Activity", testId: "tasks-detail-tab-activity" },
-];
+function buildTabItems(runCount: number): ReadonlyArray<LaneTabsItem<TaskDetailTab>> {
+  return [
+    { value: "overview", label: "Overview", testId: "tasks-detail-tab-overview" },
+    { value: "runs", label: "Runs", count: runCount, testId: "tasks-detail-tab-runs" },
+    { value: "activity", label: "Activity", testId: "tasks-detail-tab-activity" },
+  ];
+}
 
 function groupReviewsByRun(
   reviews: readonly TaskRunReview[]
@@ -51,18 +54,18 @@ function groupReviewsByRun(
 function TaskDetailLoading() {
   return (
     <div
-      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-4 py-5")}
+      className={cn(PAGE_CONTENT_GUTTER, "@container flex min-h-0 flex-1 flex-col gap-4 py-5")}
       data-testid="tasks-detail-loading"
     >
       <Skeleton className="h-6 w-72" />
       <Skeleton className="h-10 w-full max-w-md" />
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className={TASK_DETAIL_GRID_CLASS}>
         <div className="flex flex-col gap-3">
           <Skeleton className="h-20 rounded-lg" />
           <Skeleton className="h-32 rounded-lg" />
           <Skeleton className="h-40 rounded-lg" />
         </div>
-        <Skeleton className="hidden h-80 rounded-lg lg:block" />
+        <Skeleton className="hidden h-80 rounded-lg @min-task-detail-rail:block" />
       </div>
     </div>
   );
@@ -70,16 +73,36 @@ function TaskDetailLoading() {
 
 export function TaskDetailLocation({
   taskId,
-  rawSearch,
+  search,
 }: {
   taskId: string;
-  rawSearch: TaskDetailSearch;
+  search: ResolvedTaskDetailSearch;
 }) {
-  const controller = useTaskDetailLocation(taskId, rawSearch);
+  const controller = useTaskDetailLocation(taskId, search);
   const { page, detail, record, command } = controller;
 
   if (page.detailLoading) {
     return <TaskDetailLoading />;
+  }
+
+  if (!page.notFound && page.detailError) {
+    return (
+      <div
+        className={cn(PAGE_CONTENT_GUTTER, "flex flex-1 items-center justify-center py-8")}
+        data-testid="tasks-detail-error"
+      >
+        <Empty
+          action={
+            <Button onClick={() => void page.handleRetryDetail()} size="sm" type="button">
+              Retry
+            </Button>
+          }
+          description={page.detailError.message}
+          icon={AlertCircle}
+          title="Couldn't load task"
+        />
+      </div>
+    );
   }
 
   if (page.notFound || !detail || !record || !command) {
@@ -121,12 +144,12 @@ export function TaskDetailLocation({
             ariaLabel="Task views"
             className="gap-0"
             data-testid="tasks-detail-tabs"
-            items={TAB_ITEMS(page.runs.length)}
+            items={buildTabItems(page.runs.length)}
             listClassName="w-full"
             onChange={controller.setTab}
             value={controller.search.tab}
           >
-            <div className="grid items-start gap-8 pt-5 @min-[64rem]:grid-cols-[minmax(0,1fr)_320px]">
+            <div className={cn(TASK_DETAIL_GRID_CLASS, "pt-5")}>
               <main className="min-w-0" data-testid="tasks-detail-panels">
                 <TabsContent value="overview">
                   <TaskOverviewPanel
@@ -158,8 +181,10 @@ export function TaskDetailLocation({
                   <TaskRunsPanel
                     errorMessage={page.runsError?.message ?? null}
                     isLoading={page.runsLoading}
+                    isStartPending={page.isEnqueuePending}
                     onStartRun={canStartRun ? () => void page.handleEnqueueRun() : undefined}
                     reviewsByRun={reviewsByRun}
+                    runDurations={controller.runDurations}
                     runs={page.runs}
                     taskId={taskId}
                     workerName={page.profile?.worker?.agent_name ?? null}
@@ -176,7 +201,7 @@ export function TaskDetailLocation({
                   />
                 </TabsContent>
               </main>
-              <aside className="min-w-0 @min-[64rem]:sticky @min-[64rem]:top-0">
+              <aside className={TASK_DETAIL_RAIL_CLASS}>
                 <TaskPropertiesRail
                   approvalPending={{
                     approve: page.isApprovePending,
@@ -184,11 +209,14 @@ export function TaskDetailLocation({
                   }}
                   detail={detail}
                   onApprove={() => void page.handleApproveTask()}
+                  onAutoEnqueueChange={enabled => void controller.handleAutoEnqueueChange(enabled)}
                   onEditSetup={() => controller.setSetupOpen(true)}
                   onInspect={() => controller.setInspectOpen(true)}
+                  onPriorityChange={priority => void controller.handlePriorityChange(priority)}
                   onReject={() => void page.handleRejectTask()}
                   profile={page.profile}
                   runs={page.runs}
+                  updatePending={controller.updatePending}
                 />
               </aside>
             </div>

@@ -8,6 +8,7 @@ import {
   LiveBadge,
   PillGroup,
   Section,
+  Timeline,
   type PillGroupItem,
 } from "@agh/ui";
 
@@ -21,7 +22,7 @@ import type { TaskTimelineItem } from "../types";
 import { TaskActivityItem } from "./task-activity-item";
 
 export interface TaskActivityPanelProps {
-  items: TaskTimelineItem[];
+  items: readonly TaskTimelineItem[];
   isLoading?: boolean;
   errorMessage?: string | null;
   isLive?: boolean;
@@ -58,9 +59,11 @@ function emptyCopyFor(filter: TaskActivityFilter): { title: string; description:
 }
 
 /**
- * Activity tab (§4.6): humanized newest-first feed with one filter group
+ * Activity tab: humanized newest-first feed with one filter group
  * (filtering replaces the old grouping modes) and the page's single LiveBadge
  * while the task stream is attached.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.6
  */
 export function TaskActivityPanel({
   items,
@@ -105,7 +108,11 @@ export function TaskActivityPanel({
     );
   }
 
-  const visible = items.filter(item => matchesActivityFilter(humanizeTaskEvent(item), filter));
+  const visible: Array<{ item: TaskTimelineItem; view: ReturnType<typeof humanizeTaskEvent> }> = [];
+  for (const item of items) {
+    const view = humanizeTaskEvent(item);
+    if (matchesActivityFilter(view, filter)) visible.push({ item, view });
+  }
   const emptyCopy = emptyCopyFor(filter);
 
   return (
@@ -124,7 +131,7 @@ export function TaskActivityPanel({
         />
       }
     >
-      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+      <div className="rounded-lg border border-line bg-canvas-soft px-4 pt-3">
         {visible.length === 0 ? (
           <p
             className="px-4 py-4 text-small-body text-muted"
@@ -133,12 +140,17 @@ export function TaskActivityPanel({
             {emptyCopy.title}. {emptyCopy.description}
           </p>
         ) : (
-          visible.map(item => <TaskActivityItem isLive={isLive} item={item} key={item.event_id} />)
+          <Timeline ariaLabel="Task activity events">
+            {visible.map(({ item, view }) => (
+              <TaskActivityItem isLive={isLive} item={item} key={item.event_id} view={view} />
+            ))}
+          </Timeline>
         )}
       </div>
       {canLoadMore && onLoadMore ? (
         <div className="flex items-center justify-center pt-1">
           <Button
+            className="min-h-6"
             data-testid="tasks-activity-load-more"
             onClick={onLoadMore}
             size="sm"

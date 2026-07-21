@@ -10,9 +10,11 @@ function childRowState(child: TaskChildSummary): TaskLinkedRowState {
 }
 
 /**
- * Overview "Subtasks" section (§4.3): thin done/active progress strip + one
+ * Overview "Subtasks" section: thin done/active progress strip + one
  * linked row per child. Renders nothing when the task has no children — the
  * quiet page rule beats an empty frame.
+ *
+ * @see docs/design/opendesign/tasks/TASK-DETAILS-REDESIGN-PLAN.md §4.3
  */
 export function TaskSubtasksSection({ items }: { items: readonly TaskChildSummary[] }) {
   if (items.length === 0) return null;
@@ -21,6 +23,7 @@ export function TaskSubtasksSection({ items }: { items: readonly TaskChildSummar
   const active = items.filter(
     child => child.status === "in_progress" || child.status === "needs_attention"
   ).length;
+  const pending = items.length - done - active;
 
   return (
     <Section
@@ -36,7 +39,7 @@ export function TaskSubtasksSection({ items }: { items: readonly TaskChildSummar
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
         <div className="px-4 pt-3.5 pb-0.5">
           <StackedProgress
-            ariaLabel={`${done} of ${items.length} subtasks done`}
+            ariaLabel={`${done} done, ${active} active, ${pending} not started; ${items.length} subtasks total`}
             className="h-[3px]"
             segments={[
               { value: done, tone: "success", label: "done" },
@@ -52,7 +55,7 @@ export function TaskSubtasksSection({ items }: { items: readonly TaskChildSummar
             state={childRowState(child)}
             taskId={child.id}
             testId={`tasks-detail-subtask-${child.id}`}
-            timeIso={child.last_activity_at ?? null}
+            lastActivityAt={child.last_activity_at ?? null}
             title={child.title}
           />
         ))}

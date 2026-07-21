@@ -30,6 +30,7 @@ import {
   taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
+  taskRunStatusLabel,
   taskRunStatusTone,
   taskStatusLabel,
   taskStatusSignal,
@@ -62,7 +63,13 @@ describe("task status and priority labels", () => {
     expect(taskStatusLabel("completed")).toBe("Completed");
     expect(taskStatusLabel("failed")).toBe("Failed");
     expect(taskStatusLabel("canceled")).toBe("Canceled");
+    expect(taskStatusLabel("needs_attention")).toBe("Needs attention");
     expect(taskStatusLabel(null)).toBe("Unknown");
+  });
+
+  it("Should label every changed task run status", () => {
+    expect(taskRunStatusLabel("claimed")).toBe("Assigned");
+    expect(taskRunStatusLabel("needs_attention")).toBe("Needs attention");
   });
 
   it("labels priorities", () => {

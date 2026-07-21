@@ -263,21 +263,20 @@ delegate to `task.Service.RequestRunReview`, `task.Service.ListRunReviews`, and
 
 ## Inspect from the operator web UI
 
-Open a task and switch to the **Orchestration** tab (the same tab documented in
-[Task Execution Profiles](/runtime/core/autonomy/execution-profiles)). The task-level reviews card
-and the run-detail page's run-level variant are read-only views over the same authority:
+Open a task and switch to **Runs**. Each persisted review appears as a secondary line under its
+attempt; opening the attempt shows the complete read-only **Reviews** section. Both views project the
+same authority:
 
 - They render `status`, `outcome`, `reason`, `missing_work`, `next_round_guidance`,
   `reviewed_at`, `delivery_id`, and reviewer identity from
   `web/src/generated/agh-openapi.d.ts` types — no inferred state.
-- A permanent disclaimer reinforces that operator sessions cannot submit a verdict from the web UI.
-  Verdict authority is the reviewer-bound native tool or the explicit
-  `/api/task-reviews/{id}/verdict` endpoint.
+- Verdict authority remains the reviewer-bound native tool or the explicit
+  `/api/task-reviews/{id}/verdict` endpoint; these web surfaces do not submit verdicts.
 - Continuation lineage and rejected-review guidance appear next to the reviewed run so operators
   can match the continuation to the rejected verdict without parsing event payloads.
 
-The **Stream Resume** card on the same tab seeds reconnects from `latest_event_seq`, so review
-events appear in the timeline without a read-then-stream race. See
+The task's **Inspect → Stream** pane exposes the connection and resume cursor. Review events appear
+under **Activity** without a read-then-stream race. See
 [Notification Cursors](/runtime/core/autonomy/notification-cursors) for the related delivery
 behavior.
 
