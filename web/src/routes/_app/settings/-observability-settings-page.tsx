@@ -1,7 +1,7 @@
 import { AlertCircle, Download, ExternalLink } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 
-import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
+import { useSettingsObservabilityPage } from "@/systems/settings/hooks/use-settings-observability-page";
 import {
   restartBannerPropsFor,
   SettingsFieldRow,

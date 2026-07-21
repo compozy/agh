@@ -1,62 +1,37 @@
-import { Suspense } from "react";
 import { useShallow } from "zustand/shallow";
 
-import { Kbd, Spinner } from "@agh/ui";
+import { Kbd } from "@agh/ui";
 
 import { useDesktop } from "../hooks/use-desktop";
-import { getOsApp } from "../lib/app-registry";
-import { OsWindowErrorBoundary } from "./os-window-error-boundary";
+import { OsWindow } from "./os-window";
 
 /**
- * Compact (<960px) presentation: the focused window fills the viewport as a
- * full-bleed surface; geometry is untouched so returning to floating restores
- * every rect (US-014). The full compact visual pass (tab-bar dock, safe-area
- * insets) lands with the compact-mode task; this keeps the same logical
- * windows usable below the breakpoint.
+ * Compact (<960px) presentation (os-v2.css mobile block): the same logical
+ * windows render as full-bleed stacked surfaces — z decides which one is
+ * visible, geometry is untouched so returning to floating restores every rect
+ * (US-014.AC-2). The stack sits above the tab-bar dock's safe-area strip;
+ * window-scoped dialogs are naturally full-viewport here (US-020.EC-4).
  */
 export function OsCompactStack() {
-  const focused = useDesktop(
-    useShallow(state => {
-      const win = state.focusedId !== null ? state.windows[state.focusedId] : null;
-      return win ? { id: win.id, app: win.app } : null;
-    })
-  );
-
-  if (!focused) {
-    return (
-      <div className="absolute inset-0 grid place-items-center">
-        <p
-          data-testid="os-desk-hint"
-          className="flex items-center gap-2 text-small-body text-subtle select-none"
-        >
-          <Kbd>⌘K</Kbd> to open anything
-        </p>
-      </div>
-    );
-  }
-
-  const app = getOsApp(focused.app);
-  const Controller = app.Controller;
+  const windowIds = useDesktop(useShallow(state => Object.keys(state.windows).sort()));
+  const anyVisible = useDesktop(state => Object.values(state.windows).some(win => !win.minimized));
 
   return (
     <div
       data-slot="os-compact-stack"
-      data-testid={`os-window-${focused.id}`}
-      data-app={focused.app}
-      className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-canvas"
-      aria-label={app.title}
+      className="absolute inset-x-0 top-0 bottom-[calc(var(--height-dock-tabbar)+env(safe-area-inset-bottom,0px))] overflow-hidden"
     >
-      <OsWindowErrorBoundary title={app.title}>
-        <Suspense
-          fallback={
-            <div className="flex flex-1 items-center justify-center">
-              <Spinner className="size-4 text-subtle" />
-            </div>
-          }
+      {!anyVisible ? (
+        <p
+          data-testid="os-desk-hint"
+          className="pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 px-6 text-center text-small-body text-subtle select-none"
         >
-          <Controller windowId={focused.id} />
-        </Suspense>
-      </OsWindowErrorBoundary>
+          <Kbd>⌘K</Kbd> to open anything
+        </p>
+      ) : null}
+      {windowIds.map(id => (
+        <OsWindow key={id} windowId={id} />
+      ))}
     </div>
   );
 }

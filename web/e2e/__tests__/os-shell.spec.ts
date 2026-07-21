@@ -765,6 +765,445 @@ test("E2E-027: palette snap, drag-away restore, and reduced-motion overlay", asy
   await expect.poll(() => snappedToHalf(appPage, tasks, "left")).toBe(true);
 });
 
+test("E2E-009: workspace spaces stay independent and the overview restores arrangements", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const secondWorkspace = await addSecondWorkspace(runtime);
+
+  // Arrange workspace A: two windows, one dragged to a distinctive spot.
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  await dragWindowBy(appPage, tasks, 140, 90);
+  const arrangedTasks = await windowPosition(appPage, tasks);
+  await openDockApp(appPage, "Agents", "agents");
+
+  // Switch to B via the menubar: a different, empty space appears.
+  await appPage.locator('[data-slot="os-menubar-workspace"]').click();
+  await appPage.getByTestId(`os-workspace-option-${secondWorkspace.id}`).click();
+  await expect(appPage.getByTestId("os-desk-hint")).toBeVisible();
+  await expect(appPage.getByTestId("os-window-app:tasks")).toHaveCount(0);
+
+  // One window in B, then the ⇧⌘S overview shows both spaces with thumbnails.
+  await openDockApp(appPage, "Vault", "vault");
+  await appPage.keyboard.press("ControlOrMeta+Shift+S");
+  const spaces = appPage.getByTestId("os-spaces-overview");
+  await expect(spaces).toBeVisible();
+  const cardA = spaces.locator(`[data-workspace-id="${workspace.id}"]`);
+  const cardB = spaces.locator(`[data-workspace-id="${secondWorkspace.id}"]`);
+  await expect(cardB).toHaveAttribute("data-current", "true");
+  await expect(cardB.locator('[data-slot="os-space-mini-win"]')).toHaveCount(1);
+  // A's persisted arrangement thumbnails load over HTTP while the overview is open.
+  await expect(cardA.locator('[data-slot="os-space-mini-win"]')).toHaveCount(2);
+
+  // Choosing A restores its exact arrangement.
+  await cardA.click();
+  const tasksBack = appPage.getByTestId("os-window-app:tasks");
+  await expect(tasksBack).toBeVisible();
+  await expect(appPage.getByTestId("os-window-app:agents")).toBeVisible();
+  await expect(appPage.getByTestId("os-window-app:vault")).toHaveCount(0);
+  await expect
+    .poll(async () => positionsMatch(await windowPosition(appPage, tasksBack), arrangedTasks))
+    .toBe(true);
+});
+
+test("E2E-011: the compact stack round-trips with floating rects preserved", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  await dragWindowBy(appPage, tasks, 120, 80);
+  const floatingRect = await windowRect(appPage, tasks);
+
+  // Below the breakpoint: stacked fullscreen presentation with the tab bar.
+  await appPage.setViewportSize({ width: 390, height: 844 });
+  await expect(tasks).toHaveAttribute("data-presentation", "compact");
+  await expect(appPage.locator('[data-slot="os-dock-tabbar"]')).toBeVisible();
+  await expect(tasks.locator(".os-window-resize-handle")).toHaveCount(0);
+  await expect(tasks.getByRole("button", { name: "Zoom window" })).toHaveCount(0);
+  const stackBox = await tasks.boundingBox();
+  const viewport = appPage.viewportSize();
+  if (!stackBox || !viewport) throw new Error("compact stack window must be measurable");
+  expect(Math.round(stackBox.width)).toBe(viewport.width);
+
+  // Back above the breakpoint: the floating rect returns exactly.
+  await appPage.setViewportSize({ width: 1280, height: 720 });
+  await expect(tasks).not.toHaveAttribute("data-presentation", "compact");
+  await expect
+    .poll(async () => rectsClose(await windowRect(appPage, tasks), floatingRect))
+    .toBe(true);
+});
+
+test("E2E-013: wallpaper persists per space and reduce-motion makes minimize instant", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  await openDockApp(appPage, "Tasks", "tasks");
+
+  // Appearance pane via View → Appearance…: pick the carbon wallpaper.
+  await openMenu(appPage, "View");
+  await appPage.getByTestId("os-menu-appearance").click();
+  await expect(appPage.getByTestId("os-appearance-pane")).toBeVisible();
+  await appPage.getByTestId("os-wallpaper-option-carbon").click();
+  const wallpaper = appPage.locator('[data-slot="os-wallpaper"]');
+  await expect(wallpaper).toHaveAttribute("data-wallpaper", "carbon");
+
+  // The choice persists with the space across a reload.
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(appPage.locator('[data-slot="os-wallpaper"]')).toHaveAttribute(
+    "data-wallpaper",
+    "carbon"
+  );
+
+  // Full motion first: the genie fold class appears during minimize.
+  const tasksWindow = appPage.getByTestId("os-window-app:tasks");
+  await expect(tasksWindow).toBeVisible();
+  await appPage.evaluate(() => {
+    const flag = { saw: false };
+    Reflect.set(window, "__osGenie", flag);
+    const observer = new MutationObserver(() => {
+      if (document.querySelector(".os-window-minimizing")) flag.saw = true;
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  });
+  await tasksWindow.getByRole("button", { name: "Minimize window" }).click();
+  await expect(tasksWindow).toBeHidden();
+  expect(await appPage.evaluate(() => Reflect.get(window, "__osGenie").saw)).toBe(true);
+
+  // Restore, enable the in-product reduce-motion toggle: minimize is instant.
+  await appPage.getByRole("button", { name: "Tasks", exact: true }).click();
+  await expect(tasksWindow).toBeVisible();
+  // The menubar cog refocuses the settings window above the restored tasks.
+  await appPage.getByRole("button", { name: "Settings" }).click();
+  await expect(appPage.getByTestId("os-appearance-pane")).toBeVisible();
+  await appPage.getByTestId("os-appearance-reduce-motion").click();
+  await appPage.evaluate(() => {
+    Reflect.set(window, "__osGenie", { saw: false });
+    const flag = Reflect.get(window, "__osGenie") as { saw: boolean };
+    const observer = new MutationObserver(() => {
+      if (document.querySelector(".os-window-minimizing")) flag.saw = true;
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  });
+  // Dock click refocuses tasks above settings without a pointer-position race.
+  await appPage.getByRole("button", { name: "Tasks", exact: true }).click();
+  await tasksWindow.getByRole("button", { name: "Minimize window" }).click();
+  await expect(tasksWindow).toBeHidden();
+  expect(await appPage.evaluate(() => Reflect.get(window, "__osGenie").saw)).toBe(false);
+});
+
+test("E2E-016: a cross-workspace session deep link switches spaces and leaves both intact", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const secondWorkspace = await addSecondWorkspace(runtime);
+  const session = await createNamedSession(runtime, secondWorkspace.id, "cross-space-session");
+
+  // Arrange A so its integrity is checkable after the round trip.
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  await dragWindowBy(appPage, tasks, 130, 70);
+  const arrangedTasks = await windowPosition(appPage, tasks);
+
+  // Follow the session link owned by B: the shell switches to B's space and
+  // opens that session focused there — never cross-workspace in place.
+  await appPage.goto(
+    runtime.url(
+      `/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.id)}`
+    ),
+    { waitUntil: "domcontentloaded" }
+  );
+  await expect(appPage.locator('[data-slot="os-menubar-workspace"]')).toContainText(
+    secondWorkspace.name
+  );
+  const sessionWindow = appPage.getByTestId(`os-window-session:${session.id}`);
+  await expect(sessionWindow).toBeVisible();
+  await expect(appPage.getByTestId("os-window-app:tasks")).toHaveCount(0);
+
+  // Switching back shows A untouched: same windows, same position, no leak.
+  await appPage.locator('[data-slot="os-menubar-workspace"]').click();
+  await appPage.getByTestId(`os-workspace-option-${workspace.id}`).click();
+  const tasksBack = appPage.getByTestId("os-window-app:tasks");
+  await expect(tasksBack).toBeVisible();
+  await expect(appPage.getByTestId(`os-window-session:${session.id}`)).toHaveCount(0);
+  await expect
+    .poll(async () => positionsMatch(await windowPosition(appPage, tasksBack), arrangedTasks))
+    .toBe(true);
+});
+
+test("E2E-020: compact keeps deep links, truthful badges, and the rail overlay working", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  await createApprovalTask(runtime, "Compact parity approval");
+  const detailTask = await createTask(runtime, "Compact deep link target");
+
+  await appPage.setViewportSize({ width: 390, height: 844 });
+  await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(detailTask.id)}`), {
+    waitUntil: "domcontentloaded",
+  });
+  await useGlobalWorkspaceIfPrompted(appPage);
+
+  // Deep link lands focused in the stack.
+  const tasksWindow = appPage.getByTestId("os-window-app:tasks");
+  await expect(tasksWindow).toBeVisible();
+  await expect(tasksWindow).toHaveAttribute("data-presentation", "compact");
+  await expect(tasksWindow).toContainText(detailTask.title);
+
+  // Badges render truthfully in the tab bar (awaiting-approval projection).
+  const tabbar = appPage.locator('[data-slot="os-dock-tabbar"]');
+  await expect(tabbar).toBeVisible();
+  await expect(tabbar.locator('[data-app="tasks"] [data-slot="os-dock-badge"]')).toHaveText("1");
+
+  // Tab-bar semantics: tapping the focused app switches to it — never minimizes.
+  await tabbar.locator('[data-app="tasks"]').click();
+  await expect(tasksWindow).toBeVisible();
+
+  // The sessions rail presents as an overlay sheet; dismissing returns intact.
+  await tabbar.locator('[data-app="session"]').click();
+  const sheet = appPage.getByTestId("os-sessions-rail-sheet");
+  await expect(sheet).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(tasksWindow).toBeVisible();
+  await expect(tasksWindow).toContainText(detailTask.title);
+});
+
+test("E2E-021: the system reduced-motion preference wins over the in-product toggle", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  await appPage.emulateMedia({ reducedMotion: "reduce" });
+
+  // In-product motion stays "full" (toggle off — the default), system says
+  // reduce: dock magnification must stay static (US-015.EC-1).
+  await openDockApp(appPage, "Tasks", "tasks");
+  const dockItem = appPage.locator('[data-slot="os-dock"] [data-app="tasks"]');
+  const box = await dockItem.boundingBox();
+  if (!box) throw new Error("dock item must be visible");
+  await appPage.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await appPage.mouse.move(box.x + box.width / 2 + 4, box.y + box.height / 2, { steps: 3 });
+  await expect
+    .poll(() => dockItem.evaluate(element => (element as HTMLElement).style.transform))
+    .toBe("");
+
+  // And the genie minimize collapses to instant despite the toggle being off.
+  await appPage.evaluate(() => {
+    const flag = { saw: false };
+    Reflect.set(window, "__osGenie", flag);
+    const observer = new MutationObserver(() => {
+      if (document.querySelector(".os-window-minimizing")) flag.saw = true;
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  });
+  const tasksWindow = appPage.getByTestId("os-window-app:tasks");
+  await tasksWindow.getByRole("button", { name: "Minimize window" }).click();
+  await expect(tasksWindow).toBeHidden();
+  expect(await appPage.evaluate(() => Reflect.get(window, "__osGenie").saw)).toBe(false);
+});
+
+const PERF_APPS = [
+  "dashboard",
+  "tasks",
+  "agents",
+  "network",
+  "loops",
+  "jobs",
+  "triggers",
+  "marketplace",
+  "bridges",
+  "knowledge",
+  "sandbox",
+  "vault",
+] as const;
+
+test("E2E-023: the 12-window envelope holds for drag frames, restore, and convergence", async ({
+  appPage,
+  browser,
+  runtime,
+}, testInfo) => {
+  const workspace = await prepareShell(appPage, runtime);
+
+  // Seed 12 windows through the public desktop-state surface.
+  for (const [index, app] of PERF_APPS.entries()) {
+    await putAppWindow(
+      runtime,
+      workspace.id,
+      app,
+      { pathname: app === "dashboard" ? "/" : `/${app}`, search: {} },
+      { x: 16 + index * 24, y: 12 + (index % 4) * 30, w: 480, h: 360 },
+      index + 1
+    );
+  }
+
+  // Restore instrumentation: first desktop-state stream frame → 12th window.
+  await appPage.addInitScript(() => {
+    const perf = { wsFirstFrame: null as number | null, windowsPlaced: null as number | null };
+    Reflect.set(window, "__osPerf", perf);
+    const placed = () => {
+      if (perf.windowsPlaced !== null) return;
+      const count = document.querySelectorAll('[data-testid^="os-window-app:"]').length;
+      if (count >= 12) perf.windowsPlaced = performance.now();
+    };
+    // Init scripts run at document start — observe `document` itself so the
+    // hook works before <html>/<body> exist.
+    new MutationObserver(placed).observe(document, { childList: true, subtree: true });
+    const NativeWebSocket = window.WebSocket;
+    class MeasuredWebSocket extends NativeWebSocket {
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        if (String(url).includes("/desktop-state/stream")) {
+          this.addEventListener(
+            "message",
+            () => {
+              if (perf.wsFirstFrame === null) perf.wsFirstFrame = performance.now();
+            },
+            { once: true }
+          );
+        }
+      }
+    }
+    window.WebSocket = MeasuredWebSocket as typeof WebSocket;
+  });
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  for (const app of PERF_APPS) {
+    await expect(appPage.getByTestId(`os-window-app:${app}`)).toBeAttached();
+  }
+  const restore = await appPage.evaluate(() => {
+    const perf = Reflect.get(window, "__osPerf") as {
+      wsFirstFrame: number | null;
+      windowsPlaced: number | null;
+    };
+    return perf.wsFirstFrame !== null && perf.windowsPlaced !== null
+      ? perf.windowsPlaced - perf.wsFirstFrame
+      : null;
+  });
+  expect(restore).not.toBeNull();
+  expect(restore ?? Number.POSITIVE_INFINITY).toBeLessThan(500);
+
+  // The envelope measures steady-state pointer fluidity: wait until the main
+  // thread has been long-task quiet for 600ms so the 12 window bodies' initial
+  // content burst can't masquerade as drag jank. (networkidle never settles
+  // here — the shell keeps WebSocket/SSE connections open by design.)
+  await appPage.evaluate(() => {
+    const settle = { last: performance.now() };
+    Reflect.set(window, "__osSettle", settle);
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) {
+        settle.last = Math.max(settle.last, entry.startTime + entry.duration);
+      }
+    }).observe({ type: "longtask", buffered: true });
+  });
+  await appPage.waitForFunction(() => {
+    const settle = Reflect.get(window, "__osSettle") as { last: number };
+    return performance.now() - settle.last > 600;
+  });
+
+  // Long-task probe during a 3s continuous drag of one window.
+  await appPage.evaluate(() => {
+    const tasks: number[] = [];
+    Reflect.set(window, "__osLongTasks", tasks);
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) tasks.push(entry.duration);
+    }).observe({ type: "longtask", buffered: false });
+  });
+  const dragged = appPage.getByTestId("os-window-app:vault");
+  await focusWindow(appPage, dragged);
+  const grip = await windowGrip(dragged);
+  await appPage.mouse.move(grip.x, grip.y);
+  await appPage.mouse.down();
+  const start = Date.now();
+  let step = 0;
+  while (Date.now() - start < 3000) {
+    const angle = (step / 20) * Math.PI * 2;
+    await appPage.mouse.move(
+      grip.x + 120 + Math.cos(angle) * 90,
+      grip.y + 100 + Math.sin(angle) * 60,
+      { steps: 2 }
+    );
+    step += 1;
+  }
+  await appPage.mouse.up();
+  const longTasks = await appPage.evaluate(() => Reflect.get(window, "__osLongTasks") as number[]);
+  const worstFrame = longTasks.length > 0 ? Math.max(...longTasks) : 0;
+
+  // Three-client convergence: two peers adopt a CLI move without long tasks.
+  const peerA = await openPeerPage(browser, runtime);
+  const peerB = await openPeerPage(browser, runtime);
+  for (const peer of [peerA, peerB]) {
+    await expect(peer.getByTestId("os-window-app:sandbox")).toBeAttached();
+    await peer.evaluate(() => {
+      const tasks: number[] = [];
+      Reflect.set(window, "__osLongTasks", tasks);
+      new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) tasks.push(entry.duration);
+      }).observe({ type: "longtask", buffered: false });
+    });
+  }
+  await setWindowFromCLI(runtime, workspace.id, "sandbox", { x: 420, y: 240, w: 500, h: 380 });
+  for (const peer of [peerA, peerB]) {
+    const sandbox = peer.getByTestId("os-window-app:sandbox");
+    await expect
+      .poll(async () => {
+        try {
+          const [windowBox, layerBox] = await Promise.all([
+            sandbox.boundingBox(),
+            peer.locator('[data-slot="os-win-layer"]').boundingBox(),
+          ]);
+          if (!windowBox || !layerBox) return false;
+          return (
+            Math.abs(windowBox.x - layerBox.x - 420) <= 2 &&
+            Math.abs(windowBox.y - layerBox.y - 240) <= 2
+          );
+        } catch {
+          return false;
+        }
+      })
+      .toBe(true);
+  }
+  const peerLongTasks = await Promise.all(
+    [peerA, peerB].map(peer =>
+      peer.evaluate(() => Reflect.get(window, "__osLongTasks") as number[])
+    )
+  );
+  const worstPeerTask = Math.max(0, ...peerLongTasks.flat());
+  await peerA.context().close();
+  await peerB.context().close();
+
+  const envelope = {
+    restoreMsFromFirstStreamFrame: restore,
+    dragLongTasksOver50ms: longTasks,
+    worstDragFrameMs: worstFrame,
+    worstPeerConvergenceTaskMs: worstPeerTask,
+  };
+  // Surfaced on stdout so completion notes can record the measured numbers.
+  console.log(`[perf-envelope] ${JSON.stringify(envelope)}`);
+  await testInfo.attach("perf-envelope", {
+    body: JSON.stringify(envelope, null, 2),
+    contentType: "application/json",
+  });
+
+  // Envelope: no shell frame beyond 50ms during the drag, no peer thrash.
+  expect(worstFrame).toBeLessThanOrEqual(50);
+  expect(worstPeerTask).toBeLessThanOrEqual(50);
+});
+
 async function prepareShell(page: Page, runtime: BrowserRuntime): Promise<WorkspacePayload> {
   await useGlobalWorkspaceIfPrompted(page);
   await expect(page.getByTestId("os-desktop")).toBeVisible();

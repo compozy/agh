@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { useSettingsHooksPage } from "@/hooks/routes/use-settings-hooks-page";
+import { useSettingsHooksPage } from "@/systems/settings/hooks/use-settings-hooks-page";
 import { NotificationPresetsPanel } from "@/systems/notifications";
 import { restartBannerPropsFor, SettingsTopbarPublisher } from "@/systems/settings";
 import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";

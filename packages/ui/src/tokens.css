@@ -389,6 +389,15 @@
   --blur-shell: 28px;
   --blur-shell-pop: 32px;
   --blur-shell-scrim: 8px;
+
+  /* Compact (<960px) presentation — os-v2.css mobile block. */
+  --height-dock-tabbar: 56px;
+  --size-dock-tab-item: 44px;
+  --size-traffic-light-compact: 15px;
+
+  /* Spaces-overview cards (os-v2.css `.space-card`/`.space-thumb`). */
+  --width-space-card: 264px;
+  --height-space-thumb: 148px;
 }
 
 :root {
@@ -463,6 +472,29 @@
   --wallpaper-carbon:
     radial-gradient(1000px 620px at 50% -14%, rgba(255, 255, 255, 0.04), transparent 58%),
     linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%);
+
+  /* Space-card thumbnails (Spaces overview) — the same wallpaper stacks at
+     card scale (os-v2.css `.space-thumb[data-wp]`); gradient geometry is not
+     a utility scale, so the family stays out of @theme like the desk stacks. */
+  --wallpaper-thumb-ember:
+    radial-gradient(200px 120px at 12% 110%, var(--color-accent-tint), transparent 62%),
+    radial-gradient(
+      190px 110px at 92% -12%,
+      color-mix(in oklab, var(--wallpaper-teal) 34%, transparent),
+      transparent 60%
+    ),
+    var(--color-canvas);
+  --wallpaper-thumb-mesh:
+    radial-gradient(180px 110px at 85% 108%, var(--color-success-tint), transparent 60%),
+    radial-gradient(
+      220px 130px at 8% -8%,
+      color-mix(in oklab, var(--wallpaper-teal) 42%, transparent),
+      transparent 64%
+    ),
+    var(--color-canvas);
+  --wallpaper-thumb-carbon:
+    radial-gradient(200px 110px at 50% -14%, rgba(255, 255, 255, 0.05), transparent 58%),
+    var(--color-canvas);
 }
 
 .dark {

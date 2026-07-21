@@ -162,6 +162,17 @@ export function DesktopMenubar({
                     Spaces overview
                     <DropdownMenuShortcut>⇧⌘S</DropdownMenuShortcut>
                   </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="os-menu-appearance"
+                    onClick={() =>
+                      coordinator.userOpen({
+                        app: "settings",
+                        location: { pathname: "/settings/appearance", search: {} },
+                      })
+                    }
+                  >
+                    Appearance…
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     disabled={!hasFocusedWindow}
@@ -209,7 +220,11 @@ export function DesktopMenubar({
           onOpenChange={open => onOverlayOpenChange("bell", open)}
         >
           <PopoverTrigger render={trigger} />
-          <PopoverContent align="end" className="w-80 p-2" data-testid="os-bell-popover">
+          <PopoverContent
+            align="end"
+            className="w-80 max-w-[calc(100vw-16px)] p-2"
+            data-testid="os-bell-popover"
+          >
             <AttentionBell
               rows={attention.rows}
               sessionsDisconnected={attention.sessionsDisconnected}

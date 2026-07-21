@@ -121,6 +121,10 @@ export interface OsDesktopStore {
   openRail(): void;
   closeRail(): void;
   toggleRailGroup(agentId: string): void;
+  /** Appearance prefs (US-015): persisted with the space via the desktop doc. */
+  setWallpaper(wallpaper: OsWallpaper): void;
+  setDockMagnify(on: boolean): void;
+  setReduceMotion(on: boolean): void;
   commitRect(id: string, rect: OsRect): void;
   setLocation(id: string, loc: OsWindowLocation): void;
   applyRemote(event: OsStateEvent): void;

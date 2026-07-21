@@ -18,7 +18,7 @@ import { useCreateProviderFocusRestore } from "@/hooks/routes/use-create-provide
 import {
   useSettingsProvidersPage,
   type ProviderLastAction,
-} from "@/hooks/routes/use-settings-providers-page";
+} from "@/systems/settings/hooks/use-settings-providers-page";
 import {
   ProviderInspectorSheet,
   ProvidersGrid,

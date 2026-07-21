@@ -18,6 +18,11 @@ const SECTION_PAGES = {
       default: m.GeneralSettingsPage,
     }))
   ),
+  appearance: lazy(() =>
+    import("./appearance-settings-pane").then(m => ({
+      default: m.AppearanceSettingsPane,
+    }))
+  ),
   providers: lazy(() =>
     import("@/routes/_app/settings/-providers-settings-page").then(m => ({
       default: m.ProvidersSettingsPage,

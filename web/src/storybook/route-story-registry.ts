@@ -282,6 +282,13 @@ export const routeStoryRegistry = [
   },
   {
     system: "settings",
+    routePath: "/settings/appearance",
+    storybookPath: "/settings/appearance",
+    title: "systems/settings/routes/SettingsAppearance",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
     routePath: "/settings/automation",
     storybookPath: "/settings/automation",
     title: "systems/settings/routes/SettingsAutomation",

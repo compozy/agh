@@ -129,7 +129,13 @@ export function OsMenuBar({
           <span className="text-small-body font-semibold text-fg-strong">{workspace.name}</span>
           <Icon as={ChevronsUpDown} size="sm" className="text-subtle" />
         </Control>
-        <nav data-slot="os-menubar-menus" aria-label="Menus" className="ml-1.5 flex items-center">
+        {/* Compact (<960px, `OS_COMPACT_BREAKPOINT`): menus collapse; every
+            action stays reachable through the palette (US-019.EC-3). */}
+        <nav
+          data-slot="os-menubar-menus"
+          aria-label="Menus"
+          className="ml-1.5 hidden items-center min-[960px]:flex"
+        >
           {menus.map(menu => (
             <Control
               key={menu}
@@ -148,7 +154,9 @@ export function OsMenuBar({
         {status}
         <Control
           data-slot="os-menubar-bell"
-          aria-label="Approvals"
+          // The badge count reaches assistive tech through the label — the
+          // visible badge alone would be stripped by a bare "Approvals" name.
+          aria-label={notifications ? `Approvals, ${notifications} waiting` : "Approvals"}
           aria-haspopup={onNotificationsClick || wrapBellTrigger ? "true" : undefined}
           className="relative grid size-7 place-items-center rounded-md text-muted"
           onClick={onNotificationsClick}

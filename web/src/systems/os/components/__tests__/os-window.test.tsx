@@ -146,4 +146,24 @@ describe("OsWindow", () => {
     expect(dragCancel).toContain('[data-slot="topbar-crumb-more"]');
     expect(dragCancel).toContain('[data-slot="topbar-nav"]');
   });
+
+  it("Should present compact windows as full-bleed stack surfaces without Rnd, drag, or zoom (US-014.AC-1)", async () => {
+    const { store, coordinator, shell } = createHarness();
+    coordinator.userOpen({ app: "tasks" });
+    act(() => store.getState().setPresentation("compact"));
+
+    renderWindows(shell, ["app:tasks"]);
+    await screen.findByTestId("os-pending-app");
+
+    // No Rnd wrapper — geometry is CSS-forced, never gesture-driven.
+    expect(screen.queryByTestId("rnd-window")).toBeNull();
+    const frame = screen.getByTestId("os-window-app:tasks");
+    expect(frame).toHaveAttribute("data-presentation", "compact");
+    // The zoom control disappears; close/minimize keep their labels.
+    expect(screen.queryByRole("button", { name: "Zoom window" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Close window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Minimize window" })).toBeInTheDocument();
+    // The head is not a drag handle in the stack.
+    expect(frame.querySelector(".os-window-drag-handle")).toBeNull();
+  });
 });

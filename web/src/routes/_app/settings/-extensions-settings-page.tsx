@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { useSettingsExtensionsPage } from "@/hooks/routes/use-settings-extensions-page";
+import { useSettingsExtensionsPage } from "@/systems/settings/hooks/use-settings-extensions-page";
 import { restartBannerPropsFor } from "@/systems/settings";
 import { Button, PageShell, RestartBanner, Spinner } from "@agh/ui";
 

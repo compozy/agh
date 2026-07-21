@@ -155,6 +155,7 @@ export interface SettingsSectionDescriptor {
 
 export type SettingsSectionSlug =
   | "general"
+  | "appearance"
   | "providers"
   | "sandboxes"
   | "memory"

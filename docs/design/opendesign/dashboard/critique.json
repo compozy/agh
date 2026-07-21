@@ -1,7 +1,8 @@
 {
   "kind": "critique-panel",
   "artifact": "dashboard/dashboard.html",
-  "date": "2026-07-17",
+  "date": "2026-07-21",
+  "head_contract": "os-v2 unified head (os/pagehead-redesign.html): 48px 3-zone topbar + icon-tile page head replaced by root-variant w2head (neutral 22px glyph + 13px title 'Home', live indicator as .w2-status[data-tone=ok], single primary 'New session' in .w2-actions); old head meta demoted to a 12px .pagemeta line at top of .page (named .pagemeta because .subhead was already taken by an in-content section label). Legacy topbar/breadcrumb/head CSS and selector references removed; rg sweep clean.",
   "score": 4,
   "axes": {
     "clarity": {

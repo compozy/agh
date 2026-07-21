@@ -498,4 +498,28 @@ describe("desktop store", () => {
     expect(clamped.w).toBe(280);
     expect(clamped.h).toBe(180);
   });
+
+  it("Should mutate appearance prefs through their setters and restore defaults on workspace reset (US-015)", () => {
+    const store = createDesktopStore();
+
+    store.getState().setWallpaper("carbon");
+    store.getState().setDockMagnify(false);
+    store.getState().setReduceMotion(true);
+    expect(store.getState().wallpaper).toBe("carbon");
+    expect(store.getState().dockMagnify).toBe(false);
+    expect(store.getState().reduceMotion).toBe(true);
+
+    // Same-value writes are identity no-ops so the persistence binder never
+    // sees a phantom desktop-doc transition.
+    const before = store.getState();
+    store.getState().setWallpaper("carbon");
+    expect(store.getState()).toBe(before);
+
+    // A workspace switch starts from appearance defaults until the target
+    // space's own desktop doc hydrates (US-015.EC-2).
+    store.getState().resetForWorkspace();
+    expect(store.getState().wallpaper).toBe("ember");
+    expect(store.getState().dockMagnify).toBe(true);
+    expect(store.getState().reduceMotion).toBe(false);
+  });
 });

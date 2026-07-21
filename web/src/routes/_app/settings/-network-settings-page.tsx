@@ -1,7 +1,7 @@
 import { AlertCircle } from "lucide-react";
 import { useState } from "react";
 
-import { useSettingsNetworkPage } from "@/hooks/routes/use-settings-network-page";
+import { useSettingsNetworkPage } from "@/systems/settings/hooks/use-settings-network-page";
 import {
   NetworkSettingsSections,
   restartBannerPropsFor,

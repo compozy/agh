@@ -15,11 +15,19 @@ export interface OsCommandPaletteModel {
   activeWorkspaceId: string | null;
   /** Zone commands for the focused floating window; restore only while snapped (UT-101). */
   snapCommands: readonly OsSnapCommand[];
+  /**
+   * Lifecycle actions for the focused window — the guaranteed keyboard path
+   * where browsers reserve ⌘W/⌘M (US-003.AC-4/EC-3). `zoom` is null in
+   * compact presentation (the control has no meaning in a stack).
+   */
+  focusedWindowActions: { close(): void; minimize(): void; zoom: (() => void) | null } | null;
   openApp(app: OsAppId): void;
   jumpToSession(sessionId: string, agentName: string): void;
   dispatchSnap(command: OsSnapCommand): void;
   toggleRail(): void;
   newSession(): void;
+  openSpaces(): void;
+  openAppearance(): void;
   switchWorkspace(workspaceId: string): void;
 }
 
@@ -30,7 +38,8 @@ export interface OsCommandPaletteModel {
  */
 export function useOsCommandPalette(
   open: boolean,
-  onOpenChange: (open: boolean) => void
+  onOpenChange: (open: boolean) => void,
+  options: { onOpenSpaces?: () => void } = {}
 ): OsCommandPaletteModel {
   const { coordinator, store } = useOsShell();
   const sessionCreate = useSessionCreate();
@@ -45,13 +54,28 @@ export function useOsCommandPalette(
       ? state.windows[state.focusedId]
       : undefined
   );
+  const focusedId = useDesktop(state => state.focusedId);
+  const presentation = useDesktop(state => state.presentation);
 
   const run = (action: () => void) => {
     onOpenChange(false);
     action();
   };
 
+  const focusedWindowActions =
+    focusedId === null
+      ? null
+      : {
+          close: () => run(() => coordinator.userClose(focusedId)),
+          minimize: () => run(() => coordinator.userMinimize(focusedId)),
+          zoom:
+            presentation === "floating"
+              ? () => run(() => store.getState().toggleZoom(focusedId))
+              : null,
+        };
+
   return {
+    focusedWindowActions,
     paletteSessions: (sessions.data ?? []).filter(
       session => typeof session.agent_name === "string" && session.agent_name.length > 0
     ),
@@ -83,6 +107,14 @@ export function useOsCommandPalette(
       }),
     toggleRail: () => run(() => store.getState().toggleRail()),
     newSession: () => run(() => sessionCreate.openForAgent("")),
+    openSpaces: () => run(() => options.onOpenSpaces?.()),
+    openAppearance: () =>
+      run(() =>
+        coordinator.userOpen({
+          app: "settings",
+          location: { pathname: "/settings/appearance", search: {} },
+        })
+      ),
     switchWorkspace: workspaceId => run(() => setActiveWorkspaceId(workspaceId)),
   };
 }

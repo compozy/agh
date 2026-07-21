@@ -5,7 +5,7 @@ import type { Dispatch, SetStateAction } from "react";
 import {
   useSettingsSkillsPage,
   type SkillsScopeSelection,
-} from "@/hooks/routes/use-settings-skills-page";
+} from "@/systems/settings/hooks/use-settings-skills-page";
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 import {
   restartBannerPropsFor,

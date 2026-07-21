@@ -1,7 +1,7 @@
 import { AlertCircle, ExternalLink } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 
-import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
+import { useSettingsGeneralPage } from "@/systems/settings/hooks/use-settings-general-page";
 import {
   restartBannerPropsFor,
   SettingsApplyRecordsPanel,

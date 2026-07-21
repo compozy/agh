@@ -1,7 +1,7 @@
 import { AlertCircle } from "lucide-react";
 import { useState } from "react";
 
-import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
+import { useSettingsMemoryPage } from "@/systems/settings/hooks/use-settings-memory-page";
 import {
   restartBannerPropsFor,
   SettingsSaveBar,

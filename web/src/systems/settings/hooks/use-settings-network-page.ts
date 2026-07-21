@@ -1,27 +1,27 @@
 import { useState, type SetStateAction } from "react";
 
-import { useSettingsPage } from "@/hooks/routes/use-settings-page";
+import { useSettingsPage } from "./use-settings-page";
 import {
   SettingsApiError,
-  useSettingsAutomation,
-  useUpdateSettingsAutomation,
-  type SettingsAutomationSection,
-  type SettingsUpdateAutomationRequest,
+  useSettingsNetwork,
+  useUpdateSettingsNetwork,
+  type SettingsNetworkSection,
+  type SettingsUpdateNetworkRequest,
 } from "@/systems/settings";
 
-type AutomationConfig = SettingsAutomationSection["config"];
+type NetworkConfig = SettingsNetworkSection["config"];
 
-export function useSettingsAutomationPage() {
-  const query = useSettingsAutomation();
-  const mutation = useUpdateSettingsAutomation();
-  const page = useSettingsPage({ currentSlug: "automation" });
+export function useSettingsNetworkPage() {
+  const query = useSettingsNetwork();
+  const mutation = useUpdateSettingsNetwork();
+  const page = useSettingsPage({ currentSlug: "network" });
 
   const envelope = query.data ?? null;
 
-  const [draftOverride, setDraftOverride] = useState<AutomationConfig | null>();
+  const [draftOverride, setDraftOverride] = useState<NetworkConfig | null>();
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
   const draft = draftOverride === undefined ? (envelope?.config ?? null) : draftOverride;
-  const setDraft = (update: SetStateAction<AutomationConfig | null>) => {
+  const setDraft = (update: SetStateAction<NetworkConfig | null>) => {
     setDraftOverride(current => {
       const resolved = current === undefined ? (envelope?.config ?? null) : current;
       return typeof update === "function" ? update(resolved) : update;
@@ -39,7 +39,7 @@ export function useSettingsAutomationPage() {
 
   const handleSave = () => {
     if (!draft) return;
-    const body: SettingsUpdateAutomationRequest = { config: draft };
+    const body: SettingsUpdateNetworkRequest = { config: draft };
     mutation.mutate(body, {
       onSuccess: result => {
         setLastAppliedLabel(

@@ -36,7 +36,7 @@
   button{font-family:inherit;letter-spacing:inherit}
   svg{display:block}
   code,.mono{font-family:var(--font-mono);-webkit-font-smoothing:subpixel-antialiased;font-feature-settings:normal}
-  :is(.btn,.back,.snav a,.srow--link,.breadcrumb__link,.switch,.ssearch input):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  :is(.btn,.back,.snav a,.srow--link,.w2-back,.w2-crumb,.switch,.ssearch input):focus-visible{outline:none;box-shadow:var(--focus-ring)}
 
   .shell{display:grid;grid-template-columns:264px minmax(0,1fr);height:100vh;min-width:0}
   .sside{display:flex;flex-direction:column;min-height:0;background:var(--canvas-soft);border-right:1px solid var(--line-soft)}
@@ -68,17 +68,27 @@
   .sside__foot .ver{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
 
   .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
-  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;min-height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas);min-width:0}
-  .topbar__context{min-width:0;overflow:hidden}
-  .topbar__trailing{display:flex;align-items:center;justify-content:flex-end;gap:8px;justify-self:end;min-width:0}
-  .breadcrumb__list{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;list-style:none;white-space:nowrap;color:var(--muted)}
-  .breadcrumb__item{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:none}
-  .breadcrumb__link,.breadcrumb__page{display:inline-flex;align-items:center;min-width:0;border-radius:var(--radius-sm);padding:2px 6px;font-size:13px;line-height:18px;letter-spacing:-.006em;white-space:nowrap}
-  .breadcrumb__link{color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
-  .breadcrumb__link:hover{background:var(--row-hover);color:var(--fg)}
-  .breadcrumb__page{color:var(--fg-strong)}
-  .breadcrumb__separator{display:inline-flex;color:var(--faint);flex:none}
-  .breadcrumb__separator svg{width:12px;height:12px}
+  /* ============ unified head v2 (os/pagehead-redesign.html contract: 44px, drill-in trail) ============ */
+  .w2head{flex:none;min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-status[data-tone="ok"]{color:var(--success)}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
 
   .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
   .btn svg{width:14px;height:14px}
@@ -93,13 +103,10 @@
   .scroll{flex:1;min-height:0;overflow-y:auto}
   .page{max-width:768px;margin:0 auto;padding:28px 40px 140px}
 
-  .head{display:flex;align-items:flex-start;gap:12px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
-  .head__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent);margin-top:2px}
-  .head__icon svg{width:12px;height:12px}
-  .head__main{min-width:0;flex:1}
-  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25;text-wrap:balance}
-  .head__desc{margin-top:5px;font-size:13px;color:var(--muted);line-height:1.55;max-width:62ch;text-wrap:pretty}
-  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--subtle)}
+  /* ============ subhead (demoted page-head meta, 12px subtle line) ============ */
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:18px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
   .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
 
   .notice{display:none;align-items:flex-start;gap:10px;margin-bottom:20px;padding:12px 14px;border-radius:var(--radius-md);background:var(--warning-tint);font-size:12.5px;line-height:1.5;color:var(--muted)}
@@ -187,30 +194,24 @@
   </aside>
 
   <div class="main">
-    <header class="topbar" data-od-id="topbar">
-      <div class="topbar__context"><nav class="breadcrumb" aria-label="Breadcrumb"><ol class="breadcrumb__list">
-        <li class="breadcrumb__item"><a class="breadcrumb__link" href="#">Settings</a></li>
-        <li class="breadcrumb__separator" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
-        <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Extensions</span></li>
-      </ol></nav></div>
-      <div></div>
-      <div class="topbar__trailing"></div>
+    <header class="w2head" data-od-id="page-head">
+      <a class="w2-back" href="#" aria-label="Back to Settings"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <nav class="w2-crumbs" aria-label="Breadcrumb">
+        <a class="w2-crumb" href="#">Settings</a>
+        <span class="w2-sep">/</span>
+        <span class="w2-title" data-od-id="page-title">Extensions</span>
+      </nav>
+      <span class="w2-flex"></span>
     </header>
 
     <div class="scroll">
       <main class="page" data-od-id="settings-extensions-page">
 
-        <header class="head" data-od-id="page-head">
-          <span class="head__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z"/></svg></span>
-          <div class="head__main">
-            <h1 class="head__title">Extensions</h1>
-            <p class="head__desc">Where extensions are discovered, and whether ones the marketplace hasn&rsquo;t verified are allowed to install.</p>
-            <div class="head__meta">
-              <span>Source: GitHub</span><span class="dotsep"></span>
-              <span>Unverified blocked</span>
-            </div>
-          </div>
-        </header>
+        <div class="subhead">
+          <span>Where extensions are discovered, and whether ones the marketplace hasn&rsquo;t verified are allowed to install.</span><span class="dotsep"></span>
+          <span>Source: <b>GitHub</b></span><span class="dotsep"></span>
+          <span>Unverified blocked</span>
+        </div>
 
         <div class="notice" id="restart-notice" role="status" data-od-id="restart-notice">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>

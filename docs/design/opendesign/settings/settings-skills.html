@@ -40,7 +40,7 @@
   button{font-family:inherit;letter-spacing:inherit}
   svg{display:block}
   code,.mono{font-family:var(--font-mono);-webkit-font-smoothing:subpixel-antialiased;font-feature-settings:normal}
-  :is(.btn,.back,.snav a,.adv-toggle,.srow--link,.breadcrumb__link,.switch,.ssearch input):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  :is(.btn,.back,.snav a,.adv-toggle,.srow--link,.switch,.ssearch input,.w2-crumb,.w2-back):focus-visible{outline:none;box-shadow:var(--focus-ring)}
 
   /* ============ shell ============ */
   .shell{display:grid;grid-template-columns:264px minmax(0,1fr);height:100vh;min-width:0}
@@ -73,18 +73,30 @@
   .sside__foot .d{width:6px;height:6px;border-radius:50%;background:var(--success);flex:none}
   .sside__foot .ver{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
 
-  /* ============ main + topbar ============ */
+  /* ============ shell ============ */
   .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
-  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;min-height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas);min-width:0}
-  .topbar__context{min-width:0;overflow:hidden}
-  .breadcrumb__list{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;list-style:none;white-space:nowrap;color:var(--muted)}
-  .breadcrumb__item{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:none}
-  .breadcrumb__link,.breadcrumb__page{display:inline-flex;align-items:center;min-width:0;border-radius:var(--radius-sm);padding:2px 6px;font-size:13px;line-height:18px;letter-spacing:-.006em;white-space:nowrap}
-  .breadcrumb__link{color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
-  .breadcrumb__link:hover{background:var(--row-hover);color:var(--fg)}
-  .breadcrumb__page{color:var(--fg-strong)}
-  .breadcrumb__separator{display:inline-flex;color:var(--faint);flex:none}
-  .breadcrumb__separator svg{width:12px;height:12px}
+
+  /* ============ unified head v2 (os/pagehead-redesign.html contract: 44px, drill-in trail) ============ */
+  .w2head{flex:none;min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-status[data-tone="ok"]{color:var(--success)}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
 
   .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
   .btn svg{width:14px;height:14px}
@@ -100,13 +112,10 @@
   .scroll{flex:1;min-height:0;overflow-y:auto}
   .page{max-width:768px;margin:0 auto;padding:28px 40px 140px}
 
-  .head{display:flex;align-items:flex-start;gap:12px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
-  .head__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent);margin-top:2px}
-  .head__icon svg{width:12px;height:12px}
-  .head__main{min-width:0;flex:1}
-  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25;text-wrap:balance}
-  .head__desc{margin-top:5px;font-size:13px;color:var(--muted);line-height:1.55;max-width:62ch;text-wrap:pretty}
-  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--subtle)}
+  /* ============ subhead (demoted page-head meta, 12px subtle line) ============ */
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:18px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
   .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
 
   .notice{display:none;align-items:flex-start;gap:10px;margin-bottom:20px;padding:12px 14px;border-radius:var(--radius-md);background:var(--warning-tint);font-size:12.5px;line-height:1.5;color:var(--muted)}
@@ -215,31 +224,25 @@
   </aside>
 
   <div class="main">
-    <header class="topbar" data-od-id="topbar">
-      <div class="topbar__context"><nav class="breadcrumb" aria-label="Breadcrumb"><ol class="breadcrumb__list">
-        <li class="breadcrumb__item"><a class="breadcrumb__link" href="#">Settings</a></li>
-        <li class="breadcrumb__separator" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
-        <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Skills</span></li>
-      </ol></nav></div>
-      <div></div>
-      <div></div>
+    <header class="w2head" data-od-id="page-head">
+      <a class="w2-back" href="#" aria-label="Back to Settings"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <nav class="w2-crumbs" aria-label="Breadcrumb">
+        <a class="w2-crumb" href="#">Settings</a>
+        <span class="w2-sep">/</span>
+        <span class="w2-title">Skills</span>
+      </nav>
+      <span class="w2-flex"></span>
+      <span class="w2-status" data-tone="ok"><span class="dot" aria-hidden="true"></span>Registry connected</span>
     </header>
 
     <div class="scroll">
       <main class="page" data-od-id="settings-skills-page">
 
-        <header class="head" data-od-id="page-head">
-          <span class="head__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
-          <div class="head__main">
-            <h1 class="head__title">Skills</h1>
-            <p class="head__desc">How AGH discovers, updates and vets skills. Turning individual skills on or off lives in the marketplace.</p>
-            <div class="head__meta">
-              <span>Source: ClawHub</span><span class="dotsep"></span>
-              <span>Checks every 3s</span><span class="dotsep"></span>
-              <span>Registry connected</span>
-            </div>
-          </div>
-        </header>
+        <div class="subhead">
+          <span>How AGH discovers, updates and vets skills. Turning individual skills on or off lives in the marketplace.</span><span class="dotsep"></span>
+          <span>Source <b>ClawHub</b></span><span class="dotsep"></span>
+          <span>Checks every <b>3s</b></span>
+        </div>
 
         <div class="notice" id="restart-notice" role="status" data-od-id="restart-notice">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>

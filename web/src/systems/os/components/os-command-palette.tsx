@@ -1,13 +1,18 @@
 import {
-  Plus,
-  RefreshCcw,
+  Maximize2,
+  Minus,
+  Palette,
   PanelLeft,
   PanelRight,
+  PanelsTopLeft,
+  Plus,
+  RefreshCcw,
   SquareArrowDownLeft,
   SquareArrowDownRight,
   SquareArrowUpLeft,
   SquareArrowUpRight,
   Undo2,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,6 +34,8 @@ import type { OsSnapZoneId } from "../lib/os-types";
 export interface OsCommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Opens the Spaces overview overlay (⇧⌘S parity — US-019.EC-3 fallback). */
+  onOpenSpaces?: () => void;
 }
 
 /** Apps the palette can open: every registry app except multi-instance sessions. */
@@ -49,8 +56,8 @@ const SNAP_COMMAND_ICONS: Record<OsSnapZoneId, LucideIcon> = {
  * overlay (closed set) — it renders above the win-layer and portals to the
  * document body, never into a window. Behavior lives in `useOsCommandPalette`.
  */
-export function OsCommandPalette({ open, onOpenChange }: OsCommandPaletteProps) {
-  const model = useOsCommandPalette(open, onOpenChange);
+export function OsCommandPalette({ open, onOpenChange, onOpenSpaces }: OsCommandPaletteProps) {
+  const model = useOsCommandPalette(open, onOpenChange, { onOpenSpaces });
 
   return (
     <CommandDialog
@@ -58,7 +65,8 @@ export function OsCommandPalette({ open, onOpenChange }: OsCommandPaletteProps) 
       onOpenChange={onOpenChange}
       title="Command palette"
       description="Search apps, sessions, and actions"
-      className="top-[16vh] sm:max-w-(--width-modal-sm)"
+      // Compact clamps to the phone canvas (os-v2.css `.palette-overlay{padding-top:9vh}`).
+      className="top-[9vh] min-[960px]:top-[16vh] sm:max-w-(--width-modal-sm)"
     >
       <Command data-testid="os-command-palette" shouldFilter>
         <CommandInput autoFocus placeholder="Search apps, sessions, actions…" />
@@ -93,8 +101,40 @@ export function OsCommandPalette({ open, onOpenChange }: OsCommandPaletteProps) 
               ))}
             </CommandGroup>
           ) : null}
-          {model.snapCommands.length > 0 ? (
+          {model.focusedWindowActions !== null || model.snapCommands.length > 0 ? (
             <CommandGroup heading="Window">
+              {model.focusedWindowActions !== null ? (
+                <>
+                  <CommandItem
+                    value="close window"
+                    data-testid="os-palette-close-window"
+                    onSelect={model.focusedWindowActions.close}
+                  >
+                    <X className="size-3.5 text-muted" />
+                    Close window
+                    <CommandShortcut>⌘W</CommandShortcut>
+                  </CommandItem>
+                  <CommandItem
+                    value="minimize window"
+                    data-testid="os-palette-minimize-window"
+                    onSelect={model.focusedWindowActions.minimize}
+                  >
+                    <Minus className="size-3.5 text-muted" />
+                    Minimize window
+                    <CommandShortcut>⌘M</CommandShortcut>
+                  </CommandItem>
+                  {model.focusedWindowActions.zoom !== null ? (
+                    <CommandItem
+                      value="zoom window"
+                      data-testid="os-palette-zoom-window"
+                      onSelect={model.focusedWindowActions.zoom}
+                    >
+                      <Maximize2 className="size-3.5 text-muted" />
+                      Zoom window
+                    </CommandItem>
+                  ) : null}
+                </>
+              ) : null}
               {model.snapCommands.map(command => {
                 const Icon = command.zoneId === null ? Undo2 : SNAP_COMMAND_ICONS[command.zoneId];
                 const testId =
@@ -133,6 +173,23 @@ export function OsCommandPalette({ open, onOpenChange }: OsCommandPaletteProps) 
               <Plus className="size-3.5 text-muted" />
               New session
               <CommandShortcut>⌘N</CommandShortcut>
+            </CommandItem>
+            <CommandItem
+              value="spaces overview"
+              data-testid="os-palette-spaces-overview"
+              onSelect={model.openSpaces}
+            >
+              <PanelsTopLeft className="size-3.5 text-muted" />
+              Spaces overview
+              <CommandShortcut>⇧⌘S</CommandShortcut>
+            </CommandItem>
+            <CommandItem
+              value="appearance wallpaper motion"
+              data-testid="os-palette-appearance"
+              onSelect={model.openAppearance}
+            >
+              <Palette className="size-3.5 text-muted" />
+              Appearance
             </CommandItem>
             {model.workspaces.flatMap(workspace =>
               workspace.id === model.activeWorkspaceId

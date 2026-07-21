@@ -37,6 +37,7 @@ import { Route as AppMarketplaceMcpsRouteImport } from './routes/_app/marketplac
 import { Route as AppMarketplaceSkillsRouteImport } from './routes/_app/marketplace.skills'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as AppSettingsAppearanceRouteImport } from './routes/_app/settings/appearance'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
 import { Route as AppSettingsExtensionsRouteImport } from './routes/_app/settings/extensions'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
@@ -204,6 +205,11 @@ const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsAppearanceRoute = AppSettingsAppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsAutomationRoute = AppSettingsAutomationRouteImport.update({
   id: '/automation',
   path: '/automation',
@@ -369,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/marketplace/mcps': typeof AppMarketplaceMcpsRoute
   '/marketplace/skills': typeof AppMarketplaceSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
+  '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/general': typeof AppSettingsGeneralRoute
@@ -422,6 +429,7 @@ export interface FileRoutesByTo {
   '/marketplace/mcps': typeof AppMarketplaceMcpsRoute
   '/marketplace/skills': typeof AppMarketplaceSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
+  '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/general': typeof AppSettingsGeneralRoute
@@ -479,6 +487,7 @@ export interface FileRoutesById {
   '/_app/marketplace/mcps': typeof AppMarketplaceMcpsRoute
   '/_app/marketplace/skills': typeof AppMarketplaceSkillsRoute
   '/_app/session/$id': typeof AppSessionIdRoute
+  '/_app/settings/appearance': typeof AppSettingsAppearanceRoute
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
   '/_app/settings/extensions': typeof AppSettingsExtensionsRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
@@ -536,6 +545,7 @@ export interface FileRouteTypes {
     | '/marketplace/mcps'
     | '/marketplace/skills'
     | '/session/$id'
+    | '/settings/appearance'
     | '/settings/automation'
     | '/settings/extensions'
     | '/settings/general'
@@ -589,6 +599,7 @@ export interface FileRouteTypes {
     | '/marketplace/mcps'
     | '/marketplace/skills'
     | '/session/$id'
+    | '/settings/appearance'
     | '/settings/automation'
     | '/settings/extensions'
     | '/settings/general'
@@ -645,6 +656,7 @@ export interface FileRouteTypes {
     | '/_app/marketplace/mcps'
     | '/_app/marketplace/skills'
     | '/_app/session/$id'
+    | '/_app/settings/appearance'
     | '/_app/settings/automation'
     | '/_app/settings/extensions'
     | '/_app/settings/general'
@@ -876,6 +888,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/settings/'
       preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/appearance': {
+      id: '/_app/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof AppSettingsAppearanceRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/automation': {
@@ -1238,6 +1257,7 @@ const AppNetworkRouteWithChildren = AppNetworkRoute._addFileChildren(
 )
 
 interface AppSettingsRouteChildren {
+  AppSettingsAppearanceRoute: typeof AppSettingsAppearanceRoute
   AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
   AppSettingsExtensionsRoute: typeof AppSettingsExtensionsRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
@@ -1251,6 +1271,7 @@ interface AppSettingsRouteChildren {
 }
 
 const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsAppearanceRoute: AppSettingsAppearanceRoute,
   AppSettingsAutomationRoute: AppSettingsAutomationRoute,
   AppSettingsExtensionsRoute: AppSettingsExtensionsRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,

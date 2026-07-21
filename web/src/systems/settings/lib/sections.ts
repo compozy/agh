@@ -3,6 +3,7 @@ import {
   Brain,
   Cpu,
   Network,
+  Palette,
   Puzzle,
   SlidersHorizontal,
   Webhook,
@@ -16,6 +17,7 @@ export const SETTINGS_ROOT_PATH = "/settings" as const;
 
 export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
   { slug: "general", label: "General", icon: SlidersHorizontal },
+  { slug: "appearance", label: "Appearance", icon: Palette },
   { slug: "providers", label: "Providers", icon: Cpu },
   { slug: "memory", label: "Memory", icon: Brain },
   { slug: "skills", label: "Skills", icon: Wrench },

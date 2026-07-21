@@ -39,7 +39,7 @@
   button{font-family:inherit;letter-spacing:inherit}
   svg{display:block}
   code,.mono,.pill[data-mono="true"]{-webkit-font-smoothing:subpixel-antialiased;font-feature-settings:normal}
-  :is(.btn,.act,.subrow,.gnav a):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  :is(.btn,.act,.subrow,.gnav a,.w2-crumb,.w2-back):focus-visible{outline:none;box-shadow:var(--focus-ring)}
 
   /* gallery frame: each state below is the real page in that state */
   .gnav{display:flex;align-items:center;gap:14px;padding:10px 24px;border-bottom:1px solid var(--line);background:var(--rail)}
@@ -48,16 +48,27 @@
   .state{border-bottom:1px solid var(--line)}
   .state:last-child{border-bottom:0}
 
-  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;
-    min-height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas)}
-  .breadcrumb__list{display:flex;align-items:center;gap:6px;list-style:none;white-space:nowrap;color:var(--muted);overflow:hidden}
-  .breadcrumb__link,.breadcrumb__page{display:inline-flex;align-items:center;border-radius:var(--radius-sm);padding:2px 6px;
-    font-size:13px;line-height:18px;letter-spacing:-.006em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .breadcrumb__link{color:var(--muted)}
-  .breadcrumb__link:hover{background:var(--row-hover);color:var(--fg)}
-  .breadcrumb__page{color:var(--fg-strong)}
-  .breadcrumb__separator{display:inline-flex;color:var(--faint)}
-  .breadcrumb__separator svg{width:12px;height:12px}
+  /* unified head v2 (os/pagehead-redesign.html contract: 44px, drill-in trail) */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-status[data-tone="ok"]{color:var(--success)}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
 
   .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
     font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
@@ -72,17 +83,11 @@
   .btn--sm{height:22px;padding:0 10px;font-size:11px}
 
   .page{max-width:1240px;margin:0 auto;padding:24px 36px 72px}
-  .head{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;min-width:0;padding-bottom:18px;border-bottom:1px solid var(--line)}
-  .head__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;
-    border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent);margin-top:2px}
-  .head__icon svg{width:12px;height:12px}
-  .head__main{min-width:0;flex:1}
-  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25;text-wrap:balance}
-  .head__pills{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:7px}
-  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle)}
-  .head__meta b{font-weight:500;color:var(--muted)}
+  /* subhead (demoted page-head meta, 12px subtle line) */
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
   .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
-  .head__actions{display:flex;align-items:center;gap:8px;flex:none;flex-wrap:wrap;justify-content:flex-end}
 
   .pill{display:inline-flex;align-items:center;gap:6px;height:19px;padding:0 8px;border-radius:var(--radius-xs);white-space:nowrap;line-height:1;
     font-size:11px;font-weight:500;letter-spacing:-.005em;background:var(--neutral-tint);color:var(--muted);flex:none}
@@ -161,7 +166,6 @@
   .prow__v span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   @media (max-width:1080px){.layout{grid-template-columns:1fr}.page{padding:20px 20px 56px}}
-  @media (max-width:760px){.head{flex-wrap:wrap}.head__actions{width:100%;justify-content:flex-start}}
   @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.dot--pulse{animation:none}}
 </style>
 </head>
@@ -176,35 +180,29 @@
 
 <!-- ================================================================ STATE: BLOCKED + APPROVAL PENDING -->
 <section class="state" id="blocked" data-od-id="state-blocked">
-  <header class="topbar">
-    <nav aria-label="Breadcrumb"><ol class="breadcrumb__list">
-      <li><a class="breadcrumb__link" href="#">Tasks</a></li>
-      <li class="breadcrumb__separator" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
-      <li><span class="breadcrumb__page">Roll out partner-bank settlement replay</span></li>
-    </ol></nav><div></div><div></div>
+  <header class="w2head">
+    <a class="w2-back" href="#" aria-label="Back to Tasks"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Roll out partner-bank settlement replay</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="warn"><span class="dot" aria-hidden="true"></span>Blocked</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn btn--primary" type="button">Approve</button>
+      <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
   </header>
   <div class="page">
-    <header class="head">
-      <span class="head__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h11"/><path d="M3 12h11"/><path d="M3 18h7"/><path d="m16 16 2 2 4-4"/></svg></span>
-      <div class="head__main">
-        <h1 class="head__title">Roll out partner-bank settlement replay</h1>
-        <div class="head__pills">
-          <span class="pill" data-tone="warning"><span class="dot"></span>Blocked</span>
-          <span class="pill" data-tone="info">Approval pending</span>
-          <span class="pill" data-tone="warning">High</span>
-        </div>
-        <div class="head__meta">
-          <span>Owner <b>platform-engineer-agent</b></span><span class="dotsep"></span>
-          <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
-          <span>Updated <time title="Jul 17, 2026, 08:50">44 min ago</time></span>
-        </div>
-      </div>
-      <div class="head__actions">
-        <button class="btn btn--ghost" type="button">Reject</button>
-        <button class="btn btn--primary" type="button">Approve</button>
-        <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
-      </div>
-    </header>
+    <div class="subhead">
+      <span class="pill" data-tone="info">Approval pending</span>
+      <span class="pill" data-tone="warning">High</span>
+      <span>Owner <b>platform-engineer-agent</b></span><span class="dotsep"></span>
+      <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
+      <span>Updated <time title="Jul 17, 2026, 08:50">44 min ago</time></span>
+    </div>
     <nav class="lane-tabs" aria-label="Task views"><button class="lane-tab" aria-selected="true">Overview</button><button class="lane-tab" aria-selected="false">Runs <span class="count">0</span></button><button class="lane-tab" aria-selected="false">Activity</button></nav>
     <div class="layout">
       <main>
@@ -259,37 +257,31 @@
 
 <!-- ================================================================ STATE: FAILED (attempts remain) -->
 <section class="state" id="failed" data-od-id="state-failed">
-  <header class="topbar">
-    <nav aria-label="Breadcrumb"><ol class="breadcrumb__list">
-      <li><a class="breadcrumb__link" href="#">Tasks</a></li>
-      <li class="breadcrumb__separator" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
-      <li><span class="breadcrumb__page">Lock launch blockers for the 18:30 UTC cutover</span></li>
-    </ol></nav><div></div><div></div>
+  <header class="w2head">
+    <a class="w2-back" href="#" aria-label="Back to Tasks"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Lock launch blockers for the 18:30 UTC cutover</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="danger"><span class="dot" aria-hidden="true"></span>Failed</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn btn--primary" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Retry
+      </button>
+      <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
   </header>
   <div class="page">
-    <header class="head">
-      <span class="head__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h11"/><path d="M3 12h11"/><path d="M3 18h7"/><path d="m16 16 2 2 4-4"/></svg></span>
-      <div class="head__main">
-        <h1 class="head__title">Lock launch blockers for the 18:30 UTC cutover</h1>
-        <div class="head__pills">
-          <span class="pill" data-tone="danger"><span class="dot"></span>Failed</span>
-          <span class="pill" data-tone="warning">High</span>
-        </div>
-        <div class="head__meta">
-          <span>Owner <b>product-manager-agent</b></span><span class="dotsep"></span>
-          <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
-          <span>Updated <time title="Jul 17, 2026, 09:14">18 min ago</time></span>
-        </div>
-      </div>
-      <div class="head__actions">
-        <button class="btn btn--ghost" type="button">Edit</button>
-        <button class="btn btn--primary" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-          Retry
-        </button>
-        <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
-      </div>
-    </header>
+    <div class="subhead">
+      <span class="pill" data-tone="warning">High</span>
+      <span>Owner <b>product-manager-agent</b></span><span class="dotsep"></span>
+      <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
+      <span>Updated <time title="Jul 17, 2026, 09:14">18 min ago</time></span>
+    </div>
     <nav class="lane-tabs" aria-label="Task views"><button class="lane-tab" aria-selected="true">Overview</button><button class="lane-tab" aria-selected="false">Runs <span class="count">2</span></button><button class="lane-tab" aria-selected="false">Activity</button></nav>
     <div class="layout">
       <main>
@@ -355,36 +347,30 @@
 
 <!-- ================================================================ STATE: NEEDS ATTENTION -->
 <section class="state" id="attention" data-od-id="state-attention">
-  <header class="topbar">
-    <nav aria-label="Breadcrumb"><ol class="breadcrumb__list">
-      <li><a class="breadcrumb__link" href="#">Tasks</a></li>
-      <li class="breadcrumb__separator" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
-      <li><span class="breadcrumb__page">Draft canary rollback checklist</span></li>
-    </ol></nav><div></div><div></div>
+  <header class="w2head">
+    <a class="w2-back" href="#" aria-label="Back to Tasks"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Draft canary rollback checklist</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="danger"><span class="dot" aria-hidden="true"></span>Needs attention</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn btn--primary" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Recover
+      </button>
+      <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
   </header>
   <div class="page">
-    <header class="head">
-      <span class="head__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h11"/><path d="M3 12h11"/><path d="M3 18h7"/><path d="m16 16 2 2 4-4"/></svg></span>
-      <div class="head__main">
-        <h1 class="head__title">Draft canary rollback checklist</h1>
-        <div class="head__pills">
-          <span class="pill" data-tone="danger"><span class="dot"></span>Needs attention</span>
-        </div>
-        <div class="head__meta">
-          <span>Owner <b>platform-engineer-agent</b></span><span class="dotsep"></span>
-          <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
-          <span>Updated <time title="Jul 17, 2026, 09:28">4 min ago</time></span>
-        </div>
-      </div>
-      <div class="head__actions">
-        <button class="btn btn--ghost" type="button">Open run</button>
-        <button class="btn btn--primary" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-          Recover
-        </button>
-        <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
-      </div>
-    </header>
+    <div class="subhead">
+      <span>Owner <b>platform-engineer-agent</b></span><span class="dotsep"></span>
+      <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
+      <span>Updated <time title="Jul 17, 2026, 09:28">4 min ago</time></span>
+    </div>
     <nav class="lane-tabs" aria-label="Task views"><button class="lane-tab" aria-selected="true">Overview</button><button class="lane-tab" aria-selected="false">Runs <span class="count">1</span></button><button class="lane-tab" aria-selected="false">Activity</button></nav>
     <div class="layout">
       <main>
@@ -423,32 +409,27 @@
 
 <!-- ================================================================ STATE: COMPLETED -->
 <section class="state" id="completed" data-od-id="state-completed">
-  <header class="topbar">
-    <nav aria-label="Breadcrumb"><ol class="breadcrumb__list">
-      <li><a class="breadcrumb__link" href="#">Tasks</a></li>
-      <li class="breadcrumb__separator" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
-      <li><span class="breadcrumb__page">Lock fallback banner copy</span></li>
-    </ol></nav><div></div><div></div>
+  <header class="w2head">
+    <a class="w2-back" href="#" aria-label="Back to Tasks"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Lock fallback banner copy</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="ok"><span class="dot" aria-hidden="true"></span>Completed</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn" type="button">Edit</button>
+      <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
   </header>
   <div class="page">
-    <header class="head">
-      <span class="head__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h11"/><path d="M3 12h11"/><path d="M3 18h7"/><path d="m16 16 2 2 4-4"/></svg></span>
-      <div class="head__main">
-        <h1 class="head__title">Lock fallback banner copy</h1>
-        <div class="head__pills">
-          <span class="pill" data-tone="success"><span class="dot"></span>Completed</span>
-        </div>
-        <div class="head__meta">
-          <span>Owner <b>copywriter-agent</b></span><span class="dotsep"></span>
-          <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
-          <span>Closed <time title="Jul 17, 2026, 08:12">1h ago</time></span>
-        </div>
-      </div>
-      <div class="head__actions">
-        <button class="btn btn--ghost" type="button">Edit</button>
-        <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
-      </div>
-    </header>
+    <div class="subhead">
+      <span>Owner <b>copywriter-agent</b></span><span class="dotsep"></span>
+      <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
+      <span>Closed <time title="Jul 17, 2026, 08:12">1h ago</time></span>
+    </div>
     <nav class="lane-tabs" aria-label="Task views"><button class="lane-tab" aria-selected="true">Overview</button><button class="lane-tab" aria-selected="false">Runs <span class="count">1</span></button><button class="lane-tab" aria-selected="false">Activity</button></nav>
     <div class="layout">
       <main>

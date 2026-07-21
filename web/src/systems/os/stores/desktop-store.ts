@@ -221,6 +221,18 @@ export function createDesktopStore(): DesktopStoreApi {
       if (get().railOpen) set({ railOpen: false });
     },
 
+    setWallpaper: wallpaper => {
+      if (get().wallpaper !== wallpaper) set({ wallpaper });
+    },
+
+    setDockMagnify: on => {
+      if (get().dockMagnify !== on) set({ dockMagnify: on });
+    },
+
+    setReduceMotion: on => {
+      if (get().reduceMotion !== on) set({ reduceMotion: on });
+    },
+
     toggleRailGroup: agentId => {
       const normalized = agentId.trim();
       if (normalized === "") return;

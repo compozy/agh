@@ -10,6 +10,7 @@ import {
   OS_WINDOW_DRAG_HANDLE_CLASS,
   useOsWindow,
 } from "../hooks/use-os-window";
+import { useDesktop } from "../hooks/use-desktop";
 import { getOsApp } from "../lib/app-registry";
 import {
   OS_WINDOW_MIN_HEIGHT,
@@ -39,6 +40,7 @@ export function OsWindow({ windowId }: OsWindowProps) {
     focused,
     keepMounted,
     snapRect,
+    minimizeTransform,
     rndRef,
     overlayHost,
     setOverlayHost,
@@ -50,20 +52,36 @@ export function OsWindow({ windowId }: OsWindowProps) {
     handleDragStop,
     handleResizeStop,
   } = useOsWindow(windowId);
+  const presentation = useDesktop(state => state.presentation);
   if (!win || !keepMounted) return null;
 
   const frame = (
     <WindowFrame
       focused={focused}
+      minimizeTransform={minimizeTransform}
       onFocusCapture={handleFocusCapture}
       onOverlayHost={setOverlayHost}
       onPointerDownCapture={handlePointerDownCapture}
       onTrafficLight={handleTrafficLight}
       overlayHost={overlayHost}
+      presentation={presentation}
       win={win}
       windowId={windowId}
     />
   );
+
+  // Compact (<960px): the same logical window as a full-bleed stack surface —
+  // geometry untouched, z decides which one is visible (US-014.AC-1/AC-2).
+  if (presentation === "compact") {
+    return (
+      <div
+        className="absolute inset-0"
+        style={{ zIndex: win.z, display: win.minimized ? "none" : undefined }}
+      >
+        {frame}
+      </div>
+    );
+  }
 
   if (win.maximized) {
     const { top, right, bottom, left } = OS_WORK_AREA_INSETS;
@@ -126,35 +144,47 @@ export function OsWindow({ windowId }: OsWindowProps) {
 
 function WindowFrame({
   focused,
+  minimizeTransform,
   onFocusCapture,
   onOverlayHost,
   onPointerDownCapture,
   onTrafficLight,
   overlayHost,
+  presentation,
   win,
   windowId,
 }: {
   focused: ReturnType<typeof useOsWindow>["focused"];
+  minimizeTransform: ReturnType<typeof useOsWindow>["minimizeTransform"];
   onFocusCapture: ReturnType<typeof useOsWindow>["handleFocusCapture"];
   onOverlayHost: ReturnType<typeof useOsWindow>["setOverlayHost"];
   onPointerDownCapture: ReturnType<typeof useOsWindow>["handlePointerDownCapture"];
   onTrafficLight: ReturnType<typeof useOsWindow>["handleTrafficLight"];
   overlayHost: ReturnType<typeof useOsWindow>["overlayHost"];
+  presentation: "floating" | "compact";
   win: OsWindowState;
   windowId: string;
 }) {
   const app = getOsApp(win.app);
   const Controller = app.Controller;
+  const compact = presentation === "compact";
 
   return (
     <OsWindowFrame
       title={app.title}
       focused={focused}
       onTrafficLight={onTrafficLight}
+      presentation={presentation}
       headClassName={cn(
-        !win.maximized && `${OS_WINDOW_DRAG_HANDLE_CLASS} cursor-grab active:cursor-grabbing`
+        !compact &&
+          !win.maximized &&
+          `${OS_WINDOW_DRAG_HANDLE_CLASS} cursor-grab active:cursor-grabbing`
       )}
-      className="relative h-full w-full"
+      className={cn("relative h-full w-full", minimizeTransform !== null && "os-window-minimizing")}
+      style={minimizeTransform !== null ? { transform: minimizeTransform, opacity: 0 } : undefined}
+      // Named region landmark per window: assistive tech can jump between
+      // windows the way sighted users scan the desktop (WCAG landmarks).
+      aria-label={`${app.title} window`}
       data-testid={`os-window-${windowId}`}
       data-app={win.app}
       data-minimized={win.minimized ? "" : undefined}

@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 
 import type { ListingViewMode } from "@agh/ui";
 
-import { useSettingsPage } from "@/hooks/routes/use-settings-page";
+import { useSettingsPage } from "@/systems/settings/hooks/use-settings-page";
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
 import {
   parseSandboxBackendFilter,

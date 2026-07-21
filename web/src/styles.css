@@ -40,3 +40,13 @@
     opacity: 1;
   }
 }
+
+/* Genie minimize (os-v2.css `.win.is-minimizing` verbatim): the window folds
+   into its dock item before the minimize commits. Reduced motion (system OR
+   in-product toggle) skips the class entirely — minimize is instant. */
+.os-window-minimizing {
+  transition:
+    transform 0.3s var(--ease-spring),
+    opacity 0.28s ease;
+  pointer-events: none;
+}

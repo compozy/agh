@@ -1,57 +1,109 @@
-import { ChevronRight, PanelsTopLeft } from "lucide-react";
-
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  Icon,
-  Pill,
-} from "@agh/ui";
+import { Dialog, DialogContent, DialogDescription, DialogTitle, cn } from "@agh/ui";
 
 import type { WorkspacePayload } from "@/systems/workspace";
 
-import type { OsWallpaper, OsWindow } from "../lib/os-types";
+import { useOsReducedMotion } from "../hooks/use-os-reduced-motion";
+import { useSpaceArrangements, type OsSpaceCardModel } from "../hooks/use-space-arrangements";
+import { useDesktop } from "../hooks/use-desktop";
+import type { OsDesktopBounds, OsWallpaper, OsWindow } from "../lib/os-types";
 
 export interface OsSpacesOverviewProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaces: WorkspacePayload[];
   activeWorkspaceId: string | null;
-  activeWallpaper: OsWallpaper;
-  activeWindows: OsWindow[];
   onSelectWorkspace: (workspaceId: string) => void;
 }
 
-function countLabel(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+/** Prototype thumb geometry (os-v2.js `openSpaces`): card-scale factors with viewport floors. */
+const SPACE_CARD_WIDTH = 264;
+const SPACE_THUMB_HEIGHT = 148;
+const THUMB_MIN_DESK_WIDTH = 1000;
+const THUMB_MIN_DESK_HEIGHT = 600;
+const THUMB_MAX_WINDOWS = 4;
+
+const THUMB_WALLPAPER: Record<OsWallpaper, string> = {
+  ember: "var(--wallpaper-thumb-ember)",
+  mesh: "var(--wallpaper-thumb-mesh)",
+  carbon: "var(--wallpaper-thumb-carbon)",
+};
+
+function workspaceMonogram(name: string): string {
+  return name.trim().slice(0, 2).toUpperCase() || "WS";
 }
 
-function describeActiveWindows(windows: OsWindow[]): string {
-  if (windows.length === 0) return "No windows open";
-  const visible = windows.filter(window => !window.minimized).length;
-  const minimized = windows.length - visible;
-  if (minimized === 0) return `${countLabel(visible, "window")} visible`;
-  if (visible === 0) return `${countLabel(minimized, "window")} minimized`;
-  return `${visible} visible · ${minimized} minimized`;
+function countLabel(count: number): string {
+  return `${count} window${count === 1 ? "" : "s"}`;
+}
+
+function cardDetail(card: OsSpaceCardModel | undefined): string {
+  if (!card || card.status === "loading") return "Loading…";
+  if (card.status === "error" || card.arrangement === null) return "Arrangement unavailable";
+  return countLabel(card.arrangement.windows.length);
+}
+
+function SpaceThumb({
+  card,
+  bounds,
+}: {
+  card: OsSpaceCardModel | undefined;
+  bounds: OsDesktopBounds | null;
+}) {
+  const arrangement = card?.arrangement ?? null;
+  const wallpaper = arrangement?.wallpaper ?? "ember";
+  const deskWidth = Math.max(bounds?.width ?? 0, THUMB_MIN_DESK_WIDTH);
+  const deskHeight = Math.max(bounds?.height ?? 0, THUMB_MIN_DESK_HEIGHT);
+  const sx = SPACE_CARD_WIDTH / deskWidth;
+  const sy = SPACE_THUMB_HEIGHT / deskHeight;
+  const minis: OsWindow[] = arrangement ? arrangement.windows.slice(-THUMB_MAX_WINDOWS) : [];
+
+  return (
+    <span
+      data-slot="os-space-thumb"
+      data-wallpaper={wallpaper}
+      aria-hidden="true"
+      className="relative block h-space-thumb w-full overflow-hidden border-b border-line"
+      style={{ backgroundImage: THUMB_WALLPAPER[wallpaper] }}
+    >
+      {minis.map(win => (
+        <span
+          key={win.id}
+          data-slot="os-space-mini-win"
+          className="absolute rounded-xs border border-line-strong bg-line-strong"
+          style={{
+            left: win.rect.x * sx,
+            top: win.rect.y * sy,
+            width: win.rect.w * sx,
+            height: win.rect.h * sy,
+          }}
+        />
+      ))}
+    </span>
+  );
 }
 
 /**
- * Task 04's truthful Spaces seam: real workspaces are switchable now, while
- * only the active workspace exposes arrangement data currently loaded by the
- * desktop store. Task 08 replaces the inactive-state copy with persisted live
- * thumbnails once per-workspace arrangements are available client-side.
+ * The ⇧⌘S Spaces overview (US-010.AC-2): one card per workspace with a
+ * mini-window thumbnail of its arrangement — the active space from the live
+ * store, the rest from persisted desktop state (delta #4: real workspaces).
+ * A desktop-level overlay from the closed set (Modal & Overlay Policy).
  */
 export function OsSpacesOverview({
   open,
   onOpenChange,
   workspaces,
   activeWorkspaceId,
-  activeWallpaper,
-  activeWindows,
   onSelectWorkspace,
 }: OsSpacesOverviewProps) {
+  const desktopBounds = useDesktop(state => state.desktopBounds);
+  const presentation = useDesktop(state => state.presentation);
+  const reducedMotion = useOsReducedMotion();
+  const cards = useSpaceArrangements(
+    workspaces.map(workspace => workspace.id),
+    activeWorkspaceId,
+    { enabled: open }
+  );
+
   const selectWorkspace = (workspaceId: string) => {
     if (workspaceId !== activeWorkspaceId) onSelectWorkspace(workspaceId);
     onOpenChange(false);
@@ -61,67 +113,64 @@ export function OsSpacesOverview({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         unframed
-        className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)] sm:max-w-(--width-modal-md)"
+        showCloseButton={false}
         data-testid="os-spaces-overview"
+        className={cn(
+          "top-0 left-0 h-full w-full max-w-none translate-x-0 translate-y-0 overflow-hidden",
+          "flex flex-col items-center justify-center gap-2 rounded-none bg-transparent",
+          "shadow-none backdrop-blur-shell-scrim"
+        )}
       >
-        <DialogHeader variant="ruled">
-          <DialogTitle>Spaces overview</DialogTitle>
-          <DialogDescription>
-            Switch workspaces. The active space shows its current desktop state.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="overflow-y-auto p-4">
-          <div className="grid gap-2 sm:grid-cols-2">
-            {workspaces.map(workspace => {
-              const active = workspace.id === activeWorkspaceId;
-              const detail = active
-                ? `${describeActiveWindows(activeWindows)} · ${activeWallpaper} wallpaper`
-                : "Select to load this space";
-
-              return (
-                <button
-                  key={workspace.id}
-                  type="button"
-                  data-workspace-id={workspace.id}
-                  data-current={active ? "true" : undefined}
-                  aria-label={`${active ? "Current workspace" : "Switch to"} ${workspace.name}. ${detail}`}
-                  className={[
-                    "group flex min-w-0 items-center gap-3 rounded-lg border px-3 py-3 text-left",
-                    "transition-colors duration-base hover:bg-row-hover",
-                    "focus-visible:shadow-focus-ring focus-visible:outline-none",
-                    active
-                      ? "border-line-focus bg-surface-glaze shadow-highlight"
-                      : "border-line bg-canvas",
-                  ].join(" ")}
-                  onClick={() => selectWorkspace(workspace.id)}
-                >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-md border border-line-strong bg-elevated text-muted">
-                    <Icon as={PanelsTopLeft} size="lg" aria-hidden="true" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate text-small-body font-semibold text-fg-strong">
-                        {workspace.name}
-                      </span>
-                      {active ? (
-                        <Pill tone="neutral" size="xs">
-                          Current
-                        </Pill>
-                      ) : null}
-                    </span>
-                    <span className="mt-0.5 block truncate text-micro text-muted">{detail}</span>
-                  </span>
-                  <Icon
-                    as={ChevronRight}
-                    size="sm"
+        <DialogTitle className="text-compact-h1 font-semibold text-fg-strong">Spaces</DialogTitle>
+        <DialogDescription className="mb-[22px] text-small-body text-muted">
+          Each workspace is a space — windows stay where you left them.
+        </DialogDescription>
+        <div
+          data-slot="os-spaces-row"
+          className={cn(
+            "flex max-w-full justify-center",
+            presentation === "compact"
+              ? "max-h-[64vh] flex-col items-center gap-3 overflow-y-auto px-4 py-1"
+              : "max-h-[70vh] flex-wrap gap-[18px] overflow-y-auto px-6 py-1"
+          )}
+        >
+          {workspaces.map(workspace => {
+            const active = workspace.id === activeWorkspaceId;
+            const card = cards.get(workspace.id);
+            const detail = cardDetail(card);
+            return (
+              <button
+                key={workspace.id}
+                type="button"
+                data-slot="os-space-card"
+                data-workspace-id={workspace.id}
+                data-current={active ? "true" : undefined}
+                aria-label={`${active ? "Current workspace" : "Switch to"} ${workspace.name}. ${detail}`}
+                className={cn(
+                  "w-space-card shrink-0 overflow-hidden rounded-xl border text-left",
+                  "transition-[transform,border-color] duration-shell-fast ease-spring",
+                  "focus-visible:shadow-focus-ring focus-visible:outline-none",
+                  !reducedMotion && "hover:-translate-y-1",
+                  active ? "border-accent" : "border-line-strong bg-canvas-soft"
+                )}
+                onClick={() => selectWorkspace(workspace.id)}
+              >
+                <SpaceThumb card={card} bounds={desktopBounds} />
+                <span data-slot="os-space-foot" className="flex items-center gap-2 px-3 py-2.5">
+                  <span
                     aria-hidden="true"
-                    className="shrink-0 text-subtle transition-colors duration-base group-hover:text-fg"
-                  />
-                </button>
-              );
-            })}
-          </div>
+                    className="grid size-5 shrink-0 place-items-center rounded-xs border border-line-strong bg-elevated font-mono text-[9px] font-semibold text-muted"
+                  >
+                    {workspaceMonogram(workspace.name)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-small-body font-semibold text-fg-strong">
+                    {workspace.name}
+                  </span>
+                  <span className="shrink-0 font-mono text-micro text-subtle">{detail}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>

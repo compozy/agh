@@ -8,10 +8,7 @@ import {
   sessionTranscriptOptions,
   type SessionPayload,
 } from "@/systems/session";
-import {
-  adoptRouteWorkspaceWhenSelectionInvalid,
-  selectRouteWorkspaceForNavigation,
-} from "./-route-preload";
+import { selectRouteWorkspaceForNavigation } from "./-route-preload";
 
 export interface AgentSessionRouteLoaderData {
   workspaceId: string | null;
@@ -20,12 +17,10 @@ export interface AgentSessionRouteLoaderData {
 export async function prefetchAgentSessionRoute({
   queryClient,
   sessionId,
-  returnWorkspaceId,
   preload = false,
 }: {
   queryClient: QueryClient;
   sessionId: string;
-  returnWorkspaceId?: string;
   preload?: boolean;
 }): Promise<AgentSessionRouteLoaderData> {
   const workspaceId = await resolveSessionRouteWorkspace(queryClient, sessionId);
@@ -33,12 +28,12 @@ export async function prefetchAgentSessionRoute({
     return { workspaceId: null };
   }
 
+  // A session navigation always lands in the session's own space: selecting
+  // the owner here starts the workspace-switch cycle, and the shell opens the
+  // window there once the target space hydrates (Routing rule 8, US-016.EC-2).
+  // Hover/viewport preloads must never switch the operator's workspace.
   if (!preload) {
-    if (returnWorkspaceId === workspaceId) {
-      await selectRouteWorkspaceForNavigation(queryClient, workspaceId);
-    } else {
-      await adoptRouteWorkspaceWhenSelectionInvalid(queryClient, workspaceId);
-    }
+    await selectRouteWorkspaceForNavigation(queryClient, workspaceId);
   }
   await Promise.allSettled([
     queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId)),

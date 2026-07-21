@@ -209,4 +209,75 @@ describe("routing coordinator", () => {
     expect(store.getState().focusedId).toBe("app:tasks");
     expect(port.pushes).toHaveLength(0);
   });
+
+  it("Should navigate once to the target space's focus on a plain workspace switch (rule 8)", () => {
+    const store = createDesktopStore();
+    const port = createPort();
+    const coordinator = new RoutingCoordinator(store, port);
+    store.getState().hydrate([]);
+    coordinator.completeHydration();
+    coordinator.userOpen({ app: "tasks" });
+    port.pushes.length = 0;
+
+    coordinator.beginWorkspaceSwitch();
+    store.getState().resetForWorkspace();
+    store.getState().hydrate([
+      windowEntry(
+        makeWindow({ id: "app:vault", app: "vault", location: { pathname: "/vault", search: {} } }),
+        1
+      ),
+      {
+        key: OS_DESKTOP_KEY,
+        value: encodeDesktopPayload({
+          focusedId: "app:vault",
+          railOpen: false,
+          wallpaper: "ember",
+        }),
+        rev: 1,
+        seq: 2,
+        deleted: false,
+        updated_at: "2026-07-20T00:00:00Z",
+      },
+    ]);
+    coordinator.completeHydration();
+
+    expect(port.pushes).toEqual([{ pathname: "/vault", search: {} }]);
+    expect(store.getState().focusedId).toBe("app:vault");
+  });
+
+  it("Should let a deep link reported mid-switch win the target space's focus without a second history write (US-016.EC-2)", () => {
+    const store = createDesktopStore();
+    const port = createPort();
+    const coordinator = new RoutingCoordinator(store, port);
+    store.getState().hydrate([]);
+    coordinator.completeHydration();
+    coordinator.userOpen({ app: "tasks" });
+    port.pushes.length = 0;
+
+    // Selection change flips the cycle synchronously; the chrome's lifecycle
+    // effect begins it again — the second call must not drop the intent.
+    coordinator.beginWorkspaceSwitch();
+    coordinator.reportRouteMatch({ pathname: "/agents/webgen/sessions/s-b", search: {} });
+    coordinator.beginWorkspaceSwitch();
+    store.getState().resetForWorkspace();
+    store.getState().hydrate([
+      windowEntry(
+        makeWindow({
+          id: "app:vault",
+          app: "vault",
+          location: { pathname: "/vault", search: {} },
+        }),
+        1
+      ),
+    ]);
+    coordinator.completeHydration();
+
+    // The session window opens focused in the target space; the link's own
+    // navigation already wrote the history entry — no push from the switch.
+    expect(store.getState().focusedId).toBe("session:s-b");
+    expect(store.getState().windows["session:s-b"]?.location.pathname).toBe(
+      "/agents/webgen/sessions/s-b"
+    );
+    expect(port.pushes).toHaveLength(0);
+  });
 });

@@ -9,7 +9,7 @@ import type { ProviderDraft, SettingsProviderEntry } from "@/systems/settings";
 import { settingsProviderFixtures } from "@/systems/settings/mocks";
 
 import { ProviderInspectorSheet } from "../provider-inspector-sheet";
-import type { ProviderInspectorState } from "@/hooks/routes/use-settings-providers-page";
+import type { ProviderInspectorState } from "@/systems/settings/hooks/use-settings-providers-page";
 
 const claude = settingsProviderFixtures[0]!;
 const openrouter = settingsProviderFixtures.find(entry => entry.name === "openrouter")!;

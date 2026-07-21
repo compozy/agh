@@ -51,10 +51,15 @@ export class RoutingCoordinator {
     this.router = router;
   }
 
-  /** Sync-controllers report every matched location here (cause: route-pop). */
+  /**
+   * Sync-controllers report every matched location here (cause: route-pop).
+   * During hydration the location is held as the final focus intent — on a
+   * workspace switch this is exactly the cross-workspace deep link that must
+   * win over the target space's restored focus (US-016.EC-2).
+   */
   reportRouteMatch(location: OsWindowLocation): void {
     if (this.phase === "hydrating") {
-      if (this.cycle === "boot") this.initialIntent = location;
+      this.initialIntent = location;
       return;
     }
     this.reconcile(location);
@@ -64,7 +69,9 @@ export class RoutingCoordinator {
    * Boot: applies the daemon snapshot's focus truth, then the initial URL as
    * the final focus intent (Routing Model rule 4) — no history write; the URL
    * is trued up by `replace` when a restored focus exists at a neutral URL.
-   * Workspace switch: one push to the new space's focused location (rule 8).
+   * Workspace switch: one push to the new space's focused location (rule 8) —
+   * unless a deep link arrived during the switch, which reconciles instead
+   * (its own navigation already wrote the history entry).
    */
   completeHydration(): void {
     if (this.phase !== "hydrating") return;
@@ -73,6 +80,10 @@ export class RoutingCoordinator {
     this.initialIntent = null;
     if (this.cycle === "workspace-switch") {
       this.cycle = "boot";
+      if (intent && intent.pathname !== "/") {
+        this.reconcile(intent);
+        return;
+      }
       this.navigateToFocusedOrDesktop();
       return;
     }
@@ -130,8 +141,14 @@ export class RoutingCoordinator {
     this.navigateToFocusedOrDesktop();
   }
 
-  /** Workspace switch: rehydration restarts; completeHydration navigates once. */
+  /**
+   * Workspace switch: rehydration restarts; completeHydration navigates once.
+   * Idempotent — the chrome flips this synchronously on selection change and
+   * again from its lifecycle effect; the second call must not drop a deep-link
+   * intent recorded in between.
+   */
   beginWorkspaceSwitch(): void {
+    if (this.phase === "hydrating" && this.cycle === "workspace-switch") return;
     this.phase = "hydrating";
     this.cycle = "workspace-switch";
     this.initialIntent = null;

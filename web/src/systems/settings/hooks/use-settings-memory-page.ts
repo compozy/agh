@@ -1,27 +1,30 @@
 import { useState, type SetStateAction } from "react";
 
-import { useSettingsPage } from "@/hooks/routes/use-settings-page";
+import { useSettingsPage } from "./use-settings-page";
+import { useTriggerMemoryDream } from "@/systems/knowledge";
 import {
   SettingsApiError,
-  useSettingsNetwork,
-  useUpdateSettingsNetwork,
-  type SettingsNetworkSection,
-  type SettingsUpdateNetworkRequest,
+  useSettingsMemory,
+  useUpdateSettingsMemory,
+  type SettingsMemorySection,
+  type SettingsUpdateMemoryRequest,
 } from "@/systems/settings";
 
-type NetworkConfig = SettingsNetworkSection["config"];
+type MemoryConfig = SettingsMemorySection["config"];
 
-export function useSettingsNetworkPage() {
-  const query = useSettingsNetwork();
-  const mutation = useUpdateSettingsNetwork();
-  const page = useSettingsPage({ currentSlug: "network" });
+export function useSettingsMemoryPage() {
+  const query = useSettingsMemory();
+  const mutation = useUpdateSettingsMemory();
+  const triggerDream = useTriggerMemoryDream();
+  const page = useSettingsPage({ currentSlug: "memory" });
 
   const envelope = query.data ?? null;
 
-  const [draftOverride, setDraftOverride] = useState<NetworkConfig | null>();
+  const [draftOverride, setDraftOverride] = useState<MemoryConfig | null>();
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const draft = draftOverride === undefined ? (envelope?.config ?? null) : draftOverride;
-  const setDraft = (update: SetStateAction<NetworkConfig | null>) => {
+  const setDraft = (update: SetStateAction<MemoryConfig | null>) => {
     setDraftOverride(current => {
       const resolved = current === undefined ? (envelope?.config ?? null) : current;
       return typeof update === "function" ? update(resolved) : update;
@@ -39,7 +42,7 @@ export function useSettingsNetworkPage() {
 
   const handleSave = () => {
     if (!draft) return;
-    const body: SettingsUpdateNetworkRequest = { config: draft };
+    const body: SettingsUpdateMemoryRequest = { config: draft };
     mutation.mutate(body, {
       onSuccess: result => {
         setLastAppliedLabel(
@@ -49,6 +52,25 @@ export function useSettingsNetworkPage() {
         );
       },
     });
+  };
+
+  const handleTriggerDream = () => {
+    setActionMessage(null);
+    triggerDream.mutate(
+      {},
+      {
+        onSuccess: response => {
+          setActionMessage(
+            response.triggered ? "Dream triggered" : response.reason || "Dream not triggered"
+          );
+        },
+        onError: error => {
+          setActionMessage(
+            error instanceof Error ? error.message : "Failed to trigger memory dream"
+          );
+        },
+      }
+    );
   };
 
   const saveError =
@@ -75,6 +97,9 @@ export function useSettingsNetworkPage() {
     saveError,
     warnings: mutation.data?.warnings,
     lastAppliedLabel,
+    handleTriggerDream,
+    isTriggeringDream: triggerDream.isPending,
+    actionMessage,
     handleRetry,
     restart: page.restart,
   };

@@ -27,6 +27,11 @@ export interface OsWindowFrameProps extends Omit<React.ComponentProps<"section">
   onTrafficLight?: (action: OsTrafficLightAction) => void;
   /** Extra classes on the head `Topbar` (the WM's drag-handle hook). */
   headClassName?: string;
+  /**
+   * Compact (<960px, os-v2.css mobile block): full-bleed stack surface — no
+   * border/radius/cast shadow, zoom hidden, enlarged control hit areas.
+   */
+  presentation?: "floating" | "compact";
 }
 
 function OsWindowToolbar() {
@@ -72,19 +77,29 @@ export function OsWindowFrame({
   focused = true,
   onTrafficLight,
   headClassName,
+  presentation = "floating",
   className,
   children,
   ...props
 }: OsWindowFrameProps) {
   const [scrolled, setScrolled] = React.useState(false);
+  const compact = presentation === "compact";
 
   return (
     <section
       data-slot="os-window-frame"
       data-focused={focused ? "" : undefined}
+      data-presentation={compact ? "compact" : undefined}
       className={cn(
-        "flex min-h-0 flex-col overflow-hidden rounded-window border bg-canvas",
-        focused ? "border-line-focus shadow-window" : "border-line-strong shadow-window-unfocused",
+        "flex min-h-0 flex-col overflow-hidden bg-canvas",
+        compact
+          ? "rounded-none border-0 shadow-none"
+          : [
+              "rounded-window border",
+              focused
+                ? "border-line-focus shadow-window"
+                : "border-line-strong shadow-window-unfocused",
+            ],
         className
       )}
       {...props}
@@ -93,7 +108,7 @@ export function OsWindowFrame({
         <Topbar
           data-slot="os-window-head"
           data-scrolled={scrolled ? "" : undefined}
-          leading={<OsTrafficLights onSelect={onTrafficLight} />}
+          leading={<OsTrafficLights onSelect={onTrafficLight} compact={compact} />}
           title={title}
           glyph={glyph}
           className={cn(

@@ -99,11 +99,6 @@ export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 export { sessionKeys } from "./lib/query-keys";
 export {
-  createSessionReturnHistoryState,
-  sessionReturnWorkspaceIdFromState,
-  type SessionReturnNavigationState,
-} from "./lib/session-return-navigation";
-export {
   sessionByIdOptions,
   sessionClarificationsOptions,
   sessionDetailOptions,

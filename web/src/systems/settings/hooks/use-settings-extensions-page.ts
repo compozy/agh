@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { useSettingsPage } from "@/hooks/routes/use-settings-page";
+import { useSettingsPage } from "./use-settings-page";
 import {
   SettingsApiError,
   useSettingsHooksExtensions,

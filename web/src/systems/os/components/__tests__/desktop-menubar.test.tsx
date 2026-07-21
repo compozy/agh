@@ -122,7 +122,7 @@ describe("DesktopMenubar overlay coordination", () => {
     const user = userEvent.setup();
     renderHarness();
 
-    await user.click(screen.getByRole("button", { name: "Approvals" }));
+    await user.click(screen.getByRole("button", { name: /^Approvals/ }));
     expect(screen.getByTestId("os-bell-popover")).toBeInTheDocument();
 
     fireEvent.keyDown(document.body, { key: "k", metaKey: true });
@@ -157,6 +157,18 @@ describe("DesktopMenubar overlay coordination", () => {
     expect(shortcuts).toHaveTextContent("⇧⌘S");
   });
 
+  it("Should open the settings window at the Appearance pane from View (US-019.AC-2)", async () => {
+    const user = userEvent.setup();
+    const shell = renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "View" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Appearance/ }));
+
+    const settings = shell.store.getState().windows["app:settings"];
+    expect(settings?.location.pathname).toBe("/settings/appearance");
+    expect(shell.store.getState().focusedId).toBe("app:settings");
+  });
+
   it("Should focus the owning session or task window without deciding inline (UT-083)", async () => {
     const user = userEvent.setup();
     const shell = renderHarness({
@@ -178,14 +190,14 @@ describe("DesktopMenubar overlay coordination", () => {
       ],
     });
 
-    await user.click(screen.getByRole("button", { name: "Approvals" }));
+    await user.click(screen.getByRole("button", { name: /^Approvals/ }));
     await user.click(screen.getByTestId("os-attention-session-session-1"));
     expect(shell.store.getState().focusedId).toBe("session:session-1");
     expect(shell.store.getState().windows["session:session-1"].location.pathname).toBe(
       "/agents/codex/sessions/session-1"
     );
 
-    await user.click(screen.getByRole("button", { name: "Approvals" }));
+    await user.click(screen.getByRole("button", { name: /^Approvals/ }));
     await user.click(screen.getByTestId("os-attention-task-task-1"));
     expect(shell.store.getState().focusedId).toBe("app:tasks");
     expect(shell.store.getState().windows["app:tasks"].location.pathname).toBe("/tasks/task-1");
@@ -200,7 +212,7 @@ describe("DesktopMenubar overlay coordination", () => {
       </OsShellContext.Provider>
     );
 
-    await user.click(screen.getByRole("button", { name: "Approvals" }));
+    await user.click(screen.getByRole("button", { name: /^Approvals/ }));
     expect(screen.getByTestId("os-bell-empty")).toHaveTextContent("Nothing waiting");
     unmount();
 
@@ -215,7 +227,7 @@ describe("DesktopMenubar overlay coordination", () => {
         />
       </OsShellContext.Provider>
     );
-    await user.click(screen.getByRole("button", { name: "Approvals" }));
+    await user.click(screen.getByRole("button", { name: /^Approvals/ }));
     expect(screen.getByTestId("os-bell-disconnected")).toHaveTextContent(
       "Session and task attention are unavailable."
     );

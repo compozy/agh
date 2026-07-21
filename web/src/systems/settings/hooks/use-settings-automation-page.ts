@@ -1,30 +1,27 @@
 import { useState, type SetStateAction } from "react";
 
-import { useSettingsPage } from "@/hooks/routes/use-settings-page";
-import { useTriggerMemoryDream } from "@/systems/knowledge";
+import { useSettingsPage } from "./use-settings-page";
 import {
   SettingsApiError,
-  useSettingsMemory,
-  useUpdateSettingsMemory,
-  type SettingsMemorySection,
-  type SettingsUpdateMemoryRequest,
+  useSettingsAutomation,
+  useUpdateSettingsAutomation,
+  type SettingsAutomationSection,
+  type SettingsUpdateAutomationRequest,
 } from "@/systems/settings";
 
-type MemoryConfig = SettingsMemorySection["config"];
+type AutomationConfig = SettingsAutomationSection["config"];
 
-export function useSettingsMemoryPage() {
-  const query = useSettingsMemory();
-  const mutation = useUpdateSettingsMemory();
-  const triggerDream = useTriggerMemoryDream();
-  const page = useSettingsPage({ currentSlug: "memory" });
+export function useSettingsAutomationPage() {
+  const query = useSettingsAutomation();
+  const mutation = useUpdateSettingsAutomation();
+  const page = useSettingsPage({ currentSlug: "automation" });
 
   const envelope = query.data ?? null;
 
-  const [draftOverride, setDraftOverride] = useState<MemoryConfig | null>();
+  const [draftOverride, setDraftOverride] = useState<AutomationConfig | null>();
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const draft = draftOverride === undefined ? (envelope?.config ?? null) : draftOverride;
-  const setDraft = (update: SetStateAction<MemoryConfig | null>) => {
+  const setDraft = (update: SetStateAction<AutomationConfig | null>) => {
     setDraftOverride(current => {
       const resolved = current === undefined ? (envelope?.config ?? null) : current;
       return typeof update === "function" ? update(resolved) : update;
@@ -42,7 +39,7 @@ export function useSettingsMemoryPage() {
 
   const handleSave = () => {
     if (!draft) return;
-    const body: SettingsUpdateMemoryRequest = { config: draft };
+    const body: SettingsUpdateAutomationRequest = { config: draft };
     mutation.mutate(body, {
       onSuccess: result => {
         setLastAppliedLabel(
@@ -52,25 +49,6 @@ export function useSettingsMemoryPage() {
         );
       },
     });
-  };
-
-  const handleTriggerDream = () => {
-    setActionMessage(null);
-    triggerDream.mutate(
-      {},
-      {
-        onSuccess: response => {
-          setActionMessage(
-            response.triggered ? "Dream triggered" : response.reason || "Dream not triggered"
-          );
-        },
-        onError: error => {
-          setActionMessage(
-            error instanceof Error ? error.message : "Failed to trigger memory dream"
-          );
-        },
-      }
-    );
   };
 
   const saveError =
@@ -97,9 +75,6 @@ export function useSettingsMemoryPage() {
     saveError,
     warnings: mutation.data?.warnings,
     lastAppliedLabel,
-    handleTriggerDream,
-    isTriggeringDream: triggerDream.isPending,
-    actionMessage,
     handleRetry,
     restart: page.restart,
   };

@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useStore } from "zustand";
 
+import { useActiveWorkspaceStore } from "@/systems/workspace";
+
 import type { OsShellHandle } from "../contexts/os-shell-context";
 import { createDesktopPersistence } from "../lib/desktop-persistence";
 import { OsStateClient, type OsSocket } from "../lib/os-state-client";
@@ -73,8 +75,24 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
 
   const previousWorkspaceRef = useRef<string | null>(null);
 
+  // A workspace-selection change flips the coordinator into its switch cycle
+  // SYNCHRONOUSLY — before the router can commit a cross-workspace deep link.
+  // A route match landing between the selection change and the lifecycle
+  // effect below is then held as the switch's focus intent instead of being
+  // reconciled into the outgoing space's store (US-016.EC-2, no leak).
+  useEffect(() => {
+    return useActiveWorkspaceStore.subscribe(state => {
+      const next = state.selectedWorkspaceId;
+      const current = previousWorkspaceRef.current;
+      if (current !== null && next !== null && next !== current) {
+        shell.coordinator.beginWorkspaceSwitch();
+      }
+    });
+  }, [shell]);
+
   // Desktop-state client lifecycle: one client per active workspace; a switch
-  // tears the old one down, resets the desktop, and rehydrates (rule 8).
+  // tears the old one down (flushing the outgoing space's pending writes as
+  // one batch), resets the desktop, and rehydrates (rule 8).
   useEffect(() => {
     if (activeWorkspaceId === null) return;
     if (

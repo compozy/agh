@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { AlertCircle, ExternalLink } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 
-import { useSettingsAutomationPage } from "@/hooks/routes/use-settings-automation-page";
+import { useSettingsAutomationPage } from "@/systems/settings/hooks/use-settings-automation-page";
 import {
   restartBannerPropsFor,
   SettingsFieldRow,

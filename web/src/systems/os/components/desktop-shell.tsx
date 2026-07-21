@@ -127,14 +127,13 @@ function DesktopShellBody({
       <OsCommandPalette
         open={overlays.activeOverlay === "palette"}
         onOpenChange={open => overlays.setOverlayOpen("palette", open)}
+        onOpenSpaces={() => overlays.setOverlayOpen("spaces", true)}
       />
       <OsSpacesOverview
         open={overlays.activeOverlay === "spaces"}
         onOpenChange={open => overlays.setOverlayOpen("spaces", open)}
         workspaces={model.workspaces}
         activeWorkspaceId={model.activeWorkspaceId}
-        activeWallpaper={wallpaper}
-        activeWindows={Object.values(windows)}
         onSelectWorkspace={model.setActiveWorkspaceId}
       />
       <WorkspaceSetupDialog

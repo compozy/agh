@@ -183,4 +183,42 @@ describe("OsCommandPalette", () => {
       expect(screen.queryByTestId("os-palette-snap-left")).toBeNull();
     });
   });
+
+  it("Should keep close/minimize palette-reachable everywhere and drop zoom in compact (US-003.AC-4, US-019.EC-3)", async () => {
+    const user = userEvent.setup();
+    const { store, shell } = createHarness();
+    store.getState().openOrFocus({ app: "tasks" });
+
+    const { rerender } = render(
+      <OsShellContext.Provider value={shell}>
+        <OsCommandPalette open onOpenChange={() => {}} />
+      </OsShellContext.Provider>
+    );
+
+    // Floating: the full lifecycle set is listed for the focused window.
+    expect(await screen.findByTestId("os-palette-close-window")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-minimize-window")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-zoom-window")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-spaces-overview")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-appearance")).toBeInTheDocument();
+
+    // Compact: zoom disappears (meaningless in a stack); close/minimize stay.
+    store.getState().setPresentation("compact");
+    rerender(
+      <OsShellContext.Provider value={shell}>
+        <OsCommandPalette open onOpenChange={() => {}} />
+      </OsShellContext.Provider>
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId("os-palette-zoom-window")).toBeNull();
+    });
+    expect(screen.getByTestId("os-palette-close-window")).toBeInTheDocument();
+
+    await user.type(
+      screen.getByPlaceholderText("Search apps, sessions, actions…"),
+      "minimize window"
+    );
+    await user.keyboard("{Enter}");
+    expect(store.getState().windows["app:tasks"].minimized).toBe(true);
+  });
 });

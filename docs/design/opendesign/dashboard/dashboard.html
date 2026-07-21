@@ -49,16 +49,36 @@
   svg{display:block}
   .hide{display:none!important}
   code,.mono{-webkit-font-smoothing:subpixel-antialiased;font-feature-settings:normal}
-  :is(.btn,.act,.pill-group__item,.att__row,.kpi,.sysbar,.runcard,.agrow,.breadcrumb__link,.evmore):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  :is(.btn,.act,.pill-group__item,.att__row,.kpi,.sysbar,.runcard,.agrow,.evmore):focus-visible{outline:none;box-shadow:var(--focus-ring)}
 
-  /* ============ shell + topbar (design-system.html contract: 3-zone, 48px) ============ */
+  /* ============ shell ============ */
   .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
-  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;
-    min-height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas);min-width:0}
-  .topbar__trailing{display:flex;align-items:center;justify-content:flex-end;gap:10px;justify-self:end;min-width:0}
-  .breadcrumb__list{display:flex;align-items:center;gap:6px;list-style:none;white-space:nowrap;color:var(--muted)}
-  .breadcrumb__page{display:inline-flex;align-items:center;border-radius:var(--radius-sm);padding:2px 6px;
-    font-size:13px;line-height:18px;color:var(--fg-strong)}
+
+  /* ============ unified head v2 (os/pagehead-redesign.html contract: 44px, root variant) ============ */
+  .w2head{flex:none;min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-id{display:flex;align-items:center;gap:8px;min-width:0}
+  .w2-glyph{width:22px;height:22px;flex:none;border-radius:var(--radius);display:grid;place-items:center;
+    background:var(--badge-fill);border:1px solid var(--line);color:var(--muted)}
+  .w2-glyph svg{width:13px;height:13px}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-status[data-tone="ok"]{color:var(--success)}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
   .livebadge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--success)}
   .livebadge .d{width:6px;height:6px;border-radius:50%;background:currentColor}
   .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
@@ -81,14 +101,10 @@
   .scroll{flex:1;min-height:0;overflow-y:auto}
   .page{max-width:1240px;margin:0 auto;padding:24px 36px 80px}
 
-  /* ============ page head ============ */
-  .head{display:flex;align-items:flex-start;gap:12px;margin-bottom:20px;min-width:0}
-  .head__icon{display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;
-    border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent);margin-top:2px}
-  .head__icon svg{width:12px;height:12px}
-  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25}
-  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:5px;font-size:12px;color:var(--subtle)}
-  .head__meta b{font-weight:500;color:var(--muted)}
+  /* ============ pagemeta (demoted page-head meta, 12px subtle line) ============ */
+  .pagemeta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:18px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .pagemeta b{font-weight:500;color:var(--muted)}
   .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
 
   /* ============ sections + panels ============ */
@@ -284,7 +300,7 @@
   @media (max-width:520px){
     .kpis{grid-template-columns:1fr}
     .tiles{grid-template-columns:1fr}
-    .topbar__trailing .livebadge{display:none}
+    .w2-status{display:none}
   }
 
   /* ============ reduced motion ============ */
@@ -297,19 +313,19 @@
 <body>
 <div class="main">
 
-  <!-- ================= topbar ================= -->
-  <header class="topbar" data-od-id="home-topbar">
-    <div>
-      <nav class="breadcrumb" aria-label="Breadcrumb">
-        <ol class="breadcrumb__list">
-          <li><span class="breadcrumb__page" aria-current="page">Home</span></li>
-        </ol>
-      </nav>
+  <!-- ================= unified head v2 ================= -->
+  <header class="w2head" data-od-id="home-head">
+    <div class="w2-id">
+      <span class="w2-glyph" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+      </span>
+      <span class="w2-title">Home</span>
     </div>
-    <div></div>
-    <div class="topbar__trailing">
-      <span class="livebadge" title="Streaming updates from the daemon"><span class="d dot--pulse" aria-hidden="true"></span>Live</span>
-      <button class="btn" type="button" data-od-id="home-new-session">
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="ok" title="Streaming updates from the daemon"><span class="dot dot--pulse" aria-hidden="true"></span>Live</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn btn--primary" type="button" data-od-id="home-new-session">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
         New session
       </button>
@@ -319,19 +335,11 @@
   <div class="scroll">
     <div class="page">
 
-      <!-- ================= page head ================= -->
-      <header class="head" data-od-id="home-head">
-        <span class="head__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
-        </span>
-        <div>
-          <h1 class="head__title">Home</h1>
-          <div class="head__meta">
-            <span>Thursday, Jul 17</span><span class="dotsep"></span>
-            <span>workspace <b>launch-hq</b></span>
-          </div>
-        </div>
-      </header>
+      <!-- ================= pagemeta (demoted page-head meta) ================= -->
+      <div class="pagemeta">
+        <span>Thursday, Jul 17</span><span class="dotsep"></span>
+        <span>workspace <b>launch-hq</b></span>
+      </div>
 
       <!-- ================= zone 1 · needs you ================= -->
       <section class="section" data-od-id="section-needs-you">
