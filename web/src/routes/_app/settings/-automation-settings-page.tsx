@@ -7,16 +7,16 @@ import {
   SettingsAdvancedFold,
   SettingsFieldRow,
   SettingsGroup,
+  SettingsHeroBoard,
   SettingsNumberInput,
   SettingsPageFrame,
+  SettingsProvChip,
   SettingsSaveBar,
   useSettingsSaveBarState,
   useSettingsTopbar,
-  SettingsTile,
-  SettingsTiles,
   type SettingsAutomationSection,
 } from "@/systems/settings";
-import { Button, Eyebrow, Input, Spinner, Switch } from "@agh/ui";
+import { Button, Eyebrow, Input, Spinner, Switch, Time } from "@agh/ui";
 
 type AutomationConfig = SettingsAutomationSection["config"];
 type AutomationRuntime = SettingsAutomationSection["runtime"];
@@ -111,10 +111,14 @@ export function AutomationSettingsPage() {
       slug="automation"
     >
       {!runtime.available ? <AutomationRuntimeUnavailable runtime={runtime} /> : null}
+      <AutomationHero runtime={runtime} />
       <EngineSection draft={draft} setDraft={setDraft} />
-      <OperationalLinksSection />
-      <ManagerSummarySection runtime={runtime} />
-      <SettingsAdvancedFold data-testid="settings-page-automation-advanced" padded>
+      <ManageSection runtime={runtime} />
+      <SettingsAdvancedFold
+        data-testid="settings-page-automation-advanced"
+        label="Advanced — limits"
+        padded
+      >
         <LimitsSection
           draft={draft}
           setDraft={setDraft}
@@ -152,65 +156,66 @@ function AutomationRuntimeUnavailable({ runtime }: { runtime: AutomationRuntime 
   );
 }
 
-function OperationalLinksSection() {
+function AutomationHero({ runtime }: { runtime: AutomationRuntime }) {
+  const running = runtime.running;
+  return (
+    <SettingsHeroBoard
+      data-testid="settings-page-automation-hero"
+      state={running ? "Automation running" : "Automation stopped"}
+      tone={running ? "success" : "neutral"}
+      pulse={running}
+      pill={running ? "Running" : "Stopped"}
+      sub={
+        runtime.next_fire ? (
+          <span>
+            next fire <Time iso={runtime.next_fire} mode="relative" />
+          </span>
+        ) : undefined
+      }
+      stats={[
+        {
+          key: "jobs",
+          value: `${runtime.job_enabled}/${runtime.job_total}`,
+          label: "Jobs enabled",
+        },
+        {
+          key: "triggers",
+          value: `${runtime.trigger_enabled}/${runtime.trigger_total}`,
+          label: "Triggers enabled",
+        },
+        {
+          key: "synced",
+          value: runtime.last_synced_at ? (
+            <Time iso={runtime.last_synced_at} mode="relative" />
+          ) : (
+            "—"
+          ),
+          label: "Last synced",
+        },
+      ]}
+    />
+  );
+}
+
+function ManageSection({ runtime }: { runtime: AutomationRuntime }) {
   return (
     <SettingsGroup
       data-testid="settings-page-automation-operational-links"
       description="Jobs and triggers live in their own views; this page owns the engine itself."
-      title="Operational"
+      title="Manage"
     >
       <SettingLinkRow
         data-testid="settings-page-automation-link-jobs"
-        description="Scheduled work with run history."
-        label="Open Jobs"
+        description={`${runtime.job_total} defined, ${runtime.job_enabled} enabled`}
+        label="Jobs"
         to="/jobs"
       />
       <SettingLinkRow
         data-testid="settings-page-automation-link-triggers"
-        description="Event rules that start work when something happens."
-        label="Open Triggers"
+        description={`${runtime.trigger_total} defined, ${runtime.trigger_enabled} enabled`}
+        label="Triggers"
         to="/triggers"
       />
-    </SettingsGroup>
-  );
-}
-
-function ManagerSummarySection({ runtime }: { runtime: AutomationRuntime }) {
-  const nextFire = runtime.next_fire ? new Date(runtime.next_fire).toLocaleString() : "—";
-  const lastSynced = runtime.last_synced_at
-    ? new Date(runtime.last_synced_at).toLocaleString()
-    : "—";
-
-  return (
-    <SettingsGroup
-      bare
-      description="What the engine is doing right now. Read-only."
-      title="Manager"
-    >
-      <SettingsTiles>
-        <SettingsTile
-          data-testid="settings-page-automation-runtime-engine"
-          dotTone={runtime.running ? "success" : "neutral"}
-          label="Engine"
-          value={runtime.running ? "Running" : "Stopped"}
-        />
-        <SettingsTile
-          data-testid="settings-page-automation-runtime-scheduler"
-          dotTone={runtime.scheduler_running ? "success" : "neutral"}
-          label="Scheduler"
-          value={runtime.scheduler_running ? "Running" : "Stopped"}
-        />
-        <SettingsTile
-          data-testid="settings-page-automation-runtime-next-fire"
-          label="Next fire"
-          value={nextFire}
-        />
-        <SettingsTile
-          data-testid="settings-page-automation-runtime-last-synced"
-          label="Last synced"
-          value={lastSynced}
-        />
-      </SettingsTiles>
     </SettingsGroup>
   );
 }
@@ -225,7 +230,7 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
     <SettingsGroup title="Engine" description="persisted to config.toml">
       <SettingsFieldRow
         data-testid="settings-page-automation-enabled"
-        label="Automation engine"
+        label="Run automation"
         description="Runs jobs and triggers on the daemon"
         control={
           <Switch
@@ -242,7 +247,7 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
       />
       <SettingsFieldRow
         data-testid="settings-page-automation-timezone"
-        label="Timezone"
+        label="Schedule timezone"
         description="Used for cron schedule resolution"
         control={
           <Input
@@ -276,8 +281,13 @@ function LimitsSection({
     <SettingsGroup title="Limits" description="resource caps">
       <SettingsFieldRow
         data-testid="settings-page-automation-max-concurrent"
-        label="Max concurrent jobs"
-        description="Caps the number of jobs running simultaneously"
+        label="Max jobs at once"
+        description={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            Caps the number of jobs running simultaneously
+            <SettingsProvChip>automation.max_concurrent_jobs</SettingsProvChip>
+          </span>
+        }
         error={validationErrors.maxConcurrentJobs ?? undefined}
         control={
           <SettingsNumberInput
@@ -301,7 +311,12 @@ function LimitsSection({
       <SettingsFieldRow
         data-testid="settings-page-automation-fire-limit-max"
         label="Default fire limit"
-        description="Maximum invocations per window for new triggers"
+        description={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            Maximum invocations per window for new triggers
+            <SettingsProvChip>automation.default_fire_limit</SettingsProvChip>
+          </span>
+        }
         error={validationErrors.defaultFireLimitMax ?? undefined}
         control={
           <div className="flex items-center gap-2">

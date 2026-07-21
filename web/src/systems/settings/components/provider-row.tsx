@@ -11,14 +11,23 @@ interface ProviderRowProps {
   onOpen: (entry: SettingsProviderEntry) => void;
 }
 
+/**
+ * Provider listing row on the prototype's dedicated 5-column grid: identity,
+ * status, model count, and the drill-in chevron each own a column instead of
+ * packing into one trailing cluster.
+ */
 export function ProviderRow({ provider, onOpen }: ProviderRowProps) {
   const view = providerListingView(provider);
   const testId = `settings-page-providers-row-${provider.name}`;
 
   return (
-    <ListingRow data-state={view.state.label}>
+    <ListingRow
+      className="grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_14px] gap-3.5 py-[11px]"
+      data-state={view.state.label}
+    >
       <ListingRow.Link
         aria-label={`Open ${view.displayName}`}
+        className="col-span-1"
         data-testid={testId}
         onClick={() => onOpen(provider)}
         render={<button type="button" />}
@@ -31,34 +40,34 @@ export function ProviderRow({ provider, onOpen }: ProviderRowProps) {
             <ListingRow.Title>{view.displayName}</ListingRow.Title>
             {provider.default ? <Pill tone="accent">Default</Pill> : null}
           </ListingRow.Name>
-          <ListingRow.Description className="font-mono text-eyebrow">
+          <span className="mt-1 block truncate text-left font-mono text-eyebrow text-subtle">
             {view.command}
-          </ListingRow.Description>
+          </span>
         </ListingRow.Main>
       </ListingRow.Link>
-      <ListingRow.Trail>
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 text-form-label font-medium",
-            view.status.tone === "success"
-              ? "text-success"
-              : view.status.tone === "danger"
-                ? "text-danger"
-                : view.status.tone === "info"
-                  ? "text-info"
-                  : "text-warning"
-          )}
-          data-testid={`${testId}-status`}
-        >
-          <Pill.Dot tone={view.status.tone} />
-          {view.status.label}
-        </span>
-        <ListingRow.Stat className="hidden sm:flex">
-          <ListingRow.Stat.Value>{view.modelCount || "—"}</ListingRow.Stat.Value>
-          <ListingRow.Stat.Label>models</ListingRow.Stat.Label>
-        </ListingRow.Stat>
-        <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />
-      </ListingRow.Trail>
+      <span
+        className={cn(
+          "inline-flex min-w-0 items-center gap-1.5 justify-self-start truncate text-form-label font-medium",
+          view.status.tone === "success"
+            ? "text-success"
+            : view.status.tone === "danger"
+              ? "text-danger"
+              : view.status.tone === "info"
+                ? "text-info"
+                : "text-warning"
+        )}
+        data-testid={`${testId}-status`}
+      >
+        <Pill.Dot tone={view.status.tone} />
+        {view.status.label}
+      </span>
+      <span
+        className="hidden justify-self-end font-mono text-mono-id tabular-nums whitespace-nowrap text-subtle sm:inline"
+        data-testid={`${testId}-models`}
+      >
+        {view.modelCount || "—"} models
+      </span>
+      <ChevronRight aria-hidden="true" className="size-3.5 justify-self-end text-faint" />
     </ListingRow>
   );
 }

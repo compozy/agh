@@ -6,6 +6,8 @@ import { Composer } from "./composer";
 export interface ChannelThreadComposerProps {
   workspaceId: string;
   channel: string;
+  /** The channel's fanout policy, named in the delivery hint when known. */
+  fanoutPolicy?: string | null;
   /** The session id used by the operator to author messages in this channel. */
   sessionId: string;
   /** The local peer id (used for the optimistic root message). */
@@ -18,6 +20,7 @@ export interface ChannelThreadComposerProps {
 export function ChannelThreadComposer({
   workspaceId,
   channel,
+  fanoutPolicy,
   sessionId,
   peerFrom,
   displayName,
@@ -62,6 +65,11 @@ export function ChannelThreadComposer({
     <Composer
       disabled={disabled}
       disabledReason={disabledReason}
+      hint={
+        fanoutPolicy
+          ? `Delivered per channel fanout — ${fanoutPolicy}.`
+          : "Delivered per channel fanout."
+      }
       isSending={isCreating}
       onSubmit={handleSubmit}
       placeholder="Start a new thread..."

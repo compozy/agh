@@ -18,7 +18,7 @@ import {
 } from "@/systems/settings/hooks/use-settings-providers-page";
 import {
   ProviderCard,
-  ProviderInspectorSheet,
+  ProviderDetailDialog,
   ProviderRow,
   ProvidersToolbar,
   SettingsPageFrame,
@@ -161,7 +161,7 @@ export function ProvidersSettingsPage() {
         </>
       )}
 
-      <ProviderInspectorSheet
+      <ProviderDetailDialog
         open={inspectorOpen}
         mode={page.inspector.mode === "closed" ? "inspect" : page.inspector.mode}
         entry={inspectorEntry}

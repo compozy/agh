@@ -1,118 +1,100 @@
-import { Activity, ListTodo, Users, X, type LucideIcon } from "lucide-react";
-
-import { Button, Eyebrow, Tabs, TabsList, TabsTrigger } from "@agh/ui";
+import {
+  Eyebrow,
+  MetadataListRoot,
+  MetadataListRow,
+  MetadataListTerm,
+  MetadataListValue,
+  PillGroup,
+  Time,
+} from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
 import type { ChannelMember } from "../../hooks/use-channel-members";
 import type { InspectorTab } from "../../hooks/use-inspector-state";
 import type { OpenWorkEntry } from "../../hooks/use-work";
-import type { NetworkDirectRoomSummary, NetworkThreadSummary } from "../../types";
+import type { NetworkChannelSummary } from "../../types";
 import { WorkInspector } from "../work/work-inspector";
-import { InspectorActivityFeed } from "./inspector-activity-feed";
 import { InspectorMembersList } from "./inspector-members-list";
 
 export interface NetworkInspectorProps {
-  channel: string;
+  channel: NetworkChannelSummary;
   activeTab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
-  onClose: () => void;
   members: ReadonlyArray<ChannelMember>;
   isMembersLoading: boolean;
   workEntries: ReadonlyArray<OpenWorkEntry>;
   isWorkLoading: boolean;
   workCount: number;
   onWorkJump?: (entry: OpenWorkEntry) => void;
-  threads: ReadonlyArray<NetworkThreadSummary>;
-  directs: ReadonlyArray<NetworkDirectRoomSummary>;
-  isActivityLoading: boolean;
   className?: string;
 }
 
-interface TabDescriptor {
-  id: InspectorTab;
-  label: string;
-  icon: LucideIcon;
-  count?: number;
-  testId: string;
-}
-
-interface NetworkInspectorTabsProps {
-  activeTab: InspectorTab;
-  onTabChange: (tab: InspectorTab) => void;
-  workCount: number;
-}
-
-function NetworkInspectorTabs({ activeTab, onTabChange, workCount }: NetworkInspectorTabsProps) {
-  const tabs: TabDescriptor[] = [
-    {
-      id: "members",
-      label: "Members",
-      icon: Users,
-      testId: "network-inspector-tab-members",
-    },
-    {
-      id: "work",
-      label: "Work",
-      icon: ListTodo,
-      count: workCount,
-      testId: "network-inspector-tab-work",
-    },
-    {
-      id: "activity",
-      label: "Activity",
-      icon: Activity,
-      testId: "network-inspector-tab-activity",
-    },
-  ];
+/** Channel About block pinned above the inspector tabs: purpose + fixed KV rows. */
+function InspectorAbout({ channel }: { channel: NetworkChannelSummary }) {
+  const purpose = channel.purpose?.trim() || null;
 
   return (
-    <Tabs
-      aria-label="Inspector sections"
-      className="gap-0 border-b border-line"
-      data-testid="network-inspector-tabs"
-      onValueChange={value => {
-        if (value === "members" || value === "work" || value === "activity") {
-          onTabChange(value);
-        }
-      }}
-      value={activeTab}
-    >
-      <TabsList className="w-full bg-transparent p-0">
-        {tabs.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <TabsTrigger
-              className="flex-1 gap-1.5 px-3 group-data-horizontal/tabs:after:bottom-0"
-              count={tab.count && tab.count > 0 ? tab.count : undefined}
-              data-testid={tab.testId}
-              key={tab.id}
-              value={tab.id}
-            >
-              <Icon aria-hidden="true" className="size-3 shrink-0" />
-              <span>{tab.label}</span>
-            </TabsTrigger>
-          );
-        })}
-      </TabsList>
-    </Tabs>
+    <div className="flex flex-col gap-2.5 border-b border-line px-4 pt-4 pb-3.5">
+      <Eyebrow>About</Eyebrow>
+      {purpose ? (
+        <p className="text-small-body text-muted" data-testid="network-inspector-purpose">
+          {purpose}
+        </p>
+      ) : null}
+      <MetadataListRoot className="gap-1" data-testid="network-inspector-about">
+        {channel.fanout_policy ? (
+          <MetadataListRow>
+            <MetadataListTerm>Fanout</MetadataListTerm>
+            <MetadataListValue className="font-mono text-mono-id">
+              {channel.fanout_policy}
+            </MetadataListValue>
+          </MetadataListRow>
+        ) : null}
+        {channel.coordinator_peer_id ? (
+          <MetadataListRow>
+            <MetadataListTerm>Coordinator</MetadataListTerm>
+            <MetadataListValue className="font-mono text-mono-id">
+              {channel.coordinator_peer_id}
+            </MetadataListValue>
+          </MetadataListRow>
+        ) : null}
+        {channel.created_by ? (
+          <MetadataListRow>
+            <MetadataListTerm>Created by</MetadataListTerm>
+            <MetadataListValue className="font-mono text-mono-id">
+              {channel.created_by}
+            </MetadataListValue>
+          </MetadataListRow>
+        ) : null}
+        {channel.created_at ? (
+          <MetadataListRow>
+            <MetadataListTerm>Created</MetadataListTerm>
+            <MetadataListValue>
+              <Time iso={channel.created_at} mode="relative" />
+            </MetadataListValue>
+          </MetadataListRow>
+        ) : null}
+      </MetadataListRoot>
+    </div>
   );
 }
 
+/**
+ * Channel inspector: About pinned on top, then a two-segment Members | Work
+ * toggle over the matching list. Opening and closing belongs to the toolbar
+ * toggle — the panel carries no chrome of its own.
+ */
 export function NetworkInspector({
   channel,
   activeTab,
   onTabChange,
-  onClose,
   members,
   isMembersLoading,
   workEntries,
   isWorkLoading,
   workCount,
   onWorkJump,
-  threads,
-  directs,
-  isActivityLoading,
   className,
 }: NetworkInspectorProps) {
   return (
@@ -121,45 +103,40 @@ export function NetworkInspector({
       className={cn("flex min-h-0 flex-1 flex-col", className)}
       data-testid="network-inspector"
     >
-      <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
-        <Eyebrow>Inspector</Eyebrow>
-        <div className="ml-auto flex items-center gap-1">
-          <Button
-            aria-label="Close inspector"
-            data-testid="network-inspector-close"
-            onClick={onClose}
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-          >
-            <X aria-hidden="true" className="size-4" />
-          </Button>
-        </div>
-      </header>
+      <InspectorAbout channel={channel} />
 
-      <NetworkInspectorTabs activeTab={activeTab} onTabChange={onTabChange} workCount={workCount} />
+      <div className="px-4 pt-3 pb-1">
+        <PillGroup<InspectorTab>
+          aria-label="Inspector sections"
+          data-testid="network-inspector-tabs"
+          items={[
+            { value: "members", label: "Members", testId: "network-inspector-tab-members" },
+            {
+              value: "work",
+              label: "Work",
+              badge: workCount > 0 ? workCount : undefined,
+              testId: "network-inspector-tab-work",
+            },
+          ]}
+          onChange={onTabChange}
+          size="sm"
+          value={activeTab}
+        />
+      </div>
 
       <div
         className="flex min-h-0 flex-1 flex-col"
         data-testid={`network-inspector-panel-${activeTab}`}
-        role="tabpanel"
       >
         {activeTab === "members" ? (
           <InspectorMembersList isLoading={isMembersLoading} members={members} />
-        ) : activeTab === "work" ? (
+        ) : (
           <WorkInspector
             chromeless
             entries={workEntries}
             isLoading={isWorkLoading}
             onJump={onWorkJump}
             totalCount={workCount}
-          />
-        ) : (
-          <InspectorActivityFeed
-            channel={channel}
-            directs={directs}
-            isLoading={isActivityLoading}
-            threads={threads}
           />
         )}
       </div>

@@ -16,7 +16,7 @@ export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
   return (
     <CatalogCard actionable className="border border-line p-0" data-state={view.state.label}>
       <button
-        className="flex min-h-full w-full flex-col gap-3 px-4 py-3.5 text-left focus-visible:outline-none focus-visible:shadow-focus-inset"
+        className="group flex min-h-full w-full flex-col gap-3 px-4 py-3.5 text-left focus-visible:outline-none focus-visible:shadow-focus-inset"
         data-testid={testId}
         onClick={() => onOpen(provider)}
         type="button"
@@ -63,7 +63,14 @@ export function ProviderCard({ provider, onOpen }: ProviderCardProps) {
         </span>
         <span className="flex items-center justify-between gap-2 border-t border-line-soft pt-2.5 text-form-label text-muted">
           {view.authSummary}
-          <span className="text-form-label font-medium text-fg">{view.actionLabel}</span>
+          <span
+            className={cn(
+              "text-form-label font-medium text-fg opacity-0 transition-opacity duration-base",
+              "group-hover:opacity-100 group-focus-visible:opacity-100"
+            )}
+          >
+            {view.actionLabel}
+          </span>
         </span>
       </button>
     </CatalogCard>

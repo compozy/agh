@@ -29,7 +29,7 @@ import { ChannelRailRecents } from "./channel-rail-recents";
 import { ChannelRailRow } from "./channel-rail-row";
 
 const CHANNELS_HEADING = "Channels";
-const DIRECT_ROOMS_HEADING = "Direct Rooms";
+const DIRECT_ROOMS_HEADING = "Direct rooms";
 
 export const CHANNEL_RAIL_WIDTH_DEFAULT = SIDEBAR_PANEL_WIDTH_DEFAULT;
 export const CHANNEL_RAIL_WIDTH_MD = SIDEBAR_PANEL_WIDTH_MD;
@@ -195,7 +195,7 @@ export function ChannelRail({
               className="px-2 py-1 text-eyebrow text-subtle"
               data-testid="network-rail-directs-empty"
             >
-              Select a channel to see direct rooms.
+              No direct rooms yet.
             </p>
           ) : isDirectsLoading && !hasAnyDirect ? (
             <div className="space-y-1.5 px-2 py-1" data-testid="network-rail-directs-loading">

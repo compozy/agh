@@ -84,7 +84,7 @@ describe("ActivityFeed", () => {
     expect(entries[1]).toContain("direct:direct-1");
   });
 
-  it("Should render the kind tag prefixes [TH] and [DM]", () => {
+  it("Should render actor-first rows without kind tag prefixes", () => {
     render(
       <ActivityFeed
         workspaceId={WORKSPACE_ID}
@@ -122,8 +122,10 @@ describe("ActivityFeed", () => {
       />
     );
 
-    expect(screen.getByText("[TH]")).toBeInTheDocument();
-    expect(screen.getByText("[DM]")).toBeInTheDocument();
+    expect(screen.queryByText("[TH]")).toBeNull();
+    expect(screen.queryByText("[DM]")).toBeNull();
+    expect(screen.getByText("Thread title")).toBeInTheDocument();
+    expect(screen.getByText(/Direct preview/u)).toBeInTheDocument();
   });
 
   it("Should expose independent pagination for both counted surfaces", async () => {

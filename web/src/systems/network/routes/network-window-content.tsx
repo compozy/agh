@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
-import { Button, Eyebrow } from "@agh/ui";
+import { Button } from "@agh/ui";
 
 import { ActivityFeed } from "../components/activity";
 import { DirectRoom, DirectsList, NewDirectDialog } from "../components/directs";
@@ -15,6 +15,7 @@ import { useNetworkChannelThreadsRoute } from "../hooks/use-network-channel-thre
 import { useNetworkListFiltersContext } from "../hooks/use-network-list-filters-context";
 
 interface NetworkWindowContentProps {
+  fanoutPolicy?: string | null;
   workspaceId: string;
   channel: string;
   activeTab: ChannelTab;
@@ -34,6 +35,7 @@ export function NetworkWindowContent(props: NetworkWindowContentProps) {
 function NetworkThreadsLocation({
   workspaceId,
   channel,
+  fanoutPolicy,
   activeThreadId,
   threadView,
   onCloseThread,
@@ -95,6 +97,7 @@ function NetworkThreadsLocation({
 
       {showList && !showOverlay ? (
         <ChannelThreadComposer
+          fanoutPolicy={fanoutPolicy ?? null}
           workspaceId={workspaceId}
           channel={channel}
           disabledReason={activeSession.disabledReason ?? undefined}
@@ -133,8 +136,8 @@ function NetworkDirectsLocation({
   const showEmpty = !directsQuery.isLoading && filteredDirects.length === 0;
   const sessionId = activeSession.session?.sessionId ?? "";
   const subheaderLabel = isFiltered
-    ? `${directsQuery.total} MATCHING DIRECT ${directsQuery.total === 1 ? "ROOM" : "ROOMS"}`
-    : `${directsQuery.total} DIRECT ${directsQuery.total === 1 ? "ROOM" : "ROOMS"} IN THIS CHANNEL`;
+    ? `${directsQuery.total} matching direct ${directsQuery.total === 1 ? "room" : "rooms"}`
+    : `${directsQuery.total} direct ${directsQuery.total === 1 ? "room" : "rooms"} in this channel`;
 
   return (
     <section
@@ -146,7 +149,7 @@ function NetworkDirectsLocation({
         className="flex items-center justify-between gap-3 border-b border-line px-5 py-2"
         data-testid="network-directs-subheader"
       >
-        <Eyebrow className="text-subtle">{subheaderLabel}</Eyebrow>
+        <span className="text-form-label text-subtle">{subheaderLabel}</span>
         <Button
           aria-label="Open new direct room"
           data-testid="network-directs-new-direct"
@@ -154,7 +157,7 @@ function NetworkDirectsLocation({
           onClick={() => setNewDirectOpen(true)}
           size="sm"
           type="button"
-          variant="outline"
+          variant="neutral"
         >
           <Plus aria-hidden="true" className="size-3" />
           New direct

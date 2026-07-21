@@ -14,7 +14,7 @@ export { ProviderRow } from "./provider-row";
 export { ProvidersToolbar } from "./providers-toolbar";
 export type { ProvidersToolbarProps, ProvidersViewMode } from "./providers-toolbar";
 export { ProviderEditForm } from "./provider-edit-form";
-export { ProviderInspectorSheet } from "./provider-inspector-sheet";
+export { ProviderDetailDialog } from "./provider-detail-dialog";
 export { ProviderInspectView } from "./provider-inspect-view";
 export { ProviderLogo } from "./provider-logo";
 export { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
@@ -32,6 +32,19 @@ export type { SettingsChoiceGroupProps, SettingsChoiceOption } from "./settings-
 export { SettingsTile, SettingsTiles } from "./settings-tiles";
 export type { SettingsTileProps } from "./settings-tiles";
 export { SettingsAdvancedFold, SettingsProvChip } from "./settings-advanced-fold";
+export {
+  SettingsHeroBoard,
+  type SettingsHeroBoardProps,
+  type SettingsHeroStat,
+} from "./settings-hero-board";
+export { SettingsHeroGauge, type SettingsHeroGaugeProps } from "./settings-hero-gauge";
+export { SettingsTaglistField, type SettingsTaglistFieldProps } from "./settings-taglist-field";
+export {
+  SettingsByteField,
+  type SettingsByteFieldProps,
+  type SettingsByteUnit,
+} from "./settings-byte-field";
+export { SettingsLiveChip } from "./settings-live-chip";
 export { SettingsRestartNotice } from "./settings-restart-notice";
 export { SettingsRuntimeUnavailable } from "./settings-runtime-unavailable";
 export {

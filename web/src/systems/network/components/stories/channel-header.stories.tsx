@@ -31,9 +31,8 @@ export const Default: Story = {
         workspaceId={storyDefaultWorkspaceId}
         channel={heroChannel}
         detail={networkChannelFixture}
-        inspectorOpen={false}
-        onInspectorToggle={() => undefined}
         openWorkCount={2}
+        threadCount={3}
       />
     </PanelSurface>
   ),
@@ -46,24 +45,8 @@ export const NoPeers: Story = {
         workspaceId={storyDefaultWorkspaceId}
         channel={heroChannel}
         detail={null}
-        inspectorOpen={false}
-        onInspectorToggle={() => undefined}
         openWorkCount={0}
-      />
-    </PanelSurface>
-  ),
-};
-
-export const InspectorOpen: Story = {
-  render: () => (
-    <PanelSurface className="min-h-[120px]">
-      <ChannelHeader
-        workspaceId={storyDefaultWorkspaceId}
-        channel={heroChannel}
-        detail={networkChannelFixture}
-        inspectorOpen
-        onInspectorToggle={() => undefined}
-        openWorkCount={2}
+        threadCount={null}
       />
     </PanelSurface>
   ),

@@ -1,6 +1,17 @@
 import { AlertCircle, Pencil, Plus, Save, Trash2 } from "lucide-react";
 
-import { Alert, AlertDescription, Button, Pill, Sheet, SheetContent, Spinner } from "@agh/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Eyebrow,
+  LaneTabs,
+  Pill,
+  Spinner,
+} from "@agh/ui";
 
 import { getProviderStateView } from "../lib/provider-state";
 import type { ProviderDraft, SettingsProviderEntry } from "../types";
@@ -8,11 +19,13 @@ import { ProviderEditForm } from "./provider-edit-form";
 import { ProviderInspectView } from "./provider-inspect-view";
 import { ProviderLogo } from "./provider-logo";
 
-type InspectorMode = "inspect" | "edit" | "create";
+type DetailMode = "inspect" | "edit" | "create";
 
-export interface ProviderInspectorSheetProps {
+type DetailTab = "overview" | "configure";
+
+export interface ProviderDetailDialogProps {
   open: boolean;
-  mode: InspectorMode;
+  mode: DetailMode;
   entry: SettingsProviderEntry | null;
   draft: ProviderDraft | null;
   existingNames: string[];
@@ -30,7 +43,12 @@ export interface ProviderInspectorSheetProps {
   onRefreshCatalog: () => void;
 }
 
-export function ProviderInspectorSheet(props: ProviderInspectorSheetProps) {
+/**
+ * Provider detail as a centered modal (design decision D2 over the prototype's
+ * side sheet): overlay click and Esc both dismiss; Overview / Configure lane
+ * tabs map onto the page hook's inspect / edit modes.
+ */
+export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
   const {
     open,
     mode,
@@ -54,26 +72,37 @@ export function ProviderInspectorSheet(props: ProviderInspectorSheetProps) {
   const state = provider ? getProviderStateView(provider) : null;
   const isEditing = mode === "edit" || mode === "create";
   const isCreate = mode === "create";
+  const activeTab: DetailTab = isEditing ? "configure" : "overview";
   const deletable = Boolean(
     provider && provider.source_metadata.effective_source.kind !== "builtin-provider"
   );
 
+  const handleTabChange = (next: DetailTab) => {
+    if (next === "configure" && mode === "inspect") onSwitchToEdit();
+    if (next === "overview" && mode === "edit") onCancelEdit();
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        showCloseButton={false}
-        className="grid w-full grid-rows-[auto_1fr_auto] gap-0 p-0 sm:max-w-[36rem]"
-        data-testid="provider-inspector-sheet"
+    <Dialog open={open} onOpenChange={onOpenChange} disablePointerDismissal={false}>
+      <DialogContent
+        unframed
+        className={[
+          "w-(--width-modal-md) max-w-[calc(100%-2rem)] sm:max-w-(--width-modal-md)",
+          "grid-rows-[auto_minmax(0,1fr)_auto]",
+          "max-h-[min(var(--height-modal-md),calc(100%-2rem))]",
+        ].join(" ")}
+        data-testid="provider-detail-dialog"
         data-mode={mode}
       >
-        <SheetTitleBlock
+        <DetailHeaderBlock
           mode={mode}
           provider={provider}
           draftName={draft?.name ?? ""}
           stateDisplay={state?.display ?? null}
           stateTone={state?.tone ?? "neutral"}
           isDefault={provider?.default ?? false}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
         />
 
         <div className="min-h-0 overflow-y-auto px-6 py-5">
@@ -90,7 +119,7 @@ export function ProviderInspectorSheet(props: ProviderInspectorSheetProps) {
           ) : null}
         </div>
 
-        <SheetFooterBlock
+        <DetailFooterBlock
           mode={mode}
           isEditing={isEditing}
           canSave={canSave}
@@ -105,28 +134,32 @@ export function ProviderInspectorSheet(props: ProviderInspectorSheetProps) {
           onSave={onSave}
           onRequestDelete={onRequestDelete}
         />
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-interface SheetTitleBlockProps {
-  mode: InspectorMode;
+interface DetailHeaderBlockProps {
+  mode: DetailMode;
   provider: SettingsProviderEntry | null;
   draftName: string;
   stateDisplay: string | null;
   stateTone: "success" | "warning" | "danger" | "neutral" | "accent" | "info";
   isDefault: boolean;
+  activeTab: DetailTab;
+  onTabChange: (next: DetailTab) => void;
 }
 
-function SheetTitleBlock({
+function DetailHeaderBlock({
   mode,
   provider,
   draftName,
   stateDisplay,
   stateTone,
   isDefault,
-}: SheetTitleBlockProps) {
+  activeTab,
+  onTabChange,
+}: DetailHeaderBlockProps) {
   const name = mode === "create" ? draftName || "New provider" : (provider?.name ?? "");
   const subtitle =
     mode === "create"
@@ -135,44 +168,59 @@ function SheetTitleBlock({
         (mode === "edit" ? "Edit provider overlay" : "Provider configuration");
 
   return (
-    <header className="flex flex-col gap-3 border-b border-line-soft px-6 py-4">
+    <header className="flex flex-col border-b border-line-soft px-6 pt-4">
       <div className="flex items-start gap-3">
         {mode === "create" ? (
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-icon-well bg-canvas-soft text-subtle">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-icon-well bg-canvas text-subtle">
             <Plus aria-hidden="true" className="size-4" />
           </span>
         ) : (
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-icon-well bg-canvas-soft text-fg">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-icon-well bg-canvas text-fg">
             <ProviderLogo provider={provider?.name ?? "agh"} className="size-5" />
           </span>
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h2
+          <Eyebrow className="text-faint">Provider</Eyebrow>
+          <DialogTitle
             className="truncate font-mono text-sm font-medium text-fg-strong"
-            data-testid="provider-inspector-title"
+            data-testid="provider-detail-title"
           >
             {name}
-          </h2>
+          </DialogTitle>
           <p className="truncate text-xs text-muted">{subtitle}</p>
         </div>
+        {mode !== "create" && (isDefault || stateDisplay) ? (
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 pe-7">
+            {isDefault ? <Pill tone="accent">Default</Pill> : null}
+            {stateDisplay ? (
+              <Pill tone={stateTone}>
+                <Pill.Dot tone={stateTone} />
+                {stateDisplay}
+              </Pill>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-      {mode !== "create" && (isDefault || stateDisplay) ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {isDefault ? <Pill tone="accent">DEFAULT</Pill> : null}
-          {stateDisplay ? (
-            <Pill tone={stateTone}>
-              <Pill.Dot tone={stateTone} />
-              {stateDisplay}
-            </Pill>
-          ) : null}
-        </div>
-      ) : null}
+      {mode === "create" ? (
+        <div className="pb-4" />
+      ) : (
+        <LaneTabs<DetailTab>
+          ariaLabel="Provider detail sections"
+          className="mt-2"
+          items={[
+            { value: "overview", label: "Overview", testId: "provider-detail-tab-overview" },
+            { value: "configure", label: "Configure", testId: "provider-detail-tab-configure" },
+          ]}
+          value={activeTab}
+          onChange={onTabChange}
+        />
+      )}
     </header>
   );
 }
 
-interface SheetFooterBlockProps {
-  mode: InspectorMode;
+interface DetailFooterBlockProps {
+  mode: DetailMode;
   isEditing: boolean;
   canSave: boolean;
   isSaving: boolean;
@@ -187,7 +235,7 @@ interface SheetFooterBlockProps {
   onRequestDelete: () => void;
 }
 
-function SheetFooterBlock(props: SheetFooterBlockProps) {
+function DetailFooterBlock(props: DetailFooterBlockProps) {
   const {
     mode,
     isEditing,
@@ -207,13 +255,13 @@ function SheetFooterBlock(props: SheetFooterBlockProps) {
   return (
     <footer className="flex flex-col gap-3 border-t border-line-soft px-6 py-4">
       {error ? (
-        <Alert variant="danger" data-testid="provider-inspector-error">
+        <Alert variant="danger" data-testid="provider-detail-error">
           <AlertCircle className="mt-0.5 size-3 shrink-0" />
           <AlertDescription className="text-xs">{error}</AlertDescription>
         </Alert>
       ) : null}
       {!error && warnings && warnings.length > 0 ? (
-        <Alert variant="warning" data-testid="provider-inspector-warnings">
+        <Alert variant="warning" data-testid="provider-detail-warnings">
           <AlertCircle className="mt-0.5 size-3 shrink-0" />
           <AlertDescription>
             <ul className="flex flex-col gap-1 text-xs">
@@ -233,7 +281,7 @@ function SheetFooterBlock(props: SheetFooterBlockProps) {
               size="sm"
               onClick={mode === "create" ? onClose : onCancelEdit}
               disabled={isSaving}
-              data-testid="provider-inspector-cancel"
+              data-testid="provider-detail-cancel"
             >
               Cancel
             </Button>
@@ -243,14 +291,14 @@ function SheetFooterBlock(props: SheetFooterBlockProps) {
               size="sm"
               onClick={onSave}
               disabled={!canSave || isSaving}
-              data-testid="provider-inspector-save"
+              data-testid="provider-detail-save"
             >
               {isSaving ? (
                 <Spinner className="size-3" />
               ) : (
                 <Save aria-hidden="true" className="size-3" />
               )}
-              {isSaving ? "Saving…" : mode === "create" ? "Create provider" : "Save changes"}
+              {isSaving ? "Saving…" : mode === "create" ? "Create provider" : "Save provider"}
             </Button>
           </>
         ) : (
@@ -266,7 +314,7 @@ function SheetFooterBlock(props: SheetFooterBlockProps) {
                   ? undefined
                   : "Builtin providers cannot be deleted -- edit the overlay to override them."
               }
-              data-testid="provider-inspector-delete"
+              data-testid="provider-detail-delete"
             >
               <Trash2 aria-hidden="true" className="size-3" />
               Delete overlay
@@ -277,7 +325,7 @@ function SheetFooterBlock(props: SheetFooterBlockProps) {
               size="sm"
               onClick={onSwitchToEdit}
               disabled={isDeleting}
-              data-testid="provider-inspector-edit"
+              data-testid="provider-detail-edit"
             >
               <Pencil aria-hidden="true" className="size-3" />
               Edit settings

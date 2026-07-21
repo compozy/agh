@@ -435,3 +435,13 @@ export {
   type TaskHandoffActionLabel,
   type TaskLifecyclePhase,
 } from "./task-lifecycle-formatters";
+
+/** Head-status text tone map (`.w2-status`: bare tone-colored text, never a filled pill). */
+export const HEAD_STATUS_TONE_TEXT: Record<PillTone, string> = {
+  neutral: "text-muted",
+  accent: "text-accent",
+  success: "text-success",
+  warning: "text-warning",
+  danger: "text-danger",
+  info: "text-info",
+};

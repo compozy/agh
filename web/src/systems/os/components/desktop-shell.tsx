@@ -135,6 +135,7 @@ function DesktopShellBody({
         workspaces={model.workspaces}
         activeWorkspaceId={model.activeWorkspaceId}
         onSelectWorkspace={model.setActiveWorkspaceId}
+        onNewSpace={model.openWorkspaceSetup}
       />
       <WorkspaceSetupDialog
         open={model.isWorkspaceSetupOpen}

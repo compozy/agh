@@ -71,6 +71,10 @@ export function DetailComposer(props: DetailComposerProps) {
     props.surface === "thread"
       ? `Send to #${props.channel}`
       : `Send to ${props.peerLabel ?? "@peer"}`;
+  const hint =
+    props.surface === "thread"
+      ? "Replies deliver to thread subscribers; muted sessions skip the wake."
+      : "Direct rooms are restricted bilateral conversations.";
 
   const handleSubmit = async ({
     text,
@@ -95,6 +99,7 @@ export function DetailComposer(props: DetailComposerProps) {
     <Composer
       disabled={disabled}
       disabledReason={props.disabledReason}
+      hint={hint}
       isSending={isSending}
       onSubmit={handleSubmit}
       placeholder={placeholder}

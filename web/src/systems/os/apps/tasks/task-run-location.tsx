@@ -128,27 +128,27 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
                 result={record.result}
               />
 
-              <Section
-                count={page.reviews.length || undefined}
-                data-testid="tasks-run-reviews"
-                label="Reviews"
-              >
-                {page.reviewsLoading ? (
-                  <Skeleton className="h-20 rounded-lg" />
-                ) : page.reviewsError ? (
-                  <p className="text-small-body text-danger" role="alert">
-                    {page.reviewsError.message}
-                  </p>
-                ) : page.reviews.length > 0 ? (
-                  <div className="flex flex-col gap-2.5">
-                    {page.reviews.map(review => (
-                      <TaskRunReviewCard key={review.review_id} review={review} />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-small-body text-muted">No reviews recorded for this run.</p>
-                )}
-              </Section>
+              {page.reviewsLoading || page.reviewsError || page.reviews.length > 0 ? (
+                <Section
+                  count={page.reviews.length || undefined}
+                  data-testid="tasks-run-reviews"
+                  label="Reviews"
+                >
+                  {page.reviewsLoading ? (
+                    <Skeleton className="h-20 rounded-lg" />
+                  ) : page.reviewsError ? (
+                    <p className="text-small-body text-danger" role="alert">
+                      {page.reviewsError.message}
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {page.reviews.map(review => (
+                        <TaskRunReviewCard key={review.review_id} review={review} />
+                      ))}
+                    </div>
+                  )}
+                </Section>
+              ) : null}
 
               {controller.authoritativeTaskId && coordinationWorkspaceId ? (
                 <TaskRunCoordinationInvitationHost

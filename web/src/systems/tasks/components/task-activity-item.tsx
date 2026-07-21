@@ -1,7 +1,7 @@
 import { Time, TimelineEvent, type TimelineEventProps } from "@agh/ui";
 
 import { humanizeTaskEvent, type TaskActivityView } from "../lib/task-activity-copy";
-import { resolveEventTone } from "../lib/timeline-visuals";
+import { resolveEventTone, visualFor } from "../lib/timeline-visuals";
 import type { TaskTimelineItem } from "../types";
 
 /**
@@ -34,6 +34,7 @@ export function TaskActivityItem({
       data-category={view.category}
       data-testid={`tasks-activity-item-${item.event_id}`}
       description={view.detail}
+      icon={visualFor(item.event_type).icon}
       meta={
         <span className="font-mono text-micro text-faint">
           {item.event_type} · {item.sequence}

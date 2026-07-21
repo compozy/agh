@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
 import { useState, type ComponentProps, type Ref } from "react";
 
 import { cn, ConnectionIndicator, SearchInput, type ConnectionStatus } from "@agh/ui";
@@ -15,7 +14,6 @@ import { settingsConnectionLabel } from "./settings-connection-label";
 export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "children"> {
   activeSlug: string;
   connection: ConnectionStatus;
-  onBackToApp: () => void;
   searchInputRef?: Ref<HTMLInputElement>;
 }
 
@@ -23,7 +21,6 @@ export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "chi
 export function SettingsWindowNav({
   activeSlug,
   connection,
-  onBackToApp,
   searchInputRef,
   className,
   ...navProps
@@ -43,23 +40,10 @@ export function SettingsWindowNav({
       {...navProps}
     >
       <div className="hidden @min-settings-takeover:block">
-        <button
-          className={cn(
-            "mt-2 flex h-button-lg w-full items-center gap-1.5 rounded-md px-2 text-small-body font-medium text-muted",
-            "transition-colors duration-base hover:bg-row-hover hover:text-fg",
-            "focus-visible:outline-none focus-visible:shadow-focus-ring"
-          )}
-          data-testid="settings-back-to-app"
-          onClick={onBackToApp}
-          type="button"
-        >
-          <ChevronLeft aria-hidden="true" className="size-3.5 text-subtle" />
-          Back to app
-        </button>
         <SearchInput
           aria-label="Search settings"
           autoComplete="off"
-          containerClassName="mt-1.5 w-full min-w-0 bg-canvas"
+          containerClassName="mt-2.5 w-full min-w-0 bg-canvas"
           data-testid="settings-nav-search"
           kbd="/"
           onChange={setQuery}

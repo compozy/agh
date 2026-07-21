@@ -3,6 +3,7 @@ import { ArrowUpRight, LifeBuoy, RotateCw } from "lucide-react";
 
 import {
   Button,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -13,7 +14,7 @@ import {
   TopbarOverflowIcon,
 } from "@agh/ui";
 
-import { taskStatusLabel, taskStatusSignal } from "../lib/task-formatters";
+import { HEAD_STATUS_TONE_TEXT, taskStatusLabel, taskStatusSignal } from "../lib/task-formatters";
 import type { TaskCommandState } from "../lib/task-command-state";
 import type { TaskStatus } from "../types";
 
@@ -21,10 +22,16 @@ import type { TaskStatus } from "../types";
 export function TaskPageStatus({ status }: { status?: TaskStatus | null }) {
   const signal = taskStatusSignal(status);
   return (
-    <Pill data-testid="tasks-detail-status" tone={signal.tone}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 text-badge font-semibold",
+        HEAD_STATUS_TONE_TEXT[signal.tone]
+      )}
+      data-testid="tasks-detail-status"
+    >
       <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
       {taskStatusLabel(status)}
-    </Pill>
+    </span>
   );
 }
 

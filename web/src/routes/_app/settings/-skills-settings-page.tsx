@@ -1,5 +1,4 @@
-import { Link } from "@tanstack/react-router";
-import { AlertCircle, ExternalLink } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 
 import {
@@ -8,12 +7,18 @@ import {
 } from "@/systems/settings/hooks/use-settings-skills-page";
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 import {
+  SettingLinkRow,
+  SettingsAdvancedFold,
   SettingsDisabledSkillsSection,
   SettingsFieldRow,
   SettingsGroup,
   SettingsPageFrame,
+  SettingsProvChip,
   SettingsRuntimeUnavailable,
   SettingsInlineSaveControls,
+  SettingsSaveBar,
+  SettingsTaglistField,
+  useSettingsSaveBarState,
   useSettingsTopbar,
   type SettingsScope,
   type SettingsSkillsSection,
@@ -28,12 +33,19 @@ import {
   Spinner,
   Switch,
 } from "@agh/ui";
-import { AllowListField } from "./-skills-controls";
 
 type SkillsConfig = SettingsSkillsSection["config"];
+
 export function SkillsSettingsPage() {
   const page = useSettingsSkillsPage();
   useSettingsTopbar("skills");
+  const policySaveState = useSettingsSaveBarState({
+    isDirty: page.isPolicyDirty,
+    isSaving: page.isSavingPolicy,
+    error: page.savePolicyError,
+    warnings: page.policyWarnings,
+    lastAppliedLabel: page.lastPolicyLabel,
+  });
 
   if (page.isLoading) {
     return (
@@ -66,6 +78,7 @@ export function SkillsSettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
+  const isGlobalScope = page.selection.scope === "global";
   const scopeLabel =
     page.selection.scope === "global"
       ? "global"
@@ -103,6 +116,16 @@ export function SkillsSettingsPage() {
         },
       ]}
       restart={restart}
+      saveBar={
+        isGlobalScope ? (
+          <SettingsSaveBar
+            onReset={page.handleResetPolicy}
+            onSave={page.handleSavePolicy}
+            slug="skills"
+            state={policySaveState}
+          />
+        ) : undefined
+      }
       slug="skills"
     >
       {!envelope.runtime_available ? (
@@ -110,6 +133,13 @@ export function SkillsSettingsPage() {
           slug="skills"
           description="Skill discovery counts could not be measured. Policy settings remain editable."
         />
+      ) : null}
+      {isGlobalScope ? (
+        <>
+          <EngineSection draft={draft} setDraft={setDraft} />
+          <MarketplaceSection draft={draft} setDraft={setDraft} />
+          <ManageSection />
+        </>
       ) : null}
       <ScopeSelector
         selection={page.selection}
@@ -121,7 +151,6 @@ export function SkillsSettingsPage() {
         onSelectAgent={page.selectAgent}
         onSelectWorkspaceContext={page.selectWorkspaceContext}
       />
-      <OperationalLinksSection />
       <SettingsDisabledSkillsSection
         baselineDisabled={envelope.config.disabled_skills ?? []}
         disabled={draft.disabled_skills ?? []}
@@ -154,18 +183,14 @@ export function SkillsSettingsPage() {
           />
         }
       />
-      {page.selection.scope === "global" ? (
-        <PolicySection
-          draft={draft}
-          setDraft={setDraft}
-          isDirty={page.isPolicyDirty}
-          isSaving={page.isSavingPolicy}
-          error={page.savePolicyError}
-          warnings={page.policyWarnings}
-          lastAppliedLabel={page.lastPolicyLabel}
-          onSave={page.handleSavePolicy}
-          onReset={page.handleResetPolicy}
-        />
+      {isGlobalScope ? (
+        <SettingsAdvancedFold
+          data-testid="settings-page-skills-advanced"
+          label="Advanced — endpoint & install policy"
+          padded
+        >
+          <InstallPolicySection draft={draft} setDraft={setDraft} />
+        </SettingsAdvancedFold>
       ) : (
         <AgentScopePolicyNotice />
       )}
@@ -278,84 +303,17 @@ function ScopeSelector({
   );
 }
 
-function OperationalLinksSection() {
-  return (
-    <SettingsGroup title="Operational" description="manage runtime state outside of settings">
-      <div className="flex flex-wrap gap-2" data-testid="settings-page-skills-operational-links">
-        <Link
-          search={{ tab: "installed" }}
-          to="/marketplace/skills"
-          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
-          data-testid="settings-page-skills-link-skills"
-        >
-          <ExternalLink className="size-3 text-subtle" />
-          Open Skills
-        </Link>
-      </div>
-    </SettingsGroup>
-  );
-}
-
-function AgentScopePolicyNotice() {
-  return (
-    <SettingsGroup
-      title="Marketplace & policy"
-      description="read-only in agent scope"
-      data-testid="settings-page-skills-agent-policy-note"
-    >
-      <p className="text-sm text-muted">
-        Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
-        poll interval, and marketplace allowlists remain global settings.
-      </p>
-    </SettingsGroup>
-  );
-}
-
-interface PolicySectionProps {
+interface DraftSectionProps {
   draft: SkillsConfig;
   setDraft: Dispatch<SetStateAction<SkillsConfig | null>>;
-  isDirty: boolean;
-  isSaving: boolean;
-  error: string | null;
-  warnings?: string[];
-  lastAppliedLabel: string | null;
-  onSave: () => void;
-  onReset: () => void;
 }
 
-function PolicySection({
-  draft,
-  setDraft,
-  isDirty,
-  isSaving,
-  error,
-  warnings,
-  lastAppliedLabel,
-  onSave,
-  onReset,
-}: PolicySectionProps) {
+function EngineSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsGroup
-      title="Marketplace & policy"
-      description="restart required to apply"
-      action={
-        <SettingsInlineSaveControls
-          controlTestIdPrefix="settings-page-skills-policy"
-          testId="settings-page-skills-policy-controls"
-          saveLabel="Save"
-          isDirty={isDirty}
-          isSaving={isSaving}
-          error={error}
-          warnings={warnings}
-          lastAppliedLabel={lastAppliedLabel}
-          onSave={onSave}
-          onReset={onReset}
-        />
-      }
-    >
+    <SettingsGroup title="Skills engine" description="restart required to apply">
       <SettingsFieldRow
         data-testid="settings-page-skills-enabled"
-        label="Skill registry"
+        label="Use skills"
         description="Enable discovery and task resolution"
         control={
           <Switch
@@ -370,28 +328,16 @@ function PolicySection({
           />
         }
       />
-      <SettingsFieldRow
-        data-testid="settings-page-skills-poll-interval"
-        label="Poll interval"
-        description="How often the registry re-scans sources"
-        control={
-          <Input
-            className="w-32 font-mono"
-            data-testid="settings-page-skills-poll-interval-input"
-            value={draft.poll_interval ?? ""}
-            placeholder="5m"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return { ...current, poll_interval: event.target.value };
-              })
-            }
-          />
-        }
-      />
+    </SettingsGroup>
+  );
+}
+
+function MarketplaceSection({ draft, setDraft }: DraftSectionProps) {
+  return (
+    <SettingsGroup title="Marketplace" description="where new skills come from">
       <SettingsFieldRow
         data-testid="settings-page-skills-marketplace-registry"
-        label="Marketplace registry"
+        label="Skills come from"
         description="Identifier of the marketplace publisher"
         control={
           <Input
@@ -411,9 +357,68 @@ function PolicySection({
         }
       />
       <SettingsFieldRow
+        data-testid="settings-page-skills-poll-interval"
+        label="Check for updates every"
+        description="How often the registry re-scans sources"
+        control={
+          <Input
+            className="w-32 font-mono"
+            data-testid="settings-page-skills-poll-interval-input"
+            value={draft.poll_interval ?? ""}
+            placeholder="5m"
+            onChange={event =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, poll_interval: event.target.value };
+              })
+            }
+          />
+        }
+      />
+    </SettingsGroup>
+  );
+}
+
+function ManageSection() {
+  return (
+    <SettingsGroup title="Manage" description="manage runtime state outside of settings">
+      <SettingLinkRow
+        data-testid="settings-page-skills-link-skills"
+        description="Install, update, and disable skills from the marketplace view."
+        label="Manage installed skills"
+        to="/marketplace/skills"
+      />
+    </SettingsGroup>
+  );
+}
+
+function AgentScopePolicyNotice() {
+  return (
+    <SettingsGroup
+      title="Marketplace & policy"
+      description="read-only in agent scope"
+      data-testid="settings-page-skills-agent-policy-note"
+    >
+      <p className="text-sm text-muted">
+        Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
+        poll interval, and marketplace allowlists remain global settings.
+      </p>
+    </SettingsGroup>
+  );
+}
+
+function InstallPolicySection({ draft, setDraft }: DraftSectionProps) {
+  return (
+    <SettingsGroup title="Endpoint & install policy" description="restart required to apply">
+      <SettingsFieldRow
         data-testid="settings-page-skills-marketplace-base-url"
-        label="Marketplace base URL"
-        description="Override the registry's default endpoint"
+        label="Marketplace URL"
+        description={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            Override the registry&apos;s default endpoint
+            <SettingsProvChip>skills.marketplace.base_url</SettingsProvChip>
+          </span>
+        }
         control={
           <Input
             className="w-72 font-mono"
@@ -432,28 +437,50 @@ function PolicySection({
           />
         }
       />
-      <AllowListField
+      <SettingsFieldRow
+        data-testid="settings-page-skills-allowed-mcp"
         label="Allowed MCP installs"
-        description="Comma-separated list of marketplace MCP packages that may be installed"
-        testId="settings-page-skills-allowed-mcp"
-        value={draft.allowed_marketplace_mcp ?? []}
-        onChange={value =>
-          setDraft(prev => {
-            const current = prev ?? draft;
-            return { ...current, allowed_marketplace_mcp: value };
-          })
+        description={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            Marketplace MCP packages that may be installed
+            <SettingsProvChip>skills.allowed_marketplace_mcp</SettingsProvChip>
+          </span>
+        }
+        control={
+          <SettingsTaglistField
+            data-testid="settings-page-skills-allowed-mcp-input"
+            label="Allowed MCP installs"
+            value={draft.allowed_marketplace_mcp ?? []}
+            onChange={value =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, allowed_marketplace_mcp: value };
+              })
+            }
+          />
         }
       />
-      <AllowListField
+      <SettingsFieldRow
+        data-testid="settings-page-skills-allowed-hooks"
         label="Allowed hook installs"
-        description="Comma-separated list of marketplace hook packages that may be installed"
-        testId="settings-page-skills-allowed-hooks"
-        value={draft.allowed_marketplace_hooks ?? []}
-        onChange={value =>
-          setDraft(prev => {
-            const current = prev ?? draft;
-            return { ...current, allowed_marketplace_hooks: value };
-          })
+        description={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            Marketplace hook packages that may be installed
+            <SettingsProvChip>skills.allowed_marketplace_hooks</SettingsProvChip>
+          </span>
+        }
+        control={
+          <SettingsTaglistField
+            data-testid="settings-page-skills-allowed-hooks-input"
+            label="Allowed hook installs"
+            value={draft.allowed_marketplace_hooks ?? []}
+            onChange={value =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, allowed_marketplace_hooks: value };
+              })
+            }
+          />
         }
       />
     </SettingsGroup>

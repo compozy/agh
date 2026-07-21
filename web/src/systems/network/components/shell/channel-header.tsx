@@ -1,221 +1,173 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { Hash, MoreHorizontal, PanelRight, RefreshCw, Settings2 } from "lucide-react";
-import { useState } from "react";
+import { Pill, Time } from "@agh/ui";
 
-import {
-  Button,
-  DetailHeader,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@agh/ui";
-
-import { cn } from "@/lib/utils";
-import { useUpdateNetworkChannel } from "../../hooks/use-network-actions";
 import { useChannelMembers } from "../../hooks/use-channel-members";
-import { networkKeys } from "../../lib/query-keys";
 import type { NetworkChannel, NetworkChannelSummary } from "../../types";
-import { ChannelPolicyDialog } from "./channel-policy-dialog";
 
 export interface ChannelHeaderProps {
   workspaceId: string;
   channel: NetworkChannelSummary;
   detail: NetworkChannel | null;
   openWorkCount: number;
-  inspectorOpen: boolean;
-  onInspectorToggle: () => void;
+  threadCount: number | null;
 }
 
-interface MetaInputs {
-  channel: NetworkChannelSummary;
-  detail: NetworkChannel | null;
-  openWorkCount: number;
-  agentCount: number;
-  humanCount: number;
+function MetaDot() {
+  return <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />;
+}
+
+interface MetaSegment {
+  key: string;
+  content: React.ReactNode;
 }
 
 function buildMetaSegments({
   channel,
   detail,
-  openWorkCount,
+  threadCount,
   agentCount,
   humanCount,
-}: MetaInputs): string[] {
-  const segments: string[] = [];
-
-  const totalCount = agentCount + humanCount;
+}: {
+  channel: NetworkChannelSummary;
+  detail: NetworkChannel | null;
+  threadCount: number | null;
+  agentCount: number;
+  humanCount: number;
+}): MetaSegment[] {
+  const segments: MetaSegment[] = [];
+  const totalMembers = agentCount + humanCount;
   const fallbackPeerCount =
     detail?.peer_count ?? channel.peer_count ?? channel.local_peer_count ?? 0;
 
-  if (totalCount > 0) {
+  if (totalMembers > 0) {
     if (agentCount > 0) {
-      segments.push(`${agentCount} ${agentCount === 1 ? "agent" : "agents"}`);
+      segments.push({
+        key: "agents",
+        content: `${agentCount} ${agentCount === 1 ? "agent" : "agents"}`,
+      });
     }
     if (humanCount > 0) {
-      segments.push(`${humanCount} ${humanCount === 1 ? "human" : "humans"}`);
+      segments.push({
+        key: "humans",
+        content: `${humanCount} ${humanCount === 1 ? "human" : "humans"}`,
+      });
     }
   } else if (fallbackPeerCount > 0) {
-    segments.push(`${fallbackPeerCount} ${fallbackPeerCount === 1 ? "peer" : "peers"}`);
+    segments.push({
+      key: "peers",
+      content: `${fallbackPeerCount} ${fallbackPeerCount === 1 ? "peer" : "peers"}`,
+    });
   } else {
-    segments.push("no peers yet");
+    segments.push({ key: "peers", content: "no peers yet" });
   }
 
-  if (openWorkCount > 0) {
-    segments.push(`${openWorkCount} active work`);
+  if (threadCount !== null && threadCount > 0) {
+    segments.push({
+      key: "threads",
+      content: `${threadCount} ${threadCount === 1 ? "thread" : "threads"}`,
+    });
   }
 
-  const purpose = detail?.purpose?.trim() || channel.purpose?.trim();
-  if (purpose) {
-    segments.push(purpose);
+  const messageCount = detail?.message_count ?? channel.message_count;
+  if (typeof messageCount === "number" && messageCount > 0) {
+    segments.push({
+      key: "messages",
+      content: `${messageCount.toLocaleString()} ${messageCount === 1 ? "message" : "messages"}`,
+    });
   }
 
-  const fanoutPolicy = detail?.fanout_policy || channel.fanout_policy;
-  if (fanoutPolicy) {
-    segments.push(`fanout ${fanoutPolicy}`);
+  const lastActivityAt = detail?.last_activity_at ?? channel.last_activity_at;
+  if (lastActivityAt) {
+    segments.push({
+      key: "active",
+      content: (
+        <span className="inline-flex items-center gap-1">
+          active <Time iso={lastActivityAt} mode="relative" />
+        </span>
+      ),
+    });
+  }
+
+  const coordinator = detail?.coordinator_peer_id ?? channel.coordinator_peer_id;
+  if (coordinator) {
+    segments.push({
+      key: "coordinator",
+      content: (
+        <span>
+          coordinator <span className="font-mono text-mono-id text-muted">{coordinator}</span>
+        </span>
+      ),
+    });
   }
 
   return segments;
 }
 
+/**
+ * The channel content head (`chead` contract): name line with work + fanout
+ * pills, purpose on its own line, then a dot-separated meta row. Route
+ * identity and channel actions live in the window head and toolbar, so this
+ * block carries no icon tile and no buttons.
+ */
 export function ChannelHeader({
   workspaceId,
   channel,
   detail,
   openWorkCount,
-  inspectorOpen,
-  onInspectorToggle,
+  threadCount,
 }: ChannelHeaderProps) {
-  const queryClient = useQueryClient();
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  const [policyOpen, setPolicyOpen] = useState(false);
-  const updateChannel = useUpdateNetworkChannel();
   const members = useChannelMembers(channel.channel, { workspaceId });
+  const purpose = detail?.purpose?.trim() || channel.purpose?.trim() || null;
+  const fanoutPolicy = detail?.fanout_policy || channel.fanout_policy || null;
   const metaSegments = buildMetaSegments({
     channel,
     detail,
-    openWorkCount,
+    threadCount,
     agentCount: members.agentCount,
     humanCount: members.humanCount,
   });
 
-  const handleRefresh = () => {
-    if (workspaceId) {
-      void queryClient.invalidateQueries({
-        queryKey: networkKeys.channelScope(workspaceId, channel.channel),
-      });
-    }
-    setOverflowOpen(false);
-  };
-
-  const meta = (
-    <span className="truncate" data-testid="network-channel-meta">
-      {metaSegments.map((segment, index) => (
-        <span key={segment}>
-          {index > 0 ? (
-            <span aria-hidden="true" className="mx-2 text-subtle">
-              /
-            </span>
-          ) : null}
-          <span data-testid={`network-channel-meta-${segment}`}>{segment}</span>
-        </span>
-      ))}
-    </span>
-  );
-
-  const actions = (
-    <>
-      <Button
-        aria-label={inspectorOpen ? "Close channel inspector" : "Open channel inspector"}
-        aria-pressed={inspectorOpen}
-        className={cn(inspectorOpen ? "bg-elevated text-fg" : null)}
-        data-state={inspectorOpen ? "open" : "closed"}
-        data-testid="network-channel-inspector-toggle"
-        onClick={onInspectorToggle}
-        size="icon-sm"
-        type="button"
-        variant="ghost"
-      >
-        <PanelRight aria-hidden="true" className="size-4" />
-      </Button>
-
-      <DropdownMenu onOpenChange={setOverflowOpen} open={overflowOpen}>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              aria-label="Channel actions"
-              data-testid="network-channel-kebab"
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            />
-          }
-        >
-          <MoreHorizontal aria-hidden="true" className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            data-testid="network-channel-policy"
-            onSelect={event => {
-              event.preventDefault();
-              setPolicyOpen(true);
-              setOverflowOpen(false);
-            }}
-          >
-            <Settings2 aria-hidden="true" className="size-3" />
-            Delivery policy
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            data-testid="network-channel-refresh"
-            onSelect={event => {
-              event.preventDefault();
-              handleRefresh();
-            }}
-          >
-            <RefreshCw aria-hidden="true" className="size-3" />
-            Refresh data
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
-  );
-
   return (
-    <header data-testid="network-channel-header">
-      <DetailHeader
-        actions={actions}
-        className="px-5 py-3"
-        meta={meta}
-        title={
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              aria-hidden="true"
-              data-slot="page-header-icon"
-              className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
-            >
-              <Hash className="size-3" />
-            </span>
-            <span className="truncate" data-testid="network-channel-title">
-              {channel.channel}
-            </span>
+    <header className="flex flex-col px-5 pt-4" data-testid="network-channel-header">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <h1 className="flex min-w-0 items-baseline gap-1 text-compact-h1 font-semibold tracking-compact-h1 text-fg-strong">
+          <span aria-hidden="true" className="font-medium text-subtle">
+            #
           </span>
-        }
-      />
-      <ChannelPolicyDialog
-        channel={channel}
-        detail={detail}
-        isSubmitting={updateChannel.isPending}
-        members={members.members}
-        onOpenChange={setPolicyOpen}
-        onSubmit={async data => {
-          await updateChannel.mutateAsync({
-            workspaceId,
-            channel: channel.channel,
-            data,
-          });
-        }}
-        open={policyOpen}
-      />
+          <span className="truncate" data-testid="network-channel-title">
+            {channel.channel}
+          </span>
+        </h1>
+        {openWorkCount > 0 ? (
+          <Pill data-testid="network-channel-work-pill" tone="warning">
+            <Pill.Dot tone="warning" />
+            {openWorkCount} work open
+          </Pill>
+        ) : null}
+        {fanoutPolicy ? (
+          <Pill data-testid="network-channel-fanout-pill" mono tone="neutral">
+            {fanoutPolicy}
+          </Pill>
+        ) : null}
+      </div>
+      {purpose ? (
+        <p
+          className="mt-1.5 max-w-[64ch] text-small-body text-muted"
+          data-testid="network-channel-purpose"
+        >
+          {purpose}
+        </p>
+      ) : null}
+      <div
+        className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-form-label text-subtle"
+        data-testid="network-channel-meta"
+      >
+        {metaSegments.map((segment, index) => (
+          <span className="inline-flex items-center gap-2" key={segment.key}>
+            {index > 0 ? <MetaDot /> : null}
+            <span data-testid={`network-channel-meta-${segment.key}`}>{segment.content}</span>
+          </span>
+        ))}
+      </div>
     </header>
   );
 }

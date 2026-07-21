@@ -19,10 +19,22 @@ import {
   useSettingsTopbar,
   SettingsTile,
   SettingsTiles,
+  useSettingsProviders,
+  useSettingsSandboxes,
   type SettingsGeneralSection,
 } from "@/systems/settings";
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
-import { Button, Input, Sheet, SheetContent, SheetHeader, SheetTitle, Spinner } from "@agh/ui";
+import {
+  Button,
+  Input,
+  NativeSelect,
+  NativeSelectOption,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  Spinner,
+} from "@agh/ui";
 
 import { DaemonSection, RedactionSection } from "./-general-daemon-sections";
 import { GeneralUpdateSection } from "./-general-update-section";
@@ -344,6 +356,11 @@ interface DraftSectionProps {
 }
 
 function DefaultsGroup({ draft, setDraft }: DraftSectionProps) {
+  const providers = useSettingsProviders();
+  const sandboxes = useSettingsSandboxes();
+  const providerNames = (providers.data?.providers ?? []).map(entry => entry.name);
+  const sandboxNames = (sandboxes.data?.sandboxes ?? []).map(entry => entry.name);
+
   return (
     <SettingsGroup
       data-testid="settings-page-general-defaults"
@@ -373,7 +390,7 @@ function DefaultsGroup({ draft, setDraft }: DraftSectionProps) {
         description="The provider new agents run on when none is set."
         label="Default provider"
         control={
-          <Input
+          <NativeSelect
             className="w-52"
             data-testid="settings-page-general-default-provider-input"
             onChange={event =>
@@ -385,9 +402,15 @@ function DefaultsGroup({ draft, setDraft }: DraftSectionProps) {
                 };
               })
             }
-            placeholder="auto"
             value={draft.defaults.provider ?? ""}
-          />
+          >
+            <NativeSelectOption value="">auto</NativeSelectOption>
+            {providerNames.map(name => (
+              <NativeSelectOption key={name} value={name}>
+                {name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
         }
       />
       <SettingRow
@@ -395,7 +418,7 @@ function DefaultsGroup({ draft, setDraft }: DraftSectionProps) {
         description="How much of your file system new sessions can touch."
         label="Default sandbox"
         control={
-          <Input
+          <NativeSelect
             className="w-52 font-mono"
             data-testid="settings-page-general-default-sandbox-input"
             onChange={event =>
@@ -407,9 +430,15 @@ function DefaultsGroup({ draft, setDraft }: DraftSectionProps) {
                 };
               })
             }
-            placeholder="local"
             value={draft.defaults.sandbox ?? ""}
-          />
+          >
+            <NativeSelectOption value="">local</NativeSelectOption>
+            {sandboxNames.map(name => (
+              <NativeSelectOption key={name} value={name}>
+                {name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
         }
       />
     </SettingsGroup>

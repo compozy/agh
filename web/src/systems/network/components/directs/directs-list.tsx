@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { Button, ListingRow, Eyebrow, Skeleton, SkeletonRows } from "@agh/ui";
+import { Button, ListingRow, Skeleton, SkeletonRows } from "@agh/ui";
 
 import type { ChannelMember, ChannelMemberRole } from "../../hooks/use-channel-members";
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
@@ -70,17 +70,14 @@ function DirectsListRow({
             name={otherPeerId}
             ownerRole={avatarRole}
             seed={otherPeerId}
-            sizePx={32}
+            sizePx={26}
           />
         </ListingRow.Icon>
         <ListingRow.Main>
           <ListingRow.Name>
-            <ListingRow.Title>@{otherPeerId}</ListingRow.Title>
-            {role ? (
-              <Eyebrow data-testid={`network-direct-list-row-role-${direct.direct_id}`}>
-                {role === "agent" ? "AGENT" : "HUMAN"}
-              </Eyebrow>
-            ) : null}
+            <ListingRow.Title className="text-small-body" mono>
+              @{otherPeerId}
+            </ListingRow.Title>
           </ListingRow.Name>
           <ListingRow.Description>{preview}</ListingRow.Description>
         </ListingRow.Main>
@@ -164,20 +161,22 @@ export function DirectsList({
       className="flex flex-1 flex-col overflow-y-auto"
       data-testid="network-direct-list"
     >
-      {directs.map(direct => {
-        const otherSessionId = getOtherDirectSessionId(direct, selfSessionId);
-        return (
-          <DirectsListRow
-            active={direct.direct_id === activeDirectId}
-            channel={channel}
-            direct={direct}
-            key={direct.direct_id}
-            member={otherSessionId ? memberBySessionId.get(otherSessionId) : undefined}
-            selfSessionId={selfSessionId}
-            workspaceId={workspaceId}
-          />
-        );
-      })}
+      <div className="mx-5 mt-4 mb-4 overflow-hidden rounded-lg border border-line bg-canvas-soft">
+        {directs.map(direct => {
+          const otherSessionId = getOtherDirectSessionId(direct, selfSessionId);
+          return (
+            <DirectsListRow
+              active={direct.direct_id === activeDirectId}
+              channel={channel}
+              direct={direct}
+              key={direct.direct_id}
+              member={otherSessionId ? memberBySessionId.get(otherSessionId) : undefined}
+              selfSessionId={selfSessionId}
+              workspaceId={workspaceId}
+            />
+          );
+        })}
+      </div>
       {hasMore && onLoadMore ? (
         <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
           <span className="text-small-body text-muted">

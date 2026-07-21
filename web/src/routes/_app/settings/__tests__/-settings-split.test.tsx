@@ -4,23 +4,32 @@ import { describe, expect, it, vi } from "vitest";
 
 import { settingsHooksExtensionsSectionFixture } from "@/systems/settings/mocks/fixtures";
 
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const original = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...original,
+    Link: ({
+      to,
+      children,
+      ...rest
+    }: {
+      to: string;
+      children?: React.ReactNode;
+      [key: string]: unknown;
+    }) => (
+      <a href={String(to)} {...(rest as Record<string, unknown>)}>
+        {children}
+      </a>
+    ),
+  };
+});
+
 import { PolicySection } from "../-extensions-policy-section";
 import { HooksSection } from "../-hooks-section";
 
 function PolicyHarness() {
   const [draft, setDraft] = useState(settingsHooksExtensionsSectionFixture.config);
-  return (
-    <PolicySection
-      canMutate
-      draft={draft}
-      error={null}
-      isDirty={false}
-      isSaving={false}
-      onReset={vi.fn()}
-      onSave={vi.fn()}
-      setDraft={setDraft}
-    />
-  );
+  return <PolicySection canMutate draft={draft} setDraft={setDraft} />;
 }
 
 describe("Settings route split", () => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export type InspectorTab = "members" | "work" | "activity";
+export type InspectorTab = "members" | "work";
 
 interface InspectorChannelState {
   open: boolean;
@@ -34,8 +34,7 @@ function readStore(): Store {
       if (typeof open !== "boolean") {
         continue;
       }
-      const safeTab: InspectorTab =
-        tab === "members" || tab === "work" || tab === "activity" ? tab : DEFAULT_STATE.tab;
+      const safeTab: InspectorTab = tab === "members" || tab === "work" ? tab : DEFAULT_STATE.tab;
       out[key] = { open, tab: safeTab };
     }
     return out;

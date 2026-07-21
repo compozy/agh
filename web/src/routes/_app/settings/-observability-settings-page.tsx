@@ -1,34 +1,28 @@
-import { AlertCircle, ExternalLink } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsObservabilityPage } from "@/systems/settings/hooks/use-settings-observability-page";
 import {
+  SettingsAdvancedFold,
+  SettingsByteField,
   SettingsFieldRow,
   SettingsGroup,
+  SettingsHeroGauge,
   SettingsPageFrame,
+  SettingsProvChip,
   SettingsSaveBar,
   SettingsRuntimeUnavailable,
   useSettingsSaveBarState,
   useSettingsTopbar,
-  SettingsTile,
-  SettingsTiles,
   type SettingsObservabilitySection,
 } from "@/systems/settings";
-import { Button, Eyebrow, Pill, Spinner, Switch } from "@agh/ui";
+import { Button, Spinner, Switch } from "@agh/ui";
 
 type ObservabilityConfig = SettingsObservabilitySection["config"];
-type LogTailMeta = SettingsObservabilitySection["log_tail"];
-type Runtime = SettingsObservabilitySection["runtime"];
 
-import { ObservabilityNumberField as NumberField, UsageBreakdown } from "./-observability-fields";
+import { ObservabilityNumberField as NumberField } from "./-observability-fields";
 import { formatBytes } from "./-observability-format";
-import { ObservabilitySupportBundleSection } from "./-observability-support-bundle-section";
-
-function safeLogTailURL(value: string | undefined): string | null {
-  if (!value || !URL.canParse(value, "http://localhost")) return null;
-  const protocol = new URL(value, "http://localhost").protocol;
-  return protocol === "http:" || protocol === "https:" ? value : null;
-}
+import { ObservabilityDiagnosticsSection } from "./-observability-support-bundle-section";
 
 export function ObservabilitySettingsPage() {
   const page = useSettingsObservabilityPage();
@@ -127,11 +121,14 @@ export function ObservabilitySettingsPage() {
       slug="observability"
     >
       {runtime.available ? (
-        <OverviewMetrics
-          activeSessions={runtime.active_sessions}
-          activeAgents={runtime.active_agents}
-          totalStorage={totalStorage}
-          cap={cap}
+        <SettingsHeroGauge
+          data-testid="settings-page-observability-hero"
+          usage={`${formatBytes(totalStorage)} of ${formatBytes(cap)}`}
+          percent={capPercent}
+          tone={capPercent >= 95 ? "danger" : capPercent >= 80 ? "warning" : "success"}
+          pill={capPercent >= 80 ? "Filling up" : "Healthy"}
+          legend={`Global DB ${formatBytes(runtime.global_db_size_bytes)} · Sessions ${formatBytes(runtime.session_db_size_bytes)} · ${formatBytes(Math.max(0, cap - totalStorage))} free`}
+          foot={`${draft.enabled ? "Capturing" : "Capture off"} · ${runtime.active_sessions} active sessions · ${runtime.active_agents} agents working · ${draft.retention_days}-day retention`}
         />
       ) : (
         <SettingsRuntimeUnavailable
@@ -142,73 +139,19 @@ export function ObservabilitySettingsPage() {
       <CaptureSection
         draft={draft}
         setDraft={setDraft}
-        usage={
-          runtime.available
-            ? {
-                capPercent,
-                globalBytes: runtime.global_db_size_bytes,
-                sessionBytes: runtime.session_db_size_bytes,
-              }
-            : null
-        }
-        cap={cap}
         validationErrors={validationErrors}
         setValidationError={setValidationError}
       />
-      <TranscriptsSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <ObservabilitySupportBundleSection />
-      <LogTailSection logTail={logTail} runtime={runtime} />
+      <TranscriptsSection draft={draft} setDraft={setDraft} />
+      <ObservabilityDiagnosticsSection logTail={logTail} />
+      <SettingsAdvancedFold
+        data-testid="settings-page-observability-advanced"
+        label="Advanced — storage limits"
+        padded
+      >
+        <StorageLimitsSection draft={draft} setDraft={setDraft} />
+      </SettingsAdvancedFold>
     </SettingsPageFrame>
-  );
-}
-
-interface OverviewMetricsProps {
-  activeSessions: number;
-  activeAgents: number;
-  totalStorage: number;
-  cap: number;
-}
-
-function OverviewMetrics({
-  activeSessions,
-  activeAgents,
-  totalStorage,
-  cap,
-}: OverviewMetricsProps) {
-  const capPercent = cap > 0 ? Math.min(100, Math.round((totalStorage / cap) * 100)) : 0;
-  return (
-    <SettingsGroup bare description="Live capture volume. Read-only." title="Runtime">
-      <SettingsTiles>
-        <SettingsTile
-          data-testid="settings-page-observability-metric-sessions"
-          dotTone={activeSessions > 0 ? "success" : "neutral"}
-          label="Active sessions"
-          value={String(activeSessions)}
-        />
-        <SettingsTile
-          data-testid="settings-page-observability-metric-agents"
-          label="Active agents"
-          value={String(activeAgents)}
-        />
-        <SettingsTile
-          data-testid="settings-page-observability-metric-storage"
-          detail={`of ${formatBytes(cap)}`}
-          label="Storage used"
-          value={formatBytes(totalStorage)}
-        />
-        <SettingsTile
-          data-testid="settings-page-observability-metric-capacity"
-          detail="of soft cap"
-          label="Capacity"
-          value={`${capPercent}%`}
-        />
-      </SettingsTiles>
-    </SettingsGroup>
   );
 }
 
@@ -217,40 +160,20 @@ interface DraftSectionProps {
   setDraft: Dispatch<SetStateAction<ObservabilityConfig | null>>;
 }
 
-interface CaptureSectionProps extends DraftSectionProps {
-  usage: { capPercent: number; globalBytes: number; sessionBytes: number } | null;
-  cap: number;
-  validationErrors: Record<string, string | null>;
-  setValidationError: (key: string) => (message: string | null) => void;
-}
-
 function CaptureSection({
   draft,
   setDraft,
-  usage,
-  cap,
   validationErrors,
   setValidationError,
-}: CaptureSectionProps) {
+}: DraftSectionProps & {
+  validationErrors: Record<string, string | null>;
+  setValidationError: (key: string) => (message: string | null) => void;
+}) {
   return (
-    <SettingsGroup
-      title="Capture"
-      description="events, transcripts, logs"
-      action={
-        usage ? (
-          <Pill
-            mono
-            tone={usage.capPercent > 85 ? "warning" : "neutral"}
-            data-testid="settings-page-observability-cap-percent"
-          >
-            {usage.capPercent}% of cap
-          </Pill>
-        ) : null
-      }
-    >
+    <SettingsGroup title="Capture" description="events, transcripts, logs">
       <SettingsFieldRow
         data-testid="settings-page-observability-enabled"
-        label="Event capture"
+        label="Record activity"
         description="Persist every session event to SQLite for replay"
         control={
           <Switch
@@ -265,61 +188,39 @@ function CaptureSection({
           />
         }
       />
-      <div className="grid gap-4 md:grid-cols-2">
-        <NumberField
-          label="Retention"
-          testId="settings-page-observability-retention-days"
-          value={draft.retention_days}
-          errorMessage={validationErrors.retentionDays ?? undefined}
-          suffix="days"
-          onValidityChange={setValidationError("retentionDays")}
-          onChange={value =>
-            setDraft(prev => {
-              const current = prev ?? draft;
-              return { ...current, retention_days: value };
-            })
-          }
-        />
-        <NumberField
-          label="Max global bytes"
-          testId="settings-page-observability-max-global-bytes"
-          value={draft.max_global_bytes}
-          errorMessage={validationErrors.maxGlobalBytes ?? undefined}
-          suffix="bytes"
-          onValidityChange={setValidationError("maxGlobalBytes")}
-          onChange={value =>
-            setDraft(prev => {
-              const current = prev ?? draft;
-              return { ...current, max_global_bytes: value };
-            })
-          }
-        />
-      </div>
-      {usage ? (
-        <UsageBreakdown
-          globalBytes={usage.globalBytes}
-          sessionBytes={usage.sessionBytes}
-          cap={cap}
-        />
-      ) : null}
+      <SettingsFieldRow
+        data-testid="settings-page-observability-retention"
+        label="Keep records for"
+        description="Older events are pruned on the retention sweep"
+        error={validationErrors.retentionDays ?? undefined}
+        control={
+          <NumberField
+            label="Keep records for"
+            testId="settings-page-observability-retention-days"
+            value={draft.retention_days}
+            errorMessage={validationErrors.retentionDays ?? undefined}
+            suffix="days"
+            hideLabel
+            onValidityChange={setValidationError("retentionDays")}
+            onChange={value =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, retention_days: value };
+              })
+            }
+          />
+        }
+      />
     </SettingsGroup>
   );
 }
 
-function TranscriptsSection({
-  draft,
-  setDraft,
-  validationErrors,
-  setValidationError,
-}: DraftSectionProps & {
-  validationErrors: Record<string, string | null>;
-  setValidationError: (key: string) => (message: string | null) => void;
-}) {
+function TranscriptsSection({ draft, setDraft }: DraftSectionProps) {
   return (
     <SettingsGroup title="Transcripts" description="full replay of agent I/O">
       <SettingsFieldRow
         data-testid="settings-page-observability-transcripts-enabled"
-        label="Capture transcripts"
+        label="Save full transcripts"
         description="Chunked segment-based replay of every prompt + response"
         control={
           <Switch
@@ -337,83 +238,91 @@ function TranscriptsSection({
           />
         }
       />
-      <div className="grid gap-4 md:grid-cols-2">
-        <NumberField
-          label="Segment size"
-          testId="settings-page-observability-segment-bytes"
-          value={draft.transcripts.segment_bytes}
-          errorMessage={validationErrors.segmentBytes ?? undefined}
-          suffix="bytes"
-          onValidityChange={setValidationError("segmentBytes")}
-          onChange={value =>
-            setDraft(prev => {
-              const current = prev ?? draft;
-              return {
-                ...current,
-                transcripts: { ...current.transcripts, segment_bytes: value },
-              };
-            })
-          }
-        />
-        <NumberField
-          label="Max per session"
-          testId="settings-page-observability-transcripts-max-bytes"
-          value={draft.transcripts.max_bytes_per_session}
-          errorMessage={validationErrors.maxBytesPerSession ?? undefined}
-          suffix="bytes"
-          onValidityChange={setValidationError("maxBytesPerSession")}
-          onChange={value =>
-            setDraft(prev => {
-              const current = prev ?? draft;
-              return {
-                ...current,
-                transcripts: {
-                  ...current.transcripts,
-                  max_bytes_per_session: value,
-                },
-              };
-            })
-          }
-        />
-      </div>
     </SettingsGroup>
   );
 }
 
-function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: Runtime }) {
-  void runtime;
-  const streamURL = safeLogTailURL(logTail.stream_url);
+function StorageLimitsSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsGroup title="Log tail" description="daemon log stream">
-      <div
-        className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-elevated px-4 py-3"
-        data-testid="settings-page-observability-log-tail"
-        data-available={logTail.available ? "true" : "false"}
-      >
-        <div className="flex flex-col gap-1">
-          <span className="text-sm text-fg">
-            {logTail.available ? "Live log tail available" : "Log tail unavailable"}
+    <SettingsGroup title="Storage limits" description="byte caps for capture stores">
+      <SettingsFieldRow
+        data-testid="settings-page-observability-max-global"
+        label="Global storage cap"
+        description={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            Soft cap across the global event store
+            <SettingsProvChip>observability.max_global_bytes</SettingsProvChip>
           </span>
-          <Eyebrow
-            className="text-muted"
-            data-testid="settings-page-observability-log-tail-transport"
-          >
-            transport: {logTail.transport ?? "none"}
-          </Eyebrow>
-        </div>
-        {logTail.available && streamURL ? (
-          <a
-            className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
-            data-testid="settings-page-observability-log-tail-link"
-            href={streamURL}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <ExternalLink className="size-3" />
-            Open stream
-          </a>
-        ) : null}
-      </div>
+        }
+        control={
+          <SettingsByteField
+            data-testid="settings-page-observability-max-global-bytes"
+            label="Global storage cap"
+            value={draft.max_global_bytes}
+            onChange={value =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, max_global_bytes: value };
+              })
+            }
+          />
+        }
+      />
+      <SettingsFieldRow
+        data-testid="settings-page-observability-segment"
+        label="Transcript segment size"
+        description={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            Chunk size for transcript segments
+            <SettingsProvChip>observability.transcripts.segment_bytes</SettingsProvChip>
+          </span>
+        }
+        control={
+          <SettingsByteField
+            data-testid="settings-page-observability-segment-bytes"
+            label="Transcript segment size"
+            value={draft.transcripts.segment_bytes}
+            onChange={value =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  transcripts: { ...current.transcripts, segment_bytes: value },
+                };
+              })
+            }
+          />
+        }
+      />
+      <SettingsFieldRow
+        data-testid="settings-page-observability-max-per-session"
+        label="Transcript cap per session"
+        description={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            Per-session transcript ceiling
+            <SettingsProvChip>observability.transcripts.max_bytes_per_session</SettingsProvChip>
+          </span>
+        }
+        control={
+          <SettingsByteField
+            data-testid="settings-page-observability-transcripts-max-bytes"
+            label="Transcript cap per session"
+            value={draft.transcripts.max_bytes_per_session}
+            onChange={value =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  transcripts: {
+                    ...current.transcripts,
+                    max_bytes_per_session: value,
+                  },
+                };
+              })
+            }
+          />
+        }
+      />
     </SettingsGroup>
   );
 }

@@ -12,12 +12,15 @@ export function SettingsAdvancedFold({
   children,
   defaultOpen = false,
   padded = false,
+  label = "Advanced",
   "data-testid": testId,
 }: {
   children: ReactNode;
   defaultOpen?: boolean;
   /** Pad the body when it hosts whole groups instead of flush rows. */
   padded?: boolean;
+  /** Descriptive toggle label, e.g. "Advanced — limits". */
+  label?: ReactNode;
   "data-testid"?: string;
 }) {
   const bodyId = `settings-advanced-${useId().replace(/:/g, "")}`;
@@ -42,7 +45,7 @@ export function SettingsAdvancedFold({
           aria-hidden="true"
           className="size-3.5 text-faint transition-transform duration-base group-data-panel-open/advanced:rotate-90"
         />
-        Advanced
+        {label}
       </CollapsibleTrigger>
       <CollapsibleContent
         className={cn("border-t border-line-soft", padded && "flex flex-col gap-6 p-4")}

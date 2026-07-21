@@ -56,7 +56,7 @@ function WallpaperPicker({
       ref={groupRef}
       role="radiogroup"
       aria-label="Wallpaper"
-      className="flex flex-wrap gap-3"
+      className="grid w-full grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3"
       onKeyDown={handleKeyDown}
     >
       {WALLPAPERS.map(option => {
@@ -71,7 +71,7 @@ function WallpaperPicker({
             data-wallpaper-option={option.id}
             data-testid={`os-wallpaper-option-${option.id}`}
             className={cn(
-              "group flex w-28 flex-col overflow-hidden rounded-md border text-left",
+              "group flex w-full flex-col overflow-hidden rounded-lg border text-left",
               "transition-colors duration-base",
               "focus-visible:shadow-focus-ring focus-visible:outline-none",
               selected ? "border-accent" : "border-line-strong hover:border-line-focus"
@@ -80,12 +80,12 @@ function WallpaperPicker({
           >
             <span
               aria-hidden="true"
-              className="block h-14 w-full border-b border-line"
+              className="block aspect-video w-full border-b border-line"
               style={{ backgroundImage: THUMB_BACKGROUND[option.id] }}
             />
             <span
               className={cn(
-                "flex items-center justify-between px-2 py-1.5 text-small-body",
+                "flex items-center justify-between px-3 py-2 text-small-body",
                 selected ? "font-semibold text-fg-strong" : "text-muted"
               )}
             >

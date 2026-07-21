@@ -54,8 +54,8 @@ function readWorkState(message: NetworkConversationMessage): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-const DENSITY_AVATAR: Record<MessageRowDensity, 36 | 32> = {
-  channel: 36,
+const DENSITY_AVATAR: Record<MessageRowDensity, 26 | 32> = {
+  channel: 26,
   overlay: 32,
 };
 

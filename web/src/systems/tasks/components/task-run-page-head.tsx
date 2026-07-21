@@ -2,6 +2,7 @@ import { ArrowUpRight, LifeBuoy, RotateCw } from "lucide-react";
 
 import {
   Button,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -11,7 +12,11 @@ import {
   TopbarOverflowIcon,
 } from "@agh/ui";
 
-import { taskRunStatusLabel, taskRunStatusTone } from "../lib/task-formatters";
+import {
+  HEAD_STATUS_TONE_TEXT,
+  taskRunStatusLabel,
+  taskRunStatusTone,
+} from "../lib/task-formatters";
 import type { TaskRunDetailView, TaskRunStatus } from "../types";
 
 const CANCELABLE_STATUSES: ReadonlySet<TaskRunStatus> = new Set([
@@ -25,10 +30,16 @@ export function TaskRunPageStatus({ status }: { status: TaskRunStatus }) {
   const isActive = status === "running" || status === "starting";
   const tone = taskRunStatusTone(status);
   return (
-    <Pill data-testid="tasks-run-status" tone={tone}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 text-badge font-semibold",
+        HEAD_STATUS_TONE_TEXT[tone]
+      )}
+      data-testid="tasks-run-status"
+    >
       <Pill.Dot pulse={isActive} tone={tone} />
       {taskRunStatusLabel(status)}
-    </Pill>
+    </span>
   );
 }
 

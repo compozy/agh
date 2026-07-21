@@ -19,7 +19,7 @@ export interface MessageAvatarProps {
    * 36 in the channel timeline (`_design.md` §5.2.1), 32 inside the thread
    * overlay (§3.2), 20 in the channel rail Direct Rooms section.
    */
-  sizePx: 36 | 32 | 20;
+  sizePx: 36 | 32 | 26 | 20;
   /**
    * Owner role drives the `role="img"` aria-label. When
    * provided, the avatar announces `{Role} {Name}` so screen readers retain

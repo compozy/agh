@@ -147,11 +147,16 @@ const restartBanner: RestartBanner = {
   dismiss: vi.fn(),
 };
 
-vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
-    component: opts.component,
-  }),
-}));
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    createFileRoute: () => (opts: { component: () => ReactNode }) => ({
+      component: opts.component,
+    }),
+    useNavigate: () => vi.fn(),
+  };
+});
 
 vi.mock("@/systems/settings/hooks/use-settings-general-page", () => ({
   useSettingsGeneralPage: () => pageState,
@@ -169,6 +174,8 @@ vi.mock("@/systems/settings", async importOriginal => {
   return {
     ...actual,
     useSettingsGeneral: () => ({ data: envelope, isLoading: false, error: null }),
+    useSettingsProviders: () => ({ data: { providers: [{ name: "claude" }] } }),
+    useSettingsSandboxes: () => ({ data: { sandboxes: [{ name: "local" }] } }),
     useUpdateSettingsGeneral: () => mockMutation,
     SettingsApiError: class SettingsApiError extends Error {},
   };

@@ -1,4 +1,4 @@
-import { Spinner } from "@agh/ui";
+import { Skeleton, SkeletonRows } from "@agh/ui";
 
 import { DaemonDown } from "../components/empty-states/daemon-down";
 import { NetworkEmpty } from "../components/empty-states/network-empty";
@@ -64,11 +64,24 @@ export function NetworkWindowController({
       <>
         <div
           aria-label="Loading network workspace"
-          className="flex min-h-0 flex-1 items-center justify-center"
+          className="flex min-h-0 flex-1"
           data-testid="network-loading"
           role="status"
         >
-          <Spinner aria-hidden="true" className="size-5 text-subtle" />
+          <div className="hidden w-[232px] shrink-0 flex-col gap-2 border-r border-line-soft px-3 py-4 sm:flex">
+            <Skeleton className="h-3 w-16" />
+            <SkeletonRows count={5} rowClassName="py-1">
+              <Skeleton className="h-3.5 w-full" />
+            </SkeletonRows>
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-3 px-5 py-4">
+            <Skeleton className="h-5 w-56" />
+            <Skeleton className="h-3 w-80" />
+            <SkeletonRows count={4} rowClassName="border-b border-line-soft py-3">
+              <Skeleton className="h-3.5 w-2/3" />
+              <Skeleton className="h-3 w-full" />
+            </SkeletonRows>
+          </div>
         </div>
         {view.networkCreate.dialog}
       </>
@@ -146,12 +159,7 @@ export function NetworkWindowController({
     );
   }
 
-  const {
-    inspector,
-    members: channelMembers,
-    threads: channelThreads,
-    directs: channelDirects,
-  } = view.inspectorView;
+  const { inspector, members: channelMembers } = view.inspectorView;
   const showInspectorInRightRail = !view.showOverlayInRightRail && inspector.open;
   const rightRailContent =
     view.showOverlayInRightRail && activeChannel && activeThreadId ? (
@@ -166,15 +174,11 @@ export function NetworkWindowController({
     ) : showInspectorInRightRail && activeChannel ? (
       <NetworkInspector
         activeTab={inspector.tab}
-        channel={activeChannel.channel}
-        directs={channelDirects.directs}
-        isActivityLoading={channelThreads.isLoading || channelDirects.isLoading}
+        channel={activeChannel}
         isMembersLoading={channelMembers.isLoading}
         isWorkLoading={view.openWork.isLoading}
         members={channelMembers.members}
-        onClose={inspector.close}
         onTabChange={inspector.setTab}
-        threads={channelThreads.threads}
         workCount={view.openWork.openCount}
         workEntries={view.openWork.entries}
       />
@@ -218,6 +222,7 @@ export function NetworkWindowController({
             <NetworkWindowContent
               workspaceId={workspaceId}
               channel={activeChannel.channel}
+              fanoutPolicy={activeChannel.fanout_policy ?? null}
               activeTab={activeTab}
               activeThreadId={activeThreadId}
               activeDirectId={activeDirectId}

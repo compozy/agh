@@ -8,9 +8,10 @@ import { SettingLinkRow } from "./setting-row";
 import { SettingsAdvancedFold } from "./settings-advanced-fold";
 import { SettingsFieldRow } from "./settings-field-row";
 import { SettingsGroup } from "./settings-group";
+import { SettingsHeroBoard } from "./settings-hero-board";
+import { SettingsLiveChip } from "./settings-live-chip";
 import { SettingsNumberInput } from "./settings-number-input";
 import { SettingsRuntimeUnavailable } from "./settings-runtime-unavailable";
-import { SettingsTile, SettingsTiles } from "./settings-tiles";
 
 type NetworkConfig = SettingsNetworkSection["config"];
 type NetworkRuntime = SettingsNetworkSection["runtime"];
@@ -26,72 +27,57 @@ interface NetworkSettingsSectionsProps {
 export function NetworkSettingsSections(props: NetworkSettingsSectionsProps) {
   return (
     <>
-      <OperationalLinksSection />
-      <RuntimeStatusSection runtime={props.runtime} />
+      <NetworkHero runtime={props.runtime} />
       <AvailabilitySection draft={props.draft} setDraft={props.setDraft} />
-      <ProtocolSafetySection {...props} />
-      <SettingsAdvancedFold data-testid="settings-page-network-advanced" padded>
+      <DeliverySafetySection {...props} />
+      <SettingsAdvancedFold
+        data-testid="settings-page-network-advanced"
+        label="Advanced — live participation limits"
+        padded
+      >
         <NetworkLiveSettingsSections {...props} />
       </SettingsAdvancedFold>
     </>
   );
 }
 
-function OperationalLinksSection() {
-  return (
-    <SettingsGroup
-      description="These settings control Network availability and finite Live defaults and ceilings. They never opt sessions, tasks, loops, or automations into participation."
-      title="Operational"
-    >
-      <SettingLinkRow
-        data-testid="settings-page-network-link-network"
-        description="Channels, peers, and live coordination for this workspace."
-        label="Open Network"
-        to="/network"
+function NetworkHero({ runtime }: { runtime: NetworkRuntime }) {
+  if (!runtime.available) {
+    return (
+      <SettingsRuntimeUnavailable
+        slug="network"
+        description="The Network listener did not return live status or traffic counters."
       />
-    </SettingsGroup>
-  );
-}
-
-function RuntimeStatusSection({ runtime }: { runtime: NetworkRuntime }) {
+    );
+  }
+  const enabled = runtime.enabled;
+  const statusLabel = runtime.status ?? (enabled ? "ready" : "disabled");
   return (
-    <SettingsGroup
-      bare
-      description="What the listener is doing right now. Read-only."
-      title="Runtime"
-    >
-      {runtime.available ? (
-        <SettingsTiles>
-          <SettingsTile
-            data-testid="settings-page-network-runtime-status"
-            dotTone={runtime.enabled ? "success" : "neutral"}
-            label="Status"
-            value={runtime.status ?? (runtime.enabled ? "ready" : "disabled")}
-          />
-          <SettingsTile
-            data-testid="settings-page-network-runtime-live-participants"
-            label="Live participants"
-            value={String(runtime.local_peers)}
-          />
-          <SettingsTile
-            data-testid="settings-page-network-runtime-channels"
-            label="Channels"
-            value={String(runtime.channels)}
-          />
-          <SettingsTile
-            data-testid="settings-page-network-runtime-messages-received"
-            detail={`${runtime.messages_delivered} delivered · ${runtime.messages_rejected} rejected`}
-            label="Messages received"
-            value={String(runtime.messages_received)}
-          />
-        </SettingsTiles>
-      ) : (
-        <SettingsRuntimeUnavailable
-          slug="network"
-          description="The Network listener did not return live status or traffic counters."
-        />
-      )}
-    </SettingsGroup>
+    <SettingsHeroBoard
+      data-testid="settings-page-network-hero"
+      state={enabled ? "Mesh ready" : "Mesh disabled"}
+      tone={enabled ? "success" : "neutral"}
+      pulse={enabled}
+      pill={statusLabel}
+      stats={[
+        {
+          key: "participants",
+          value: String(runtime.local_peers),
+          label: "Live participants",
+        },
+        {
+          key: "channels",
+          value: String(runtime.channels),
+          label: "Channels",
+        },
+        {
+          key: "delivered",
+          value: runtime.messages_delivered.toLocaleString(),
+          label: "Messages delivered",
+          sub: `${runtime.messages_received.toLocaleString()} received · ${runtime.messages_rejected.toLocaleString()} rejected`,
+        },
+      ]}
+    />
   );
 }
 
@@ -105,11 +91,16 @@ function AvailabilitySection({ draft, setDraft }: DraftSectionProps) {
     <SettingsGroup title="Availability" description="applies live without enrollment">
       <SettingsFieldRow
         data-testid="settings-page-network-enabled"
-        label="Network availability"
-        description="Allow explicitly Live executions to join coordination conversations"
+        label="Embedded network"
+        description={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            Allow explicitly Live executions to join coordination conversations
+            <SettingsLiveChip />
+          </span>
+        }
         control={
           <Switch
-            aria-label="Network availability"
+            aria-label="Embedded network"
             data-testid="settings-page-network-enabled-switch"
             checked={draft.enabled}
             onCheckedChange={enabled => setDraft(current => ({ ...(current ?? draft), enabled }))}
@@ -120,31 +111,40 @@ function AvailabilitySection({ draft, setDraft }: DraftSectionProps) {
   );
 }
 
-function ProtocolSafetySection({
+function DeliverySafetySection({
   draft,
   setDraft,
   validationErrors,
   setValidationError,
 }: NetworkSettingsSectionsProps) {
   return (
-    <SettingsGroup title="Protocol safety" description="replay protection">
+    <SettingsGroup title="Delivery safety" description="replay protection">
       <SettingsFieldRow
-        label="Replay window"
-        description="seconds"
+        label="Accept replayed messages within"
+        description="Messages older than this window are rejected"
         error={validationErrors.maxReplayAge ?? undefined}
         control={
-          <SettingsNumberInput
-            aria-label="Replay window"
-            className="w-32"
-            data-testid="settings-page-network-max-replay-age"
-            min={1}
-            value={draft.max_replay_age}
-            onValidityChange={setValidationError("maxReplayAge")}
-            onValueChange={maxReplayAge =>
-              setDraft(current => ({ ...(current ?? draft), max_replay_age: maxReplayAge }))
-            }
-          />
+          <div className="flex items-center gap-2">
+            <SettingsNumberInput
+              aria-label="Accept replayed messages within"
+              className="w-32"
+              data-testid="settings-page-network-max-replay-age"
+              min={1}
+              value={draft.max_replay_age}
+              onValidityChange={setValidationError("maxReplayAge")}
+              onValueChange={maxReplayAge =>
+                setDraft(current => ({ ...(current ?? draft), max_replay_age: maxReplayAge }))
+              }
+            />
+            <span className="text-form-label text-subtle">seconds</span>
+          </div>
         }
+      />
+      <SettingLinkRow
+        data-testid="settings-page-network-link-network"
+        description="Channels, peers, and live coordination for this workspace."
+        label="Open the network view"
+        to="/network"
       />
     </SettingsGroup>
   );

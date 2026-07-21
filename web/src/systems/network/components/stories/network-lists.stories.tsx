@@ -10,17 +10,24 @@ import {
 } from "@/systems/network/mocks";
 import type { OpenWorkEntry } from "@/systems/network/hooks/use-work";
 import type { ChannelMember } from "@/systems/network/hooks/use-channel-members";
-import type { NetworkThreadSummary } from "@/systems/network/types";
+import type { NetworkChannelSummary, NetworkThreadSummary } from "@/systems/network/types";
 
 import { ActivityFeed } from "../activity/activity-feed";
 import { DirectsList } from "../directs/directs-list";
-import { InspectorActivityFeed } from "../shell/inspector-activity-feed";
 import { InspectorMembersList } from "../shell/inspector-members-list";
 import { NetworkInspector } from "../shell/network-inspector";
 import { ThreadsList } from "../threads/threads-list";
 import { WorkInspectorRow } from "../work/work-inspector-row";
 
 const channel = "launch-war-room";
+const channelSummary: NetworkChannelSummary = {
+  channel,
+  peer_count: 3,
+  purpose: "Coordinate the v0.16 launch across agents and humans.",
+  fanout_policy: "capability_match",
+  created_by: "ops-human",
+  created_at: "2026-07-20T12:00:00Z",
+};
 const workEntry: OpenWorkEntry = {
   workId: networkWorkFixture.work_id,
   state: networkWorkFixture.state,
@@ -202,27 +209,18 @@ export const Inspector: StoryObj<typeof NetworkInspector> = {
   render: () => (
     <div className="grid min-h-[520px] gap-4 md:grid-cols-[360px_360px]">
       <NetworkInspector
-        channel={channel}
+        channel={channelSummary}
         activeTab="members"
         onTabChange={fn()}
-        onClose={fn()}
         members={members}
         isMembersLoading={false}
         workEntries={[workEntry]}
         isWorkLoading={false}
         workCount={1}
         onWorkJump={fn()}
-        threads={networkThreadsFixture}
-        directs={networkDirectRoomsFixture}
-        isActivityLoading={false}
       />
       <div className="grid min-h-0 gap-4">
         <InspectorMembersList members={members} />
-        <InspectorActivityFeed
-          channel={channel}
-          threads={networkThreadsFixture}
-          directs={networkDirectRoomsFixture}
-        />
       </div>
     </div>
   ),

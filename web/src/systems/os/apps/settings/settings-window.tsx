@@ -13,7 +13,6 @@ import { SETTINGS_SECTIONS } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
 import { useDesktop } from "../../hooks/use-desktop";
-import { useOsShell } from "../../hooks/use-os-shell";
 import { SettingsWindowNav } from "./settings-window-nav";
 
 /**
@@ -92,7 +91,6 @@ const TYPING_TAGS = /^(INPUT|SELECT|TEXTAREA)$/;
 
 export function SettingsWindow({ windowId }: { windowId: string }) {
   const pathname = useDesktop(state => state.windows[windowId]?.location.pathname ?? "/settings");
-  const { coordinator } = useOsShell();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const connection = useDaemonConnectionStatus();
   const activeSlug = sectionSlugFromPathname(pathname);
@@ -120,7 +118,6 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
         <SettingsWindowNav
           activeSlug={activeSlug}
           connection={connection}
-          onBackToApp={() => coordinator.userClose(windowId)}
           searchInputRef={searchInputRef}
         />
         <div className="relative flex min-w-0 flex-1 flex-col" data-testid="settings-shell-outlet">

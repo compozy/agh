@@ -1,15 +1,13 @@
 import { useChannelMembers, type UseChannelMembersResult } from "./use-channel-members";
-import { useNetworkDirects, type UseNetworkDirectsResult } from "./use-directs";
-import { useNetworkThreads, type UseNetworkThreadsResult } from "./use-threads";
 import { useInspectorState, type UseInspectorStateResult } from "./use-inspector-state";
 
 export interface UseNetworkInspectorViewArgs {
   workspaceId: string | null | undefined;
   channel: string | null | undefined;
   /**
-   * The view should only fetch members/threads/directs while the inspector is
-   * actually visible — when it's collapsed or a thread overlay is taking the
-   * right rail, the inspector queries stay quiet.
+   * The view should only fetch members while the inspector is actually
+   * visible — when it's collapsed or a thread overlay is taking the right
+   * rail, the inspector queries stay quiet.
    */
   enabled: boolean;
 }
@@ -17,15 +15,11 @@ export interface UseNetworkInspectorViewArgs {
 export interface UseNetworkInspectorViewResult {
   inspector: UseInspectorStateResult;
   members: UseChannelMembersResult;
-  threads: UseNetworkThreadsResult;
-  directs: UseNetworkDirectsResult;
 }
 
 /**
- * Composite view-model for the right-rail Network inspector. Bundles the
- * per-channel inspector state with the three feeds (members, threads,
- * directs) so the route can keep a flat hook surface and avoid blowing the
- * `compozy-react(max-component-complexity)` budget.
+ * Composite view-model for the right-rail Network inspector: the per-channel
+ * inspector state plus the members feed backing the Members segment.
  */
 export function useNetworkInspectorView({
   channel,
@@ -35,8 +29,6 @@ export function useNetworkInspectorView({
   const inspector = useInspectorState(channel);
   const queryEnabled = enabled && inspector.open && Boolean(channel);
   const members = useChannelMembers(channel, { enabled: queryEnabled, workspaceId });
-  const threads = useNetworkThreads(channel, { enabled: queryEnabled, workspaceId });
-  const directs = useNetworkDirects(channel, { enabled: queryEnabled, workspaceId });
 
-  return { inspector, members, threads, directs };
+  return { inspector, members };
 }

@@ -1,11 +1,23 @@
-import { Dialog, DialogContent, DialogDescription, DialogTitle, Pill, cn } from "@agh/ui";
+import { ArrowRight, Plus } from "lucide-react";
+
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  Eyebrow,
+  OwnerAvatar,
+  Pill,
+  cn,
+} from "@agh/ui";
 
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { useOsReducedMotion } from "../hooks/use-os-reduced-motion";
 import { useSpaceArrangements, type OsSpaceCardModel } from "../hooks/use-space-arrangements";
+import { useSpaceDetails, type OsSpaceDetailModel } from "../hooks/use-space-details";
 import { useDesktop } from "../hooks/use-desktop";
-import type { OsDesktopBounds, OsWallpaper, OsWindow } from "../lib/os-types";
 
 export interface OsSpacesOverviewProps {
   open: boolean;
@@ -13,80 +25,67 @@ export interface OsSpacesOverviewProps {
   workspaces: WorkspacePayload[];
   activeWorkspaceId: string | null;
   onSelectWorkspace: (workspaceId: string) => void;
+  onNewSpace: () => void;
 }
 
-/** Prototype thumb geometry (os-v2.js `openSpaces`): card-scale factors with viewport floors. */
-const SPACE_CARD_WIDTH = 264;
-const SPACE_THUMB_HEIGHT = 148;
-const THUMB_MIN_DESK_WIDTH = 1000;
-const THUMB_MIN_DESK_HEIGHT = 600;
-const THUMB_MAX_WINDOWS = 4;
-
-const THUMB_WALLPAPER: Record<OsWallpaper, string> = {
-  ember: "var(--wallpaper-thumb-ember)",
-  mesh: "var(--wallpaper-thumb-mesh)",
-  carbon: "var(--wallpaper-thumb-carbon)",
-};
+const MEMBER_AVATAR_MAX = 5;
 
 function workspaceMonogram(name: string): string {
   return name.trim().slice(0, 2).toUpperCase() || "WS";
 }
 
-function countLabel(count: number): string {
+function windowCountLabel(card: OsSpaceCardModel | undefined): string | null {
+  if (!card || card.status === "loading") return null;
+  if (card.status === "error" || card.arrangement === null) return null;
+  const count = card.arrangement.windows.length;
   return `${count} window${count === 1 ? "" : "s"}`;
 }
 
-function cardDetail(card: OsSpaceCardModel | undefined): string {
-  if (!card || card.status === "loading") return "Loading…";
-  if (card.status === "error" || card.arrangement === null) return "Arrangement unavailable";
-  return countLabel(card.arrangement.windows.length);
+function spaceMetaLine(detail: OsSpaceDetailModel | undefined, windowLabel: string | null): string {
+  if (!detail || detail.status === "loading") return "Loading…";
+  if (detail.status === "error") return windowLabel ?? "Details unavailable";
+  const parts = [
+    `${detail.agentCount} agent${detail.agentCount === 1 ? "" : "s"}`,
+    `${detail.sessionCount} session${detail.sessionCount === 1 ? "" : "s"}`,
+  ];
+  if (windowLabel) parts.push(windowLabel);
+  return parts.join(" · ");
 }
 
-function SpaceThumb({
-  card,
-  bounds,
-}: {
-  card: OsSpaceCardModel | undefined;
-  bounds: OsDesktopBounds | null;
-}) {
-  const arrangement = card?.arrangement ?? null;
-  const wallpaper = arrangement?.wallpaper ?? "ember";
-  const deskWidth = Math.max(bounds?.width ?? 0, THUMB_MIN_DESK_WIDTH);
-  const deskHeight = Math.max(bounds?.height ?? 0, THUMB_MIN_DESK_HEIGHT);
-  const sx = SPACE_CARD_WIDTH / deskWidth;
-  const sy = SPACE_THUMB_HEIGHT / deskHeight;
-  const minis: OsWindow[] = arrangement ? arrangement.windows.slice(-THUMB_MAX_WINDOWS) : [];
+function SpaceMembers({ detail }: { detail: OsSpaceDetailModel | undefined }) {
+  if (!detail || detail.status !== "ready" || detail.agentNames.length === 0) return null;
+  const visible = detail.agentNames.slice(0, MEMBER_AVATAR_MAX);
+  const overflow = detail.agentNames.length - visible.length;
 
   return (
-    <span
-      data-slot="os-space-thumb"
-      data-wallpaper={wallpaper}
-      aria-hidden="true"
-      className="relative block h-space-thumb w-full overflow-hidden border-b border-line"
-      style={{ backgroundImage: THUMB_WALLPAPER[wallpaper] }}
-    >
-      {minis.map(win => (
-        <span
-          key={win.id}
-          data-slot="os-space-mini-win"
-          className="absolute rounded-xs border border-line-strong bg-line-strong"
-          style={{
-            left: win.rect.x * sx,
-            top: `calc(${win.rect.y * sy}px + var(--spacing-space-thumb-top-offset))`,
-            width: win.rect.w * sx,
-            height: win.rect.h * sy,
-          }}
-        />
-      ))}
+    <span className="flex flex-col gap-1.5" data-slot="os-space-members">
+      <Eyebrow className="text-faint">Members</Eyebrow>
+      <span className="flex items-center">
+        <span className="flex -space-x-1.5">
+          {visible.map(name => (
+            <OwnerAvatar
+              className="ring-2 ring-canvas-soft"
+              key={name}
+              name={name}
+              ownerId={name}
+              ownerKind="agent"
+              size="sm"
+            />
+          ))}
+        </span>
+        {overflow > 0 ? (
+          <span className="ml-1.5 font-mono text-mono-id text-subtle">+{overflow}</span>
+        ) : null}
+      </span>
     </span>
   );
 }
 
 /**
- * The ⇧⌘S Spaces overview (US-010.AC-2): one card per workspace with a
- * mini-window thumbnail of its arrangement — the active space from the live
- * store, the rest from persisted desktop state (delta #4: real workspaces).
- * A desktop-level overlay from the closed set (Modal & Overlay Policy).
+ * The ⇧⌘S Spaces overview: page-style header (space count, agent rollup, New
+ * space) over one card per workspace — identity, real agent/session counts,
+ * member monograms, and the Enter affordance. Counts come from the workspace
+ * detail endpoint; nothing rendered here is invented.
  */
 export function OsSpacesOverview({
   open,
@@ -94,20 +93,24 @@ export function OsSpacesOverview({
   workspaces,
   activeWorkspaceId,
   onSelectWorkspace,
+  onNewSpace,
 }: OsSpacesOverviewProps) {
-  const desktopBounds = useDesktop(state => state.desktopBounds);
   const presentation = useDesktop(state => state.presentation);
   const reducedMotion = useOsReducedMotion();
-  const cards = useSpaceArrangements(
-    workspaces.map(workspace => workspace.id),
-    activeWorkspaceId,
-    { enabled: open }
-  );
+  const workspaceIds = workspaces.map(workspace => workspace.id);
+  const cards = useSpaceArrangements(workspaceIds, activeWorkspaceId, { enabled: open });
+  const details = useSpaceDetails(workspaceIds, { enabled: open });
 
   const selectWorkspace = (workspaceId: string) => {
     if (workspaceId !== activeWorkspaceId) onSelectWorkspace(workspaceId);
     onOpenChange(false);
   };
+
+  const spaceCount = workspaces.length;
+  const subtitle =
+    details.totalAgents !== null
+      ? `${spaceCount} space${spaceCount === 1 ? "" : "s"} · ${details.totalAgents} agent${details.totalAgents === 1 ? "" : "s"} distributed`
+      : `${spaceCount} space${spaceCount === 1 ? "" : "s"}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -121,14 +124,35 @@ export function OsSpacesOverview({
           "shadow-none backdrop-blur-shell-scrim"
         )}
       >
-        <DialogTitle className="text-compact-h1 font-semibold text-fg-strong">Spaces</DialogTitle>
-        <DialogDescription className="mb-spaces-subtitle-gap text-small-body text-muted">
-          Each workspace is a space — windows stay where you left them.
-        </DialogDescription>
+        <div className="flex w-full max-w-[calc(3*var(--width-space-card)+2*var(--spacing-spaces-row-gap))] items-start justify-between gap-4 px-6">
+          <div className="flex min-w-0 flex-col gap-1">
+            <DialogTitle className="text-compact-h1 font-semibold text-fg-strong">
+              Spaces
+            </DialogTitle>
+            <DialogDescription
+              className="text-small-body text-muted"
+              data-testid="os-spaces-subtitle"
+            >
+              {subtitle}
+            </DialogDescription>
+          </div>
+          <Button
+            data-testid="os-spaces-new-space"
+            onClick={() => {
+              onOpenChange(false);
+              onNewSpace();
+            }}
+            size="sm"
+            type="button"
+          >
+            <Plus aria-hidden="true" className="size-3" />
+            New space
+          </Button>
+        </div>
         <div
           data-slot="os-spaces-row"
           className={cn(
-            "flex max-w-full justify-center",
+            "mt-spaces-subtitle-gap flex max-w-full justify-center",
             presentation === "compact"
               ? "max-h-[64vh] flex-col items-center gap-3 overflow-y-auto px-4 py-1"
               : "max-h-[70vh] flex-wrap gap-spaces-row-gap overflow-y-auto px-6 py-1"
@@ -136,8 +160,9 @@ export function OsSpacesOverview({
         >
           {workspaces.map(workspace => {
             const active = workspace.id === activeWorkspaceId;
-            const card = cards.get(workspace.id);
-            const detail = cardDetail(card);
+            const detail = details.byWorkspaceId.get(workspace.id);
+            const windowLabel = windowCountLabel(cards.get(workspace.id));
+            const meta = spaceMetaLine(detail, windowLabel);
             return (
               <button
                 key={workspace.id}
@@ -145,21 +170,20 @@ export function OsSpacesOverview({
                 data-slot="os-space-card"
                 data-workspace-id={workspace.id}
                 data-current={active ? "true" : undefined}
-                aria-label={`${active ? "Current workspace" : "Switch to"} ${workspace.name}. ${detail}`}
+                aria-label={`${active ? "Current workspace" : "Switch to"} ${workspace.name}. ${meta}`}
                 className={cn(
-                  "w-space-card shrink-0 overflow-hidden rounded-xl border text-left",
+                  "group flex w-space-card shrink-0 flex-col gap-3 overflow-hidden rounded-xl border bg-canvas-soft p-4 text-left",
                   "transition-[transform,border-color] duration-shell-fast ease-spring",
                   "focus-visible:shadow-focus-ring focus-visible:outline-none",
                   !reducedMotion && "hover:-translate-y-1",
-                  active ? "border-accent" : "border-line-strong bg-canvas-soft"
+                  active ? "border-accent" : "border-line-strong hover:border-line-focus"
                 )}
                 onClick={() => selectWorkspace(workspace.id)}
               >
-                <SpaceThumb card={card} bounds={desktopBounds} />
-                <span data-slot="os-space-foot" className="flex items-center gap-2 px-3 py-2.5">
+                <span className="flex items-center gap-2.5">
                   <span
                     aria-hidden="true"
-                    className="grid size-5 shrink-0 place-items-center rounded-xs border border-line-strong bg-elevated font-mono text-space-avatar font-semibold text-muted"
+                    className="grid size-7 shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-space-avatar font-semibold text-muted"
                   >
                     {workspaceMonogram(workspace.name)}
                   </span>
@@ -171,7 +195,27 @@ export function OsSpacesOverview({
                       Current
                     </Pill>
                   ) : null}
-                  <span className="shrink-0 font-mono text-micro text-subtle">{detail}</span>
+                </span>
+                <span
+                  className="text-form-label text-subtle"
+                  data-testid={`os-space-meta-${workspace.id}`}
+                >
+                  {meta}
+                </span>
+                <SpaceMembers detail={detail} />
+                <span className="flex items-center justify-between border-t border-line-soft pt-2.5">
+                  <span className="truncate font-mono text-mono-id text-faint">
+                    {workspace.root_dir}
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1 text-form-label font-medium text-muted",
+                      "transition-colors duration-base group-hover:text-fg"
+                    )}
+                  >
+                    Enter
+                    <ArrowRight aria-hidden="true" className="size-3" />
+                  </span>
                 </span>
               </button>
             );

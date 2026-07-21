@@ -8,7 +8,7 @@ import { StorySurface } from "@/storybook/story-layout";
 import type { ProviderDraft, SettingsProviderEntry } from "@/systems/settings";
 import { settingsProviderFixtures } from "@/systems/settings/mocks";
 
-import { ProviderInspectorSheet } from "../provider-inspector-sheet";
+import { ProviderDetailDialog } from "../provider-detail-dialog";
 import type { ProviderInspectorState } from "@/systems/settings/hooks/use-settings-providers-page";
 
 const claude = settingsProviderFixtures[0]!;
@@ -90,7 +90,7 @@ function Harness({ initialState }: HarnessProps) {
       <p className="text-xs text-subtle">
         Sheet harness — toggle Inspect/Edit via the footer buttons.
       </p>
-      <ProviderInspectorSheet
+      <ProviderDetailDialog
         open={state.mode !== "closed"}
         mode={state.mode === "closed" ? "inspect" : state.mode}
         entry={entry}
@@ -137,9 +137,9 @@ function Harness({ initialState }: HarnessProps) {
   );
 }
 
-const meta: Meta<typeof ProviderInspectorSheet> = {
-  title: "systems/settings/components/ProviderInspectorSheet",
-  component: ProviderInspectorSheet,
+const meta: Meta<typeof ProviderDetailDialog> = {
+  title: "systems/settings/components/ProviderDetailDialog",
+  component: ProviderDetailDialog,
   parameters: {
     layout: "fullscreen",
     msw: { handlers: freshHandlers },

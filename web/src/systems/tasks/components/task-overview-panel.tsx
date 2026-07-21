@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 
-import { Button, cn, DescriptionCard, Section, Timeline } from "@agh/ui";
+import { Button, cn, DescriptionCard, Section } from "@agh/ui";
 
 import type { TaskDetailView, TaskRun, TaskTimelineItem } from "../types";
 import { latestTaskRun } from "../lib/task-run-presentation";
@@ -105,14 +105,20 @@ export function TaskOverviewPanel({
             </Button>
           }
         >
-          <Timeline
-            ariaLabel="Recent task activity"
-            className="rounded-lg border border-line bg-canvas-soft px-4 pt-3"
+          <ul
+            aria-label="Recent task activity"
+            className="flex flex-col rounded-lg border border-line bg-canvas-soft px-4 pt-3"
           >
             {recent.map(item => (
-              <TaskActivityItem isLive={isLive} item={item} key={item.event_id} />
+              <TaskActivityItem
+                className="pl-0"
+                hasMarker={false}
+                isLive={isLive}
+                item={item}
+                key={item.event_id}
+              />
             ))}
-          </Timeline>
+          </ul>
         </Section>
       ) : null}
     </div>
