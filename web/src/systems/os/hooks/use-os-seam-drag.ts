@@ -165,7 +165,9 @@ export function useOsSeamDrag(): OsSeamDragModel {
       const session = sessionRef.current;
       if (!session || move.pointerId !== session.pointerId) return;
       session.pendingClient = vertical ? move.clientX : move.clientY;
-      session.raf ||= requestAnimationFrame(flush);
+      if (session.raf === 0) {
+        session.raf = requestAnimationFrame(flush);
+      }
     };
 
     const onPointerUp = (up: PointerEvent) => {

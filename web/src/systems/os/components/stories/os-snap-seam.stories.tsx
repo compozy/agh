@@ -6,7 +6,7 @@ import { deriveSnapRect } from "../../lib/os-snap-geometry";
 import { OS_SNAP_ZONES } from "../../lib/os-snap-zones";
 import { OsSnapSeamLayer } from "../os-snap-seam";
 import { OsWindowFrame } from "../os-window-frame";
-import { StoryShellProvider } from "./_shell";
+import { createStoryShell, StoryShellProvider } from "./_shell";
 
 const meta: Meta<typeof OsSnapSeamLayer> = {
   title: "systems/os/components/OsSnapSeam",
@@ -59,20 +59,22 @@ function SnappedSilhouettes() {
 function SeamScene({ quarters = false }: { quarters?: boolean }) {
   return (
     <StoryShellProvider
-      setup={store => {
-        const left = store.getState().openOrFocus({ app: "tasks" });
-        const right = store.getState().openOrFocus({ app: "vault" });
-        store.getState().clampToViewport(BOUNDS);
-        store.getState().snapWindow(left, OS_SNAP_ZONES.left);
-        if (quarters) {
-          const third = store.getState().openOrFocus({ app: "sandbox" });
+      createShell={() =>
+        createStoryShell(store => {
+          const left = store.getState().openOrFocus({ app: "tasks" });
+          const right = store.getState().openOrFocus({ app: "vault" });
           store.getState().clampToViewport(BOUNDS);
-          store.getState().snapWindow(right, OS_SNAP_ZONES["top-right"]);
-          store.getState().snapWindow(third, OS_SNAP_ZONES["bottom-right"]);
-        } else {
-          store.getState().snapWindow(right, OS_SNAP_ZONES.right);
-        }
-      }}
+          store.getState().snapWindow(left, OS_SNAP_ZONES.left);
+          if (quarters) {
+            const third = store.getState().openOrFocus({ app: "sandbox" });
+            store.getState().clampToViewport(BOUNDS);
+            store.getState().snapWindow(right, OS_SNAP_ZONES["top-right"]);
+            store.getState().snapWindow(third, OS_SNAP_ZONES["bottom-right"]);
+          } else {
+            store.getState().snapWindow(right, OS_SNAP_ZONES.right);
+          }
+        })
+      }
     >
       <div
         data-slot="os-win-layer"

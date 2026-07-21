@@ -3,7 +3,7 @@ import { fn } from "storybook/test";
 
 import { OsTrafficLights } from "../os-traffic-lights";
 import { OsZoomMenu } from "../os-zoom-menu";
-import { StoryShellProvider } from "./_shell";
+import { createStoryShell, StoryShellProvider } from "./_shell";
 
 const meta: Meta<typeof OsZoomMenu> = {
   title: "systems/os/components/OsZoomMenu",
@@ -34,11 +34,13 @@ export const Default: Story = {
   args: {},
   render: () => (
     <StoryShellProvider
-      setup={store => {
-        store.getState().openOrFocus({ app: "tasks" });
-        store.getState().openOrFocus({ app: "vault" });
-        store.getState().clampToViewport({ width: 1100, height: 680 });
-      }}
+      createShell={() =>
+        createStoryShell(store => {
+          store.getState().openOrFocus({ app: "tasks" });
+          store.getState().openOrFocus({ app: "vault" });
+          store.getState().clampToViewport({ width: 1100, height: 680 });
+        })
+      }
     >
       <OsTrafficLights
         onSelect={fn()}
@@ -53,10 +55,12 @@ export const ArrangeDisabled: Story = {
   args: {},
   render: () => (
     <StoryShellProvider
-      setup={store => {
-        store.getState().openOrFocus({ app: "tasks" });
-        store.getState().clampToViewport({ width: 1100, height: 680 });
-      }}
+      createShell={() =>
+        createStoryShell(store => {
+          store.getState().openOrFocus({ app: "tasks" });
+          store.getState().clampToViewport({ width: 1100, height: 680 });
+        })
+      }
     >
       <OsTrafficLights
         onSelect={fn()}

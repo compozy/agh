@@ -14,7 +14,7 @@ export function RootComponent() {
   return (
     <div
       data-testid="root-shell"
-      className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
+      className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
     >
       <SkipToContentLink />
       <Outlet />
