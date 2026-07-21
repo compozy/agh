@@ -1,7 +1,11 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import { SettingsFieldRow, type SettingsHooksExtensionsSection } from "@/systems/settings";
-import { Button, Input, Section, Spinner, Switch } from "@agh/ui";
+import {
+  SettingsFieldRow,
+  SettingsGroup,
+  type SettingsHooksExtensionsSection,
+} from "@/systems/settings";
+import { Button, Input, Spinner, Switch } from "@agh/ui";
 
 type PolicyConfig = SettingsHooksExtensionsSection["config"];
 
@@ -29,10 +33,10 @@ export function PolicySection({
   onReset,
 }: PolicySectionProps) {
   return (
-    <Section
+    <SettingsGroup
       data-testid="settings-page-extensions-policy-section"
-      label="Extensions policy"
-      right={
+      title="Extensions policy"
+      action={
         <SaveControls
           canMutate={canMutate}
           error={error}
@@ -47,7 +51,6 @@ export function PolicySection({
       <SettingsFieldRow
         data-testid="settings-page-extensions-policy-registry"
         description="Identifier of the marketplace publisher"
-        hint="CONFIG.TOML"
         label="Marketplace registry"
         control={
           <Input
@@ -67,7 +70,6 @@ export function PolicySection({
       <SettingsFieldRow
         data-testid="settings-page-extensions-policy-base-url"
         description="Override the registry's default endpoint"
-        hint="OPTIONAL"
         label="Base URL"
         control={
           <Input
@@ -88,7 +90,6 @@ export function PolicySection({
       <SettingsFieldRow
         data-testid="settings-page-extensions-policy-allow-unverified"
         description="Unverified extensions can be installed after an explicit warning"
-        hint="TRUST"
         label="Allow unverified extensions"
         control={
           <Switch
@@ -109,7 +110,7 @@ export function PolicySection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }
 

@@ -1,8 +1,8 @@
 import { AlertCircle } from "lucide-react";
 
 import { useSettingsExtensionsPage } from "@/systems/settings/hooks/use-settings-extensions-page";
-import { restartBannerPropsFor } from "@/systems/settings";
-import { Button, PageShell, RestartBanner, Spinner } from "@agh/ui";
+import { SettingsPageFrame } from "@/systems/settings";
+import { Button, Spinner } from "@agh/ui";
 
 import { PolicySection } from "./-extensions-policy-section";
 
@@ -34,9 +34,12 @@ export function ExtensionsSettingsPage() {
         </div>
       </div>
     );
-  const banner = restartBannerPropsFor("extensions", page.restart);
   return (
-    <PageShell banner={banner ? <RestartBanner {...banner} /> : null} slug="extensions">
+    <SettingsPageFrame
+      description="What extensions are allowed to run on this daemon, and from where."
+      restart={page.restart}
+      slug="extensions"
+    >
       <PolicySection
         canMutate={page.canMutatePolicy}
         draft={page.draft}
@@ -50,6 +53,6 @@ export function ExtensionsSettingsPage() {
         }
         warnings={page.policyWarnings}
       />
-    </PageShell>
+    </SettingsPageFrame>
   );
 }

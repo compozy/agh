@@ -424,6 +424,8 @@ export {
   type DataSurfaceState,
 } from "./components/custom/data-surface";
 export { resolveDataSurfaceState } from "./components/custom/data-surface-state";
+export { LiveBadge, type LiveBadgeProps } from "./components/custom/live-badge";
+export { PropertyRow, type PropertyRowProps } from "./components/custom/property-row";
 export {
   ConnectionIndicator,
   type ConnectionIndicatorDotProps,

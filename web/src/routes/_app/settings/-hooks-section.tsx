@@ -4,7 +4,6 @@ import type { SettingsHookEntry } from "@/systems/settings";
 import {
   Empty,
   Pill,
-  Section,
   Spinner,
   Switch,
   Table,
@@ -14,6 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@agh/ui";
+
+import { SettingsGroup } from "@/systems/settings";
 
 interface HooksSectionProps {
   hooks: SettingsHookEntry[];
@@ -31,10 +32,10 @@ export function HooksSection({
   onToggle,
 }: HooksSectionProps) {
   return (
-    <Section
+    <SettingsGroup
       data-testid="settings-page-hooks-section"
-      label="Lifecycle hooks"
-      note="restart required to re-read declarations · toggles persist now"
+      title="Lifecycle hooks"
+      description="restart required to re-read declarations · toggles persist now"
     >
       {hookError ? (
         <span className="text-xs text-danger" data-testid="settings-page-hooks-error-message">
@@ -77,7 +78,7 @@ export function HooksSection({
           </Table>
         </div>
       )}
-    </Section>
+    </SettingsGroup>
   );
 }
 

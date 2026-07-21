@@ -1,6 +1,8 @@
 import {
   parseTasksSurfaceMode,
   validateTaskCreateSearch,
+  validateTaskDetailSearch,
+  type TaskDetailSearch,
   type TaskViewMode,
 } from "@/systems/tasks";
 import type { OsWindowLocation } from "../../lib/os-types";
@@ -8,7 +10,7 @@ import type { OsWindowLocation } from "../../lib/os-types";
 export type TaskWindowLocation =
   | { kind: "catalog"; mode: TaskViewMode }
   | { kind: "create"; search: ReturnType<typeof validateTaskCreateSearch> }
-  | { kind: "detail"; taskId: string }
+  | { kind: "detail"; taskId: string; search: TaskDetailSearch }
   | { kind: "edit"; taskId: string }
   | { kind: "run"; taskId: string; runId: string };
 
@@ -38,7 +40,13 @@ export function parseTaskWindowLocation(location: OsWindowLocation): TaskWindowL
   if (editMatch) return { kind: "edit", taskId: decodePathSegment(editMatch[1]) };
 
   const detailMatch = /^\/tasks\/([^/]+)$/.exec(location.pathname);
-  if (detailMatch) return { kind: "detail", taskId: decodePathSegment(detailMatch[1]) };
+  if (detailMatch) {
+    return {
+      kind: "detail",
+      taskId: decodePathSegment(detailMatch[1]),
+      search: validateTaskDetailSearch(location.search),
+    };
+  }
 
   return { kind: "catalog", mode: parseTasksSurfaceMode(location.search) };
 }

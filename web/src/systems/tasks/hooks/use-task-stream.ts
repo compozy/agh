@@ -85,8 +85,6 @@ const TASK_STREAM_EVENT_TYPES = [
   "task.run_review_timeout",
   "task.run_review_invalid_output",
   "task.run_review_retry_enqueued",
-  "task.run_review_circuit_opened",
-  "task.run_review_canceled",
   "task.auto_enqueue.triggered",
   "task.completion.hallucination_blocked",
   "task.completion.hallucination_suspected",

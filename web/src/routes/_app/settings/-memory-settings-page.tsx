@@ -2,12 +2,8 @@ import { AlertCircle } from "lucide-react";
 import { useState } from "react";
 
 import { useSettingsMemoryPage } from "@/systems/settings/hooks/use-settings-memory-page";
-import {
-  restartBannerPropsFor,
-  SettingsSaveBar,
-  SettingsTopbarPublisher,
-} from "@/systems/settings";
-import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";
+import { SettingsAdvancedFold, SettingsPageFrame, SettingsSaveBar } from "@/systems/settings";
+import { Button, Spinner, Time } from "@agh/ui";
 import { ControllerLLMSection, ControllerSection } from "./-memory-controller-sections";
 import { DreamSection } from "./-memory-dream-section";
 import {
@@ -21,10 +17,6 @@ import { RecallSection } from "./-memory-recall-section";
 import { TEST_PREFIX, type ValidationSetter } from "./-memory-settings-types";
 import { MemorySystemSection, ProviderResilienceSection } from "./-memory-system-sections";
 
-function formatHealthTimestamp(timestamp: string): string {
-  return timestamp.replace("T", " ").replace(/\.\d+Z$/, "Z");
-}
-
 export function MemorySettingsPage() {
   const page = useSettingsMemoryPage();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
@@ -34,36 +26,6 @@ export function MemorySettingsPage() {
     );
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
-  const healthForSlot = page.envelope?.health;
-  const statusLine = healthForSlot ? (
-    <StatusLine
-      data-testid={`${TEST_PREFIX}-status-line`}
-      status={healthForSlot.available ? "connected" : "error"}
-      items={[
-        {
-          key: "files",
-          value: `${healthForSlot.file_count} memory files`,
-          tone: "neutral",
-        },
-        {
-          key: "last",
-          value: (
-            <span data-testid={`${TEST_PREFIX}-last-consolidated`}>
-              {healthForSlot.last_consolidated_at
-                ? `last dream ${formatHealthTimestamp(healthForSlot.last_consolidated_at)}`
-                : "no dream runs yet"}
-            </span>
-          ),
-          tone: "neutral",
-        },
-        {
-          key: "dream-state",
-          value: healthForSlot.dream_enabled ? "dreaming enabled" : "dreaming disabled",
-          tone: "neutral",
-        },
-      ]}
-    />
-  ) : null;
 
   if (page.isLoading) {
     return (
@@ -93,17 +55,38 @@ export function MemorySettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
+  const health = envelope.health;
   const dreamAvailable =
     envelope.actions.consolidate.available && envelope.health.dream_enabled && draft.dream.enabled;
 
-  const bannerProps = restartBannerPropsFor("memory", restart);
-
   return (
-    <PageShell
-      slug="memory"
-      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsTopbarPublisher slug="memory" statusLine={statusLine} />}
-      footer={
+    <SettingsPageFrame
+      description="What your agents remember across sessions, and how those memories are made."
+      meta={[
+        {
+          key: "files",
+          content: (
+            <span>
+              <span className="font-medium text-muted">{health.file_count}</span> memory files
+            </span>
+          ),
+        },
+        {
+          key: "dream",
+          content: health.last_consolidated_at ? (
+            <span
+              className="inline-flex items-center gap-1"
+              data-testid={`${TEST_PREFIX}-last-consolidated`}
+            >
+              last dream <Time iso={health.last_consolidated_at} mode="relative" />
+            </span>
+          ) : (
+            <span data-testid={`${TEST_PREFIX}-last-consolidated`}>no dream runs yet</span>
+          ),
+        },
+      ]}
+      restart={restart}
+      saveBar={
         <SettingsSaveBar
           slug="memory"
           isDirty={page.isDirty}
@@ -116,39 +99,10 @@ export function MemorySettingsPage() {
           onReset={page.handleReset}
         />
       }
+      slug="memory"
     >
       <MemorySystemSection draft={draft} setDraft={setDraft} />
-      <ProviderResilienceSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <ControllerSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <ControllerLLMSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
       <RecallSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <DecisionsSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-      <ExtractorSection
         draft={draft}
         setDraft={setDraft}
         validationErrors={validationErrors}
@@ -176,13 +130,46 @@ export function MemorySettingsPage() {
         validationErrors={validationErrors}
         setValidationError={setValidationError}
       />
-      <FileCapsSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
       <WorkspaceIdentitySection draft={draft} setDraft={setDraft} />
-    </PageShell>
+
+      <SettingsAdvancedFold data-testid={`${TEST_PREFIX}-advanced`} padded>
+        <ProviderResilienceSection
+          draft={draft}
+          setDraft={setDraft}
+          validationErrors={validationErrors}
+          setValidationError={setValidationError}
+        />
+        <ControllerSection
+          draft={draft}
+          setDraft={setDraft}
+          validationErrors={validationErrors}
+          setValidationError={setValidationError}
+        />
+        <ControllerLLMSection
+          draft={draft}
+          setDraft={setDraft}
+          validationErrors={validationErrors}
+          setValidationError={setValidationError}
+        />
+        <DecisionsSection
+          draft={draft}
+          setDraft={setDraft}
+          validationErrors={validationErrors}
+          setValidationError={setValidationError}
+        />
+        <ExtractorSection
+          draft={draft}
+          setDraft={setDraft}
+          validationErrors={validationErrors}
+          setValidationError={setValidationError}
+        />
+        <FileCapsSection
+          draft={draft}
+          setDraft={setDraft}
+          validationErrors={validationErrors}
+          setValidationError={setValidationError}
+        />
+      </SettingsAdvancedFold>
+    </SettingsPageFrame>
   );
 }

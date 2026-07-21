@@ -57,7 +57,8 @@ describe("formatDuration", () => {
 
   it("Should compose hours, minutes, seconds", () => {
     expect(formatDuration(125_000)).toBe("2m 5s");
-    expect(formatDuration(3_600_000)).toBe("1h 0m 0s");
-    expect(formatDuration(3_725_000)).toBe("1h 2m 5s");
+    expect(formatDuration(3_600_000)).toBe("1h 0m");
+    expect(formatDuration(3_725_000)).toBe("1h 2m");
+    expect(formatDuration(90_061_000)).toBe("1d 1h");
   });
 });

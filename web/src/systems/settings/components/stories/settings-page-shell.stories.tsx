@@ -79,7 +79,6 @@ export const Default: Story = {
         <SettingsFieldRow
           label="Command"
           description="Executable used by the daemon when starting sessions."
-          hint="required"
           control={<Input defaultValue="codex" />}
         />
         <SettingsFieldRow

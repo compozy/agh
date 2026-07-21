@@ -66,15 +66,35 @@ export function networkThreadsLocation(
   };
 }
 
-export function networkWindowCrumb(location: ParsedNetworkWindowLocation): string {
-  if (!location.channel) return "Network";
-  if (location.activeThreadId) return `Network / #${location.channel} / Thread`;
-  if (location.activeDirectId) return `Network / #${location.channel} / Direct`;
-  const label =
-    location.activeTab === "activity"
-      ? "Activity"
-      : location.activeTab === "directs"
-        ? "Directs"
-        : "Threads";
-  return `Network / #${location.channel} / ${label}`;
+export interface NetworkWindowTrail {
+  /** Parent crumbs for the drill-in head (empty at the root). */
+  parents: ReadonlyArray<{ id: "root" | "channel"; label: string }>;
+  /** Leaf title (window H1). */
+  leaf: string;
+  /** Whether the head shows the back affordance (any drilled-in level). */
+  drilledIn: boolean;
+}
+
+/**
+ * Drill-in trail for the unified 44px head (os/pagehead contract §03).
+ * Selecting a channel is rail navigation, not a drill — the head stays at the
+ * root level (`Network` + channel count). The trail only appears once a
+ * conversation (thread or direct) is open: Network / #channel / <leaf>.
+ */
+export function networkWindowTrail(
+  location: ParsedNetworkWindowLocation,
+  conversationLabel?: string | null
+): NetworkWindowTrail {
+  const inConversation = Boolean(location.activeThreadId || location.activeDirectId);
+  if (!location.channel || !inConversation) {
+    return { parents: [], leaf: "Network", drilledIn: false };
+  }
+  return {
+    parents: [
+      { id: "root", label: "Network" },
+      { id: "channel", label: `#${location.channel}` },
+    ],
+    leaf: conversationLabel ?? (location.activeThreadId ? "Thread" : "Direct"),
+    drilledIn: true,
+  };
 }

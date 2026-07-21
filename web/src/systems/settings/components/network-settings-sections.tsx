@@ -1,13 +1,16 @@
-import { Link } from "@tanstack/react-router";
-import { ExternalLink } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Metric, MetricGrid, Section, Switch } from "@agh/ui";
+import { Switch } from "@agh/ui";
 
 import type { SettingsNetworkSection } from "../types";
 import { NetworkLiveSettingsSections } from "./network-live-settings-sections";
+import { SettingLinkRow } from "./setting-row";
+import { SettingsAdvancedFold } from "./settings-advanced-fold";
 import { SettingsFieldRow } from "./settings-field-row";
+import { SettingsGroup } from "./settings-group";
 import { SettingsNumberInput } from "./settings-number-input";
+import { SettingsTile, SettingsTiles } from "./settings-tiles";
 
 type NetworkConfig = SettingsNetworkSection["config"];
 type NetworkRuntime = SettingsNetworkSection["runtime"];
@@ -27,68 +30,62 @@ export function NetworkSettingsSections(props: NetworkSettingsSectionsProps) {
       <RuntimeStatusSection runtime={props.runtime} />
       <AvailabilitySection draft={props.draft} setDraft={props.setDraft} />
       <ProtocolSafetySection {...props} />
-      <NetworkLiveSettingsSections {...props} />
+      <SettingsAdvancedFold data-testid="settings-page-network-advanced" padded>
+        <NetworkLiveSettingsSections {...props} />
+      </SettingsAdvancedFold>
     </>
   );
 }
 
 function OperationalLinksSection() {
+  const navigate = useNavigate();
   return (
-    <Section divided label="Operational" note="availability never enrolls executions">
-      <p className="text-xs text-subtle" data-testid="settings-page-network-enrollment-note">
-        These settings control Network availability and finite Live defaults and ceilings. They do
-        not opt sessions, tasks, loops, or automations into participation.
-      </p>
-      <div className="flex flex-wrap gap-2" data-testid="settings-page-network-operational-links">
-        <Link
-          to="/network"
-          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
-          data-testid="settings-page-network-link-network"
-        >
-          <ExternalLink className="size-3 text-subtle" />
-          Open Network
-        </Link>
-      </div>
-    </Section>
+    <SettingsGroup
+      description="These settings control Network availability and finite Live defaults and ceilings. They never opt sessions, tasks, loops, or automations into participation."
+      title="Operational"
+    >
+      <SettingLinkRow
+        data-testid="settings-page-network-link-network"
+        description="Channels, peers, and live coordination for this workspace."
+        label="Open Network"
+        onClick={() => void navigate({ to: "/network" })}
+      />
+    </SettingsGroup>
   );
 }
 
 function RuntimeStatusSection({ runtime }: { runtime: NetworkRuntime }) {
   return (
-    <Section divided label="Runtime" note="read-only">
-      <MetricGrid>
-        <Metric
+    <SettingsGroup
+      bare
+      description="What the listener is doing right now. Read-only."
+      title="Runtime"
+    >
+      <SettingsTiles>
+        <SettingsTile
+          data-testid="settings-page-network-runtime-status"
+          dotTone={runtime.enabled ? "success" : "neutral"}
           label="Status"
           value={runtime.status ?? (runtime.enabled ? "ready" : "disabled")}
-          data-testid="settings-page-network-runtime-status"
         />
-        <Metric
+        <SettingsTile
+          data-testid="settings-page-network-runtime-live-participants"
           label="Live participants"
           value={String(runtime.local_peers)}
-          data-testid="settings-page-network-runtime-live-participants"
         />
-        <Metric
+        <SettingsTile
+          data-testid="settings-page-network-runtime-channels"
           label="Channels"
           value={String(runtime.channels)}
-          data-testid="settings-page-network-runtime-channels"
         />
-        <Metric
+        <SettingsTile
+          data-testid="settings-page-network-runtime-messages-received"
+          detail={`${runtime.messages_delivered} delivered · ${runtime.messages_rejected} rejected`}
           label="Messages received"
           value={String(runtime.messages_received)}
-          data-testid="settings-page-network-runtime-messages-received"
         />
-        <Metric
-          label="Messages delivered"
-          value={String(runtime.messages_delivered)}
-          data-testid="settings-page-network-runtime-messages-delivered"
-        />
-        <Metric
-          label="Messages rejected"
-          value={String(runtime.messages_rejected)}
-          data-testid="settings-page-network-runtime-messages-rejected"
-        />
-      </MetricGrid>
-    </Section>
+      </SettingsTiles>
+    </SettingsGroup>
   );
 }
 
@@ -99,7 +96,7 @@ interface DraftSectionProps {
 
 function AvailabilitySection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <Section divided label="Availability" note="applies live without enrollment">
+    <SettingsGroup title="Availability" description="applies live without enrollment">
       <SettingsFieldRow
         data-testid="settings-page-network-enabled"
         label="Network availability"
@@ -113,7 +110,7 @@ function AvailabilitySection({ draft, setDraft }: DraftSectionProps) {
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -124,7 +121,7 @@ function ProtocolSafetySection({
   setValidationError,
 }: NetworkSettingsSectionsProps) {
   return (
-    <Section divided label="Protocol safety" note="replay protection">
+    <SettingsGroup title="Protocol safety" description="replay protection">
       <SettingsFieldRow
         label="Replay window"
         description="seconds"
@@ -143,6 +140,6 @@ function ProtocolSafetySection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }

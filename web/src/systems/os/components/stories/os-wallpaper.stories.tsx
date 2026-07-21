@@ -31,6 +31,7 @@ type Story = StoryObj<typeof meta>;
  * VC-05 implementation target.
  */
 export const Ember: Story = {
+  args: {},
   name: "Ember (full desktop shell)",
   parameters: {
     docs: {
@@ -46,6 +47,7 @@ export const Ember: Story = {
  * Mesh — success-tint low-right with teal depth top-left (full shell).
  */
 export const Mesh: Story = {
+  args: {},
   name: "Mesh (full desktop shell)",
   render: () => <DesktopShell wallpaper="mesh" deskHint menubar dock />,
 };
@@ -54,6 +56,7 @@ export const Mesh: Story = {
  * Carbon — near-flat warm ramp with a faint top sheen (full shell).
  */
 export const Carbon: Story = {
+  args: {},
   name: "Carbon (full desktop shell)",
   render: () => <DesktopShell wallpaper="carbon" deskHint menubar dock />,
 };

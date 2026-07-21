@@ -1,7 +1,12 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import { SettingsFieldRow, type SettingsGeneralSection } from "@/systems/settings";
-import { Input, Section, Switch } from "@agh/ui";
+import {
+  SettingRow,
+  SettingsGroup,
+  SettingsProvChip,
+  type SettingsGeneralSection,
+} from "@/systems/settings";
+import { Input, Switch } from "@agh/ui";
 
 type GeneralConfig = SettingsGeneralSection["config"];
 
@@ -12,12 +17,18 @@ interface DraftSectionProps {
 
 export function DaemonSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <Section divided label="Runtime memory reporting" note="restart required">
-      <SettingsFieldRow
+    <SettingsGroup
+      description="Controls periodic daemon process-memory snapshots in logs and runtime diagnostics."
+      title="Runtime memory reporting"
+    >
+      <SettingRow
         data-testid="settings-page-general-memory-report-interval"
-        label="Report interval"
         description="Cadence for daemon process-memory snapshots in logs and the runtime.memory probe. Set 0s to disable memory reporting."
-        hint="DEFAULT"
+        label={
+          <>
+            Report interval <SettingsProvChip>restart required</SettingsProvChip>
+          </>
+        }
         control={
           <Input
             className="w-32 font-mono"
@@ -36,22 +47,25 @@ export function DaemonSection({ draft, setDraft }: DraftSectionProps) {
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }
 
 export function RedactionSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <Section
-      divided
-      label="Secret redaction"
-      note="restart required"
+    <SettingsGroup
       data-testid="settings-page-general-redact"
+      description="Controls heuristic credential redaction in agent-visible and operational text."
+      title="Secret redaction"
     >
-      <SettingsFieldRow
+      <SettingRow
         data-testid="settings-page-general-redact-enabled"
-        label="Secret redaction heuristics"
         description="Redacts likely credentials in agent-visible text, logs, and event content. Exact secret protections remain active when disabled."
+        label={
+          <>
+            Secret redaction heuristics <SettingsProvChip>restart required</SettingsProvChip>
+          </>
+        }
         control={
           <Switch
             data-testid="settings-page-general-redact-enabled-switch"
@@ -65,6 +79,6 @@ export function RedactionSection({ draft, setDraft }: DraftSectionProps) {
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }

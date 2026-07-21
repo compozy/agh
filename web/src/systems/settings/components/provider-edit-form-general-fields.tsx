@@ -24,7 +24,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
             ? "Lower-case identifier used in agent frontmatter and CLI flags."
             : "Name is immutable -- create a new provider to rename."
         }
-        hint={isCreate ? "REQUIRED" : "LOCKED"}
         control={
           <Input
             className="w-56 font-mono disabled:opacity-60"
@@ -41,7 +40,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
         data-testid="settings-providers-editor-command"
         label="Command"
         description="Executable used to launch the ACP subprocess."
-        hint="OVERLAY"
         control={
           <Input
             className="w-72 font-mono"
@@ -57,7 +55,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
         data-testid="settings-providers-editor-display-name"
         label="Display name"
         description="Operator-facing label shown beside the provider id."
-        hint="OPTIONAL"
         control={
           <Input
             className="w-56"
@@ -75,7 +72,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
         data-testid="settings-providers-editor-model"
         label="Default model"
         description="Sent to the provider when an agent does not specify one."
-        hint="OPTIONAL"
         control={
           <Input
             className="w-56 font-mono"
@@ -93,7 +89,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
         data-testid="settings-providers-editor-curated-models"
         label="Curated models"
         description="Provider-scoped model IDs stored under models.curated."
-        hint="OPTIONAL"
         control={
           <Textarea
             className="min-h-24 w-72 font-mono text-xs"
@@ -111,7 +106,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
         data-testid="settings-providers-editor-harness"
         label="Harness"
         description="Runtime adapter used to launch the provider."
-        hint="REQUIRED"
         control={
           <Input
             className="w-40 font-mono"
@@ -127,7 +121,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
         data-testid="settings-providers-editor-runtime-provider"
         label="Runtime provider"
         description="Downstream provider id used by the selected harness."
-        hint="PI"
         control={
           <Input
             className="w-56 font-mono"
@@ -145,7 +138,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
         data-testid="settings-providers-editor-transport"
         label="Transport"
         description="Provider API family or Pi models override transport."
-        hint="OPTIONAL"
         control={
           <Input
             className="w-56 font-mono"
@@ -161,7 +153,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
         data-testid="settings-providers-editor-base-url"
         label="Base URL"
         description="Custom API base URL for Pi-backed model overrides."
-        hint="OPTIONAL"
         control={
           <Input
             className="w-72 font-mono"

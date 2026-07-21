@@ -86,7 +86,9 @@ export {
 export {
   findSettingsSection,
   SETTINGS_ROOT_PATH,
+  SETTINGS_SECTION_GROUPS,
   SETTINGS_SECTIONS,
+  filterSettingsSections,
   SETTINGS_SECTION_SLUGS,
   settingsSectionPath,
 } from "./lib/sections";
@@ -231,18 +233,31 @@ export {
   ProviderLogo,
   ProviderModelCatalogStatus,
   NetworkSettingsSections,
-  ProvidersGrid,
-  ProvidersListFilters,
+  ProviderRow,
+  ProvidersToolbar,
+  SettingLinkRow,
+  SettingRow,
+  SettingValue,
+  SettingsAdvancedFold,
   SettingsApplyRecordsPanel,
+  SettingsChoiceGroup,
   SettingsDecimalInput,
   SettingsDisabledSkillsSection,
   SettingsEditorDialog,
   SettingsFieldRow,
+  SettingsGroup,
   SettingsNumberInput,
+  SettingsPageFrame,
+  SettingsProvChip,
+  SettingsRestartNotice,
   SettingsSaveBar,
   SettingsSourceBadge,
+  SettingsTile,
+  SettingsTiles,
 } from "./components";
-export type { MCPServerEditorProps } from "./components";
+export type { MCPServerEditorProps, ProvidersViewMode } from "./components";
+export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";
+export type { ProviderStateLabel, ProviderStateView } from "./lib/provider-state";
 
 // Stores
 export { useSettingsRestartStore } from "./stores/use-settings-restart-store";

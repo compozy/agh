@@ -1,29 +1,21 @@
-import { Link } from "@tanstack/react-router";
-import { AlertCircle, ExternalLink } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { AlertCircle } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsAutomationPage } from "@/systems/settings/hooks/use-settings-automation-page";
 import {
-  restartBannerPropsFor,
+  SettingLinkRow,
+  SettingsAdvancedFold,
   SettingsFieldRow,
+  SettingsGroup,
   SettingsNumberInput,
+  SettingsPageFrame,
   SettingsSaveBar,
+  SettingsTile,
+  SettingsTiles,
   type SettingsAutomationSection,
-  SettingsTopbarPublisher,
 } from "@/systems/settings";
-import {
-  Button,
-  Eyebrow,
-  Input,
-  Metric,
-  MetricGrid,
-  PageShell,
-  RestartBanner,
-  Section,
-  Spinner,
-  StatusLine,
-  Switch,
-} from "@agh/ui";
+import { Button, Eyebrow, Input, Spinner, Switch } from "@agh/ui";
 
 type AutomationConfig = SettingsAutomationSection["config"];
 type AutomationRuntime = SettingsAutomationSection["runtime"];
@@ -38,24 +30,6 @@ export function AutomationSettingsPage() {
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const runtime = page.envelope?.runtime;
-  const statusLine = runtime ? (
-    <StatusLine
-      data-testid="settings-page-automation-status-line"
-      status={runtime.available ? "connected" : "error"}
-      items={[
-        {
-          key: "jobs",
-          value: `${runtime.job_enabled}/${runtime.job_total} jobs active`,
-          tone: "neutral",
-        },
-        {
-          key: "triggers",
-          value: `${runtime.trigger_enabled}/${runtime.trigger_total} triggers active`,
-          tone: "neutral",
-        },
-      ]}
-    />
-  ) : null;
 
   if (page.isLoading) {
     return (
@@ -92,14 +66,31 @@ export function AutomationSettingsPage() {
   }
   const { draft, setDraft, restart } = page;
 
-  const bannerProps = restartBannerPropsFor("automation", restart);
-
   return (
-    <PageShell
-      slug="automation"
-      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsTopbarPublisher slug="automation" statusLine={statusLine} />}
-      footer={
+    <SettingsPageFrame
+      description="Scheduled jobs and event triggers this daemon runs on its own."
+      meta={[
+        {
+          key: "jobs",
+          content: (
+            <span>
+              <span className="font-medium text-muted">{runtime.job_enabled}</span> of{" "}
+              {runtime.job_total} jobs active
+            </span>
+          ),
+        },
+        {
+          key: "triggers",
+          content: (
+            <span>
+              <span className="font-medium text-muted">{runtime.trigger_enabled}</span> of{" "}
+              {runtime.trigger_total} triggers active
+            </span>
+          ),
+        },
+      ]}
+      restart={restart}
+      saveBar={
         <SettingsSaveBar
           slug="automation"
           isDirty={page.isDirty}
@@ -112,18 +103,21 @@ export function AutomationSettingsPage() {
           onReset={page.handleReset}
         />
       }
+      slug="automation"
     >
-      <OperationalLinksSection />
       {!runtime.available ? <AutomationRuntimeUnavailable runtime={runtime} /> : null}
-      <ManagerSummarySection runtime={runtime} />
       <EngineSection draft={draft} setDraft={setDraft} />
-      <LimitsSection
-        draft={draft}
-        setDraft={setDraft}
-        validationErrors={validationErrors}
-        setValidationError={setValidationError}
-      />
-    </PageShell>
+      <OperationalLinksSection />
+      <ManagerSummarySection runtime={runtime} />
+      <SettingsAdvancedFold data-testid="settings-page-automation-advanced" padded>
+        <LimitsSection
+          draft={draft}
+          setDraft={setDraft}
+          validationErrors={validationErrors}
+          setValidationError={setValidationError}
+        />
+      </SettingsAdvancedFold>
+    </SettingsPageFrame>
   );
 }
 
@@ -154,74 +148,66 @@ function AutomationRuntimeUnavailable({ runtime }: { runtime: AutomationRuntime 
 }
 
 function OperationalLinksSection() {
+  const navigate = useNavigate();
   return (
-    <Section divided label="Operational" note="manage jobs, triggers, and run history">
-      <div
-        className="flex flex-wrap gap-2"
-        data-testid="settings-page-automation-operational-links"
-      >
-        <Link
-          to="/jobs"
-          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
-          data-testid="settings-page-automation-link-jobs"
-        >
-          <ExternalLink className="size-3 text-subtle" />
-          Open Jobs
-        </Link>
-        <Link
-          to="/triggers"
-          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
-          data-testid="settings-page-automation-link-triggers"
-        >
-          <ExternalLink className="size-3 text-subtle" />
-          Open Triggers
-        </Link>
-      </div>
-    </Section>
+    <SettingsGroup
+      data-testid="settings-page-automation-operational-links"
+      description="Jobs and triggers live in their own views; this page owns the engine itself."
+      title="Operational"
+    >
+      <SettingLinkRow
+        data-testid="settings-page-automation-link-jobs"
+        description="Scheduled work with run history."
+        label="Open Jobs"
+        onClick={() => void navigate({ to: "/jobs" })}
+      />
+      <SettingLinkRow
+        data-testid="settings-page-automation-link-triggers"
+        description="Event rules that start work when something happens."
+        label="Open Triggers"
+        onClick={() => void navigate({ to: "/triggers" })}
+      />
+    </SettingsGroup>
   );
 }
 
 function ManagerSummarySection({ runtime }: { runtime: AutomationRuntime }) {
-  const nextFire = runtime.next_fire ? new Date(runtime.next_fire).toLocaleString() : "--";
+  const nextFire = runtime.next_fire ? new Date(runtime.next_fire).toLocaleString() : "—";
   const lastSynced = runtime.last_synced_at
     ? new Date(runtime.last_synced_at).toLocaleString()
-    : "--";
+    : "—";
 
   return (
-    <Section divided label="Manager" note="read-only">
-      <MetricGrid columns={3}>
-        <Metric
-          label="Engine"
-          value={runtime.running ? "running" : "stopped"}
+    <SettingsGroup
+      bare
+      description="What the engine is doing right now. Read-only."
+      title="Manager"
+    >
+      <SettingsTiles>
+        <SettingsTile
           data-testid="settings-page-automation-runtime-engine"
+          dotTone={runtime.running ? "success" : "neutral"}
+          label="Engine"
+          value={runtime.running ? "Running" : "Stopped"}
         />
-        <Metric
-          label="Scheduler"
-          value={runtime.scheduler_running ? "running" : "stopped"}
+        <SettingsTile
           data-testid="settings-page-automation-runtime-scheduler"
+          dotTone={runtime.scheduler_running ? "success" : "neutral"}
+          label="Scheduler"
+          value={runtime.scheduler_running ? "Running" : "Stopped"}
         />
-        <Metric
-          label="Jobs (enabled/total)"
-          value={`${runtime.job_enabled} / ${runtime.job_total}`}
-          data-testid="settings-page-automation-runtime-jobs"
-        />
-        <Metric
-          label="Triggers (enabled/total)"
-          value={`${runtime.trigger_enabled} / ${runtime.trigger_total}`}
-          data-testid="settings-page-automation-runtime-triggers"
-        />
-        <Metric
+        <SettingsTile
+          data-testid="settings-page-automation-runtime-next-fire"
           label="Next fire"
           value={nextFire}
-          data-testid="settings-page-automation-runtime-next-fire"
         />
-        <Metric
+        <SettingsTile
+          data-testid="settings-page-automation-runtime-last-synced"
           label="Last synced"
           value={lastSynced}
-          data-testid="settings-page-automation-runtime-last-synced"
         />
-      </MetricGrid>
-    </Section>
+      </SettingsTiles>
+    </SettingsGroup>
   );
 }
 
@@ -232,7 +218,7 @@ interface DraftSectionProps {
 
 function EngineSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <Section divided label="Engine" note="persisted to config.toml">
+    <SettingsGroup title="Engine" description="persisted to config.toml">
       <SettingsFieldRow
         data-testid="settings-page-automation-enabled"
         label="Automation engine"
@@ -254,7 +240,6 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
         data-testid="settings-page-automation-timezone"
         label="Timezone"
         description="Used for cron schedule resolution"
-        hint="IANA"
         control={
           <Input
             className="w-56 font-mono"
@@ -270,7 +255,7 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -284,13 +269,12 @@ function LimitsSection({
   setValidationError: (key: string) => (message: string | null) => void;
 }) {
   return (
-    <Section divided label="Limits" note="resource caps">
+    <SettingsGroup title="Limits" description="resource caps">
       <SettingsFieldRow
         data-testid="settings-page-automation-max-concurrent"
         label="Max concurrent jobs"
         description="Caps the number of jobs running simultaneously"
         error={validationErrors.maxConcurrentJobs ?? undefined}
-        hint="DEFAULT"
         control={
           <SettingsNumberInput
             min={0}
@@ -315,7 +299,6 @@ function LimitsSection({
         label="Default fire limit"
         description="Maximum invocations per window for new triggers"
         error={validationErrors.defaultFireLimitMax ?? undefined}
-        hint="DEFAULT"
         control={
           <div className="flex items-center gap-2">
             <SettingsNumberInput
@@ -360,6 +343,6 @@ function LimitsSection({
           </div>
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }

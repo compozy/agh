@@ -394,10 +394,14 @@
   --height-dock-tabbar: 56px;
   --size-dock-tab-item: 44px;
   --size-traffic-light-compact: 15px;
+  --size-traffic-light-compact-target: 44px;
 
   /* Spaces-overview cards (os-v2.css `.space-card`/`.space-thumb`). */
   --width-space-card: 264px;
   --height-space-thumb: 148px;
+  --spacing-spaces-subtitle-gap: 22px;
+  --spacing-spaces-row-gap: 18px;
+  --text-space-avatar: 9px;
 }
 
 :root {

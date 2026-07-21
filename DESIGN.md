@@ -137,6 +137,7 @@ tokens:
       mono-id: { size: "0.65625rem", tracking: "0" }
       pill-group-badge: { size: "0.5625rem" }
       card-title: { size: "0.875rem", line: "1.4" }
+      space-avatar: { size: "9px" }
     rounded:
       DEFAULT: "6px"
       xxs: "3px"
@@ -236,8 +237,11 @@ tokens:
       height-dock-tabbar: "56px"
       size-dock-tab-item: "44px"
       size-traffic-light-compact: "15px"
+      size-traffic-light-compact-target: "44px"
       width-space-card: "264px"
       height-space-thumb: "148px"
+      spacing-spaces-subtitle-gap: "22px"
+      spacing-spaces-row-gap: "18px"
       overlay-blur: "3px"
       width-modal-sm: "560px"
       width-modal-md: "720px"
@@ -559,6 +563,7 @@ because they are small.
 | `--text-mono-id`          | `0.65625rem` |            | `0`        |
 | `--text-pill-group-badge` | `0.5625rem`  |            |            |
 | `--text-card-title`       | `0.875rem`   | `1.4`      |            |
+| `--text-space-avatar`     | `9px`        |            |            |
 
 <!-- END:tokens:type-ladder -->
 
@@ -623,34 +628,35 @@ widths come from `--site-*` tokens.
 
 <!-- BEGIN:tokens:component-sizes -->
 
-| Token                              | Value    | Token                             | Value    | Token                             | Value   |
-| ---------------------------------- | -------- | --------------------------------- | -------- | --------------------------------- | ------- |
-| `--height-button-xs`               | `22px`   | `--height-button-sm`              | `22px`   | `--height-button-default`         | `26px`  |
-| `--height-button-lg`               | `30px`   | `--size-button-icon-xs`           | `22px`   | `--size-button-icon-sm`           | `22px`  |
-| `--size-button-icon-default`       | `26px`   | `--size-button-icon-lg`           | `30px`   | `--height-switch-default`         | `18px`  |
-| `--width-switch-default`           | `32px`   | `--height-switch-sm`              | `14px`   | `--width-switch-sm`               | `24px`  |
-| `--height-pill-xs`                 | `17px`   | `--height-pill-sm`                | `19px`   | `--height-pill-md`                | `22px`  |
-| `--height-sidebar-row`             | `28px`   | `--height-tabs-list`              | `40px`   | `--size-tab-underline`            | `1.5px` |
-| `--spacing-count-chip`             | `19px`   | `--spacing-count-chip-sm`         | `17px`   | `--size-empty-icon`               | `38px`  |
-| `--width-menu-sub-min`             | `96px`   | `--height-form-textarea`          | `136px`  | `--height-editor-footer`          | `52px`  |
-| `--width-detail-inspector-inline`  | `320px`  | `--width-table-cell-sm`           | `224px`  | `--width-table-cell-md`           | `288px` |
-| `--width-table-cell-lg`            | `360px`  | `--container-content-max`         | `1320px` | `--width-right-rail-default`      | `468px` |
-| `--width-message-bubble-max`       | `640px`  | `--width-wire-card-max`           | `520px`  | `--width-search-input-min`        | `220px` |
-| `--width-filters-menu-default`     | `200px`  | `--width-filters-menu-stack`      | `220px`  | `--width-settings-nav`            | `224px` |
-| `--height-modal-md`                | `760px`  | `--height-modal-tall`             | `900px`  | `--height-modal-wizard`           | `960px` |
-| `--height-modal-xl`                | `840px`  | `--height-menubar`                | `44px`   | `--height-menubar-chip`           | `26px`  |
-| `--size-dock-item`                 | `46px`   | `--size-dock-icon`                | `21px`   | `--size-dock-badge`               | `15px`  |
-| `--size-dock-indicator`            | `4px`    | `--size-dock-indicator-min`       | `5px`    | `--size-traffic-light`            | `12px`  |
-| `--size-menubar-logo`              | `17px`   | `--size-workspace-avatar`         | `18px`   | `--size-dock-new-icon`            | `18px`  |
-| `--spacing-dock-gap`               | `4px`    | `--spacing-dock-pad`              | `7px`    | `--spacing-menubar-workspace-gap` | `7px`   |
-| `--spacing-traffic-light-gap`      | `7px`    | `--height-dock-tabbar`            | `56px`   | `--size-dock-tab-item`            | `44px`  |
-| `--size-traffic-light-compact`     | `15px`   | `--width-space-card`              | `264px`  | `--height-space-thumb`            | `148px` |
-| `--overlay-blur`                   | `3px`    | `--width-modal-sm`                | `560px`  | `--width-modal-md`                | `720px` |
-| `--width-modal-lg`                 | `880px`  | `--width-modal-xl`                | `1180px` | `--width-thread-column`           | `46rem` |
-| `--size-catalog-logo`              | `1.5rem` | `--size-provider-logo-well`       | `2.5rem` | `--size-pill-group-badge`         | `14px`  |
-| `--height-pill-group-segment-md`   | `24px`   | `--height-pill-group-segment-sm`  | `20px`   | `--space-pill-group-track-gap`    | `1px`   |
-| `--space-pill-group-track-padding` | `2px`    | `--space-pill-group-segment-sm-x` | `8px`    | `--space-pill-group-segment-md-x` | `10px`  |
-| `--space-pill-group-badge-x`       | `4px`    | `--space-switch-thumb-inset`      | `2px`    |                                   |         |
+| Token                              | Value    | Token                                 | Value    | Token                             | Value   |
+| ---------------------------------- | -------- | ------------------------------------- | -------- | --------------------------------- | ------- |
+| `--height-button-xs`               | `22px`   | `--height-button-sm`                  | `22px`   | `--height-button-default`         | `26px`  |
+| `--height-button-lg`               | `30px`   | `--size-button-icon-xs`               | `22px`   | `--size-button-icon-sm`           | `22px`  |
+| `--size-button-icon-default`       | `26px`   | `--size-button-icon-lg`               | `30px`   | `--height-switch-default`         | `18px`  |
+| `--width-switch-default`           | `32px`   | `--height-switch-sm`                  | `14px`   | `--width-switch-sm`               | `24px`  |
+| `--height-pill-xs`                 | `17px`   | `--height-pill-sm`                    | `19px`   | `--height-pill-md`                | `22px`  |
+| `--height-sidebar-row`             | `28px`   | `--height-tabs-list`                  | `40px`   | `--size-tab-underline`            | `1.5px` |
+| `--spacing-count-chip`             | `19px`   | `--spacing-count-chip-sm`             | `17px`   | `--size-empty-icon`               | `38px`  |
+| `--width-menu-sub-min`             | `96px`   | `--height-form-textarea`              | `136px`  | `--height-editor-footer`          | `52px`  |
+| `--width-detail-inspector-inline`  | `320px`  | `--width-table-cell-sm`               | `224px`  | `--width-table-cell-md`           | `288px` |
+| `--width-table-cell-lg`            | `360px`  | `--container-content-max`             | `1320px` | `--width-right-rail-default`      | `468px` |
+| `--width-message-bubble-max`       | `640px`  | `--width-wire-card-max`               | `520px`  | `--width-search-input-min`        | `220px` |
+| `--width-filters-menu-default`     | `200px`  | `--width-filters-menu-stack`          | `220px`  | `--width-settings-nav`            | `224px` |
+| `--height-modal-md`                | `760px`  | `--height-modal-tall`                 | `900px`  | `--height-modal-wizard`           | `960px` |
+| `--height-modal-xl`                | `840px`  | `--height-menubar`                    | `44px`   | `--height-menubar-chip`           | `26px`  |
+| `--size-dock-item`                 | `46px`   | `--size-dock-icon`                    | `21px`   | `--size-dock-badge`               | `15px`  |
+| `--size-dock-indicator`            | `4px`    | `--size-dock-indicator-min`           | `5px`    | `--size-traffic-light`            | `12px`  |
+| `--size-menubar-logo`              | `17px`   | `--size-workspace-avatar`             | `18px`   | `--size-dock-new-icon`            | `18px`  |
+| `--spacing-dock-gap`               | `4px`    | `--spacing-dock-pad`                  | `7px`    | `--spacing-menubar-workspace-gap` | `7px`   |
+| `--spacing-traffic-light-gap`      | `7px`    | `--height-dock-tabbar`                | `56px`   | `--size-dock-tab-item`            | `44px`  |
+| `--size-traffic-light-compact`     | `15px`   | `--size-traffic-light-compact-target` | `44px`   | `--width-space-card`              | `264px` |
+| `--height-space-thumb`             | `148px`  | `--spacing-spaces-subtitle-gap`       | `22px`   | `--spacing-spaces-row-gap`        | `18px`  |
+| `--overlay-blur`                   | `3px`    | `--width-modal-sm`                    | `560px`  | `--width-modal-md`                | `720px` |
+| `--width-modal-lg`                 | `880px`  | `--width-modal-xl`                    | `1180px` | `--width-thread-column`           | `46rem` |
+| `--size-catalog-logo`              | `1.5rem` | `--size-provider-logo-well`           | `2.5rem` | `--size-pill-group-badge`         | `14px`  |
+| `--height-pill-group-segment-md`   | `24px`   | `--height-pill-group-segment-sm`      | `20px`   | `--space-pill-group-track-gap`    | `1px`   |
+| `--space-pill-group-track-padding` | `2px`    | `--space-pill-group-segment-sm-x`     | `8px`    | `--space-pill-group-segment-md-x` | `10px`  |
+| `--space-pill-group-badge-x`       | `4px`    | `--space-switch-thumb-inset`          | `2px`    |                                   |         |
 
 <!-- END:tokens:component-sizes -->
 

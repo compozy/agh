@@ -74,14 +74,16 @@ export function formatAbsoluteTime(iso: string): string {
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return "0s";
   const total = Math.floor(ms / 1_000);
-  const hours = Math.floor(total / 3_600);
+  const days = Math.floor(total / 86_400);
+  const hours = Math.floor((total % 86_400) / 3_600);
   const minutes = Math.floor((total % 3_600) / 60);
   const seconds = total % 60;
-  const parts: string[] = [];
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0 || hours > 0) parts.push(`${minutes}m`);
-  parts.push(`${seconds}s`);
-  return parts.join(" ");
+  // Humanized to two units max ("3d 2h", "5m 12s") — long raw chains like
+  // "2176h 38m 26s" are banned product vocabulary.
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
 
 /** Sentinel string returned when an ISO input cannot be parsed. */

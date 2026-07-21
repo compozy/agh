@@ -22,7 +22,6 @@ export function AllowListField({
       data-testid={testId}
       label={label}
       description={description}
-      hint="LIST"
       control={
         <Input
           key={value.join("\u0000")}

@@ -1,10 +1,18 @@
-import { Suspense, lazy, type ComponentType, type LazyExoticComponent } from "react";
+import {
+  Suspense,
+  lazy,
+  useRef,
+  type ComponentType,
+  type KeyboardEvent,
+  type LazyExoticComponent,
+} from "react";
 
 import { Spinner } from "@agh/ui";
 
 import { SETTINGS_SECTIONS } from "@/systems/settings";
 
 import { useDesktop } from "../../hooks/use-desktop";
+import { useOsShell } from "../../hooks/use-os-shell";
 import { SettingsWindowNav } from "./settings-window-nav";
 
 /**
@@ -79,24 +87,50 @@ function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
  * window's WM location (not router matches) so an unfocused settings window
  * keeps showing its own section (ADR-002 rule 6).
  */
+const TYPING_TAGS = /^(INPUT|SELECT|TEXTAREA)$/;
+
 export function SettingsWindow({ windowId }: { windowId: string }) {
   const pathname = useDesktop(state => state.windows[windowId]?.location.pathname ?? "/settings");
+  const { coordinator } = useOsShell();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const activeSlug = sectionSlugFromPathname(pathname);
   const SectionPage = SECTION_PAGES[activeSlug];
 
+  // Window-scoped `/` shortcut: focus the sidebar search unless the user is
+  // already typing in a field.
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "/" || event.defaultPrevented) return;
+    const target = event.target as HTMLElement | null;
+    if (target && (TYPING_TAGS.test(target.tagName) || target.isContentEditable)) return;
+    event.preventDefault();
+    searchInputRef.current?.focus();
+  };
+
+  // The container declaration lives on the outer wrapper: an element cannot
+  // resolve a container query against itself, so the flex switch sits one
+  // level down where `@min-[56rem]` reads this wrapper's inline size.
   return (
-    <div className="flex min-h-full flex-col xl:flex-row" data-testid="settings-shell">
-      <SettingsWindowNav activeSlug={activeSlug} />
-      <div className="relative flex min-w-0 flex-1 flex-col" data-testid="settings-shell-outlet">
-        <Suspense
-          fallback={
-            <div className="flex flex-1 items-center justify-center py-12">
-              <Spinner className="size-4 text-subtle" />
-            </div>
-          }
-        >
-          <SectionPage />
-        </Suspense>
+    <div className="@container flex min-h-full flex-col" onKeyDown={handleKeyDown}>
+      <div
+        className="flex min-h-0 flex-1 flex-col @min-[56rem]:flex-row"
+        data-testid="settings-shell"
+      >
+        <SettingsWindowNav
+          activeSlug={activeSlug}
+          onBackToApp={() => coordinator.userClose(windowId)}
+          searchInputRef={searchInputRef}
+        />
+        <div className="relative flex min-w-0 flex-1 flex-col" data-testid="settings-shell-outlet">
+          <Suspense
+            fallback={
+              <div className="flex flex-1 items-center justify-center py-12">
+                <Spinner className="size-4 text-subtle" />
+              </div>
+            }
+          >
+            <SectionPage />
+          </Suspense>
+        </div>
       </div>
     </div>
   );

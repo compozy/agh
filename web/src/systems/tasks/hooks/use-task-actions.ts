@@ -4,6 +4,7 @@ import {
   addTaskDependency,
   approveTask,
   archiveTask,
+  clearTaskBlock,
   attachTaskRunSession,
   cancelTask,
   cancelTaskRun,
@@ -258,6 +259,20 @@ export function useRejectTask() {
 
   return useMutation({
     mutationFn: ({ id }: TaskIdParams) => rejectTask(id),
+    onSettled: (_result, _error, { id }) =>
+      Promise.all([
+        invalidateTaskQueries(queryClient, id),
+        invalidateAggregateQueries(queryClient),
+      ]),
+  });
+}
+
+export function useClearTaskBlock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, blockId, note }: { id: string; blockId: string; note?: string }) =>
+      clearTaskBlock(id, blockId, note),
     onSettled: (_result, _error, { id }) =>
       Promise.all([
         invalidateTaskQueries(queryClient, id),

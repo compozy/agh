@@ -152,7 +152,7 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 
-vi.mock("@/hooks/routes/use-settings-general-page", () => ({
+vi.mock("@/systems/settings/hooks/use-settings-general-page", () => ({
   useSettingsGeneralPage: () => pageState,
 }));
 
@@ -265,24 +265,27 @@ describe("GeneralSettingsPage", () => {
   it("renders runtime, defaults, permissions, and config path from the section envelope", () => {
     render(<GeneralSettingsPage />);
 
-    expect(screen.getByTestId("settings-page-general-status-line")).toHaveTextContent(
-      "config: ~/.agh/config.toml"
+    expect(screen.getByTestId("settings-page-general-subhead")).toHaveTextContent(
+      "4 active sessions"
+    );
+    expect(screen.getByTestId("settings-page-general-subhead")).toHaveTextContent(
+      "7 agents working"
     );
     expect(screen.getByTestId("settings-page-general-default-agent-input")).toHaveValue("general");
     expect(screen.getByTestId("settings-page-general-default-provider-input")).toHaveValue(
       "claude"
     );
     expect(screen.getByTestId("settings-page-general-permissions-group")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-general-permission-approve-all")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    expect(screen.getByRole("radio", { name: /Allow everything/ })).toBeChecked();
     expect(screen.getByTestId("settings-page-general-update-status")).toHaveTextContent(
       "available"
     );
     expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
       "Run `agh update`."
     );
+    fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
+    expect(screen.getByText("Config file")).toBeInTheDocument();
+    expect(screen.getByText("~/.agh/config.toml")).toBeInTheDocument();
   });
 
   it("composes the remembered-decisions section after the permissions policy", () => {
@@ -399,7 +402,7 @@ describe("GeneralSettingsPage", () => {
     pageState.restart.isVisible = true;
     pageState.restart.isRestartRequired = true;
     render(<GeneralSettingsPage />);
-    expect(screen.getByTestId("settings-page-general-restart-banner")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-general-restart-notice")).toBeInTheDocument();
   });
 
   it("wires the save bar buttons to the page-level handlers", () => {
@@ -414,9 +417,16 @@ describe("GeneralSettingsPage", () => {
   });
 
   it("surfaces the last-applied label when the save bar has a success message", () => {
+    pageState.isDirty = true;
+    pageState.isSaving = true;
     pageState.lastAppliedLabel = "Saved · restart required to apply";
-    render(<GeneralSettingsPage />);
-    expect(screen.getByTestId("settings-page-general-save-applied")).toHaveTextContent(
+    const { rerender } = render(<GeneralSettingsPage />);
+
+    pageState.isDirty = false;
+    pageState.isSaving = false;
+    rerender(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-save-message")).toHaveTextContent(
       "restart required"
     );
   });

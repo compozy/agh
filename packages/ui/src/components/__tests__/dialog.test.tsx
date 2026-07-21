@@ -288,10 +288,13 @@ describe("Dialog", () => {
 
     render(<WindowHost />);
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    // Let the dialog's async initial-focus job land before interacting with the
+    // peer; clicking mid-flight lets the late focus steal the caret back.
+    await waitFor(() => expect(document.body).not.toHaveFocus());
 
     const peerComposer = screen.getByRole("textbox", { name: "Peer composer" });
     await user.click(peerComposer);
-    expect(peerComposer).toHaveFocus();
+    await waitFor(() => expect(peerComposer).toHaveFocus());
     fireEvent.change(peerComposer, { target: { value: "still active" } });
 
     expect(peerComposer).toHaveValue("still active");

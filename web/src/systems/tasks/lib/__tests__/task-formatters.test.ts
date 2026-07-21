@@ -55,10 +55,10 @@ function makeTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 describe("task status and priority labels", () => {
   it("labels every documented task status", () => {
     expect(taskStatusLabel("draft")).toBe("Draft");
-    expect(taskStatusLabel("pending")).toBe("Pending");
+    expect(taskStatusLabel("pending")).toBe("Not started");
     expect(taskStatusLabel("blocked")).toBe("Blocked");
     expect(taskStatusLabel("ready")).toBe("Ready");
-    expect(taskStatusLabel("in_progress")).toBe("In Progress");
+    expect(taskStatusLabel("in_progress")).toBe("In progress");
     expect(taskStatusLabel("completed")).toBe("Completed");
     expect(taskStatusLabel("failed")).toBe("Failed");
     expect(taskStatusLabel("canceled")).toBe("Canceled");
@@ -72,17 +72,17 @@ describe("task status and priority labels", () => {
   });
 
   it("labels inbox lanes", () => {
-    expect(taskInboxLaneLabel("my_work")).toBe("My Work");
+    expect(taskInboxLaneLabel("my_work")).toBe("My work");
     expect(taskInboxLaneLabel("approvals")).toBe("Approvals");
-    expect(taskInboxLaneLabel("failed_runs")).toBe("Failed Runs");
+    expect(taskInboxLaneLabel("failed_runs")).toBe("Failed runs");
     expect(taskInboxLaneLabel("blocked")).toBe("Blocked");
     expect(taskInboxLaneLabel("archived")).toBe("Archived");
   });
 
   it("labels approval states", () => {
-    expect(taskApprovalStateLabel("pending")).toBe("Pending Approval");
+    expect(taskApprovalStateLabel("pending")).toBe("Approval pending");
     expect(taskApprovalStateLabel("approved")).toBe("Approved");
-    expect(taskApprovalStateLabel(undefined)).toBe("Not Required");
+    expect(taskApprovalStateLabel(undefined)).toBe("Not required");
   });
 });
 

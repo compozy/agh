@@ -1,85 +1,70 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { PageShell } from "@agh/ui";
+import { TopbarSlotProvider } from "@agh/ui";
+
+import { SettingsPageFrame } from "../settings-page-frame";
 import { SettingsSaveBar } from "../settings-save-bar";
 
-describe("PageShell", () => {
-  it("renders the banner, scroll body, and footer as separate layout bands", () => {
-    render(
-      <PageShell
+function renderFrame(saveBar: React.ReactNode) {
+  return render(
+    <TopbarSlotProvider>
+      <SettingsPageFrame
+        description="Defaults and day-to-day behavior."
+        meta={[{ key: "sessions", content: <span>3 active sessions</span> }]}
+        saveBar={saveBar}
         slug="general"
-        banner={<div data-testid="shell-banner">banner</div>}
-        footer={
-          <SettingsSaveBar
-            slug="general"
-            isDirty={true}
-            isSaving={false}
-            onSave={() => {}}
-            onReset={() => {}}
-          />
-        }
       >
-        <div data-testid="shell-body-content">content</div>
-      </PageShell>
-    );
+        <div data-testid="frame-body-content">content</div>
+      </SettingsPageFrame>
+    </TopbarSlotProvider>
+  );
+}
 
-    expect(screen.getByTestId("settings-page-general")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-general-banner-slot")).toContainElement(
-      screen.getByTestId("shell-banner")
-    );
+describe("SettingsPageFrame", () => {
+  it("renders the subhead sentence, quiet meta, and body content", () => {
+    renderFrame(null);
+
+    const subhead = screen.getByTestId("settings-page-general-subhead");
+    expect(subhead).toHaveTextContent("Defaults and day-to-day behavior.");
+    expect(subhead).toHaveTextContent("3 active sessions");
     expect(screen.getByTestId("settings-page-general-body")).toContainElement(
-      screen.getByTestId("shell-body-content")
-    );
-    expect(screen.getByTestId("settings-page-general-footer")).toContainElement(
-      screen.getByTestId("settings-page-general-save-bar")
+      screen.getByTestId("frame-body-content")
     );
   });
 
-  it("keeps the save bar outside of the scroll body", () => {
-    render(
-      <PageShell
-        slug="network"
-        footer={
-          <SettingsSaveBar
-            slug="network"
-            isDirty={false}
-            isSaving={false}
-            onSave={() => {}}
-            onReset={() => {}}
-          />
-        }
-      >
-        <div data-testid="shell-network-body-content">content</div>
-      </PageShell>
+  it("keeps the floating save bar inside the scroll body when dirty", () => {
+    renderFrame(
+      <SettingsSaveBar
+        slug="general"
+        isDirty={true}
+        isSaving={false}
+        onSave={() => {}}
+        onReset={() => {}}
+      />
     );
 
-    const body = screen.getByTestId("settings-page-network-body");
-    const footer = screen.getByTestId("settings-page-network-footer");
-
-    expect(within(body).queryByTestId("settings-page-network-save-bar")).not.toBeInTheDocument();
-    expect(footer).toContainElement(screen.getByTestId("settings-page-network-save-bar"));
+    const body = screen.getByTestId("settings-page-general-body");
+    expect(within(body).getByTestId("settings-page-general-save-bar")).toBeInTheDocument();
   });
 
-  it("omits the banner slot and footer when no content is provided", () => {
-    render(
-      <PageShell slug="memory">
-        <span>body</span>
-      </PageShell>
+  it("renders no save bar band when the page is clean", () => {
+    renderFrame(
+      <SettingsSaveBar
+        slug="general"
+        isDirty={false}
+        isSaving={false}
+        onSave={() => {}}
+        onReset={() => {}}
+      />
     );
 
-    expect(screen.queryByTestId("settings-page-memory-banner-slot")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("settings-page-memory-footer")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("settings-page-general-save-bar")).not.toBeInTheDocument();
   });
 
-  it("does not own the route title (the shell topbar does)", () => {
-    render(
-      <PageShell slug="general">
-        <span>body</span>
-      </PageShell>
-    );
+  it("does not own the route title (the window topbar does)", () => {
+    renderFrame(null);
 
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
-    expect(screen.queryByTestId("settings-page-general-header")).not.toBeInTheDocument();
   });
 });

@@ -8,12 +8,12 @@ import {
 } from "@/systems/settings/hooks/use-settings-skills-page";
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 import {
-  restartBannerPropsFor,
   SettingsDisabledSkillsSection,
   SettingsFieldRow,
+  SettingsGroup,
+  SettingsPageFrame,
   type SettingsScope,
   type SettingsSkillsSection,
-  SettingsTopbarPublisher,
 } from "@/systems/settings";
 import type { WorkspacePayload } from "@/systems/workspace";
 import {
@@ -21,65 +21,15 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
-  PageShell,
   PillGroup,
-  RestartBanner,
-  Section,
   Spinner,
-  StatusLine,
   Switch,
-  type StatusLineItem,
 } from "@agh/ui";
 import { AllowListField, SaveControls } from "./-skills-controls";
 
 type SkillsConfig = SettingsSkillsSection["config"];
 export function SkillsSettingsPage() {
   const page = useSettingsSkillsPage();
-  const envelopeForSlot = page.envelope;
-  const statusItems: StatusLineItem[] = envelopeForSlot
-    ? [
-        {
-          key: "discovered",
-          value: `${envelopeForSlot.discovered_count} discovered`,
-          tone: "neutral",
-        },
-        {
-          key: "disabled",
-          value: `${envelopeForSlot.disabled_count} disabled`,
-          tone: "neutral",
-        },
-        {
-          key: "scope",
-          value: (
-            <span data-testid="settings-page-skills-scope-label">
-              scope:{" "}
-              {page.selection.scope === "global"
-                ? "global"
-                : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`}
-            </span>
-          ),
-          tone: "neutral",
-        },
-      ]
-    : [];
-  if (envelopeForSlot && page.selection.scope === "agent" && page.selectedWorkspaceContext) {
-    statusItems.push({
-      key: "context",
-      value: (
-        <span data-testid="settings-page-skills-workspace-context-summary">
-          context: {page.selectedWorkspaceContext.name}
-        </span>
-      ),
-      tone: "neutral",
-    });
-  }
-  const statusLine = envelopeForSlot ? (
-    <StatusLine
-      data-testid="settings-page-skills-status-line"
-      status={envelopeForSlot.runtime_available ? "connected" : "error"}
-      items={statusItems}
-    />
-  ) : null;
 
   if (page.isLoading) {
     return (
@@ -112,13 +62,38 @@ export function SkillsSettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
-  const bannerProps = restartBannerPropsFor("skills", restart);
+  const scopeLabel =
+    page.selection.scope === "global"
+      ? "global"
+      : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`;
 
   return (
-    <PageShell
+    <SettingsPageFrame
+      description="Which skills your agents can use, and where new ones may come from."
+      meta={[
+        {
+          key: "discovered",
+          content: (
+            <span>
+              <span className="font-medium text-muted">{envelope.discovered_count}</span> discovered
+            </span>
+          ),
+        },
+        {
+          key: "disabled",
+          content: (
+            <span>
+              <span className="font-medium text-muted">{envelope.disabled_count}</span> disabled
+            </span>
+          ),
+        },
+        {
+          key: "scope",
+          content: <span data-testid="settings-page-skills-scope-label">scope {scopeLabel}</span>,
+        },
+      ]}
+      restart={restart}
       slug="skills"
-      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsTopbarPublisher slug="skills" statusLine={statusLine} />}
     >
       <ScopeSelector
         selection={page.selection}
@@ -177,7 +152,7 @@ export function SkillsSettingsPage() {
       ) : (
         <AgentScopePolicyNotice />
       )}
-    </PageShell>
+    </SettingsPageFrame>
   );
 }
 
@@ -220,10 +195,9 @@ function ScopeSelector({
   }
 
   return (
-    <Section
-      divided
-      label="Scope"
-      note="agent scope only changes logical disabled skills for one effective agent"
+    <SettingsGroup
+      title="Scope"
+      description="agent scope only changes logical disabled skills for one effective agent"
     >
       <div
         className="flex flex-wrap items-center gap-2"
@@ -250,7 +224,6 @@ function ScopeSelector({
             data-testid="settings-page-skills-agent-select"
             label="Agent"
             description="Select the logical agent that receives the tombstone list"
-            hint="AGENT.MD"
             control={
               <AgentCommandSelect
                 agents={agents}
@@ -266,7 +239,6 @@ function ScopeSelector({
             data-testid="settings-page-skills-workspace-context"
             label="Workspace context"
             description="Optional workspace resolver context for the selected agent"
-            hint="OPTIONAL"
             control={
               <NativeSelect
                 className="w-56"
@@ -285,13 +257,13 @@ function ScopeSelector({
           />
         </div>
       ) : null}
-    </Section>
+    </SettingsGroup>
   );
 }
 
 function OperationalLinksSection() {
   return (
-    <Section divided label="Operational" note="manage runtime state outside of settings">
+    <SettingsGroup title="Operational" description="manage runtime state outside of settings">
       <div className="flex flex-wrap gap-2" data-testid="settings-page-skills-operational-links">
         <Link
           search={{ tab: "installed" }}
@@ -303,23 +275,22 @@ function OperationalLinksSection() {
           Open Skills
         </Link>
       </div>
-    </Section>
+    </SettingsGroup>
   );
 }
 
 function AgentScopePolicyNotice() {
   return (
-    <Section
-      divided
-      label="Marketplace & policy"
-      note="read-only in agent scope"
+    <SettingsGroup
+      title="Marketplace & policy"
+      description="read-only in agent scope"
       data-testid="settings-page-skills-agent-policy-note"
     >
       <p className="text-sm text-muted">
         Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
         poll interval, and marketplace allowlists remain global settings.
       </p>
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -347,11 +318,10 @@ function PolicySection({
   onReset,
 }: PolicySectionProps) {
   return (
-    <Section
-      divided
-      label="Marketplace & policy"
-      note="restart required to apply"
-      right={
+    <SettingsGroup
+      title="Marketplace & policy"
+      description="restart required to apply"
+      action={
         <SaveControls
           slug="policy"
           saveLabel="Save"
@@ -369,7 +339,6 @@ function PolicySection({
         data-testid="settings-page-skills-enabled"
         label="Skill registry"
         description="Enable discovery and task resolution"
-        hint="CONFIG.TOML"
         control={
           <Switch
             data-testid="settings-page-skills-enabled-switch"
@@ -387,7 +356,6 @@ function PolicySection({
         data-testid="settings-page-skills-poll-interval"
         label="Poll interval"
         description="How often the registry re-scans sources"
-        hint="DEFAULT"
         control={
           <Input
             className="w-32 font-mono"
@@ -407,7 +375,6 @@ function PolicySection({
         data-testid="settings-page-skills-marketplace-registry"
         label="Marketplace registry"
         description="Identifier of the marketplace publisher"
-        hint="CONFIG.TOML"
         control={
           <Input
             className="w-56"
@@ -429,7 +396,6 @@ function PolicySection({
         data-testid="settings-page-skills-marketplace-base-url"
         label="Marketplace base URL"
         description="Override the registry's default endpoint"
-        hint="OPTIONAL"
         control={
           <Input
             className="w-72 font-mono"
@@ -472,6 +438,6 @@ function PolicySection({
           })
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }

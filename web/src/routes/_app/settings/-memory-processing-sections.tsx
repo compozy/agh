@@ -1,5 +1,5 @@
-import { SettingsFieldRow, SettingsNumberInput } from "@/systems/settings";
-import { Input, Section, Switch } from "@agh/ui";
+import { SettingsFieldRow, SettingsGroup, SettingsNumberInput } from "@/systems/settings";
+import { Input, Switch } from "@agh/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
 export function DecisionsSection({
@@ -9,7 +9,7 @@ export function DecisionsSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <Section divided label="Decisions retention" note="memory_decisions WAL housekeeping">
+    <SettingsGroup title="Decisions retention" description="memory_decisions WAL housekeeping">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-decisions-prune-after`}
         label="Prune after applied (days)"
@@ -78,7 +78,7 @@ export function DecisionsSection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -90,7 +90,7 @@ export function ExtractorSection({
 }: ValidatedSectionProps) {
   const extractorDisabled = !draft.extractor.enabled;
   return (
-    <Section divided label="Extractor" note="post-message proposal generation">
+    <SettingsGroup title="Extractor" description="post-message proposal generation">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-enabled`}
         label="Extractor"
@@ -308,6 +308,6 @@ export function ExtractorSection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }

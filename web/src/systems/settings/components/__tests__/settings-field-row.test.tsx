@@ -6,12 +6,11 @@ import { PillGroup } from "@agh/ui";
 import { SettingsFieldRow } from "../settings-field-row";
 
 describe("SettingsFieldRow", () => {
-  it("renders labels, descriptions, controls, and responsive hint copies", () => {
+  it("renders labels, descriptions, and controls without jargon chips", () => {
     render(
       <SettingsFieldRow
         label="Default provider"
         description="Used for new sessions"
-        hint="CONFIG.TOML"
         control={<input />}
         data-testid="field-row"
       />
@@ -21,7 +20,6 @@ describe("SettingsFieldRow", () => {
     expect(row).toHaveTextContent("Default provider");
     expect(row).toHaveTextContent("Used for new sessions");
     expect(screen.getByLabelText("Default provider")).toBeInTheDocument();
-    expect(row).toHaveTextContent("CONFIG.TOML");
   });
 
   it("forwards the error message when provided", () => {
@@ -39,12 +37,21 @@ describe("SettingsFieldRow", () => {
     expect(screen.getByLabelText("API key")).toHaveAttribute("aria-invalid", "true");
   });
 
-  it("renders inside an @agh/ui Field container (data-slot=field)", () => {
+  it("renders the srow anatomy by default and the Field container in modal variant", () => {
     render(
       <SettingsFieldRow label="Session timeout" control={<input />} data-testid="field-row" />
     );
+    expect(screen.getByTestId("field-row")).toHaveAttribute("data-slot", "settings-field-row");
 
-    expect(screen.getByTestId("field-row")).toHaveAttribute("data-slot", "field");
+    render(
+      <SettingsFieldRow
+        control={<input />}
+        data-testid="field-row-modal"
+        label="Display name"
+        variant="modal"
+      />
+    );
+    expect(screen.getByTestId("field-row-modal")).toHaveAttribute("data-slot", "field");
   });
 
   it("labels composite control groups with the field label", () => {

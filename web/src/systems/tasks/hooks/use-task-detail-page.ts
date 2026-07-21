@@ -2,55 +2,32 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import {
+  useApproveTask,
   useCancelTask,
+  useClearTaskBlock,
   useEnqueueTaskRun,
+  useFanOutTaskRuns,
   usePauseTask,
   usePublishTask,
   useRecoverTask,
+  useRejectTask,
   useResumeTask,
+  useRetryTaskRun,
 } from "./use-task-actions";
 import { useTask, useTaskRuns } from "./use-tasks";
-import { useTaskInspect, useTaskTimeline, useTaskTree } from "./use-task-live";
+import { useTaskInspect, useTaskTimeline } from "./use-task-live";
+import { useTaskExecutionProfile } from "./use-task-profile";
+import { useTaskReviews } from "./use-task-reviews";
 import { useRecoverTaskRun } from "./use-task-run-recovery";
 import { useTaskStream } from "./use-task-stream";
 import { taskRunCanRecover } from "../lib/task-run-recovery";
-import type { TaskRunsFilter, TaskTimelineFilter, TaskTreeNode, TaskTreeView } from "../types";
-
-type TaskDetailPanel =
-  | "overview"
-  | "timeline"
-  | "runs"
-  | "children"
-  | "dependencies"
-  | "agents"
-  | "orchestration";
-
-type MultiAgentLiveState = "loading" | "disconnected" | "no-descendants" | "no-active" | "ready";
-
-interface MultiAgentAgent {
-  node: TaskTreeNode;
-  isRoot: boolean;
-  isPrimary: boolean;
-  isLive: boolean;
-  label: string;
-}
-
-interface MultiAgentView {
-  nodes: MultiAgentAgent[];
-  liveCount: number;
-  descendantCount: number;
-  activeDescendants: number;
-  hasActiveRoot: boolean;
-  state: MultiAgentLiveState;
-}
+import type { FanOutTaskRunsRequest, TaskRunsFilter, TaskTimelineFilter } from "../types";
 
 interface UseTaskDetailPageOptions {
-  initialPanel?: TaskDetailPanel;
   initialTimelineLimit?: number;
   runFilters?: TaskRunsFilter;
   timelineFilters?: TaskTimelineFilter;
   enableTimeline?: boolean;
-  enableTree?: boolean;
   enableRuns?: boolean;
   enableInspect?: boolean;
   enableStream?: boolean;
@@ -59,15 +36,31 @@ interface UseTaskDetailPageOptions {
 const DEFAULT_TIMELINE_LIMIT = 50;
 const TIMELINE_PAGE_SIZE = 50;
 
+async function runAction(
+  action: () => Promise<unknown>,
+  success: string,
+  failure: string
+): Promise<void> {
+  try {
+    await action();
+    toast.success(success);
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : failure);
+  }
+}
+
+/**
+ * View model for the 3-tab task detail page. Tab state lives in the window
+ * location (URL-addressable); this hook owns queries, the SSE stream, and
+ * every task-level verb handler.
+ */
 function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {}) {
-  const [panel, setPanel] = useState<TaskDetailPanel>(options.initialPanel ?? "overview");
   const [timelineLimit, setTimelineLimit] = useState<number>(
     options.initialTimelineLimit ?? DEFAULT_TIMELINE_LIMIT
   );
 
   const hasTaskId = Boolean(taskId);
   const enableTimeline = options.enableTimeline ?? true;
-  const enableTree = options.enableTree ?? true;
   const enableRuns = options.enableRuns ?? true;
   const enableInspect = options.enableInspect ?? true;
   const enableStream = options.enableStream ?? true;
@@ -81,11 +74,12 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const timelineQuery = useTaskTimeline(taskId, timelineFilters, {
     enabled: hasTaskId && enableTimeline,
   });
-  const treeQuery = useTaskTree(taskId, { enabled: hasTaskId && enableTree });
   const runsQuery = useTaskRuns(taskId, options.runFilters ?? {}, {
     enabled: hasTaskId && enableRuns,
   });
   const inspectQuery = useTaskInspect(taskId, { enabled: hasTaskId && enableInspect });
+  const profileQuery = useTaskExecutionProfile(taskId, { enabled: hasTaskId });
+  const reviewsQuery = useTaskReviews(taskId, {}, { enabled: hasTaskId });
 
   const publishMutation = usePublishTask();
   const cancelMutation = useCancelTask();
@@ -94,12 +88,18 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const resumeMutation = useResumeTask();
   const recoverTaskMutation = useRecoverTask();
   const recoverRunMutation = useRecoverTaskRun();
+  const approveMutation = useApproveTask();
+  const rejectMutation = useRejectTask();
+  const retryRunMutation = useRetryTaskRun();
+  const clearBlockMutation = useClearTaskBlock();
+  const fanOutMutation = useFanOutTaskRuns();
 
   const detail = detailQuery.data ?? null;
   const runs = runsQuery.data ?? [];
   const timeline = timelineQuery.data ?? [];
-  const tree = treeQuery.data ?? null;
   const inspect = inspectQuery.data ?? null;
+  const profile = profileQuery.data ?? null;
+  const reviews = reviewsQuery.data ?? [];
 
   const activeRun = detail?.summary?.active_run ?? null;
   const activeRunNeedsAttention = activeRun?.status === "needs_attention";
@@ -107,106 +107,114 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     activeRun && taskRunCanRecover(activeRun, detail?.task.max_attempts) ? activeRun.id : null;
   const isLive = isRunActive(activeRun?.status ?? null);
 
-  // Keep the always-visible header/overview surfaces (status, blocked-reasons,
-  // needs_attention badge, wake indicator) fresh from needs_attention / recover /
-  // run-lifecycle SSE events. The orchestration tab owns its own stream + resume-
-  // card status, so gate this one out on that panel to avoid a duplicate
-  // EventSource. Wait for the detail payload before connecting so we seed from the
-  // real cursor instead of after_sequence=0 (a full-history replay + immediate
-  // reconnect when latest_event_seq resolves).
+  // Keep the page fresh from run-lifecycle SSE events. Wait for the detail
+  // payload before connecting so we seed from the real cursor instead of
+  // after_sequence=0 (a full-history replay + immediate reconnect when
+  // latest_event_seq resolves).
   const detailEventSeq = detail?.task?.latest_event_seq;
   const hasEventSeq = typeof detailEventSeq === "number";
   useTaskStream(taskId, {
-    enabled: hasTaskId && enableStream && panel !== "orchestration" && hasEventSeq,
+    enabled: hasTaskId && enableStream && hasEventSeq,
     afterSequence: hasEventSeq ? Math.max(0, detailEventSeq) : undefined,
   });
 
-  const multiAgent: MultiAgentView = deriveMultiAgentView(
-    tree,
-    treeQuery.isLoading,
-    Boolean(treeQuery.error),
-    isLive
-  );
-
   const fatalError = hasTaskId ? (detailQuery.error ?? null) : new Error("Missing task id");
-
-  const handlePanelChange = (next: TaskDetailPanel) => {
-    setPanel(next);
-  };
 
   const handleTimelineLoadMore = () => {
     setTimelineLimit(current => current + TIMELINE_PAGE_SIZE);
   };
 
-  const handleTimelineReset = () => {
-    setTimelineLimit(options.initialTimelineLimit ?? DEFAULT_TIMELINE_LIMIT);
-  };
+  const handlePublishTask = () =>
+    hasTaskId
+      ? runAction(
+          () => publishMutation.mutateAsync({ id: taskId }),
+          "Task published.",
+          "Failed to publish task"
+        )
+      : Promise.resolve();
 
-  const handlePublishTask = async () => {
-    if (!hasTaskId) {
-      return;
-    }
+  const handleCancelTask = () =>
+    hasTaskId
+      ? runAction(
+          () => cancelMutation.mutateAsync({ id: taskId }),
+          "Task canceled.",
+          "Failed to cancel task"
+        )
+      : Promise.resolve();
 
+  const handleEnqueueRun = () =>
+    hasTaskId
+      ? runAction(
+          () => enqueueMutation.mutateAsync({ id: taskId }),
+          "Run queued.",
+          "Failed to queue run"
+        )
+      : Promise.resolve();
+
+  const handleApproveTask = () =>
+    hasTaskId
+      ? runAction(
+          () => approveMutation.mutateAsync({ id: taskId }),
+          "Task approved.",
+          "Failed to approve task"
+        )
+      : Promise.resolve();
+
+  const handleRejectTask = () =>
+    hasTaskId
+      ? runAction(
+          () => rejectMutation.mutateAsync({ id: taskId }),
+          "Task rejected.",
+          "Failed to reject task"
+        )
+      : Promise.resolve();
+
+  const handleRetryRun = (runId: string) =>
+    runAction(
+      () => retryRunMutation.mutateAsync({ runId }),
+      "Retry queued.",
+      "Failed to retry run"
+    );
+
+  const handleClearBlock = (blockId: string) =>
+    hasTaskId
+      ? runAction(
+          () => clearBlockMutation.mutateAsync({ id: taskId, blockId }),
+          "Block cleared.",
+          "Failed to clear block"
+        )
+      : Promise.resolve();
+
+  const handleFanOutRuns = async (data: FanOutTaskRunsRequest) => {
+    if (!hasTaskId) return;
     try {
-      await publishMutation.mutateAsync({ id: taskId });
-      toast.success("Task published.");
+      const result = await fanOutMutation.mutateAsync({ id: taskId, data });
+      const count = result?.runs?.length ?? 0;
+      toast.success(count > 0 ? `Created ${count} run${count === 1 ? "" : "s"}.` : "Runs created.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to publish task");
-    }
-  };
-
-  const handleCancelTask = async () => {
-    if (!hasTaskId) {
-      return;
-    }
-
-    try {
-      await cancelMutation.mutateAsync({ id: taskId });
-      toast.success("Task canceled.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to cancel task");
-    }
-  };
-
-  const handleEnqueueRun = async () => {
-    if (!hasTaskId) {
-      return;
-    }
-
-    try {
-      await enqueueMutation.mutateAsync({ id: taskId });
-      toast.success("Run enqueued.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to enqueue run");
+      toast.error(error instanceof Error ? error.message : "Failed to fan out runs");
+      throw error;
     }
   };
 
   const handlePauseTask = async (reason: string) => {
-    if (!hasTaskId) {
-      return;
-    }
-
+    if (!hasTaskId) return;
     try {
       await pauseMutation.mutateAsync({ id: taskId, data: { reason } });
       toast.success("Task paused.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to pause task";
-      toast.error(message);
+      toast.error(error instanceof Error ? error.message : "Failed to pause task");
       throw error;
     }
   };
 
   const handleResumeTask = async () => {
-    if (!hasTaskId) {
-      return;
-    }
-
+    if (!hasTaskId) return;
     try {
       await resumeMutation.mutateAsync({ id: taskId });
       toast.success("Task resumed.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to resume task";
-      toast.error(message);
+      toast.error(error instanceof Error ? error.message : "Failed to resume task");
       throw error;
     }
   };
@@ -230,8 +238,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
         toast.success("Task recovered.");
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to recover task";
-      toast.error(message);
+      toast.error(error instanceof Error ? error.message : "Failed to recover task");
       throw error;
     }
   };
@@ -245,29 +252,41 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     detailError: detailQuery.error ?? null,
     detailLoading: detailQuery.isLoading && !detail,
     fatalError,
+    handleApproveTask,
     handleCancelTask,
+    handleClearBlock,
     handleEnqueueRun,
-    handlePanelChange,
+    handleFanOutRuns,
     handlePauseTask,
     handlePublishTask,
     handleRecoverTask,
+    handleRejectTask,
     handleResumeTask,
+    handleRetryRun,
     handleTimelineLoadMore,
-    handleTimelineReset,
+    inspect,
+    inspectError: inspectQuery.error ?? null,
+    inspectLoading: inspectQuery.isLoading && !inspect,
+    isApprovePending: approveMutation.isPending,
     isCancelPending: cancelMutation.isPending,
+    isClearBlockPending: clearBlockMutation.isPending,
     isEnqueuePending: enqueueMutation.isPending,
+    isFanOutPending: fanOutMutation.isPending,
     isLive,
     isPausePending: pauseMutation.isPending,
     isPublishPending: publishMutation.isPending,
     isRecoverPending: recoverTaskMutation.isPending || recoverRunMutation.isPending,
+    isRejectPending: rejectMutation.isPending,
     isResumePending: resumeMutation.isPending,
+    isRetryPending: retryRunMutation.isPending,
     isTimelineSaturated,
-    inspect,
-    inspectError: inspectQuery.error ?? null,
-    inspectLoading: inspectQuery.isLoading && !inspect,
-    multiAgent,
     notFound: detailQuery.isError && detailQuery.error?.message?.includes("not found"),
-    panel,
+    profile,
+    profileError: profileQuery.error ?? null,
+    profileLoading: profileQuery.isLoading && !profile,
+    reviews,
+    reviewsError: reviewsQuery.error ?? null,
+    reviewsLoading: reviewsQuery.isLoading && reviews.length === 0,
     runs,
     runsError: runsQuery.error ?? null,
     runsLoading: runsQuery.isLoading && runs.length === 0,
@@ -276,9 +295,6 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     timelineError: timelineQuery.error ?? null,
     timelineLimit,
     timelineLoading: timelineQuery.isLoading && timeline.length === 0,
-    tree,
-    treeError: treeQuery.error ?? null,
-    treeLoading: treeQuery.isLoading && !tree,
   };
 }
 
@@ -288,94 +304,5 @@ function isRunActive(status?: string | null): boolean {
   );
 }
 
-function deriveMultiAgentView(
-  tree: TaskTreeView | null,
-  isLoading: boolean,
-  hasError: boolean,
-  rootIsLive: boolean
-): MultiAgentView {
-  if (!tree) {
-    if (isLoading) {
-      return buildEmptyMultiAgentView("loading");
-    }
-
-    if (hasError) {
-      return buildEmptyMultiAgentView("disconnected");
-    }
-
-    return buildEmptyMultiAgentView("no-descendants");
-  }
-
-  const descendants = tree.descendants ?? [];
-  const rootNode: MultiAgentAgent = {
-    node: tree.root,
-    isRoot: true,
-    isPrimary: true,
-    isLive: rootIsLive || isRunActive(tree.root.active_run?.status ?? null),
-    label: agentLabel(tree.root),
-  };
-
-  const descendantNodes: MultiAgentAgent[] = descendants.map(node => ({
-    node,
-    isRoot: false,
-    isPrimary: false,
-    isLive: isRunActive(node.active_run?.status ?? null),
-    label: agentLabel(node),
-  }));
-
-  const nodes = [rootNode, ...descendantNodes];
-  const liveCount = nodes.reduce((total, item) => total + (item.isLive ? 1 : 0), 0);
-  const activeDescendants = descendantNodes.reduce(
-    (total, item) => total + (item.isLive ? 1 : 0),
-    0
-  );
-
-  let state: MultiAgentLiveState = "ready";
-  if (descendants.length === 0 && !rootNode.isLive) {
-    state = "no-descendants";
-  } else if (liveCount === 0) {
-    state = "no-active";
-  }
-
-  return {
-    nodes,
-    liveCount,
-    descendantCount: descendants.length,
-    activeDescendants,
-    hasActiveRoot: rootNode.isLive,
-    state,
-  };
-}
-
-function buildEmptyMultiAgentView(state: MultiAgentLiveState): MultiAgentView {
-  return {
-    nodes: [],
-    liveCount: 0,
-    descendantCount: 0,
-    activeDescendants: 0,
-    hasActiveRoot: false,
-    state,
-  };
-}
-
-function agentLabel(node: TaskTreeNode): string {
-  const owner = node.task.owner;
-  if (owner?.ref) {
-    return owner.ref;
-  }
-
-  if (owner?.kind) {
-    return owner.kind;
-  }
-
-  return node.task.identifier ?? node.task.id;
-}
-
 export { useTaskDetailPage };
-export type {
-  MultiAgentAgent,
-  MultiAgentLiveState,
-  MultiAgentView,
-  TaskDetailPanel,
-  UseTaskDetailPageOptions,
-};
+export type { UseTaskDetailPageOptions };

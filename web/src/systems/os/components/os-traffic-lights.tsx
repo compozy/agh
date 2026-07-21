@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
  *
  * Compact (<960px, os-v2.css mobile block): the zoom control disappears
  * (meaningless in a stack), glyphs grow to 15px, gaps to 12px, and each
- * control gets a 36px touch target.
+ * control gets a non-overlapping 44px touch target. This intentionally exceeds
+ * the prototype's 33px pseudo-hitbox to satisfy the product accessibility floor.
  */
 export type OsTrafficLightAction = "close" | "minimize" | "zoom";
 
@@ -65,9 +66,7 @@ function Light({
       className={cn(
         "group/traffic grid place-items-center rounded-xs focus-visible:shadow-focus-ring focus-visible:outline-none",
         compact
-          ? // Prototype mobile hit expansion (os-v2.css `.wc::after{inset:-9px}`):
-            // a 15px glyph inside a 33px effective target (≥24px WCAG floor).
-            "relative size-traffic-light-compact after:absolute after:-inset-[9px] after:content-['']"
+          ? "size-traffic-light-compact-target"
           : // ≥24px target around the 12px glyph; -mx-1.5 (-6px each side) so
             // adjacent button starts are 19px apart and the glyph edge gap is 7px.
             "-mx-1.5 size-6"
@@ -92,8 +91,9 @@ export function OsTrafficLights({
       data-presentation={compact ? "compact" : undefined}
       className={cn(
         "flex items-center",
-        // Prototype mobile: `.win-controls{gap:12px}` between the 15px glyphs.
-        compact ? "gap-3" : "gap-traffic-light-gap",
+        // Compact targets are real, non-overlapping 44px boxes. The wider
+        // visual separation is an accessibility-authorized prototype delta.
+        compact ? "gap-0" : "gap-traffic-light-gap",
         className
       )}
       {...props}

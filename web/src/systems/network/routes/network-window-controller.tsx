@@ -1,6 +1,4 @@
-import { Network as NetworkIcon } from "lucide-react";
-
-import { Spinner, useTopbarSlot } from "@agh/ui";
+import { Spinner } from "@agh/ui";
 
 import { DaemonDown } from "../components/empty-states/daemon-down";
 import { NetworkEmpty } from "../components/empty-states/network-empty";
@@ -10,18 +8,28 @@ import { ThreadOverlay } from "../components/thread-overlay/thread-overlay";
 import { NetworkListFiltersProvider } from "../contexts/network-list-filters-context";
 import { useNetworkListFilters } from "../hooks/use-network-list-filters";
 import { useNetworkRouteView } from "../hooks/use-network-route-view";
-import {
-  networkThreadsLocation,
-  networkWindowCrumb,
-  type NetworkWindowLocation,
-} from "../lib/network-window-location";
+import { useNetworkWindowTopbar } from "../hooks/use-network-window-topbar";
+import { networkThreadsLocation, type NetworkWindowLocation } from "../lib/network-window-location";
 import type { NetworkWindowNavigation } from "../hooks/use-network-route-shell";
+import type { NetworkDirectRoomSummary } from "../types";
 import { NetworkWindowContent } from "./network-window-content";
 
 export interface NetworkWindowControllerProps {
   active: boolean;
   location: NetworkWindowLocation;
   navigation: NetworkWindowNavigation;
+}
+
+function directConversationLabel(
+  directs: ReadonlyArray<NetworkDirectRoomSummary>,
+  directId: string,
+  selfSessionId: string | null
+): string | null {
+  const direct = directs.find(candidate => candidate.direct_id === directId);
+  if (!direct) return null;
+  const other =
+    selfSessionId && direct.session_a === selfSessionId ? direct.session_b : direct.session_a;
+  return `@${other}`;
 }
 
 /**
@@ -53,10 +61,27 @@ export function NetworkWindowController({
     navigation.push(networkThreadsLocation(workspaceId, activeChannelKey, activeThreadId, "full"));
   };
 
-  useTopbarSlot({
-    glyph: <NetworkIcon />,
-    crumb: networkWindowCrumb(view.location),
-    actions: page.status ? view.networkCreate.action : undefined,
+  const conversationLabel = activeThreadId
+    ? (filters.threadsQuery.threads.find(thread => thread.thread_id === activeThreadId)?.title ??
+      null)
+    : activeDirectId
+      ? directConversationLabel(
+          view.railView.directs.directs,
+          activeDirectId,
+          view.railView.session.session?.sessionId ?? null
+        )
+      : null;
+
+  useNetworkWindowTopbar({
+    location: view.location,
+    navigation,
+    workspaceId,
+    activeChannelKey,
+    channelCount: page.channels.length,
+    status: page.status,
+    workEntries: view.openWork.entries,
+    createAction: view.networkCreate.action,
+    conversationLabel,
   });
 
   if (page.isStatusLoading) {

@@ -147,10 +147,16 @@ export type SettingsMCPServerTarget = NonNullable<SettingsMCPServerPutFilter["ta
 
 export type SettingsCollectionName = "providers" | "mcp-servers" | "sandboxes" | "hooks";
 
+export type SettingsSectionGroup = "workspace" | "runtime" | "system";
+
 export interface SettingsSectionDescriptor {
   slug: SettingsSectionSlug;
   label: string;
   icon: LucideIcon;
+  /** Nav group (design system §03). */
+  group: SettingsSectionGroup;
+  /** Space-separated search keywords for the sidebar filter. */
+  keywords: string;
 }
 
 export type SettingsSectionSlug =

@@ -68,11 +68,11 @@ export function taskShortId(task: { id: string; identifier?: string | null }): s
 
 const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   draft: "Draft",
-  pending: "Pending",
+  pending: "Not started",
   blocked: "Blocked",
-  needs_attention: "Needs Attention",
+  needs_attention: "Needs attention",
   ready: "Ready",
-  in_progress: "In Progress",
+  in_progress: "In progress",
   completed: "Completed",
   failed: "Failed",
   canceled: "Canceled",
@@ -86,16 +86,16 @@ const TASK_PRIORITY_LABELS: Record<TaskPriority, string> = {
 };
 
 const TASK_INBOX_LANE_LABELS: Record<TaskInboxLane, string> = {
-  my_work: "My Work",
+  my_work: "My work",
   approvals: "Approvals",
-  failed_runs: "Failed Runs",
+  failed_runs: "Failed runs",
   blocked: "Blocked",
   archived: "Archived",
 };
 
 const TASK_APPROVAL_STATE_LABELS: Record<TaskApprovalState, string> = {
-  not_required: "Not Required",
-  pending: "Pending Approval",
+  not_required: "Not required",
+  pending: "Approval pending",
   approved: "Approved",
   rejected: "Rejected",
 };
@@ -122,7 +122,7 @@ export function taskInboxLaneLabel(lane: TaskInboxLane): string {
 
 export function taskApprovalStateLabel(state?: TaskApprovalState | null): string {
   if (!state) {
-    return "Not Required";
+    return "Not required";
   }
 
   return TASK_APPROVAL_STATE_LABELS[state] ?? state;
@@ -237,13 +237,13 @@ export function taskRunStatusTone(status?: TaskRunStatus | null): PillTone {
 
 const TASK_RUN_STATUS_LABELS: Record<TaskRunStatus, string> = {
   queued: "Queued",
-  claimed: "Claimed",
+  claimed: "Assigned",
   starting: "Starting",
   running: "Running",
   completed: "Completed",
   failed: "Failed",
   canceled: "Canceled",
-  needs_attention: "Needs Attention",
+  needs_attention: "Needs attention",
 };
 
 export function taskRunStatusLabel(status?: TaskRunStatus | null): string {
@@ -371,7 +371,9 @@ export function matchesTaskQuery(
  * and worker pools all read as `agent` for color selection; humans get the
  * `human` slot ladder; unassigned tasks fall back to the system palette.
  */
-export function ownerAvatarKindFor(kind?: TaskOwnerKind | null): OwnerAvatarProps["ownerKind"] {
+export function ownerAvatarKindFor(
+  kind?: TaskOwnerKind | (string & {}) | null
+): OwnerAvatarProps["ownerKind"] {
   switch (kind) {
     case "human":
       return "human";

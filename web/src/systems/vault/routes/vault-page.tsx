@@ -232,7 +232,6 @@ function VaultEditor({
       <SettingsFieldRow
         label="Ref"
         description="Daemon-owned vault reference."
-        hint="REQUIRED"
         error={refError}
         data-testid="settings-vault-editor-ref"
         control={
@@ -248,7 +247,6 @@ function VaultEditor({
       <SettingsFieldRow
         label="Kind"
         description="Metadata label returned on public Vault surfaces."
-        hint="OPTIONAL"
         data-testid="settings-vault-editor-kind"
         control={
           <Input
@@ -263,7 +261,6 @@ function VaultEditor({
       <SettingsFieldRow
         label="Secret value"
         description="Write-only payload. The daemon never returns this value."
-        hint="REQUIRED"
         data-testid="settings-vault-editor-secret-value"
         control={
           <Input

@@ -37,9 +37,9 @@ describe("format-time re-export", () => {
     expect(formatAbsoluteTime(new Date(NOW).toISOString())).toMatch(/2026/);
   });
 
-  it("Should compose hours + minutes + seconds for durations", () => {
+  it("Should humanize durations to two units max", () => {
     expect(formatDuration(125_000)).toBe("2m 5s");
-    expect(formatDuration(3_725_000)).toBe("1h 2m 5s");
+    expect(formatDuration(3_725_000)).toBe("1h 2m");
     expect(formatDuration(0)).toBe("0s");
     expect(formatDuration(-1)).toBe("0s");
   });

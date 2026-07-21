@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-complete-task-tree
 expected: Completing the final child transitions the parent task to completed exactly once, while completing an earlier child leaves the parent non-terminal; the rollup is visible after refresh through Web and structured surfaces.
 entry_points: web /tasks; task detail modal; CLI agh task list
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260713-parent-task-rollup-missing
 fix_status: fixed
 retest_status: pass
@@ -25,3 +25,5 @@ Linear issue AGH-71 is the named regression target.
 QA impact 2026-07-14: post-commit settlement publication now uses a bounded detached context and attempts parent completion effects after reconciliation errors. Reset pending a final-worktree replay.
 
 2026-07-14 final-worktree control: the parent remained nonterminal before child C completed, then fresh reads showed one completed parent transition after the final child settlement. Retest promoted to pass.
+
+2026-07-21: qa_status reset to untested — the opendesign redesigns restructured this scenario's web entry surface (task detail/run detail 3-tab IA, settings takeover shell, or providers page); the pass verdict predates that surface.

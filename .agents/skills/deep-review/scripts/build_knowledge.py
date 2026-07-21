@@ -54,9 +54,10 @@ def walk_named(repo: Path, names: set[str]) -> list[Path]:
     for root, dirs, files in os.walk(repo, followlinks=False):
         dirs[:] = sorted(d for d in dirs if d not in IGNORED_DIRS)
         for name in sorted(set(files) & names):
-            candidate = Path(root) / name
-            if candidate.is_file():
-                found.append(candidate)
+            source = Path(root) / name
+            # os.walk lists broken symlinks as files; they are unreadable.
+            if source.is_file():
+                found.append(source)
     return sorted(found)
 
 

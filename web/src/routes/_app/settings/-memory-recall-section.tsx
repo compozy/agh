@@ -1,5 +1,10 @@
-import { SettingsDecimalInput, SettingsFieldRow, SettingsNumberInput } from "@/systems/settings";
-import { Input, Section, Switch } from "@agh/ui";
+import {
+  SettingsDecimalInput,
+  SettingsFieldRow,
+  SettingsGroup,
+  SettingsNumberInput,
+} from "@/systems/settings";
+import { Input, Switch } from "@agh/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
 export function RecallSection(props: ValidatedSectionProps) {
@@ -13,10 +18,9 @@ function renderRecallSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <Section
-      divided
-      label="Recall pipeline"
-      note="deterministic FTS5 + scope-shadow + freshness banner"
+    <SettingsGroup
+      title="Recall pipeline"
+      description="deterministic FTS5 + scope-shadow + freshness banner"
     >
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-top-k`}
@@ -348,6 +352,6 @@ function renderRecallSection({
           />
         }
       />
-    </Section>
+    </SettingsGroup>
   );
 }

@@ -1,6 +1,15 @@
 import { AlertCircle } from "lucide-react";
 
-import { cn, PAGE_CONTENT_GUTTER, Spinner } from "@agh/ui";
+import {
+  cn,
+  Empty,
+  JsonViewer,
+  LiveBadge,
+  Markdown,
+  PAGE_CONTENT_GUTTER,
+  Section,
+  Skeleton,
+} from "@agh/ui";
 
 import {
   formatTaskRunBounds,
@@ -9,155 +18,183 @@ import {
   useTaskRunConversation,
 } from "@/systems/network";
 import {
-  TaskInspectDiagnosticsCard,
-  TaskRunDetailHeader,
-  TaskRunTimelinePanel,
-  TasksReviewsCard,
-  useTaskRunPage,
-  useTaskTimeline,
+  TaskActivityItem,
+  TaskRunForceFailDialog,
+  TaskRunInspectDrawer,
+  TaskRunOutcome,
+  TaskRunRail,
+  TaskRunReviewCard,
+  TaskRunSubhead,
 } from "@/systems/tasks";
 
-export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: string }) {
-  const page = useTaskRunPage(taskId, runId);
-  const authoritativeTaskId = page.run?.task?.id ?? "";
-  const timelineQuery = useTaskTimeline(
-    authoritativeTaskId,
-    {},
-    {
-      enabled: Boolean(authoritativeTaskId),
-    }
+import { TaskRunTopbar } from "./task-run-topbar";
+import { useTaskRunLocation, type TaskRunLocationController } from "./use-task-run-location";
+
+function TaskRunResultSection({ controller }: { controller: TaskRunLocationController }) {
+  const record = controller.record;
+  if (!record) return null;
+  const result = record.result;
+
+  return (
+    <Section data-testid="tasks-run-result" label="Result">
+      {result == null ? (
+        <p className="rounded-lg border border-line bg-canvas-soft px-4 py-3.5 text-small-body text-muted">
+          {record.status === "completed"
+            ? "No result recorded."
+            : record.ended_at
+              ? "No result recorded. The run ended before reaching a checkpoint."
+              : "No result yet. It lands here the moment the run completes."}
+        </p>
+      ) : typeof result === "string" ? (
+        <div className="rounded-lg border border-line bg-canvas-soft px-4 py-3.5">
+          <Markdown>{result}</Markdown>
+        </div>
+      ) : (
+        <JsonViewer data-testid="tasks-run-result-json" value={result} />
+      )}
+    </Section>
   );
+}
+
+export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: string }) {
+  const controller = useTaskRunLocation(taskId, runId);
+  const { page, record } = controller;
   const conversation = useTaskRunConversation(runId, page.run?.network);
 
   if (page.runLoading) {
     return (
       <div
-        className="flex flex-1 items-center justify-center"
+        className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-4 py-5")}
         data-testid="tasks-run-detail-loading"
       >
-        <Spinner className="size-5 text-subtle" />
+        <Skeleton className="h-6 w-72" />
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-24 rounded-lg" />
+            <Skeleton className="h-48 rounded-lg" />
+          </div>
+          <Skeleton className="hidden h-72 rounded-lg lg:block" />
+        </div>
       </div>
     );
   }
 
-  if (page.notFound || (!page.run && page.fatalError)) {
+  if (page.notFound || !page.run || !record) {
     return (
       <div
-        className={cn(
-          PAGE_CONTENT_GUTTER,
-          "flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center"
-        )}
+        className={cn(PAGE_CONTENT_GUTTER, "flex flex-1 items-center justify-center py-8")}
         data-testid="tasks-run-detail-not-found"
       >
-        <AlertCircle className="size-6 text-danger" />
-        <p className="text-sm text-muted">
-          {page.fatalError?.message ?? `Run ${runId} not found.`}
-        </p>
+        <Empty
+          description={page.fatalError?.message ?? `Run ${runId} was not found.`}
+          icon={AlertCircle}
+          title="Run not found"
+        />
       </div>
     );
   }
 
-  const run = page.run;
-  if (!run) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="tasks-run-detail-placeholder"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
-  }
-
-  const timelineItems = timelineQuery.data ?? [];
-  const record = run.run;
+  const timelineItems = controller.timelineItems.filter(item => item.run?.id === record.id);
   const participation = record.resolved_network_participation;
   const coordinationWorkspaceId =
     (participation?.mode === "live" ? participation.workspace_id : undefined) ??
     page.task?.task.workspace_id ??
     "";
+  const nextAttempt =
+    controller.taskRuns.find(candidate => candidate.previous_run_id === record.id) ?? null;
 
   return (
     <div
-      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col")}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       data-testid="tasks-run-detail-content"
     >
-      <TaskRunDetailHeader
-        maxAttempts={page.task?.task.max_attempts}
-        pendingActions={
-          new Set(
-            [
-              page.isCancelPending ? "cancel" : null,
-              page.isForceReleasePending ? "force-release" : null,
-              page.isForceFailPending ? "force-fail" : null,
-              page.isRecoverPending ? "recover" : null,
-              page.isRetryPending ? "retry" : null,
-            ].filter(
-              (action): action is "cancel" | "force-release" | "force-fail" | "recover" | "retry" =>
-                action !== null
-            )
-          )
-        }
-        onCancelRun={page.handleCancelRun}
-        onForceFailRun={page.handleForceFailRun}
-        onForceReleaseRun={page.handleForceReleaseRun}
-        onRecoverRun={page.handleRecoverRun}
-        onRetryRun={page.handleRetryRun}
-        run={run}
+      <TaskRunTopbar controller={controller} />
+      <TaskRunForceFailDialog
+        dialog={controller.forceFailDialog}
+        isPending={page.isForceFailPending}
+      />
+      <TaskRunInspectDrawer
+        inspect={page.inspect}
+        onOpenChange={controller.setInspectOpen}
+        open={controller.inspectOpen}
+        run={page.run}
       />
 
-      <div
-        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto py-5"
-        data-testid="tasks-run-detail-main"
-      >
-        <div
-          className="rounded-md border border-border px-3 py-2 text-sm"
-          data-testid="tasks-run-participation-chip"
-        >
-          Participation: {participation?.mode ?? "local"}
-          {participation?.mode === "live" ? ` · ${participation.channel_id}` : ""}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className={cn(PAGE_CONTENT_GUTTER, "@container pt-5 pb-16")}>
+          <TaskRunSubhead run={page.run} />
+
+          <div className="grid items-start gap-8 @min-[64rem]:grid-cols-[minmax(0,1fr)_320px]">
+            <main className="flex min-w-0 flex-col gap-6" data-testid="tasks-run-detail-main">
+              <TaskRunOutcome nextAttempt={nextAttempt} run={page.run} />
+              <TaskRunResultSection controller={controller} />
+
+              {page.reviews.length > 0 ? (
+                <Section
+                  count={page.reviews.length}
+                  data-testid="tasks-run-reviews"
+                  label="Reviews"
+                >
+                  <div className="flex flex-col gap-2.5">
+                    {page.reviews.map(review => (
+                      <TaskRunReviewCard key={review.review_id} review={review} />
+                    ))}
+                  </div>
+                </Section>
+              ) : null}
+
+              {controller.authoritativeTaskId && coordinationWorkspaceId ? (
+                <TaskRunCoordinationInvitationHost
+                  runId={record.id}
+                  taskId={controller.authoritativeTaskId}
+                  workspaceId={coordinationWorkspaceId}
+                />
+              ) : null}
+              {conversation && page.run.network ? (
+                <TaskRunConversationPanel
+                  boundsLabel={formatTaskRunBounds(record, page.run.network)}
+                  conversationError={conversation.error}
+                  conversationLoading={conversation.isLoading}
+                  hasMoreMessages={conversation.hasOlder}
+                  isFetchingMore={conversation.isLoadingOlder}
+                  messages={conversation.messages}
+                  onLoadMore={conversation.loadOlder}
+                  streamError={conversation.streamError}
+                  usage={conversation.usage}
+                />
+              ) : null}
+
+              <Section
+                data-testid="tasks-run-activity"
+                label="Run activity"
+                right={
+                  page.isLive ? <LiveBadge data-testid="tasks-run-activity-live" /> : undefined
+                }
+              >
+                {timelineItems.length === 0 ? (
+                  <p className="rounded-lg border border-line bg-canvas-soft px-4 py-3.5 text-small-body text-muted">
+                    No events recorded for this attempt yet.
+                  </p>
+                ) : (
+                  <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+                    {timelineItems.map(item => (
+                      <TaskActivityItem isLive={page.isLive} item={item} key={item.event_id} />
+                    ))}
+                  </div>
+                )}
+              </Section>
+            </main>
+
+            <aside className="min-w-0 @min-[64rem]:sticky @min-[64rem]:top-0">
+              <TaskRunRail
+                onInspect={() => controller.setInspectOpen(true)}
+                run={page.run}
+                taskId={controller.authoritativeTaskId || taskId}
+                taskRuns={controller.taskRuns}
+              />
+            </aside>
+          </div>
         </div>
-        {authoritativeTaskId && coordinationWorkspaceId ? (
-          <TaskRunCoordinationInvitationHost
-            runId={record.id}
-            taskId={authoritativeTaskId}
-            workspaceId={coordinationWorkspaceId}
-          />
-        ) : null}
-        {conversation && run.network ? (
-          <TaskRunConversationPanel
-            boundsLabel={formatTaskRunBounds(record, run.network)}
-            conversationError={conversation.error}
-            conversationLoading={conversation.isLoading}
-            hasMoreMessages={conversation.hasOlder}
-            isFetchingMore={conversation.isLoadingOlder}
-            messages={conversation.messages}
-            onLoadMore={conversation.loadOlder}
-            streamError={conversation.streamError}
-            usage={conversation.usage}
-          />
-        ) : null}
-        <TaskRunTimelinePanel
-          isLive={page.isLive}
-          isLoading={timelineQuery.isLoading && timelineItems.length === 0}
-          items={timelineItems}
-          run={run}
-        />
-        <TaskInspectDiagnosticsCard
-          errorMessage={page.inspectError?.message ?? null}
-          inspect={page.inspect}
-          isLoading={page.inspectLoading}
-          label="Run inspect diagnostics"
-          testId="tasks-run-inspect-diagnostics-card"
-        />
-        <TasksReviewsCard
-          errorMessage={page.reviewsError?.message ?? null}
-          isLoading={page.reviewsLoading}
-          label="Run reviews"
-          reviews={page.reviews}
-          testId="tasks-run-reviews-card"
-          testIdPrefix="tasks-run-reviews-row"
-        />
       </div>
     </div>
   );

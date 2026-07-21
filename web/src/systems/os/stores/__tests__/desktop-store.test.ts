@@ -41,7 +41,7 @@ describe("desktop store", () => {
     expect(id).toBe("app:tasks");
     const win = store.getState().windows[id];
     expect(win).toBeDefined();
-    expect(win.rect).toEqual({ x: 200, y: 88, w: 660, h: 480 });
+    expect(win.rect).toEqual({ x: 150, y: 60, w: 1160, h: 720 });
     expect(win.location.pathname).toBe("/tasks");
     expect(store.getState().focusedId).toBe(id);
     const zValues = Object.values(store.getState().windows).map(w => w.z);

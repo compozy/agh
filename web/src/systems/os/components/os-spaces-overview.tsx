@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogTitle, cn } from "@agh/ui";
+import { Dialog, DialogContent, DialogDescription, DialogTitle, Pill, cn } from "@agh/ui";
 
 import type { WorkspacePayload } from "@/systems/workspace";
 
@@ -21,6 +21,7 @@ const SPACE_THUMB_HEIGHT = 148;
 const THUMB_MIN_DESK_WIDTH = 1000;
 const THUMB_MIN_DESK_HEIGHT = 600;
 const THUMB_MAX_WINDOWS = 4;
+const THUMB_TOP_OFFSET = 8;
 
 const THUMB_WALLPAPER: Record<OsWallpaper, string> = {
   ember: "var(--wallpaper-thumb-ember)",
@@ -72,7 +73,7 @@ function SpaceThumb({
           className="absolute rounded-xs border border-line-strong bg-line-strong"
           style={{
             left: win.rect.x * sx,
-            top: win.rect.y * sy,
+            top: win.rect.y * sy + THUMB_TOP_OFFSET,
             width: win.rect.w * sx,
             height: win.rect.h * sy,
           }}
@@ -122,7 +123,7 @@ export function OsSpacesOverview({
         )}
       >
         <DialogTitle className="text-compact-h1 font-semibold text-fg-strong">Spaces</DialogTitle>
-        <DialogDescription className="mb-[22px] text-small-body text-muted">
+        <DialogDescription className="mb-spaces-subtitle-gap text-small-body text-muted">
           Each workspace is a space — windows stay where you left them.
         </DialogDescription>
         <div
@@ -131,7 +132,7 @@ export function OsSpacesOverview({
             "flex max-w-full justify-center",
             presentation === "compact"
               ? "max-h-[64vh] flex-col items-center gap-3 overflow-y-auto px-4 py-1"
-              : "max-h-[70vh] flex-wrap gap-[18px] overflow-y-auto px-6 py-1"
+              : "max-h-[70vh] flex-wrap gap-spaces-row-gap overflow-y-auto px-6 py-1"
           )}
         >
           {workspaces.map(workspace => {
@@ -159,13 +160,18 @@ export function OsSpacesOverview({
                 <span data-slot="os-space-foot" className="flex items-center gap-2 px-3 py-2.5">
                   <span
                     aria-hidden="true"
-                    className="grid size-5 shrink-0 place-items-center rounded-xs border border-line-strong bg-elevated font-mono text-[9px] font-semibold text-muted"
+                    className="grid size-5 shrink-0 place-items-center rounded-xs border border-line-strong bg-elevated font-mono text-space-avatar font-semibold text-muted"
                   >
                     {workspaceMonogram(workspace.name)}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-small-body font-semibold text-fg-strong">
                     {workspace.name}
                   </span>
+                  {active ? (
+                    <Pill data-slot="os-space-current" size="xs" tone="neutral">
+                      Current
+                    </Pill>
+                  ) : null}
                   <span className="shrink-0 font-mono text-micro text-subtle">{detail}</span>
                 </span>
               </button>

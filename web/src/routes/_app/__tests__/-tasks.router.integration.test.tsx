@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import { Topbar, TopbarSlotProvider, UIProvider } from "@agh/ui";
 
-import { countTasksByStatus, TasksDetailHeader, TasksListSurface } from "@/systems/tasks";
+import { countTasksByStatus, TasksDetailSubhead, TasksListSurface } from "@/systems/tasks";
 import type { TaskDetailView, TaskListItem } from "@/systems/tasks";
 
 function buildTestRouter(initialUrl: string) {
@@ -255,7 +255,12 @@ function buildSelectionRouter(initialUrl: string) {
       task: match,
       summary: match as unknown as TaskDetailView["summary"],
     } as TaskDetailView;
-    return <TasksDetailHeader detail={detail} />;
+    return (
+      <div data-testid="tasks-detail-route">
+        <span data-testid="tasks-detail-title">{match.title}</span>
+        <TasksDetailSubhead detail={detail} />
+      </div>
+    );
   }
 }
 

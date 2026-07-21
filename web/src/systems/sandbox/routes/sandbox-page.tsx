@@ -279,7 +279,6 @@ function SandboxEditor({
               ? "Lower-case identifier referenced by workspaces."
               : "Name is immutable — create a new sandbox to rename."
           }
-          hint={isCreate ? "REQUIRED" : "LOCKED"}
           control={
             <Input
               className="w-56 font-mono disabled:opacity-60"
@@ -296,7 +295,6 @@ function SandboxEditor({
           data-testid="sandbox-editor-backend"
           label="Backend"
           description="Which execution backend the sandbox uses."
-          hint="REQUIRED"
           control={
             <NativeSelect
               className="w-56 font-mono"
@@ -314,7 +312,6 @@ function SandboxEditor({
           data-testid="sandbox-editor-sync-mode"
           label="Sync mode"
           description="How files move between host and sandbox."
-          hint="OPTIONAL"
           control={
             <Input
               className="w-56 font-mono"
@@ -332,7 +329,6 @@ function SandboxEditor({
           data-testid="sandbox-editor-persistence"
           label="Persistence"
           description="Workspace lifecycle between sessions."
-          hint="OPTIONAL"
           control={
             <Input
               className="w-56 font-mono"
@@ -350,7 +346,6 @@ function SandboxEditor({
           data-testid="sandbox-editor-runtime-root"
           label="Runtime root"
           description="Directory mounted as the working root."
-          hint="OPTIONAL"
           control={
             <Input
               className="w-72 font-mono"

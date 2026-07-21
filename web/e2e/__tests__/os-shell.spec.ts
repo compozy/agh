@@ -822,6 +822,16 @@ test("E2E-011: the compact stack round-trips with floating rects preserved", asy
   await expect(appPage.locator('[data-slot="os-dock-tabbar"]')).toBeVisible();
   await expect(tasks.locator(".os-window-resize-handle")).toHaveCount(0);
   await expect(tasks.getByRole("button", { name: "Zoom window" })).toHaveCount(0);
+  const closeTarget = await tasks.getByRole("button", { name: "Close window" }).boundingBox();
+  const minimizeTarget = await tasks.getByRole("button", { name: "Minimize window" }).boundingBox();
+  if (!closeTarget || !minimizeTarget) {
+    throw new Error("compact window controls must expose measurable touch targets");
+  }
+  expect(closeTarget.width).toBeGreaterThanOrEqual(44);
+  expect(closeTarget.height).toBeGreaterThanOrEqual(44);
+  expect(minimizeTarget.width).toBeGreaterThanOrEqual(44);
+  expect(minimizeTarget.height).toBeGreaterThanOrEqual(44);
+  expect(closeTarget.x + closeTarget.width).toBeLessThanOrEqual(minimizeTarget.x);
   const stackBox = await tasks.boundingBox();
   const viewport = appPage.viewportSize();
   if (!stackBox || !viewport) throw new Error("compact stack window must be measurable");

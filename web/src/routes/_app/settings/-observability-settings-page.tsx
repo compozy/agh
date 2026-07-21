@@ -3,26 +3,16 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsObservabilityPage } from "@/systems/settings/hooks/use-settings-observability-page";
 import {
-  restartBannerPropsFor,
   SettingsFieldRow,
+  SettingsGroup,
+  SettingsPageFrame,
   SettingsSaveBar,
+  SettingsTile,
+  SettingsTiles,
   type SettingsObservabilitySection,
-  SettingsTopbarPublisher,
 } from "@/systems/settings";
 import { useSupportBundleDownload } from "@/systems/support";
-import {
-  Button,
-  Eyebrow,
-  Metric,
-  MetricGrid,
-  PageShell,
-  Pill,
-  RestartBanner,
-  Section,
-  Spinner,
-  StatusLine,
-  Switch,
-} from "@agh/ui";
+import { Button, Eyebrow, Pill, Spinner, Switch } from "@agh/ui";
 
 type ObservabilityConfig = SettingsObservabilitySection["config"];
 type LogTailMeta = SettingsObservabilitySection["log_tail"];
@@ -46,35 +36,6 @@ export function ObservabilitySettingsPage() {
     );
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
-  const runtimeForSlot = page.envelope?.runtime;
-  const draftForSlot = page.draft;
-  const totalStorageForSlot = runtimeForSlot
-    ? runtimeForSlot.global_db_size_bytes + runtimeForSlot.session_db_size_bytes
-    : 0;
-  const capForSlot = draftForSlot?.max_global_bytes ?? 0;
-  const statusLine =
-    runtimeForSlot && draftForSlot ? (
-      <StatusLine
-        data-testid="settings-page-observability-status-line"
-        status={runtimeForSlot.available ? "connected" : "error"}
-        items={[
-          {
-            key: "sessions",
-            value: `${runtimeForSlot.active_sessions} active sessions`,
-            tone: "neutral",
-          },
-          {
-            key: "storage",
-            value: (
-              <span data-testid="settings-page-observability-storage-summary">
-                storage {formatBytes(totalStorageForSlot)} / {formatBytes(capForSlot)}
-              </span>
-            ),
-            tone: "neutral",
-          },
-        ]}
-      />
-    ) : null;
 
   if (page.isLoading) {
     return (
@@ -113,14 +74,30 @@ export function ObservabilitySettingsPage() {
   const cap = draft.max_global_bytes;
   const capPercent = cap > 0 ? Math.min(100, Math.round((totalStorage / cap) * 100)) : 0;
 
-  const bannerProps = restartBannerPropsFor("observability", restart);
-
   return (
-    <PageShell
-      slug="observability"
-      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsTopbarPublisher slug="observability" statusLine={statusLine} />}
-      footer={
+    <SettingsPageFrame
+      description="What this daemon records about sessions, and how much disk it may use."
+      meta={[
+        {
+          key: "sessions",
+          content: (
+            <span>
+              <span className="font-medium text-muted">{runtime.active_sessions}</span> active
+              sessions
+            </span>
+          ),
+        },
+        {
+          key: "storage",
+          content: (
+            <span data-testid="settings-page-observability-storage-summary">
+              storage {formatBytes(totalStorage)} of {formatBytes(cap)}
+            </span>
+          ),
+        },
+      ]}
+      restart={restart}
+      saveBar={
         <SettingsSaveBar
           slug="observability"
           isDirty={page.isDirty}
@@ -136,6 +113,7 @@ export function ObservabilitySettingsPage() {
           }}
         />
       }
+      slug="observability"
     >
       <OverviewMetrics
         activeSessions={runtime.active_sessions}
@@ -161,7 +139,7 @@ export function ObservabilitySettingsPage() {
       />
       <SupportBundleSection />
       <LogTailSection logTail={logTail} runtime={runtime} />
-    </PageShell>
+    </SettingsPageFrame>
   );
 }
 
@@ -180,32 +158,33 @@ function OverviewMetrics({
 }: OverviewMetricsProps) {
   const capPercent = cap > 0 ? Math.min(100, Math.round((totalStorage / cap) * 100)) : 0;
   return (
-    <Section divided label="Runtime" note="live capture volume">
-      <MetricGrid>
-        <Metric
+    <SettingsGroup bare description="Live capture volume. Read-only." title="Runtime">
+      <SettingsTiles>
+        <SettingsTile
+          data-testid="settings-page-observability-metric-sessions"
+          dotTone={activeSessions > 0 ? "success" : "neutral"}
           label="Active sessions"
           value={String(activeSessions)}
-          data-testid="settings-page-observability-metric-sessions"
         />
-        <Metric
+        <SettingsTile
+          data-testid="settings-page-observability-metric-agents"
           label="Active agents"
           value={String(activeAgents)}
-          data-testid="settings-page-observability-metric-agents"
         />
-        <Metric
+        <SettingsTile
+          data-testid="settings-page-observability-metric-storage"
+          detail={`of ${formatBytes(cap)}`}
           label="Storage used"
           value={formatBytes(totalStorage)}
-          subtext={`of ${formatBytes(cap)}`}
-          data-testid="settings-page-observability-metric-storage"
         />
-        <Metric
+        <SettingsTile
+          data-testid="settings-page-observability-metric-capacity"
+          detail="of soft cap"
           label="Capacity"
           value={`${capPercent}%`}
-          subtext="of soft cap"
-          data-testid="settings-page-observability-metric-capacity"
         />
-      </MetricGrid>
-    </Section>
+      </SettingsTiles>
+    </SettingsGroup>
   );
 }
 
@@ -234,11 +213,10 @@ function CaptureSection({
   setValidationError,
 }: CaptureSectionProps) {
   return (
-    <Section
-      divided
-      label="Capture"
-      note="events, transcripts, logs"
-      right={
+    <SettingsGroup
+      title="Capture"
+      description="events, transcripts, logs"
+      action={
         <Pill
           mono
           tone={capPercent > 85 ? "warning" : "neutral"}
@@ -296,7 +274,7 @@ function CaptureSection({
         />
       </div>
       <UsageBreakdown globalBytes={globalBytes} sessionBytes={sessionBytes} cap={cap} />
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -310,7 +288,7 @@ function TranscriptsSection({
   setValidationError: (key: string) => (message: string | null) => void;
 }) {
   return (
-    <Section divided label="Transcripts" note="full replay of agent I/O">
+    <SettingsGroup title="Transcripts" description="full replay of agent I/O">
       <SettingsFieldRow
         data-testid="settings-page-observability-transcripts-enabled"
         label="Capture transcripts"
@@ -370,7 +348,7 @@ function TranscriptsSection({
           }
         />
       </div>
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -378,7 +356,7 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
   void runtime;
   const streamURL = safeLogTailURL(logTail.stream_url);
   return (
-    <Section divided label="Log tail" note="daemon log stream">
+    <SettingsGroup title="Log tail" description="daemon log stream">
       <div
         className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-elevated px-4 py-3"
         data-testid="settings-page-observability-log-tail"
@@ -408,7 +386,7 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
           </a>
         ) : null}
       </div>
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -432,7 +410,7 @@ function SupportBundleSection() {
   };
 
   return (
-    <Section divided label="Support bundle" note="redacted daemon archive">
+    <SettingsGroup title="Support bundle" description="redacted daemon archive">
       <div
         className="flex flex-col gap-4 rounded-md border border-line bg-elevated px-4 py-3"
         data-testid="settings-page-observability-support-bundle"
@@ -494,6 +472,6 @@ function SupportBundleSection() {
           </p>
         ) : null}
       </div>
-    </Section>
+    </SettingsGroup>
   );
 }

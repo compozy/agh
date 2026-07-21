@@ -11,7 +11,7 @@ describe("provider-card source", () => {
     expect(source).not.toMatch(/hover:ring-accent/);
   });
 
-  it("Should hover on the canvas-soft surface tone", () => {
-    expect(source).toMatch(/hover:bg-hover\b/);
+  it("Should hover on the elevated surface tone", () => {
+    expect(source).toMatch(/hover:bg-elevated\b/);
   });
 });

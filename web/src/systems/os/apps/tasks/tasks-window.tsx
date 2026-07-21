@@ -14,7 +14,9 @@ export function TasksWindow({ windowId }: { windowId: string }) {
 
   if (parsed.kind === "create") return <TaskCreateLocation search={parsed.search} />;
   if (parsed.kind === "edit") return <TaskEditLocation taskId={parsed.taskId} />;
-  if (parsed.kind === "detail") return <TaskDetailLocation taskId={parsed.taskId} />;
+  if (parsed.kind === "detail") {
+    return <TaskDetailLocation rawSearch={parsed.search} taskId={parsed.taskId} />;
+  }
   if (parsed.kind === "run") {
     return <TaskRunLocation runId={parsed.runId} taskId={parsed.taskId} />;
   }

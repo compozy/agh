@@ -1,6 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import { Eyebrow, Input, Section } from "@agh/ui";
+import { Eyebrow, Input } from "@agh/ui";
+
+import { SettingsGroup } from "./settings-group";
 
 import type { SettingsNetworkSection } from "../types";
 import { SettingsNumberInput } from "./settings-number-input";
@@ -42,7 +44,7 @@ function LiveDefaultsSection({
   };
 
   return (
-    <Section divided label="Live defaults" note="applied only after explicit Live opt-in">
+    <SettingsGroup title="Live defaults" description="applied only after explicit Live opt-in">
       <p className="text-xs text-subtle">
         Omitted per-execution bounds resolve to these finite defaults. Local executions ignore every
         value in this section.
@@ -99,7 +101,7 @@ function LiveDefaultsSection({
           onChange={value => update({ coalesce_window: value })}
         />
       </div>
-    </Section>
+    </SettingsGroup>
   );
 }
 
@@ -120,7 +122,7 @@ function LiveLimitsSection({
   };
 
   return (
-    <Section divided label="Live limits" note="inclusive administrative ceilings">
+    <SettingsGroup title="Live limits" description="inclusive administrative ceilings">
       <p className="text-xs text-subtle">
         Execution requests above these ceilings are rejected before durable run state is created.
       </p>
@@ -182,7 +184,7 @@ function LiveLimitsSection({
           onChange={value => update({ max_coalesce_window: value })}
         />
       </div>
-    </Section>
+    </SettingsGroup>
   );
 }
 

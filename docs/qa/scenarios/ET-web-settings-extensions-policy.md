@@ -6,7 +6,7 @@ persona: Vera
 journey: J-extension-policy-admin
 expected: Settings Extensions exposes only registry, base_url, and allow_unverified; saving preserves hidden resource policy, reports the real config lifecycle, and a live allow_unverified flip immediately refreshes Marketplace trust affordances.
 entry_points: /settings/extensions; Marketplace blocked extension detail
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -17,3 +17,5 @@ overlaps: ET-045; ET-web-ext-policy-block
 ---
 
 Added by marketplace Task 07. The deleted hooks-extensions Web route is not a valid recovery path.
+
+2026-07-21: qa_status reset to untested — the opendesign redesigns restructured this scenario's web entry surface (task detail/run detail 3-tab IA, settings takeover shell, or providers page); the pass verdict predates that surface.

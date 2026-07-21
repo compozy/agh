@@ -2,13 +2,8 @@ import { AlertCircle } from "lucide-react";
 import { useState } from "react";
 
 import { useSettingsNetworkPage } from "@/systems/settings/hooks/use-settings-network-page";
-import {
-  NetworkSettingsSections,
-  restartBannerPropsFor,
-  SettingsTopbarPublisher,
-  SettingsSaveBar,
-} from "@/systems/settings";
-import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";
+import { NetworkSettingsSections, SettingsPageFrame, SettingsSaveBar } from "@/systems/settings";
+import { Button, Spinner } from "@agh/ui";
 
 export function NetworkSettingsPage() {
   const page = useSettingsNetworkPage();
@@ -20,24 +15,6 @@ export function NetworkSettingsPage() {
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const runtime = page.envelope?.runtime;
-  const statusLine = runtime ? (
-    <StatusLine
-      data-testid="settings-page-network-status-line"
-      status={runtime.available ? "connected" : "error"}
-      items={[
-        {
-          key: "status",
-          value: runtime.status ?? (runtime.enabled ? "ready" : "disabled"),
-          tone: "neutral",
-        },
-        {
-          key: "participants",
-          value: `${runtime.local_peers} Live participants`,
-          tone: "neutral",
-        },
-      ]}
-    />
-  ) : null;
 
   if (page.isLoading) {
     return (
@@ -75,14 +52,26 @@ export function NetworkSettingsPage() {
     return null;
   }
 
-  const bannerProps = restartBannerPropsFor("network", page.restart);
-
   return (
-    <PageShell
-      slug="network"
-      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsTopbarPublisher slug="network" statusLine={statusLine} />}
-      footer={
+    <SettingsPageFrame
+      description="How this daemon talks to other agents over AGH Network."
+      meta={[
+        {
+          key: "status",
+          content: <span>{runtime.status ?? (runtime.enabled ? "ready" : "disabled")}</span>,
+        },
+        {
+          key: "participants",
+          content: (
+            <span>
+              <span className="font-medium text-muted">{runtime.local_peers}</span> live
+              participants
+            </span>
+          ),
+        },
+      ]}
+      restart={page.restart}
+      saveBar={
         <SettingsSaveBar
           slug="network"
           isDirty={page.isDirty}
@@ -95,6 +84,7 @@ export function NetworkSettingsPage() {
           onReset={page.handleReset}
         />
       }
+      slug="network"
     >
       <NetworkSettingsSections
         runtime={runtime}
@@ -103,6 +93,6 @@ export function NetworkSettingsPage() {
         validationErrors={validationErrors}
         setValidationError={setValidationError}
       />
-    </PageShell>
+    </SettingsPageFrame>
   );
 }
