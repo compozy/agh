@@ -45,6 +45,7 @@ Rules:
 - `snap` and `maximized` are mutually exclusive; a doc claiming both keeps `maximized`.
 - `snap` travels only inside the whole doc: writing a doc without it (or with `null`) unsnaps the window. `rect` holds the writing client's derived px at commit time (thumbnails/readers); `prevRect` holds the pre-snap rect for restore.
 - Clients clamp derived rects to the 280×180 window minimum, so tiny fractions on small viewports render larger than the literal fraction.
+- Client rendering insets every derived edge NOT on the work-area boundary by half an 8px gutter, so fraction-adjacent windows (e.g. `fx+fw` of one equals `fx` of the next) render with a visible gap and grow a draggable linked seam. A user resize of a snapped window rewrites its fractions in place (it stays snapped); only dragging the window body away unsnaps it. Payload semantics are unchanged — agents still just write fractions.
 
 ```bash
 agh desktop-state set --workspace <id> --key 'win:app:tasks' \

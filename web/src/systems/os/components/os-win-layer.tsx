@@ -3,6 +3,7 @@ import { Kbd } from "@agh/ui";
 import { useOsWinLayer } from "../hooks/use-os-win-layer";
 import { OsCompactStack } from "./os-compact-stack";
 import { OsSnapOverlay } from "./os-snap-overlay";
+import { OsSnapSeamLayer } from "./os-snap-seam";
 import { OsWindow } from "./os-window";
 
 /**
@@ -30,6 +31,7 @@ export function OsWinLayer() {
       {windowIds.map(id => (
         <OsWindow key={id} windowId={id} />
       ))}
+      <OsSnapSeamLayer />
       <OsSnapOverlay />
     </div>
   );

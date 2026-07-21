@@ -5,7 +5,13 @@ import { deriveSnapRect } from "../../lib/os-snap-geometry";
 import { OS_SNAP_ZONES } from "../../lib/os-snap-zones";
 import type { OsStateClient } from "../../lib/os-state-client";
 import { encodeDesktopPayload, encodeWindowPayload } from "../../lib/os-state-payloads";
-import { OS_DESKTOP_KEY, osWindowKey, type OsStateEntry, type OsWindow } from "../../lib/os-types";
+import {
+  OS_DESKTOP_KEY,
+  osWindowKey,
+  type OsSnapZone,
+  type OsStateEntry,
+  type OsWindow,
+} from "../../lib/os-types";
 import { createDesktopStore } from "../desktop-store";
 
 function windowEntry(win: OsWindow, seq: number, rev = 1): OsStateEntry {
@@ -397,6 +403,7 @@ describe("desktop store", () => {
       origin: "conn-b",
     });
 
+    store.getState().setSeamPreview({ "app:tasks": { fx: 0, fy: 0, fw: 0.6, fh: 1 } });
     store.getState().resetForWorkspace();
 
     expect(store.getState()).toMatchObject({
@@ -407,6 +414,7 @@ describe("desktop store", () => {
       wallpaper: "ember",
       hydration: "pending",
       softCapNotice: false,
+      seamPreview: null,
     });
   });
 
@@ -422,9 +430,10 @@ describe("desktop store", () => {
     expect(win.snap).toEqual({ fx: 0, fy: 0, fw: 0.5, fh: 1 });
     expect(win.prevRect).toEqual({ x: 40, y: 30, w: 500, h: 380 });
     expect(win.maximized).toBe(false);
-    // Derived-geometry selector: work area (insets 10/8/10/78) × fractions.
+    // Derived-geometry selector: work area (insets 10/8/10/78) × fractions,
+    // inner seam edge inset by half the gutter (w = 710 - 4).
     const derived = deriveSnapRect({ fx: 0, fy: 0, fw: 0.5, fh: 1 }, { width: 1440, height: 900 });
-    expect(derived).toEqual({ x: 10, y: 8, w: 710, h: 814 });
+    expect(derived).toEqual({ x: 10, y: 8, w: 706, h: 814 });
     expect(win.rect).toEqual(derived);
   });
 
@@ -501,13 +510,142 @@ describe("desktop store", () => {
     expect(schedulePut).not.toHaveBeenCalledWith(osWindowKey(snappedId));
     // The floating window only re-clamps (UT-065) — a rect-only debounce.
     expect(schedulePut).toHaveBeenCalledWith(osWindowKey(floatingId));
+    // Inner seam edge shifts by half the gutter: x = 500 + 4, w = 490 - 4.
     const derived = deriveSnapRect(OS_SNAP_ZONES.right, { width: 1000, height: 700 });
-    expect(derived).toEqual({ x: 500, y: 8, w: 490, h: 614 });
+    expect(derived).toEqual({ x: 504, y: 8, w: 486, h: 614 });
 
     // A quarter deriving below the window minimum clamps to 280×180.
     const clamped = deriveSnapRect(OS_SNAP_ZONES["bottom-right"], { width: 500, height: 400 });
     expect(clamped.w).toBe(280);
     expect(clamped.h).toBe(180);
+  });
+
+  it("Should stay snapped through a resize-in-place — fractions rewrite, prevRect survives (resizeSnapped)", () => {
+    const store = createDesktopStore();
+    const id = store.getState().openOrFocus({ app: "tasks" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+    store.getState().commitRect(id, { x: 40, y: 30, w: 500, h: 380 });
+    store.getState().snapWindow(id, OS_SNAP_ZONES.left);
+
+    // The user narrows the snapped half from its own edge (macOS posture:
+    // the neighbor is untouched; the window itself stays snapped).
+    const resized = { x: 10, y: 8, w: 500, h: 814 };
+    store.getState().resizeSnapped(id, resized);
+
+    const win = store.getState().windows[id];
+    expect(win.snap).not.toBeNull();
+    expect(win.maximized).toBe(false);
+    expect(win.prevRect).toEqual({ x: 40, y: 30, w: 500, h: 380 });
+    // Fraction rewrite reproduces the resized rect within 1px rounding, and
+    // the committed rect records this client's re-derivation.
+    const derived = deriveSnapRect(win.snap as OsSnapZone, { width: 1440, height: 900 });
+    expect(win.rect).toEqual(derived);
+    expect(Math.abs(derived.x - resized.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(derived.y - resized.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(derived.w - resized.w)).toBeLessThanOrEqual(1);
+    expect(Math.abs(derived.h - resized.h)).toBeLessThanOrEqual(1);
+
+    // Drag-away restore still returns the pre-snap rect exactly.
+    store.getState().snapWindow(id, null);
+    expect(store.getState().windows[id].rect).toEqual({ x: 40, y: 30, w: 500, h: 380 });
+  });
+
+  it("Should detach a maximized window on a px commit — resize lands floating geometry", () => {
+    const store = createDesktopStore();
+    const id = store.getState().openOrFocus({ app: "tasks" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+    store.getState().commitRect(id, { x: 60, y: 50, w: 600, h: 420 });
+    store.getState().toggleZoom(id);
+    expect(store.getState().windows[id].maximized).toBe(true);
+
+    store.getState().resizeSnapped(id, { x: 10, y: 8, w: 700, h: 800 });
+    // resizeSnapped is snapped-only: a maximized window ignores it…
+    expect(store.getState().windows[id].maximized).toBe(true);
+
+    // …and the resize path lands through commitRect, which detaches.
+    store.getState().commitRect(id, { x: 10, y: 8, w: 900, h: 700 });
+    const win = store.getState().windows[id];
+    expect(win.maximized).toBe(false);
+    expect(win.snap).toBeNull();
+    expect(win.prevRect).toBeNull();
+    expect(win.rect).toEqual({ x: 10, y: 8, w: 900, h: 700 });
+  });
+
+  it("Should split a target window with a drop — both land snapped, restores preserved (splitWindows)", () => {
+    const store = createDesktopStore();
+    const dragId = store.getState().openOrFocus({ app: "tasks" });
+    const targetId = store.getState().openOrFocus({ app: "vault" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+    store.getState().commitRect(dragId, { x: 40, y: 30, w: 500, h: 380 });
+    store.getState().snapWindow(targetId, OS_SNAP_ZONES.right);
+
+    store.getState().splitWindows(dragId, targetId, "bottom");
+
+    const drag = store.getState().windows[dragId];
+    const target = store.getState().windows[targetId];
+    // The dragged window takes the bottom half of the target's footprint.
+    expect(drag.snap).toEqual({ fx: 0.5, fy: 0.5, fw: 0.5, fh: 0.5 });
+    expect(target.snap).toEqual({ fx: 0.5, fy: 0, fw: 0.5, fh: 0.5 });
+    // Both keep their pre-snap rects for drag-away restore.
+    expect(drag.prevRect).toEqual({ x: 40, y: 30, w: 500, h: 380 });
+    expect(target.prevRect).not.toBeNull();
+
+    // A floating target converts its own footprint to fractions first.
+    const floatId = store.getState().openOrFocus({ app: "settings" });
+    store.getState().commitRect(floatId, { x: 200, y: 100, w: 700, h: 500 });
+    store.getState().snapWindow(dragId, null);
+    store.getState().splitWindows(dragId, floatId, "right");
+    const floatTarget = store.getState().windows[floatId];
+    const dragAfter = store.getState().windows[dragId];
+    expect(floatTarget.snap).not.toBeNull();
+    expect(dragAfter.snap).not.toBeNull();
+    expect(dragAfter.snap?.fx).toBeCloseTo(
+      (floatTarget.snap?.fx ?? 0) + (floatTarget.snap?.fw ?? 0),
+      5
+    );
+
+    // Splits that would break the codec floor are refused outright.
+    store.getState().snapWindow(targetId, { fx: 0, fy: 0, fw: 0.5, fh: 0.18 });
+    const targetBefore = store.getState().windows[targetId].snap;
+    const dragBefore = store.getState().windows[dragId].snap;
+    store.getState().splitWindows(dragId, targetId, "bottom");
+    expect(store.getState().windows[targetId].snap).toEqual(targetBefore);
+    expect(store.getState().windows[dragId].snap).toEqual(dragBefore);
+  });
+
+  it("Should arrange the anchor plus most recent windows into presets (arrangeWindows)", () => {
+    const store = createDesktopStore();
+    const a = store.getState().openOrFocus({ app: "tasks" });
+    const b = store.getState().openOrFocus({ app: "vault" });
+    const c = store.getState().openOrFocus({ app: "settings" });
+    const d = store.getState().openOrFocus({ app: "sandbox" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+
+    // two-up pairs the anchor with the MOST RECENT other window (z order).
+    store.getState().arrangeWindows(a, "two-up");
+    expect(store.getState().windows[a].snap).toEqual(OS_SNAP_ZONES.left);
+    expect(store.getState().windows[d].snap).toEqual(OS_SNAP_ZONES.right);
+    expect(store.getState().windows[b].snap).toBeNull();
+
+    // grid with three others fills the four quarters by recency.
+    store.getState().arrangeWindows(a, "grid");
+    expect(store.getState().windows[a].snap).toEqual(OS_SNAP_ZONES["top-left"]);
+    expect(store.getState().windows[d].snap).toEqual(OS_SNAP_ZONES["top-right"]);
+    expect(store.getState().windows[c].snap).toEqual(OS_SNAP_ZONES["bottom-left"]);
+    expect(store.getState().windows[b].snap).toEqual(OS_SNAP_ZONES["bottom-right"]);
+
+    // grid with a single peer falls back to halves.
+    store.getState().minimizeWindow(c);
+    store.getState().minimizeWindow(d);
+    store.getState().arrangeWindows(a, "grid");
+    expect(store.getState().windows[a].snap).toEqual(OS_SNAP_ZONES.left);
+    expect(store.getState().windows[b].snap).toEqual(OS_SNAP_ZONES.right);
+
+    // Without any visible peer the preset is a no-op (truthful UI backs this).
+    store.getState().minimizeWindow(b);
+    const before = store.getState().windows[a];
+    store.getState().arrangeWindows(a, "two-up");
+    expect(store.getState().windows[a]).toBe(before);
   });
 
   it("Should mutate appearance prefs through their setters and restore defaults on workspace reset (US-015)", () => {

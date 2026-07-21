@@ -10,8 +10,13 @@ import {
 import type { Rnd, RndDragCallback, RndResizeCallback } from "react-rnd";
 
 import type { OsTrafficLightAction } from "../components/os-traffic-lights";
-import { deriveSnapRect } from "../lib/os-snap-geometry";
-import { createSnapZoneSession, type SnapZoneSession } from "../lib/os-snap-session";
+import { deriveSnapRect, snapWorkArea } from "../lib/os-snap-geometry";
+import {
+  createSnapZoneSession,
+  resolutionToHint,
+  type SnapZoneSession,
+} from "../lib/os-snap-session";
+import { snapTargetCandidates } from "../lib/os-snap-candidates";
 import { OS_SNAP_ZONES } from "../lib/os-snap-zones";
 import type { OsRect, OsWindow } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
@@ -42,8 +47,14 @@ export interface OsWindowModel {
   focused: boolean;
   /** Body stays mounted while minimized when a window-scoped dialog is open. */
   keepMounted: boolean;
-  /** Rendered rect while `snap` is set: derived locally, or the live drag rect. */
-  snapRect: OsRect | null;
+  /**
+   * Locally derived rect while the window is in a derived-geometry state:
+   * `snap` fractions × work area, or the work-area fill for `maximized`.
+   * `null` while floating (the committed `rect` is authoritative).
+   */
+  derivedRect: OsRect | null;
+  /** Live drag-away preview rect while a snapped window detaches; null at rest. */
+  ghostRect: OsRect | null;
   /** Genie-minimize transform while the fold animation runs; null otherwise. */
   minimizeTransform: string | null;
   rndRef: RefObject<Rnd | null>;
@@ -94,6 +105,7 @@ export function useOsWindow(windowId: string): OsWindowModel {
   const win = useDesktop(state => state.windows[windowId]);
   const focused = useDesktop(state => state.focusedId === windowId);
   const desktopBounds = useDesktop(state => state.desktopBounds);
+  const seamZone = useDesktop(state => state.seamPreview?.[windowId] ?? null);
   const reducedMotion = useOsReducedMotion();
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   const hasOpenOverlay = useOverlayPresence(overlayHost);
@@ -136,9 +148,17 @@ export function useOsWindow(windowId: string): OsWindowModel {
   }, []);
 
   const derivedRect = (() => {
-    if (!win || win.snap === null) return null;
-    if (desktopBounds === null) return win.rect;
-    return deriveSnapRect(win.snap, desktopBounds);
+    if (!win) return null;
+    if (win.snap !== null) {
+      if (desktopBounds === null) return win.rect;
+      // A live seam drag overrides the committed fractions frame-by-frame.
+      return deriveSnapRect(seamZone ?? win.snap, desktopBounds);
+    }
+    if (win.maximized) {
+      // Pre-measure (bounds null) the caller falls back to the CSS-inset fill.
+      return desktopBounds === null ? null : snapWorkArea(desktopBounds);
+    }
+    return null;
   })();
 
   /**
@@ -202,8 +222,8 @@ export function useOsWindow(windowId: string): OsWindowModel {
     const session = createSnapZoneSession({
       layer: layerElement.getBoundingClientRect(),
       bounds,
-      publish: zoneId =>
-        store.getState().setSnapHint(zoneId === null ? null : { windowId, zoneId }),
+      windowTargets: snapTargetCandidates(state, windowId),
+      publish: resolution => store.getState().setSnapHint(resolutionToHint(windowId, resolution)),
     });
     zoneSessionRef.current = session;
     setZoneDragActive(true);
@@ -232,9 +252,15 @@ export function useOsWindow(windowId: string): OsWindowModel {
         rndRef.current?.updatePosition({ x: current.rect.x, y: current.rect.y });
         return;
       }
-      const zoneId = session.end();
-      if (zoneId !== null) {
-        store.getState().snapWindow(windowId, OS_SNAP_ZONES[zoneId]);
+      const resolution = session.end();
+      if (resolution !== null) {
+        if (resolution.kind === "zone") {
+          store.getState().snapWindow(windowId, OS_SNAP_ZONES[resolution.zoneId]);
+        } else {
+          store
+            .getState()
+            .splitWindows(windowId, resolution.target.targetId, resolution.target.side);
+        }
         return;
       }
     }
@@ -243,12 +269,20 @@ export function useOsWindow(windowId: string): OsWindowModel {
   };
 
   const handleResizeStop: RndResizeCallback = (_event, _dir, element, _delta, position) => {
-    store.getState().commitRect(windowId, {
+    const state = store.getState();
+    const current = state.windows[windowId];
+    if (!current) return;
+    const rect = {
       x: position.x,
       y: position.y,
       w: element.offsetWidth,
       h: element.offsetHeight,
-    });
+    };
+    // Snapped windows stay snapped through a resize (fraction rewrite);
+    // floating and maximized windows land a floating px rect (maximized
+    // detaches — resizing a zoomed window makes it a normal window).
+    if (current.snap !== null) state.resizeSnapped(windowId, rect);
+    else state.commitRect(windowId, rect);
     flushPersistence();
   };
 
@@ -256,7 +290,8 @@ export function useOsWindow(windowId: string): OsWindowModel {
     win,
     focused,
     keepMounted: win ? !win.minimized || hasOpenOverlay : false,
-    snapRect: win && win.snap !== null ? (snapDrag.dragRect ?? derivedRect) : null,
+    derivedRect,
+    ghostRect: win && win.snap !== null ? snapDrag.dragRect : null,
     minimizeTransform,
     rndRef,
     overlayHost,

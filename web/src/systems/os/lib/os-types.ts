@@ -35,20 +35,39 @@ export interface OsSnapZone {
   fh: number;
 }
 
-/** The six v1 pointer zones (ADR-009): halves + corner quarters. Top edge stays unbound — zoom owns full. */
+/**
+ * Snap zone catalog ids: the six pointer zones (ADR-009 — halves + corner
+ * quarters; the top DRAG edge stays unbound, zoom owns full) plus the
+ * preset-only `top`/`bottom` halves reachable via the zoom menu and palette,
+ * never via drag.
+ */
 export type OsSnapZoneId =
   | "left"
   | "right"
+  | "top"
+  | "bottom"
   | "top-left"
   | "top-right"
   | "bottom-left"
   | "bottom-right";
 
-/** Ephemeral drag hint: the zone a release would snap `windowId` into. */
-export interface OsSnapHint {
-  windowId: string;
-  zoneId: OsSnapZoneId;
-}
+/** Multi-window arrange presets (zoom menu "Fill & Arrange" + palette). */
+export type OsArrangePreset = "two-up" | "grid";
+
+/** Directional half of a window a split drop claims. */
+export type OsSplitSide = "left" | "right" | "top" | "bottom";
+
+/** Ephemeral drag hint: what a release would do with `windowId`. */
+export type OsSnapHint =
+  | { windowId: string; kind: "zone"; zoneId: OsSnapZoneId }
+  | {
+      windowId: string;
+      kind: "window";
+      targetId: string;
+      side: OsSplitSide;
+      /** Claimed half of the target's visual rect (px), for the overlay. */
+      rect: OsRect;
+    };
 
 export interface OsWindowLocation {
   pathname: string;
@@ -117,6 +136,13 @@ export interface OsDesktopStore {
    * stored `prevRect` exactly. No-op in compact presentation.
    */
   snapWindow(id: string, zone: OsSnapZone | null): void;
+  /**
+   * Resize-in-place for a snapped window: rewrites `snap` fractions from the
+   * resulting px rect (work-area inverse) so the window STAYS snapped and
+   * keeps proportional reflow. `prevRect` is untouched — drag-away restore
+   * still returns the pre-snap rect exactly. No-op when not snapped.
+   */
+  resizeSnapped(id: string, rect: OsRect): void;
   toggleRail(): void;
   openRail(): void;
   closeRail(): void;
@@ -125,6 +151,11 @@ export interface OsDesktopStore {
   setWallpaper(wallpaper: OsWallpaper): void;
   setDockMagnify(on: boolean): void;
   setReduceMotion(on: boolean): void;
+  /**
+   * Commits a floating px rect: the window becomes (or stays) floating at
+   * `rect`. Clears `snap` (drag-away detach) and `maximized` (resize detach)
+   * in the same mutation — the fraction-preserving path is `resizeSnapped`.
+   */
   commitRect(id: string, rect: OsRect): void;
   setLocation(id: string, loc: OsWindowLocation): void;
   applyRemote(event: OsStateEvent): void;
@@ -139,6 +170,27 @@ export interface OsDesktopRuntimeStore extends OsDesktopStore {
   /** Live snap-drag hint (one per desktop); never persisted. */
   snapHint: OsSnapHint | null;
   setSnapHint(hint: OsSnapHint | null): void;
+  /**
+   * Live seam-resize preview: per-window zone overrides while a seam drag is
+   * in flight. Rendering derives from these; nothing persists until the
+   * gesture commits through `snapWindow`. Never persisted.
+   */
+  seamPreview: Record<string, OsSnapZone> | null;
+  setSeamPreview(preview: Record<string, OsSnapZone> | null): void;
+  /**
+   * Split drop (window-relative snap): the target's visual footprint divides
+   * in fraction space — the dragged window takes the `side` half, the target
+   * keeps the other — and BOTH land snapped (two `win:*` fraction writes, no
+   * group state). No-op when a half would violate the codec floor.
+   */
+  splitWindows(dragId: string, targetId: string, side: OsSplitSide): void;
+  /**
+   * Arranges the anchor window plus the most recent visible windows (by z)
+   * into a preset: `two-up` = anchor left half + latest other right half;
+   * `grid` = up to four windows in halves/quarters by participant count.
+   * No-op without at least one other visible window.
+   */
+  arrangeWindows(anchorId: string, preset: OsArrangePreset): void;
   /** Snapshot adoption: replaces the mirror, drops invalid entries, compacts z. */
   hydrate(entries: OsStateEntry[]): void;
   setPresentation(presentation: OsPresentation): void;
@@ -174,6 +226,13 @@ export const OS_WORK_AREA_INSETS = { top: 8, right: 10, bottom: 78, left: 10 } a
 
 /** Codec floor for snap fractions: a zone spans ≥10% of the work area per axis. */
 export const OS_SNAP_MIN_FRACTION = 0.1;
+
+/**
+ * Gap (px) between adjacent snapped windows: each derived edge NOT on the
+ * work-area boundary insets by half of it, so two tiles read as neighbors
+ * instead of one fused sheet (macOS "tiled windows have margins" posture).
+ */
+export const OS_SNAP_GUTTER = 8;
 
 export function osWindowId(app: OsAppId, instanceKey?: string | null): string {
   return app === "session" && instanceKey ? `session:${instanceKey}` : `app:${app}`;

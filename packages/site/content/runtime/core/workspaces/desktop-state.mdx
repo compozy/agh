@@ -58,6 +58,13 @@ as `work area × fractions` for its own viewport, clamped to the 280×180 window
 browser viewport re-derives locally and never writes back, so a snapped half stays half on every
 screen and two clients with different viewport sizes converge on fractions, not pixels.
 
+Derivation applies an 8px gutter: every derived edge that is not on the work-area boundary insets
+by half of it, so fraction-adjacent windows — one doc's `fx + fw` equal to the next doc's `fx` —
+render with a visible gap and grow a draggable linked seam between them in the shell. A user
+resizing a snapped window rewrites its fractions in place (the window stays snapped); dragging the
+window body away is what unsnaps it. None of this changes the payload contract — agents still just
+write fractions.
+
 Two fields support readers that do not derive:
 
 - `rect` keeps the writing client's derived pixels at commit time — thumbnails and non-rendering

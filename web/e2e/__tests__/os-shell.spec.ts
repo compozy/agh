@@ -655,7 +655,7 @@ test("E2E-025: drag-snap previews the zone, persists through reload, and reflows
   // Mid-desk: dragging, but no zone captured — the overlay must not render yet.
   await appPage.mouse.move(grip.x + 40, grip.y + 30, { steps: 4 });
   await expect(overlay).toHaveCount(0);
-  // Inside the 20px sensitivity band of the right edge: the preview appears.
+  // Inside the 32px edge band of the right edge: the preview appears.
   await appPage.mouse.move(layerBox.x + layerBox.width - 12, grip.y + 30, { steps: 8 });
   await expect(overlay).toBeVisible();
   await appPage.mouse.up();
@@ -763,6 +763,116 @@ test("E2E-027: palette snap, drag-away restore, and reduced-motion overlay", asy
   await expect(overlay).toHaveAttribute("data-reduced-motion", "");
   await appPage.mouse.up();
   await expect.poll(() => snappedToHalf(appPage, tasks, "left")).toBe(true);
+});
+
+test("E2E-028: resize-in-place keeps a window snapped and the linked seam resizes the pair", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  await prepareShell(appPage, runtime);
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  const settings = await openDockApp(appPage, "Settings", "settings");
+
+  await focusWindow(appPage, tasks);
+  await appPage.keyboard.press("Control+Alt+ArrowLeft");
+  await expect.poll(() => snappedToHalf(appPage, tasks, "left")).toBe(true);
+  await focusWindow(appPage, settings);
+  await appPage.keyboard.press("Control+Alt+ArrowRight");
+  await expect.poll(() => snappedToHalf(appPage, settings, "right")).toBe(true);
+
+  // Resize-in-place: dragging the snapped window's own handle narrows it,
+  // and it STAYS snapped (fractions rewrite — the neighbor is untouched).
+  const before = await windowRect(appPage, tasks);
+  await resizeWindowBy(appPage, tasks, -120, 0);
+  await expect(tasks).toHaveAttribute("data-snapped", "");
+  await expect.poll(async () => (await windowRect(appPage, tasks)).w).toBeLessThan(before.w - 100);
+  await expect.poll(() => snappedToHalf(appPage, settings, "right")).toBe(true);
+
+  // Re-snap to restore fraction adjacency, then drag the shared seam: BOTH
+  // windows resize together (linked JointResize posture) and stay snapped.
+  await focusWindow(appPage, tasks);
+  await appPage.keyboard.press("Control+Alt+ArrowLeft");
+  await expect.poll(() => snappedToHalf(appPage, tasks, "left")).toBe(true);
+  const seam = appPage.locator('[data-slot="os-snap-seam"]');
+  await expect(seam).toHaveCount(1);
+  const seamBox = await seam.boundingBox();
+  if (!seamBox) throw new Error("seam must be visible between snapped halves");
+  await appPage.mouse.move(seamBox.x + seamBox.width / 2, seamBox.y + seamBox.height / 2);
+  await appPage.mouse.down();
+  await appPage.mouse.move(seamBox.x + seamBox.width / 2 + 150, seamBox.y + seamBox.height / 2, {
+    steps: 8,
+  });
+  await appPage.mouse.up();
+  const tasksAfter = await windowRect(appPage, tasks);
+  const settingsAfter = await windowRect(appPage, settings);
+  expect(tasksAfter.w).toBeGreaterThan(before.w + 100);
+  expect(settingsAfter.w).toBeLessThan(before.w - 100);
+  await expect(tasks).toHaveAttribute("data-snapped", "");
+  await expect(settings).toHaveAttribute("data-snapped", "");
+  // The pair still meets across the 8px gutter at the new boundary.
+  expect(settingsAfter.x - (tasksAfter.x + tasksAfter.w)).toBeLessThanOrEqual(10);
+  expect(settingsAfter.x - (tasksAfter.x + tasksAfter.w)).toBeGreaterThanOrEqual(6);
+
+  // Fractions persist: the pair reloads at the seam-set ratio.
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  const tasksBack = appPage.getByTestId("os-window-app:tasks");
+  await expect(tasksBack).toBeVisible();
+  await expect
+    .poll(async () => {
+      try {
+        return Math.abs((await windowRect(appPage, tasksBack)).w - tasksAfter.w) <= 2;
+      } catch {
+        return false;
+      }
+    })
+    .toBe(true);
+});
+
+test("E2E-029: dropping onto a snapped window splits its space and the zoom menu arranges presets", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  await prepareShell(appPage, runtime);
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  const settings = await openDockApp(appPage, "Settings", "settings");
+
+  await focusWindow(appPage, tasks);
+  await appPage.keyboard.press("Control+Alt+ArrowRight");
+  await expect.poll(() => snappedToHalf(appPage, tasks, "right")).toBe(true);
+
+  // Drag Settings over the snapped half's bottom third: the split preview
+  // appears (window-relative zone), and the drop stacks both as quarters
+  // separated by the gutter.
+  const tasksRect = await tasks.boundingBox();
+  if (!tasksRect) throw new Error("snapped tasks window must be visible");
+  const grip = await windowGrip(settings);
+  await appPage.mouse.move(grip.x, grip.y);
+  await appPage.mouse.down();
+  await appPage.mouse.move(
+    tasksRect.x + tasksRect.width / 2,
+    tasksRect.y + tasksRect.height * 0.85,
+    { steps: 10 }
+  );
+  await expect(appPage.getByTestId("os-snap-overlay")).toBeVisible();
+  await appPage.mouse.up();
+  await expect(settings).toHaveAttribute("data-snapped", "");
+  await expect(tasks).toHaveAttribute("data-snapped", "");
+  const topRect = await windowRect(appPage, tasks);
+  const bottomRect = await windowRect(appPage, settings);
+  expect(bottomRect.y - (topRect.y + topRect.h)).toBeLessThanOrEqual(10);
+  expect(bottomRect.y - (topRect.y + topRect.h)).toBeGreaterThanOrEqual(6);
+
+  // Zoom-menu preset: hovering the zoom control opens Move & Resize / Fill &
+  // Arrange; "Arrange left & right" pairs this window with the most recent.
+  const zoomButton = tasks.locator('button[data-action="zoom"]');
+  await zoomButton.hover();
+  const menu = appPage.getByTestId("os-zoom-menu");
+  await expect(menu).toBeVisible();
+  await menu.getByTestId("os-zoom-menu-two-up").click();
+  await expect.poll(() => snappedToHalf(appPage, tasks, "left")).toBe(true);
+  await expect.poll(() => snappedToHalf(appPage, settings, "right")).toBe(true);
 });
 
 test("E2E-009: workspace spaces stay independent and the overview restores arrangements", async ({
@@ -1335,7 +1445,8 @@ async function windowGrip(win: ReturnType<Page["locator"]>): Promise<{ x: number
 
 /**
  * Expected derived rect for a half zone at the CURRENT layer size — the same
- * work-area math clients run (insets 10/8/10/78, edge-rounded fractions).
+ * work-area math clients run (insets 10/8/10/78, fractions with the inner
+ * seam edge inset by half the 8px gutter).
  */
 async function snapHalfRect(page: Page, side: "left" | "right") {
   const layerBox = await page.locator('[data-slot="os-win-layer"]').boundingBox();
@@ -1346,12 +1457,13 @@ async function snapHalfRect(page: Page, side: "left" | "right") {
     w: Math.max(1, layerBox.width - 20),
     h: Math.max(1, layerBox.height - 86),
   };
+  const halfGutter = 4;
   const mid = area.x + Math.round(area.w * 0.5);
   const right = area.x + Math.round(area.w);
   const h = Math.round(area.h);
   return side === "left"
-    ? { x: area.x, y: area.y, w: mid - area.x, h }
-    : { x: mid, y: area.y, w: right - mid, h };
+    ? { x: area.x, y: area.y, w: mid - halfGutter - area.x, h }
+    : { x: mid + halfGutter, y: area.y, w: right - mid - halfGutter, h };
 }
 
 function rectsClose(

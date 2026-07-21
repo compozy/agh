@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useRef, useState } from "react";
 
 import { deriveSnapRect } from "../../lib/os-snap-geometry";
+import { claimedHalf } from "../../lib/os-snap-window-targets";
 import { OS_SNAP_ZONES } from "../../lib/os-snap-zones";
 import type { OsDesktopBounds, OsSnapZoneId } from "../../lib/os-types";
 import { OsSnapOverlaySheet, type OsSnapOverlayState } from "../os-snap-overlay";
@@ -130,3 +131,56 @@ export const ReducedMotion: Story = {
     />
   ),
 };
+
+/**
+ * Window-relative split target: dragging over an existing window's outer
+ * third highlights the claimed half of THAT window (gutter-split) instead of
+ * a desktop-edge zone — the same sheet, a window-sized rect.
+ */
+export const WindowSplitTarget: Story = {
+  render: () => <WindowSplitScene />,
+};
+
+function WindowSplitScene() {
+  const target = { x: 620, y: 60, w: 560, h: 560 };
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  const [bounds, setBounds] = useState<OsDesktopBounds | null>(null);
+
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (!layer) return;
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (!entry) return;
+      setBounds({ width: entry.contentRect.width, height: entry.contentRect.height });
+    });
+    observer.observe(layer);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <DesktopShell dockItems={buildDeskItems({ open: ["tasks", "vault"] })}>
+      <div ref={layerRef} data-slot="os-win-layer" className="absolute inset-0">
+        <div
+          className="absolute"
+          style={{ left: target.x, top: target.y, width: target.w, height: target.h, zIndex: 1 }}
+        >
+          <OsWindowFrame title="Vault" focused={false} className="h-full w-full">
+            <div className="flex flex-1 items-center justify-center text-small-body text-subtle">
+              Split target
+            </div>
+          </OsWindowFrame>
+        </div>
+        <DraggedWindow rect={{ x: 240, y: 320, w: 520, h: 380 }} />
+        {bounds !== null ? (
+          <OsSnapOverlaySheet
+            rect={claimedHalf(target, "bottom")}
+            bounds={bounds}
+            state="active"
+            zIndex={2}
+          />
+        ) : null}
+      </div>
+    </DesktopShell>
+  );
+}

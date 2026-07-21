@@ -25,6 +25,8 @@ export interface OsWindowFrameProps extends Omit<React.ComponentProps<"section">
   focused?: boolean;
   /** Traffic-light activation. Omit to render the controls as presentation. */
   onTrafficLight?: (action: OsTrafficLightAction) => void;
+  /** Wraps the zoom control with its hover menu (window manager wiring). */
+  zoomMenu?: (button: React.ReactNode) => React.ReactNode;
   /** Extra classes on the head `Topbar` (the WM's drag-handle hook). */
   headClassName?: string;
   /**
@@ -76,6 +78,7 @@ export function OsWindowFrame({
   glyph,
   focused = true,
   onTrafficLight,
+  zoomMenu,
   headClassName,
   presentation = "floating",
   className,
@@ -108,7 +111,9 @@ export function OsWindowFrame({
         <Topbar
           data-slot="os-window-head"
           data-scrolled={scrolled ? "" : undefined}
-          leading={<OsTrafficLights onSelect={onTrafficLight} compact={compact} />}
+          leading={
+            <OsTrafficLights onSelect={onTrafficLight} compact={compact} wrapZoom={zoomMenu} />
+          }
           title={title}
           glyph={glyph}
           className={cn(

@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { getOsApp } from "../lib/app-registry";
+import { snapTargetCandidates } from "../lib/os-snap-candidates";
 import { deriveSnapRect } from "../lib/os-snap-geometry";
-import { createSnapZoneSession, type SnapZoneSession } from "../lib/os-snap-session";
+import {
+  createSnapZoneSession,
+  resolutionToHint,
+  type SnapZoneSession,
+} from "../lib/os-snap-session";
 import { OS_SNAP_DRAG_THRESHOLD, OS_SNAP_ZONES } from "../lib/os-snap-zones";
 import type { OsRect } from "../lib/os-types";
 import { useOsShell } from "./use-os-shell";
@@ -82,8 +87,8 @@ export function useOsSnapDrag(windowId: string): OsSnapDragModel {
     const zone = createSnapZoneSession({
       layer,
       bounds,
-      publish: zoneId =>
-        store.getState().setSnapHint(zoneId === null ? null : { windowId, zoneId }),
+      windowTargets: snapTargetCandidates(state, windowId),
+      publish: resolution => store.getState().setSnapHint(resolutionToHint(windowId, resolution)),
       onFrame: point => {
         const session = sessionRef.current;
         if (!session || !session.engaged) return;
@@ -120,13 +125,19 @@ export function useOsSnapDrag(windowId: string): OsSnapDragModel {
     const finish = (commit: boolean) => {
       const session = sessionRef.current;
       if (!session) return;
-      const zoneId = session.zone.end();
+      const resolution = session.zone.end();
       const { engaged, lastRect } = session;
       const aborted = session.zone.aborted();
       teardown();
       if (!commit || aborted || !engaged) return;
-      if (zoneId !== null) {
-        store.getState().snapWindow(windowId, OS_SNAP_ZONES[zoneId]);
+      if (resolution !== null) {
+        if (resolution.kind === "zone") {
+          store.getState().snapWindow(windowId, OS_SNAP_ZONES[resolution.zoneId]);
+        } else {
+          store
+            .getState()
+            .splitWindows(windowId, resolution.target.targetId, resolution.target.side);
+        }
         return;
       }
       if (lastRect === null) return;
@@ -146,6 +157,15 @@ export function useOsSnapDrag(windowId: string): OsSnapDragModel {
       finish(false);
     };
 
+    // Capture loss (tab switch, OS interruption) ends the gesture instead of
+    // stalling it (use-gesture DragEngine posture, issue #494 class).
+    const onLostCapture = () => {
+      const session = sessionRef.current;
+      if (!session || !session.engaged) return;
+      session.zone.abort();
+      finish(false);
+    };
+
     const onKeyDown = (key: KeyboardEvent) => {
       const session = sessionRef.current;
       if (!session || key.key !== "Escape") return;
@@ -161,6 +181,7 @@ export function useOsSnapDrag(windowId: string): OsSnapDragModel {
       window.removeEventListener("pointerup", onPointerUp, true);
       window.removeEventListener("pointercancel", onPointerCancel, true);
       window.removeEventListener("keydown", onKeyDown, true);
+      target.removeEventListener("lostpointercapture", onLostCapture);
       try {
         target.releasePointerCapture(pointerId);
       } catch {
@@ -182,6 +203,7 @@ export function useOsSnapDrag(windowId: string): OsSnapDragModel {
     window.addEventListener("pointerup", onPointerUp, true);
     window.addEventListener("pointercancel", onPointerCancel, true);
     window.addEventListener("keydown", onKeyDown, true);
+    target.addEventListener("lostpointercapture", onLostCapture);
   };
 
   return { dragRect, onHeadPointerDown };

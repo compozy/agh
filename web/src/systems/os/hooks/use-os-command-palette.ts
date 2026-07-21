@@ -1,7 +1,12 @@
 import { useSessionCreate, useSessions } from "@/systems/session";
 import { useActiveWorkspace, type WorkspacePayload } from "@/systems/workspace";
 
-import { OS_SNAP_COMMANDS, type OsSnapCommand } from "../lib/os-snap-commands";
+import {
+  OS_ARRANGE_COMMANDS,
+  OS_SNAP_COMMANDS,
+  type OsArrangeCommand,
+  type OsSnapCommand,
+} from "../lib/os-snap-commands";
 import { OS_SNAP_ZONES } from "../lib/os-snap-zones";
 import type { OsAppId } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
@@ -15,6 +20,8 @@ export interface OsCommandPaletteModel {
   activeWorkspaceId: string | null;
   /** Zone commands for the focused floating window; restore only while snapped (UT-101). */
   snapCommands: readonly OsSnapCommand[];
+  /** Arrange presets; empty without a second visible window (truthful UI). */
+  arrangeCommands: readonly OsArrangeCommand[];
   /**
    * Lifecycle actions for the focused window — the guaranteed keyboard path
    * where browsers reserve ⌘W/⌘M (US-003.AC-4/EC-3). `zoom` is null in
@@ -24,6 +31,7 @@ export interface OsCommandPaletteModel {
   openApp(app: OsAppId): void;
   jumpToSession(sessionId: string, agentName: string): void;
   dispatchSnap(command: OsSnapCommand): void;
+  dispatchArrange(command: OsArrangeCommand): void;
   toggleRail(): void;
   newSession(): void;
   openSpaces(): void;
@@ -56,6 +64,13 @@ export function useOsCommandPalette(
   );
   const focusedId = useDesktop(state => state.focusedId);
   const presentation = useDesktop(state => state.presentation);
+  const hasArrangePeer = useDesktop(state => {
+    if (state.presentation !== "floating" || state.focusedId === null) return false;
+    for (const win of Object.values(state.windows)) {
+      if (win.id !== state.focusedId && !win.minimized) return true;
+    }
+    return false;
+  });
 
   const run = (action: () => void) => {
     onOpenChange(false);
@@ -84,6 +99,7 @@ export function useOsCommandPalette(
     snapCommands: focusedWindow
       ? OS_SNAP_COMMANDS.filter(command => command.zoneId !== null || focusedWindow.snap !== null)
       : [],
+    arrangeCommands: hasArrangePeer ? OS_ARRANGE_COMMANDS : [],
     openApp: app => run(() => coordinator.userOpen({ app })),
     jumpToSession: (sessionId, agentName) =>
       run(() =>
@@ -104,6 +120,12 @@ export function useOsCommandPalette(
           state.focusedId,
           command.zoneId === null ? null : OS_SNAP_ZONES[command.zoneId]
         );
+      }),
+    dispatchArrange: command =>
+      run(() => {
+        const state = store.getState();
+        if (state.focusedId === null) return;
+        state.arrangeWindows(state.focusedId, command.preset);
       }),
     toggleRail: () => run(() => store.getState().toggleRail()),
     newSession: () => run(() => sessionCreate.openForAgent("")),

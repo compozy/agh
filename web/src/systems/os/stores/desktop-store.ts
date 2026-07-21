@@ -1,7 +1,9 @@
 import { createStore, type StoreApi } from "zustand";
 
 import { getOsApp } from "../lib/app-registry";
-import { deriveSnapRect } from "../lib/os-snap-geometry";
+import { deriveSnapRect, rectToSnapZone } from "../lib/os-snap-geometry";
+import { splitZoneBy } from "../lib/os-snap-window-targets";
+import { OS_SNAP_ZONES } from "../lib/os-snap-zones";
 import { decodeDesktopEntry, decodeWindowEntry } from "../lib/os-state-payloads";
 import {
   OS_DESKTOP_GUTTERS,
@@ -11,6 +13,7 @@ import {
   type OsDesktopBounds,
   type OsDesktopRuntimeStore,
   type OsRect,
+  type OsSnapHint,
   type OsWindow,
 } from "../lib/os-types";
 
@@ -54,6 +57,17 @@ function sameRect(a: OsRect, b: OsRect): boolean {
   return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }
 
+function sameSnapHint(a: OsSnapHint, b: OsSnapHint): boolean {
+  if (a.windowId !== b.windowId || a.kind !== b.kind) return false;
+  if (a.kind === "zone" && b.kind === "zone") return a.zoneId === b.zoneId;
+  if (a.kind === "window" && b.kind === "window") {
+    // The claimed rect is a pure function of target + side within one drag —
+    // identity rides on the discrete fields.
+    return a.targetId === b.targetId && a.side === b.side;
+  }
+  return false;
+}
+
 function sameLocation(a: OsWindow["location"], b: OsWindow["location"]): boolean {
   return a.pathname === b.pathname && JSON.stringify(a.search) === JSON.stringify(b.search);
 }
@@ -72,6 +86,7 @@ export function createDesktopStore(): DesktopStoreApi {
     softCapNotice: false,
     desktopBounds: null,
     snapHint: null,
+    seamPreview: null,
     zCounter: 0,
     settledSeqs: {},
     softCapEmitted: false,
@@ -248,19 +263,35 @@ export function createDesktopStore(): DesktopStoreApi {
       const state = get();
       const win = state.windows[id];
       if (!win || state.presentation === "compact") return;
-      // Any rect commit on a snapped window detaches it in the same mutation
-      // (invariant 19): floating geometry lands, `snap`/`prevRect` clear.
-      if (win.snap !== null) {
+      // A px commit lands floating geometry (invariant 19 refinement): a
+      // drag-away detaches `snap`, a resize on a maximized window detaches
+      // `maximized` — either way the derived branch ends in this mutation.
+      if (win.snap !== null || win.maximized) {
         set({
           windows: {
             ...state.windows,
-            [id]: { ...win, rect: { ...rect }, snap: null, prevRect: null },
+            [id]: { ...win, rect: { ...rect }, snap: null, maximized: false, prevRect: null },
           },
         });
         return;
       }
       if (sameRect(win.rect, rect)) return;
       set({ windows: { ...state.windows, [id]: { ...win, rect: { ...rect } } } });
+    },
+
+    resizeSnapped: (id, rect) => {
+      const state = get();
+      const win = state.windows[id];
+      if (!win || state.presentation === "compact") return;
+      if (win.snap === null || state.desktopBounds === null) return;
+      // Resize-in-place keeps the window snapped: the resulting px rect maps
+      // back to fractions so reflow stays proportional and agents keep seeing
+      // a snapped window. `prevRect` survives for drag-away restore.
+      const zone = rectToSnapZone(rect, state.desktopBounds);
+      const derived = deriveSnapRect(zone, state.desktopBounds);
+      set({
+        windows: { ...state.windows, [id]: { ...win, snap: zone, rect: derived } },
+      });
     },
 
     setLocation: (id, loc) => {
@@ -429,15 +460,53 @@ export function createDesktopStore(): DesktopStoreApi {
     setSnapHint: hint => {
       const current = get().snapHint;
       if (current === hint) return;
-      if (
-        current !== null &&
-        hint !== null &&
-        current.windowId === hint.windowId &&
-        current.zoneId === hint.zoneId
-      ) {
+      if (current !== null && hint !== null && sameSnapHint(current, hint)) return;
+      set({ snapHint: hint });
+    },
+
+    setSeamPreview: preview => {
+      if (get().seamPreview === null && preview === null) return;
+      set({ seamPreview: preview });
+    },
+
+    arrangeWindows: (anchorId, preset) => {
+      const state = get();
+      const anchor = state.windows[anchorId];
+      if (!anchor || state.presentation === "compact") return;
+      const others = Object.values(state.windows)
+        .filter(win => win.id !== anchorId && !win.minimized)
+        .sort((a, b) => b.z - a.z);
+      if (others.length === 0) return;
+      if (preset === "two-up" || others.length === 1) {
+        state.snapWindow(anchorId, OS_SNAP_ZONES.left);
+        state.snapWindow(others[0].id, OS_SNAP_ZONES.right);
         return;
       }
-      set({ snapHint: hint });
+      if (others.length === 2) {
+        state.snapWindow(anchorId, OS_SNAP_ZONES.left);
+        state.snapWindow(others[0].id, OS_SNAP_ZONES["top-right"]);
+        state.snapWindow(others[1].id, OS_SNAP_ZONES["bottom-right"]);
+        return;
+      }
+      state.snapWindow(anchorId, OS_SNAP_ZONES["top-left"]);
+      state.snapWindow(others[0].id, OS_SNAP_ZONES["top-right"]);
+      state.snapWindow(others[1].id, OS_SNAP_ZONES["bottom-left"]);
+      state.snapWindow(others[2].id, OS_SNAP_ZONES["bottom-right"]);
+    },
+
+    splitWindows: (dragId, targetId, side) => {
+      const state = get();
+      const drag = state.windows[dragId];
+      const target = state.windows[targetId];
+      if (!drag || !target || state.presentation === "compact") return;
+      if (target.minimized || target.maximized || state.desktopBounds === null) return;
+      // The target's visual footprint becomes fractions (identity for snapped
+      // targets, work-area inverse for floating ones), then splits evenly.
+      const base = target.snap ?? rectToSnapZone(target.rect, state.desktopBounds);
+      const zones = splitZoneBy(base, side);
+      if (zones === null) return;
+      state.snapWindow(targetId, zones.target);
+      state.snapWindow(dragId, zones.dragged);
     },
 
     resetForWorkspace: () => {
@@ -452,6 +521,7 @@ export function createDesktopStore(): DesktopStoreApi {
         hydration: "pending",
         softCapNotice: false,
         snapHint: null,
+        seamPreview: null,
         zCounter: 0,
         settledSeqs: {},
       });

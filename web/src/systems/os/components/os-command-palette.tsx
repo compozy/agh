@@ -1,9 +1,13 @@
 import {
+  Columns2,
+  LayoutGrid,
   Maximize2,
   Minus,
   Palette,
+  PanelBottom,
   PanelLeft,
   PanelRight,
+  PanelTop,
   PanelsTopLeft,
   Plus,
   RefreshCcw,
@@ -44,10 +48,17 @@ const PALETTE_APPS = Object.values(OS_APPS).filter(app => app.id !== "session");
 const SNAP_COMMAND_ICONS: Record<OsSnapZoneId, LucideIcon> = {
   left: PanelLeft,
   right: PanelRight,
+  top: PanelTop,
+  bottom: PanelBottom,
   "top-left": SquareArrowUpLeft,
   "top-right": SquareArrowUpRight,
   "bottom-left": SquareArrowDownLeft,
   "bottom-right": SquareArrowDownRight,
+};
+
+const ARRANGE_COMMAND_ICONS: Record<"two-up" | "grid", LucideIcon> = {
+  "two-up": Columns2,
+  grid: LayoutGrid,
 };
 
 /**
@@ -150,7 +161,21 @@ export function OsCommandPalette({ open, onOpenChange, onOpenSpaces }: OsCommand
                   >
                     <Icon className="size-3.5 text-muted" />
                     {command.label}
-                    <CommandShortcut>{command.keys}</CommandShortcut>
+                    {command.keys ? <CommandShortcut>{command.keys}</CommandShortcut> : null}
+                  </CommandItem>
+                );
+              })}
+              {model.arrangeCommands.map(command => {
+                const Icon = ARRANGE_COMMAND_ICONS[command.preset];
+                return (
+                  <CommandItem
+                    key={command.preset}
+                    value={command.label}
+                    data-testid={`os-palette-arrange-${command.preset}`}
+                    onSelect={() => model.dispatchArrange(command)}
+                  >
+                    <Icon className="size-3.5 text-muted" />
+                    {command.label}
                   </CommandItem>
                 );
               })}

@@ -98,7 +98,10 @@ export function OsSnapOverlay() {
   );
   const reducedMotion = useOsReducedMotion();
   if (hint === null || bounds === null) return null;
-  const rect = deriveSnapRect(OS_SNAP_ZONES[hint.zoneId], bounds);
+  // Zone hints derive their preview rect; window-split hints carry the
+  // claimed half computed at resolution time.
+  const rect =
+    hint.kind === "zone" ? deriveSnapRect(OS_SNAP_ZONES[hint.zoneId], bounds) : hint.rect;
   return (
     <OsSnapOverlaySheet
       rect={rect}

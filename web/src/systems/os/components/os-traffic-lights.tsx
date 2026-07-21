@@ -1,3 +1,5 @@
+import { Fragment } from "react";
+
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,6 +40,8 @@ export interface OsTrafficLightsProps extends Omit<React.ComponentProps<"div">, 
   onSelect?: (action: OsTrafficLightAction) => void;
   /** Compact presentation: zoom hidden, enlarged glyphs and hit areas. */
   compact?: boolean;
+  /** Wraps the interactive zoom button (the zoom-menu hover anchor). */
+  wrapZoom?: (button: React.ReactNode) => React.ReactNode;
 }
 
 function Light({
@@ -80,6 +84,7 @@ function Light({
 export function OsTrafficLights({
   onSelect,
   compact = false,
+  wrapZoom,
   className,
   ...props
 }: OsTrafficLightsProps) {
@@ -95,9 +100,13 @@ export function OsTrafficLights({
       )}
       {...props}
     >
-      {actions.map(action => (
-        <Light key={action} action={action} onSelect={onSelect} compact={compact} />
-      ))}
+      {actions.map(action => {
+        const light = <Light action={action} onSelect={onSelect} compact={compact} />;
+        if (action === "zoom" && wrapZoom && onSelect) {
+          return <Fragment key={action}>{wrapZoom(light)}</Fragment>;
+        }
+        return <Fragment key={action}>{light}</Fragment>;
+      })}
     </div>
   );
 }

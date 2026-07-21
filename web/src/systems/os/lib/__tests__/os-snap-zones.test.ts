@@ -1,48 +1,72 @@
 // Suite: pure snap-zone resolver
-// Invariant: pointer positions inside the 20px sensitivity radius of the
-// left/right edges and each corner resolve exactly one zone; center and
-// top-edge-only positions resolve none (ADR-009; zoom owns "fill").
+// Invariant: side bands (32px) arm halves; corner quarters arm from EITHER
+// adjacent edge within the 150px corner reach; the active zone releases only
+// past band + exit slack (hysteresis); top/bottom center strips resolve none
+// (zoom owns "fill", the dock owns the bottom). Exactly one zone per point.
 // Boundary IN: pure math over the drag-start work-area snapshot.
 // Boundary OUT: hint publishing/overlay (session + component), store writes.
 import { describe, expect, it } from "vitest";
 
-import { resolveSnapZone } from "../os-snap-zones";
+import {
+  OS_SNAP_CORNER_REACH,
+  OS_SNAP_EDGE_BAND,
+  OS_SNAP_EXIT_SLACK,
+  resolveSnapZone,
+} from "../os-snap-zones";
 import type { OsRect } from "../os-types";
 
 const AREA: OsRect = { x: 10, y: 8, w: 1420, h: 814 };
+const BAND = OS_SNAP_EDGE_BAND;
+const REACH = OS_SNAP_CORNER_REACH;
 
 describe("resolveSnapZone", () => {
   it("Should resolve halves inside the edge bands and none at the center (UT-100)", () => {
-    expect(resolveSnapZone({ x: AREA.x + 20, y: 400 }, AREA)).toBe("left");
-    expect(resolveSnapZone({ x: AREA.x + AREA.w - 20, y: 400 }, AREA)).toBe("right");
+    expect(resolveSnapZone({ x: AREA.x + BAND, y: 400 }, AREA)).toBe("left");
+    expect(resolveSnapZone({ x: AREA.x + AREA.w - BAND, y: 400 }, AREA)).toBe("right");
     // Points past the work-area edge (over the gutter) still capture.
     expect(resolveSnapZone({ x: 0, y: 400 }, AREA)).toBe("left");
     expect(resolveSnapZone({ x: AREA.x + AREA.w + 15, y: 400 }, AREA)).toBe("right");
-    // One pixel beyond the radius releases the capture.
-    expect(resolveSnapZone({ x: AREA.x + 21, y: 400 }, AREA)).toBeNull();
+    // One pixel beyond the band releases the capture (no active zone yet).
+    expect(resolveSnapZone({ x: AREA.x + BAND + 1, y: 400 }, AREA)).toBeNull();
     expect(resolveSnapZone({ x: 700, y: 400 }, AREA)).toBeNull();
   });
 
-  it("Should resolve each corner quarter where both edge bands overlap (UT-100)", () => {
-    expect(resolveSnapZone({ x: AREA.x + 5, y: AREA.y + 5 }, AREA)).toBe("top-left");
-    expect(resolveSnapZone({ x: AREA.x + AREA.w - 5, y: AREA.y + 5 }, AREA)).toBe("top-right");
-    expect(resolveSnapZone({ x: AREA.x + 5, y: AREA.y + AREA.h - 5 }, AREA)).toBe("bottom-left");
-    expect(resolveSnapZone({ x: AREA.x + AREA.w - 5, y: AREA.y + AREA.h - 5 }, AREA)).toBe(
+  it("Should arm corner quarters along the full corner reach of either edge (UT-100)", () => {
+    // Side band + within reach of the top → corner, not half.
+    expect(resolveSnapZone({ x: AREA.x + 5, y: AREA.y + REACH }, AREA)).toBe("top-left");
+    expect(resolveSnapZone({ x: AREA.x + 5, y: AREA.y + REACH + 1 }, AREA)).toBe("left");
+    expect(resolveSnapZone({ x: AREA.x + AREA.w - 5, y: AREA.y + AREA.h - REACH }, AREA)).toBe(
       "bottom-right"
+    );
+    // Top/bottom bands arm the same corners within reach of a side edge.
+    expect(resolveSnapZone({ x: AREA.x + REACH, y: AREA.y + 5 }, AREA)).toBe("top-left");
+    expect(resolveSnapZone({ x: AREA.x + AREA.w - REACH, y: AREA.y + 5 }, AREA)).toBe("top-right");
+    expect(resolveSnapZone({ x: AREA.x + REACH, y: AREA.y + AREA.h - 5 }, AREA)).toBe(
+      "bottom-left"
     );
   });
 
-  it("Should leave the top edge unbound — zoom owns fill (UT-100)", () => {
+  it("Should leave the top and bottom center strips unbound (UT-100)", () => {
+    // Zoom owns "fill the desktop"; the dock lives on the bottom strip.
     expect(resolveSnapZone({ x: 700, y: AREA.y + 2 }, AREA)).toBeNull();
     expect(resolveSnapZone({ x: 700, y: AREA.y + AREA.h - 2 }, AREA)).toBeNull();
   });
 
   it("Should publish exactly one target at seams — corner outranks half (UT-100)", () => {
-    // Inside both the left band and the top band: the corner wins, never both.
-    const seam = resolveSnapZone({ x: AREA.x + 20, y: AREA.y + 20 }, AREA);
+    const seam = resolveSnapZone({ x: AREA.x + BAND, y: AREA.y + BAND }, AREA);
     expect(seam).toBe("top-left");
-    // Exactly on the corner-band boundary: one past the vertical band falls
-    // back to the half — a single deterministic target either way.
-    expect(resolveSnapZone({ x: AREA.x + 20, y: AREA.y + 21 }, AREA)).toBe("left");
+  });
+
+  it("Should hold the active zone through the exit slack and release beyond it (UT-100)", () => {
+    const justOutside = { x: AREA.x + BAND + OS_SNAP_EXIT_SLACK, y: 400 };
+    const pastSlack = { x: AREA.x + BAND + OS_SNAP_EXIT_SLACK + 1, y: 400 };
+    // Without an active zone the same point resolves nothing…
+    expect(resolveSnapZone(justOutside, AREA)).toBeNull();
+    // …but an active "left" survives inside band + slack (no flicker),
+    expect(resolveSnapZone(justOutside, AREA, "left")).toBe("left");
+    // and releases once the pointer truly leaves.
+    expect(resolveSnapZone(pastSlack, AREA, "left")).toBeNull();
+    // Switching to a different zone never waits on hysteresis.
+    expect(resolveSnapZone({ x: AREA.x + 5, y: 400 }, AREA, "right")).toBe("left");
   });
 });
