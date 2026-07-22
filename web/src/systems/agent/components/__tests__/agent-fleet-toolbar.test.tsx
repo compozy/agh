@@ -9,7 +9,7 @@ vi.mock("@agh/ui", async importOriginal => {
   const actual = await importOriginal<typeof import("@agh/ui")>();
   return {
     ...actual,
-    Filters: ({
+    FiltersWithSearch: ({
       onChange,
       "data-testid": testId,
     }: {

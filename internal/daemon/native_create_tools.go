@@ -36,7 +36,7 @@ type agentCreateInput struct {
 	Scope           string   `json:"scope"`
 	Workspace       string   `json:"workspace,omitempty"`
 	Name            string   `json:"name"`
-	Provider        string   `json:"provider"`
+	Provider        string   `json:"provider,omitempty"`
 	Model           string   `json:"model,omitempty"`
 	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
 	Command         string   `json:"command,omitempty"`
@@ -169,10 +169,11 @@ func (n *daemonNativeTools) agentCreate(
 			errors.New("daemon: agent definition sync is unavailable"),
 		)
 	}
-	agent, err := core.CreateAgentFromRequest(
+	agent, runtimeConfig, err := core.CreateAgentFromRequest(
 		ctx,
 		createReq,
 		n.deps.HomePaths,
+		&n.deps.Config,
 		n.deps.Workspaces,
 		string(req.ToolID),
 	)
@@ -194,7 +195,7 @@ func (n *daemonNativeTools) agentCreate(
 		entry.Origin = contract.AgentOriginWorkspace
 		entry.WorkspaceID = strings.TrimSpace(scope.WorkspaceID)
 	}
-	payload := core.AgentPayloadFromEntry(entry)
+	payload := core.AgentPayloadFromEntryWithConfig(entry, &runtimeConfig)
 	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
 }
 
@@ -235,18 +236,6 @@ func (n *daemonNativeTools) agentCreateRequest(
 		createReq.Agent.Skills = &contract.CreateAgentSkillsConfig{
 			Disabled: trimNativeStrings(input.DisabledSkills),
 		}
-	}
-	// The bundled onboarding agent runs with approve-all over its toolsets, so a prompt-injection
-	// attempt could try to author a global-scope agent. Pin it to workspace-scoped authoring.
-	if createReq.Scope == contract.AgentCreateScopeGlobal &&
-		aghconfig.NormalizeAgentName(scope.AgentName) == aghconfig.OnboardingAgentName {
-		return contract.CreateAgentRequest{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeDenied,
-			id,
-			"the onboarding agent may only author workspace-scoped agents",
-			toolspkg.ErrToolDenied,
-			toolspkg.ReasonScopeMismatch,
-		)
 	}
 	if createReq.Scope == contract.AgentCreateScopeWorkspace {
 		workspaceRef, err := nativeCallerWorkspaceInput(id, "workspace", createReq.Workspace, scope)

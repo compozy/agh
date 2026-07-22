@@ -70,6 +70,11 @@ const meta: Meta<typeof AgentCreateDialog> = {
   component: AgentCreateDialog,
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        component: "Four-step agent authoring dialog with project-runtime inheritance.",
+      },
+    },
   },
 };
 
@@ -115,11 +120,15 @@ function AgentCreateDialogHarness({
   );
 }
 
+/** Starts agent authoring at the Basics step. */
 export const Default: Story = {
+  args: {},
   render: () => <AgentCreateDialogHarness />,
 };
 
+/** Shows canonical Basics validation failures. */
 export const ValidationError: Story = {
+  args: {},
   render: () => (
     <AgentCreateDialogHarness
       initialDraft={{
@@ -140,13 +149,27 @@ export const ValidationError: Story = {
   },
 };
 
+/** Shows the Runtime step with authored overrides and the project-default reset. */
+export const RuntimeOverride: Story = {
+  args: {},
+  render: () => <AgentCreateDialogHarness initialDraft={validDraft} initialStep="runtime" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByTestId("agent-create-runtime-use-project-defaults")).toBeVisible();
+  },
+};
+
+/** Shows the disabled submission state. */
 export const Submitting: Story = {
+  args: {},
   render: () => (
     <AgentCreateDialogHarness initialDraft={validDraft} initialStep="access" isSubmitting />
   ),
 };
 
+/** Shows a durable duplicate-name submission error. */
 export const DuplicateError: Story = {
+  args: {},
   render: () => (
     <AgentCreateDialogHarness
       initialDraft={validDraft}

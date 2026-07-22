@@ -14711,6 +14711,51 @@
                             },
                             "type": "array"
                           },
+                          "effective_runtime": {
+                            "nullable": true,
+                            "properties": {
+                              "model": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "reasoning_effort": {
+                                "enum": [
+                                  "none",
+                                  "minimal",
+                                  "low",
+                                  "medium",
+                                  "high",
+                                  "xhigh",
+                                  "max"
+                                ],
+                                "type": "string"
+                              },
+                              "sources": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "provider"
+                                ],
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "sources"
+                            ],
+                            "type": "object"
+                          },
                           "mcp_servers": {
                             "items": {
                               "properties": {
@@ -15031,8 +15076,7 @@
                     },
                     "required": [
                       "name",
-                      "prompt",
-                      "provider"
+                      "prompt"
                     ],
                     "type": "object"
                   },
@@ -15105,6 +15149,51 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "effective_runtime": {
+                          "nullable": true,
+                          "properties": {
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "enum": [
+                                "none",
+                                "minimal",
+                                "low",
+                                "medium",
+                                "high",
+                                "xhigh",
+                                "max"
+                              ],
+                              "type": "string"
+                            },
+                            "sources": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "sources"
+                          ],
+                          "type": "object"
                         },
                         "mcp_servers": {
                           "items": {
@@ -15779,6 +15868,51 @@
                                   "type": "object"
                                 },
                                 "type": "array"
+                              },
+                              "effective_runtime": {
+                                "nullable": true,
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "enum": [
+                                      "none",
+                                      "minimal",
+                                      "low",
+                                      "medium",
+                                      "high",
+                                      "xhigh",
+                                      "max"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "sources": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning_effort": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "provider"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "provider",
+                                  "sources"
+                                ],
+                                "type": "object"
                               },
                               "mcp_servers": {
                                 "items": {
@@ -16755,6 +16889,51 @@
                           },
                           "type": "array"
                         },
+                        "effective_runtime": {
+                          "nullable": true,
+                          "properties": {
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "enum": [
+                                "none",
+                                "minimal",
+                                "low",
+                                "medium",
+                                "high",
+                                "xhigh",
+                                "max"
+                              ],
+                              "type": "string"
+                            },
+                            "sources": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "sources"
+                          ],
+                          "type": "object"
+                        },
                         "mcp_servers": {
                           "items": {
                             "properties": {
@@ -17148,8 +17327,7 @@
                     },
                     "required": [
                       "name",
-                      "prompt",
-                      "provider"
+                      "prompt"
                     ],
                     "type": "object"
                   },
@@ -17218,6 +17396,51 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "effective_runtime": {
+                          "nullable": true,
+                          "properties": {
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "enum": [
+                                "none",
+                                "minimal",
+                                "low",
+                                "medium",
+                                "high",
+                                "xhigh",
+                                "max"
+                              ],
+                              "type": "string"
+                            },
+                            "sources": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "sources"
+                          ],
+                          "type": "object"
                         },
                         "mcp_servers": {
                           "items": {
@@ -17939,6 +18162,51 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "effective_runtime": {
+                          "nullable": true,
+                          "properties": {
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "enum": [
+                                "none",
+                                "minimal",
+                                "low",
+                                "medium",
+                                "high",
+                                "xhigh",
+                                "max"
+                              ],
+                              "type": "string"
+                            },
+                            "sources": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "sources"
+                          ],
+                          "type": "object"
                         },
                         "mcp_servers": {
                           "items": {
@@ -182070,6 +182338,51 @@
                               "type": "object"
                             },
                             "type": "array"
+                          },
+                          "effective_runtime": {
+                            "nullable": true,
+                            "properties": {
+                              "model": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "reasoning_effort": {
+                                "enum": [
+                                  "none",
+                                  "minimal",
+                                  "low",
+                                  "medium",
+                                  "high",
+                                  "xhigh",
+                                  "max"
+                                ],
+                                "type": "string"
+                              },
+                              "sources": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "provider"
+                                ],
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "sources"
+                            ],
+                            "type": "object"
                           },
                           "mcp_servers": {
                             "items": {

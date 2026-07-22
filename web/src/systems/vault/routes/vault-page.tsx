@@ -4,13 +4,13 @@ import {
   Alert,
   AlertAction,
   AlertDescription,
-  BlockLoading,
   Button,
   ConfirmDialog,
   Empty,
   Input,
   ListingPage,
   ListingToolbar,
+  Skeleton,
   useTopbarSlot,
 } from "@agh/ui";
 
@@ -75,7 +75,28 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
   });
 
   if (page.isLoading) {
-    return <BlockLoading className="flex-1" data-testid="vault-page-loading" />;
+    return (
+      <ListingPage data-testid="vault-page-loading">
+        <div aria-label="Loading vault metadata" className="flex flex-col gap-3" role="status">
+          <Skeleton className="h-4 w-3/5 rounded-xs" />
+          <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+            {[0, 1, 2, 3].map(row => (
+              <div
+                className="flex items-center gap-3 border-b border-line-soft px-4 py-3 last:border-b-0"
+                key={row}
+              >
+                <Skeleton className="size-8 shrink-0 rounded-md" />
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <Skeleton className="h-3 w-2/5 rounded-xs" />
+                  <Skeleton className="h-2.5 w-3/5 rounded-xs" />
+                </div>
+                <Skeleton className="h-5 w-20 rounded-pill" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </ListingPage>
+    );
   }
 
   return (

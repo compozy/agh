@@ -1,13 +1,14 @@
-import { useEffect, useReducer } from "react";
+import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
 import { toast } from "sonner";
 
 import { Alert, AlertActions, AlertDescription, Button } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
-const FADE_OUT_MS = 200;
-const COLLAPSE_MS = 200;
-const TOTAL_HIDE_BUDGET_MS = FADE_OUT_MS + COLLAPSE_MS;
+const BANNER_TRANSITION = {
+  duration: 0.15,
+  ease: [0.22, 1, 0.36, 1] as const,
+};
 
 /**
  * Hard-stop threshold Crossing this boundary upward fires a
@@ -31,20 +32,6 @@ export interface WorkBannerProps {
   workingCount?: number;
   onView?: () => void;
   className?: string;
-}
-
-type BannerPhase = "hidden" | "visible" | "fading";
-type BannerAction = { type: "show" } | { type: "fade" } | { type: "hide" };
-
-function bannerPhaseReducer(phase: BannerPhase, action: BannerAction): BannerPhase {
-  switch (action.type) {
-    case "show":
-      return "visible";
-    case "fade":
-      return phase === "hidden" ? "hidden" : "fading";
-    case "hide":
-      return "hidden";
-  }
 }
 
 function resolveTone(hasNeedsInput: boolean, needsInputCount: number | undefined): WorkBannerTone {
@@ -93,23 +80,7 @@ export function WorkBanner({
   onView,
   className,
 }: WorkBannerProps) {
-  const [phase, dispatchPhase] = useReducer(
-    bannerPhaseReducer,
-    openCount > 0 ? "visible" : "hidden"
-  );
-
-  useEffect(() => {
-    if (openCount > 0) {
-      dispatchPhase({ type: "show" });
-      return undefined;
-    }
-
-    dispatchPhase({ type: "fade" });
-    const timer = setTimeout(() => {
-      dispatchPhase({ type: "hide" });
-    }, TOTAL_HIDE_BUDGET_MS);
-    return () => clearTimeout(timer);
-  }, [openCount]);
+  const reducedMotion = useReducedMotionConfig();
 
   const hardStopNotifier =
     (needsInputCount ?? 0) > WORK_BANNER_HARD_STOP_THRESHOLD ? (
@@ -122,53 +93,60 @@ export function WorkBanner({
       />
     ) : null;
 
-  if (phase === "hidden") {
-    return hardStopNotifier;
-  }
-
   const tone = resolveTone(hasNeedsInput, needsInputCount);
   const message = buildMessage(openCount, hasNeedsInput, needsInputCount, workingCount);
-  const fading = phase === "fading";
+  const motionTransition = reducedMotion ? { duration: 0 } : BANNER_TRANSITION;
 
   return (
     <>
       {hardStopNotifier}
-      <Alert
-        aria-live="polite"
-        className={cn(
-          "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-line px-5 py-0 transition-all duration-slow ease-out",
-          TONE_BG[tone],
-          fading ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
-          className
-        )}
-        data-state={fading ? "fading" : "visible"}
-        data-testid="network-work-banner"
-        data-tone={tone}
-        role="status"
-        variant={TONE_ALERT_VARIANT[tone]}
-      >
-        <AlertDescription
-          className="truncate text-small-body font-medium"
-          data-testid="network-work-banner-message"
-        >
-          {message}
-        </AlertDescription>
-        {onView ? (
-          <AlertActions className="mt-0">
-            <Button
-              aria-label="View open work"
-              className={cn("h-7 px-2 text-xs font-medium", TONE_VIEW_TEXT[tone])}
-              data-testid="network-work-banner-view"
-              onClick={onView}
-              size="sm"
-              type="button"
-              variant="ghost"
+      <AnimatePresence initial={false}>
+        {openCount > 0 ? (
+          <m.div
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            initial={reducedMotion ? false : { opacity: 0, y: -4 }}
+            key="network-work-banner"
+            transition={motionTransition}
+          >
+            <Alert
+              aria-live="polite"
+              className={cn(
+                "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-line px-5 py-0",
+                TONE_BG[tone],
+                className
+              )}
+              data-state="visible"
+              data-testid="network-work-banner"
+              data-tone={tone}
+              role="status"
+              variant={TONE_ALERT_VARIANT[tone]}
             >
-              view
-            </Button>
-          </AlertActions>
+              <AlertDescription
+                className="truncate text-small-body font-medium"
+                data-testid="network-work-banner-message"
+              >
+                {message}
+              </AlertDescription>
+              {onView ? (
+                <AlertActions className="mt-0">
+                  <Button
+                    aria-label="View open work"
+                    className={cn("h-7 px-2 text-xs font-medium", TONE_VIEW_TEXT[tone])}
+                    data-testid="network-work-banner-view"
+                    onClick={onView}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    view
+                  </Button>
+                </AlertActions>
+              ) : null}
+            </Alert>
+          </m.div>
         ) : null}
-      </Alert>
+      </AnimatePresence>
     </>
   );
 }

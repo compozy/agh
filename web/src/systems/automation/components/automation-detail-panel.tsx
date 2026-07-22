@@ -8,7 +8,7 @@ import {
   PAGE_CONTENT_GUTTER,
   Pill,
   Section,
-  Spinner,
+  Skeleton,
   useTopbarSlot,
   type MetricTone,
 } from "@agh/ui";
@@ -254,14 +254,7 @@ export function AutomationDetailPanel({
     isTriggerPending,
   } = state;
   if (isLoading) {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center"
-        data-testid="automation-detail-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
+    return <AutomationDetailSkeleton />;
   }
 
   if (error) {
@@ -309,6 +302,34 @@ export function AutomationDetailPanel({
       runsLoading={runsLoading}
       state={{ isDeleting, isTogglePending, isTriggerDisabled, isTriggerPending }}
     />
+  );
+}
+
+function AutomationDetailSkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden")}
+      data-testid="automation-detail-loading"
+      role="status"
+    >
+      <div className="flex flex-col gap-2 pt-4">
+        <div className="flex gap-2">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-5 w-24" />
+        </div>
+        <Skeleton className="h-3 w-72" />
+      </div>
+      <div className="min-h-0 flex-1 space-y-6 overflow-hidden py-5">
+        {[0, 1, 2, 3].map(index => (
+          <div className="space-y-2.5" key={index}>
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className={index === 1 ? "h-28 w-full" : "h-20 w-full"} />
+          </div>
+        ))}
+      </div>
+      <span className="sr-only">Loading automation details</span>
+    </div>
   );
 }
 

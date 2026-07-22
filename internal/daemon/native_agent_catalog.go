@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/api/core"
-	aghconfig "github.com/compozy/agh/internal/config"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -21,9 +20,6 @@ func (n *daemonNativeTools) workspaceAgents(
 	}
 	merged := make(map[string]core.AgentCatalogEntry, len(resolved.Agents))
 	for _, agent := range resolved.Agents {
-		if !aghconfig.IsPublicAgentDef(agent) {
-			continue
-		}
 		name := strings.TrimSpace(agent.Name)
 		if name != "" {
 			merged[name] = core.AgentCatalogEntryFromDef(n.deps.HomePaths, agent, resolved.ID)
@@ -36,9 +32,6 @@ func (n *daemonNativeTools) workspaceAgents(
 		}
 		for _, entry := range catalogAgents {
 			agent := entry.Def
-			if !aghconfig.IsPublicAgentDef(agent) {
-				continue
-			}
 			name := strings.TrimSpace(agent.Name)
 			if name == "" {
 				continue

@@ -22,6 +22,12 @@ type daemonNativeSkillsRegistry interface {
 		agentName string,
 		sessionID string,
 	) ([]*skillspkg.Skill, error)
+	ForAgentDefSession(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agent aghconfig.AgentDef,
+		sessionID string,
+	) ([]*skillspkg.Skill, error)
 }
 
 type daemonNativeToolsDeps struct {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({
@@ -182,6 +182,35 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
     });
+  });
+
+  it("Should submit only one permission decision while the first request is pending", async () => {
+    let resolveRequest: (() => void) | undefined;
+    const approveSessionMock = vi.mocked(approveSession);
+    approveSessionMock.mockClear();
+    approveSessionMock.mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          resolveRequest = resolve;
+        })
+    );
+    const onResolved = vi.fn();
+    render(
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={onResolved}
+      />
+    );
+
+    const allowOnce = screen.getByTestId("permission-allow-once");
+    fireEvent.click(allowOnce);
+    expect(allowOnce).toBeDisabled();
+
+    expect(approveSession).toHaveBeenCalledOnce();
+    await act(async () => resolveRequest?.());
+    await waitFor(() => expect(onResolved).toHaveBeenCalledOnce());
   });
 
   it("Should call approveSession with allow-always on Allow Always click", async () => {

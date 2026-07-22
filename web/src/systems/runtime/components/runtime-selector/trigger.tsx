@@ -1,9 +1,8 @@
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { cn, Kbd, KindIcon, providerKindIconRegistry } from "@agh/ui";
+import { cn, IntensityMeter, Kbd, KindIcon, providerKindIconRegistry } from "@agh/ui";
 
-import { IntensityMeter } from "./intensity-meter";
 import {
   reasoningEffortLabel,
   reasoningEffortPosition,
@@ -91,7 +90,7 @@ export function RuntimeSelectorTrigger({
       className={cn(
         SEGMENT_CLASS,
         // The small variant tightens segment density to match the design (not just height).
-        variant === "small" && "gap-[7px] px-2.5",
+        variant === "small" && "gap-2 px-2.5",
         key === "provider" && "rounded-l-md"
       )}
       onClick={event => {
@@ -144,7 +143,7 @@ export function RuntimeSelectorTrigger({
       segment(
         "reasoning",
         "reasoning",
-        <span className="inline-flex items-center gap-[7px]">
+        <span className="inline-flex items-center gap-2">
           <IntensityMeter
             position={reasoningUnset ? 0 : reasoningEffortPosition(currentEffort)}
             hollow={reasoningUnset}

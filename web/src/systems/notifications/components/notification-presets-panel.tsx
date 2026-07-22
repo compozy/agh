@@ -8,6 +8,7 @@ import {
   Input,
   Pill,
   Section,
+  SkeletonRows,
   Spinner,
   Switch,
   Tooltip,
@@ -50,8 +51,11 @@ export function NotificationPresetsPanel({
     enabled: false,
   });
   const [localError, setLocalError] = useState<string | null>(null);
+  const createPending = pendingName !== null;
+  const formErrorId = localError ? "notification-preset-create-error" : undefined;
 
   const submit = () => {
+    if (createPending) return;
     const eventList = form.events.split(",").flatMap(item => {
       const event = item.trim();
       return event ? [event] : [];
@@ -84,7 +88,7 @@ export function NotificationPresetsPanel({
         <Button
           aria-expanded={createOpen}
           data-testid="settings-page-hooks-notification-preset-new"
-          disabled={!canMutate}
+          disabled={!canMutate || createPending}
           onClick={() => setCreateOpen(open => !open)}
           size="sm"
           type="button"
@@ -103,32 +107,44 @@ export function NotificationPresetsPanel({
           >
             <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)]">
               <Input
+                aria-describedby={formErrorId}
+                aria-invalid={Boolean(localError)}
                 aria-label="Notification preset name"
                 className="font-mono"
                 data-testid="settings-page-hooks-notification-preset-name"
                 placeholder="custom_alert"
+                disabled={createPending || !canMutate}
                 value={form.name}
                 onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
               />
               <Input
+                aria-describedby={formErrorId}
+                aria-invalid={Boolean(localError)}
                 aria-label="Notification preset events"
                 className="font-mono"
                 data-testid="settings-page-hooks-notification-preset-events"
+                disabled={createPending || !canMutate}
                 value={form.events}
                 onChange={event => setForm(current => ({ ...current, events: event.target.value }))}
               />
               <Input
+                aria-describedby={formErrorId}
+                aria-invalid={Boolean(localError)}
                 aria-label="Notification preset target"
                 className="font-mono"
                 data-testid="settings-page-hooks-notification-preset-target"
+                disabled={createPending || !canMutate}
                 placeholder="bridge_slack_ops:channel:ops"
                 value={form.target}
                 onChange={event => setForm(current => ({ ...current, target: event.target.value }))}
               />
               <Input
+                aria-describedby={formErrorId}
+                aria-invalid={Boolean(localError)}
                 aria-label="Notification preset filter"
                 className="font-mono"
                 data-testid="settings-page-hooks-notification-preset-filter"
+                disabled={createPending || !canMutate}
                 placeholder="outcome >= warning"
                 value={form.filter}
                 onChange={event => setForm(current => ({ ...current, filter: event.target.value }))}
@@ -139,7 +155,7 @@ export function NotificationPresetsPanel({
                 <Switch
                   aria-label="Create notification preset enabled"
                   checked={form.enabled}
-                  disabled={!canMutate}
+                  disabled={!canMutate || createPending}
                   onCheckedChange={next => setForm(current => ({ ...current, enabled: next }))}
                   data-testid="settings-page-hooks-notification-preset-enabled"
                 />
@@ -152,6 +168,7 @@ export function NotificationPresetsPanel({
                     setCreateOpen(false);
                     setLocalError(null);
                   }}
+                  disabled={createPending}
                   size="sm"
                   type="button"
                   variant="ghost"
@@ -160,16 +177,12 @@ export function NotificationPresetsPanel({
                 </Button>
                 <Button
                   data-testid="settings-page-hooks-notification-preset-create"
-                  disabled={!canMutate || pendingName === form.name.trim()}
+                  disabled={!canMutate || createPending}
                   onClick={submit}
                   type="button"
                   size="sm"
                 >
-                  {pendingName === form.name.trim() ? (
-                    <Spinner className="size-3.5" />
-                  ) : (
-                    <Plus className="size-3.5" />
-                  )}
+                  {createPending ? <Spinner className="size-3.5" /> : <Plus className="size-3.5" />}
                   Create
                 </Button>
               </div>
@@ -177,23 +190,36 @@ export function NotificationPresetsPanel({
           </div>
         ) : null}
 
-        {localError || error ? (
+        {localError ? (
           <span
             className="text-xs text-danger"
             data-testid="settings-page-hooks-notification-presets-error"
+            id={formErrorId}
+            role="alert"
           >
-            {localError ?? error}
+            {localError}
+          </span>
+        ) : null}
+
+        {error ? (
+          <span
+            className="text-xs text-danger"
+            data-testid="settings-page-hooks-notification-presets-operational-error"
+            role="alert"
+          >
+            {error}
           </span>
         ) : null}
 
         {isLoading && presets.length === 0 ? (
-          <div
-            className="flex items-center gap-2 text-xs text-subtle"
+          <SkeletonRows
+            aria-label="Loading notification presets"
+            className="gap-2"
+            count={3}
             data-testid="settings-page-hooks-notification-presets-loading"
-          >
-            <Spinner className="size-3" />
-            Loading presets...
-          </div>
+            role="status"
+            rowClassName="rounded-md border border-line px-3 py-3"
+          />
         ) : presets.length === 0 ? (
           <Empty
             icon={Bell}
@@ -210,7 +236,8 @@ export function NotificationPresetsPanel({
               <NotificationPresetRow
                 key={preset.name}
                 preset={preset}
-                pending={pendingName === preset.name}
+                mutationPending={pendingName !== null}
+                showPending={pendingName === preset.name}
                 canMutate={canMutate}
                 onToggle={onToggle}
                 onDelete={onDelete}
@@ -225,18 +252,20 @@ export function NotificationPresetsPanel({
 
 function NotificationPresetRow({
   preset,
-  pending,
+  mutationPending,
+  showPending,
   canMutate,
   onToggle,
   onDelete,
 }: {
   preset: NotificationPresetEntry;
-  pending: boolean;
+  mutationPending: boolean;
+  showPending: boolean;
   canMutate: boolean;
   onToggle: (preset: NotificationPresetEntry, nextEnabled: boolean) => void;
   onDelete: (preset: NotificationPresetEntry) => void;
 }) {
-  const deleteDisabled = !canMutate || pending || preset.built_in;
+  const deleteDisabled = !canMutate || mutationPending || preset.built_in;
   const deleteButton = (
     <Button
       aria-label={"Delete " + preset.name}
@@ -288,11 +317,11 @@ function NotificationPresetRow({
         </span>
       </div>
       <div className="flex items-center justify-end gap-2">
-        {pending ? <Spinner className="size-3.5 text-muted" /> : null}
+        {showPending ? <Spinner className="size-3.5 text-muted" /> : null}
         <Switch
           aria-label={"Toggle " + preset.name}
           checked={preset.enabled}
-          disabled={!canMutate || pending}
+          disabled={!canMutate || mutationPending}
           onCheckedChange={next => onToggle(preset, next)}
           data-testid={"settings-page-hooks-notification-preset-row-" + preset.name + "-toggle"}
         />

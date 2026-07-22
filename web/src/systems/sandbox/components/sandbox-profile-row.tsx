@@ -112,15 +112,15 @@ function SandboxProfileRowBody({ entry }: { entry: SettingsSandboxEntry }) {
         </ListingRow.Name>
         <ListingRow.Description>{sandboxBackendLabel(profile.backend)}</ListingRow.Description>
         <ListingRow.Meta data-testid={`sandbox-page-card-${entry.name}-profile`}>
-          <span className="font-mono text-[10px] text-subtle">
+          <span className="font-mono text-mono-id text-subtle">
             sync {sandboxOrDash(profile.sync_mode)}
           </span>
           <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
-          <span className="font-mono text-[10px] text-subtle">
+          <span className="font-mono text-mono-id text-subtle">
             {sandboxOrDash(profile.persistence)}
           </span>
           <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
-          <span className="font-mono text-[10px] text-subtle">
+          <span className="font-mono text-mono-id text-subtle">
             {sandboxOrDash(profile.runtime_root)}
           </span>
           <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />

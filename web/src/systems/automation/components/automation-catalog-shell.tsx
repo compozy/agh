@@ -1,7 +1,7 @@
 import { AlertCircle, Clock3, Plus, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Empty, Spinner, type ListingViewMode } from "@agh/ui";
+import { Button, Empty, Skeleton, SkeletonRows, type ListingViewMode } from "@agh/ui";
 
 import type { AutomationKind } from "../types";
 
@@ -47,14 +47,7 @@ export function AutomationCatalogShell({
   const isEmpty = itemCount === 0;
 
   if (isLoading && isEmpty) {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-        data-testid={`${noun}-list-loading`}
-      >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </div>
-    );
+    return <AutomationCatalogSkeleton noun={noun} view={view} />;
   }
 
   if (errorMessage && isEmpty) {
@@ -161,6 +154,40 @@ export function AutomationCatalogShell({
           </Button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function AutomationCatalogSkeleton({ noun, view }: { noun: string; view: ListingViewMode }) {
+  return (
+    <div
+      aria-busy="true"
+      aria-label={`Loading ${noun} as ${view}`}
+      data-testid={`${noun}-list-loading`}
+      role="status"
+    >
+      {view === "cards" ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map(index => (
+            <Skeleton className="h-36 w-full rounded-lg" key={index} />
+          ))}
+        </div>
+      ) : (
+        <SkeletonRows
+          className="overflow-hidden rounded-lg border border-line"
+          count={5}
+          rowClassName="border-b border-line-soft p-3 last:border-b-0"
+        >
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-8 shrink-0" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <Skeleton className="h-3.5 w-2/5" />
+              <Skeleton className="h-3 w-3/5" />
+            </div>
+            <Skeleton className="h-5 w-20" />
+          </div>
+        </SkeletonRows>
+      )}
     </div>
   );
 }

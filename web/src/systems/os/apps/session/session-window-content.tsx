@@ -39,6 +39,9 @@ export function SessionWindowContent({
           sessionId={sessionId}
           workspaceId={workspaceId}
           agentName={agentName}
+          acpSessionId={session.acp_session_id}
+          sessionState={session.state}
+          failure={session.failure}
           canPrompt={controls.canPrompt}
           onCancelPrompt={controls.handleStop}
           onQueuePrompt={controls.handleQueuePrompt}

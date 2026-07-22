@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { act, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const toastWarningMock = vi.fn();
 
@@ -15,11 +15,7 @@ import { WorkBanner, WORK_BANNER_HARD_STOP_THRESHOLD } from "../work-banner";
 
 describe("WorkBanner auto-hide, tone, and hard-stop", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     toastWarningMock.mockReset();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it("Should render nothing when openCount is 0 from the start", () => {
@@ -94,18 +90,14 @@ describe("WorkBanner auto-hide, tone, and hard-stop", () => {
     expect(toastWarningMock).toHaveBeenCalledTimes(2);
   });
 
-  it("Should auto-hide within 400ms when openCount returns to 0", () => {
+  it("Should interrupt an exit when work reopens", () => {
     const { rerender } = render(<WorkBanner hasNeedsInput={false} openCount={2} />);
     expect(screen.getByTestId("network-work-banner")).toBeInTheDocument();
 
     rerender(<WorkBanner hasNeedsInput={false} openCount={0} />);
-    const fading = screen.getByTestId("network-work-banner");
-    expect(fading).toHaveAttribute("data-state", "fading");
+    rerender(<WorkBanner hasNeedsInput={false} openCount={1} />);
 
-    act(() => {
-      vi.advanceTimersByTime(400);
-    });
-    expect(screen.queryByTestId("network-work-banner")).toBeNull();
+    expect(screen.getByTestId("network-work-banner")).toHaveTextContent("1 active work in flight");
   });
 
   it("Should render the explicit breakdown when needsInputCount + workingCount are provided", () => {

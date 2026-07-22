@@ -66,7 +66,7 @@ export function LoopRunOverrides({
         <ChevronRight className="size-3.5 text-muted transition-transform group-data-panel-open/collapsible-trigger:rotate-90" />
         <span className="flex-1">Advanced · per-run limit overrides</span>
         <span
-          className="text-[11px] font-normal text-subtle"
+          className="text-form-hint font-normal text-subtle"
           data-testid="loop-run-overrides-badge"
         >
           {overridden ? "overrides set" : "using loop defaults"}
@@ -81,7 +81,7 @@ export function LoopRunOverrides({
               data-testid={`loop-run-override-${field.key}`}
             >
               <label
-                className="text-[11.5px] font-medium text-fg-strong"
+                className="text-form-label font-medium text-fg-strong"
                 htmlFor={`loop-run-override-input-${field.key}`}
               >
                 {field.label}
@@ -93,7 +93,7 @@ export function LoopRunOverrides({
                   type="number"
                   min={0}
                   max={field.ceiling}
-                  className="h-8 font-mono text-[12.5px]"
+                  className="h-8 font-mono text-form-input"
                   disabled={disabled}
                   placeholder={
                     field.defaultValue !== null ? String(field.defaultValue) : field.placeholder
@@ -103,7 +103,7 @@ export function LoopRunOverrides({
                   }
                   onChange={event => onChange(setOverrideValue(draft, field, event.target.value))}
                 />
-                <span className="shrink-0 font-mono text-[10px] whitespace-nowrap text-faint">
+                <span className="shrink-0 font-mono text-mono-id whitespace-nowrap text-faint">
                   {field.ceilingLabel}
                 </span>
               </div>
@@ -111,7 +111,7 @@ export function LoopRunOverrides({
           ))}
           <div className="flex flex-col gap-1.5" data-testid="loop-run-override-budget_on_exceeded">
             <label
-              className="text-[11.5px] font-medium text-fg-strong"
+              className="text-form-label font-medium text-fg-strong"
               htmlFor="loop-run-override-policy"
             >
               Budget on exceeded
@@ -119,7 +119,7 @@ export function LoopRunOverrides({
             <NativeSelect
               id="loop-run-override-policy"
               data-testid="loop-run-override-policy"
-              className="h-8 font-mono text-[12.5px]"
+              className="h-8 font-mono text-form-input"
               disabled={disabled}
               value={draft.budgetOnExceeded}
               onChange={event =>
@@ -131,7 +131,7 @@ export function LoopRunOverrides({
             </NativeSelect>
           </div>
         </div>
-        <p className="mt-3.5 border-t border-line-soft pt-3 text-[11px] leading-relaxed text-faint">
+        <p className="mt-3.5 border-t border-line-soft pt-3 text-form-hint leading-relaxed text-faint">
           Overrides apply to this run only and never change the loop's saved defaults. Structural
           ceilings are hard backstops that cannot be raised; a set token or wall-clock budget is
           enforced (0 = unlimited). On exceeded, halt ends the run as exhausted and escalate pauses

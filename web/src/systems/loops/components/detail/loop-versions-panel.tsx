@@ -17,7 +17,7 @@ export function LoopVersionsPanel({ version }: LoopVersionsPanelProps) {
     <Section label="Versions" data-testid="loop-versions">
       <div className="rounded-lg border border-line bg-canvas-soft px-3.5 py-1">
         <div className="flex items-center gap-2.5 py-2.5">
-          <span className="font-mono text-[11.5px] text-fg-strong">v{version}</span>
+          <span className="font-mono text-mono-id text-fg-strong">v{version}</span>
           <MonoTag className="rounded-xs bg-success-tint px-1.5 py-0.5 text-success">
             current
           </MonoTag>

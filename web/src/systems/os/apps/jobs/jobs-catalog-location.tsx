@@ -8,7 +8,6 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
-  Spinner,
   useTopbarSlot,
 } from "@agh/ui";
 import {
@@ -69,14 +68,6 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
       ),
   });
 
-  if (page.isLoading) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center" data-testid="jobs-loading">
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </div>
-    );
-  }
-
   if (page.error) {
     return (
       <div
@@ -109,7 +100,7 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
         }
         data-testid="jobs-shell"
       >
-        {activeWorkspaceId && search.scope !== "global" ? (
+        {!page.isLoading && activeWorkspaceId && search.scope !== "global" ? (
           <AutomationSuggestionsPanel key={activeWorkspaceId} workspaceID={activeWorkspaceId} />
         ) : null}
         <AutomationJobsCatalog

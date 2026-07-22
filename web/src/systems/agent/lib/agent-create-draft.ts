@@ -169,6 +169,7 @@ export function validateAgentCreateDraft(
 
   const provider = draft.provider.trim();
   const providerKnown = context.providerOptions.some(option => option.id === provider);
+  const hasDependentOverride = draft.model.trim().length > 0 || draft.reasoningEffort !== "";
   if (context.providersLoading) {
     fields.provider = "Provider options are still loading.";
   } else if (context.providersError) {
@@ -176,7 +177,9 @@ export function validateAgentCreateDraft(
   } else if (context.providerOptions.length === 0) {
     fields.provider = "No providers are configured for this scope.";
   } else if (provider.length === 0) {
-    fields.provider = "Choose a provider.";
+    if (hasDependentOverride) {
+      fields.provider = "Choose a provider before setting model or reasoning overrides.";
+    }
   } else if (!providerKnown) {
     fields.provider = "Choose a provider from this scope.";
   }
@@ -246,8 +249,8 @@ export function buildCreateAgentParams(
     ...(draft.scope === "workspace" ? { workspace: normalizedWorkspaceId } : {}),
     agent: {
       name,
-      provider,
       prompt,
+      ...(provider.length > 0 ? { provider } : {}),
       ...(command.length > 0 ? { command } : {}),
       ...(model.length > 0 ? { model } : {}),
       ...(reasoningEffort !== "" ? { reasoning_effort: reasoningEffort } : {}),

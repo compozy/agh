@@ -13,6 +13,7 @@ import (
 
 type StubSessionManager struct {
 	CreateFn            func(context.Context, session.CreateOpts) (*session.Session, error)
+	CreateAcceptedFn    func(context.Context, session.CreateOpts) (*session.Info, error)
 	ListFn              func() []*session.Info
 	ListAllFn           func(context.Context) ([]*session.Info, error)
 	ListPageFn          func(context.Context, session.ListQuery) (session.ListPage, error)
@@ -53,6 +54,17 @@ func (s StubSessionManager) Create(ctx context.Context, opts session.CreateOpts)
 		return s.CreateFn(ctx, opts)
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (s StubSessionManager) CreateAccepted(ctx context.Context, opts session.CreateOpts) (*session.Info, error) {
+	if s.CreateAcceptedFn != nil {
+		return s.CreateAcceptedFn(ctx, opts)
+	}
+	created, err := s.Create(ctx, opts)
+	if created == nil || err != nil {
+		return nil, err
+	}
+	return created.Info(), nil
 }
 
 func (s StubSessionManager) List() []*session.Info {

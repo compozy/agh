@@ -2,7 +2,7 @@ import { AlertCircle } from "lucide-react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { toast } from "sonner";
 
-import { Empty, Spinner, useTopbarSlot, type TopbarSlotValue } from "@agh/ui";
+import { Empty, Skeleton, Tabs, TabsContent, useTopbarSlot, type TopbarSlotValue } from "@agh/ui";
 
 import { useLoopEditor, type UseLoopEditorResult } from "../../hooks/use-loop-editor";
 import type { LoopDefinition, LoopDetail } from "../../types";
@@ -82,11 +82,7 @@ export function LoopEditor({ workspaceId, name, topbarIdentity, onPublished }: L
     );
   }
   if (editor.status === "loading") {
-    return (
-      <CenteredState testId="loop-editor-loading">
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </CenteredState>
-    );
+    return <LoopEditorSkeleton />;
   }
   if (!readyEditor) {
     return (
@@ -107,11 +103,16 @@ function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
 
   return (
     <ReactFlowProvider>
-      <div className="flex min-h-0 flex-1 flex-col" data-testid="loop-editor">
+      <Tabs
+        className="flex min-h-0 flex-1 gap-0"
+        data-testid="loop-editor"
+        onValueChange={value => {
+          if (value === "graph" || value === "dsl") editor.setView(value);
+        }}
+        value={editor.view}
+      >
         <LoopEditorToolbar
           source={editor.loop.source}
-          view={editor.view}
-          onViewChange={editor.setView}
           lint={editor.lint}
           busy={editor.busy}
           positionsDirty={editor.positionsDirty}
@@ -123,39 +124,27 @@ function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
           <LoopEditorPalette onAddNode={editor.addNode} disabled={editor.busy} />
 
           <section className="relative flex min-h-0 flex-col bg-canvas">
-            {editor.view === "graph" ? (
-              <div
-                id="loop-editor-tabpanel"
-                role="tabpanel"
-                aria-label="Graph view"
-                className="relative min-h-0 flex-1"
-              >
-                <LoopEditorStartSummary start={definition.start ?? []} />
-                <LoopEditorCanvas
-                  nodes={editor.nodes}
-                  edges={editor.edges}
-                  selectedNodeId={editor.selectedNode?.id ?? null}
-                  onNodesChange={editor.onNodesChange}
-                  onEdgesChange={editor.onEdgesChange}
-                  onConnect={editor.onConnect}
-                  onSelectNode={editor.selectNode}
-                />
-              </div>
-            ) : (
-              <div
-                id="loop-editor-tabpanel"
-                role="tabpanel"
-                aria-label="DSL view"
-                className="min-h-0 flex-1 overflow-auto"
-              >
-                <LoopEditorDslView lines={editor.dslLines} />
-              </div>
-            )}
+            <TabsContent className="relative min-h-0 flex-1" value="graph">
+              <LoopEditorStartSummary start={definition.start ?? []} />
+              <LoopEditorCanvas
+                nodes={editor.nodes}
+                edges={editor.edges}
+                selectedNodeId={editor.selectedNode?.id ?? null}
+                onNodesChange={editor.onNodesChange}
+                onEdgesChange={editor.onEdgesChange}
+                onConnect={editor.onConnect}
+                onSelectNode={editor.selectNode}
+              />
+            </TabsContent>
+            <TabsContent className="min-h-0 flex-1 overflow-auto" value="dsl">
+              <LoopEditorDslView lines={editor.dslLines} />
+            </TabsContent>
 
             {editor.publishError ? (
               <p
-                className="flex items-center gap-2 border-t border-danger/40 bg-danger-tint px-3.5 py-2 text-[12px] text-danger"
+                className="flex items-center gap-2 border-t border-danger/40 bg-danger-tint px-3.5 py-2 text-form-label text-danger"
                 data-testid="loop-editor-publish-error"
+                role="alert"
               >
                 <AlertCircle aria-hidden="true" className="size-3.5" />
                 {editor.publishError}
@@ -189,8 +178,45 @@ function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
             </div>
           </aside>
         </div>
-      </div>
+      </Tabs>
     </ReactFlowProvider>
+  );
+}
+
+function LoopEditorSkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      className="flex min-h-0 flex-1 flex-col"
+      data-testid="loop-editor-loading"
+      role="status"
+    >
+      <div className="flex h-10.5 items-center gap-2 border-b border-line px-3.5">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-7 w-28" />
+        <Skeleton className="h-7 w-32" />
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)_344px]">
+        <div className="space-y-3 border-r border-line p-3">
+          <Skeleton className="h-3 w-20" />
+          {[0, 1, 2, 3, 4].map(index => (
+            <Skeleton className="h-9 w-full" key={index} />
+          ))}
+        </div>
+        <div className="relative p-8">
+          <Skeleton className="absolute top-16 left-16 h-24 w-44" />
+          <Skeleton className="absolute top-44 left-72 h-24 w-44" />
+          <Skeleton className="absolute top-72 left-28 h-24 w-44" />
+        </div>
+        <div className="space-y-4 border-l border-line p-4">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-9 w-full" />
+        </div>
+      </div>
+      <span className="sr-only">Loading Loop editor</span>
+    </div>
   );
 }
 

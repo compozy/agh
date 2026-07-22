@@ -2,7 +2,7 @@ import { Input, Textarea } from "@agh/ui";
 
 import type { ProviderDraft } from "../types";
 import type { ProviderDraftChange } from "./provider-edit-form";
-import { SettingsFieldRow } from "./settings-field-row";
+import { ModalSettingsFieldRow } from "./settings-field-row";
 
 interface ProviderGeneralFieldsProps {
   mode: "create" | "edit";
@@ -15,8 +15,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
 
   return (
     <>
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-name"
         label="Name"
         description={
@@ -35,8 +34,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           />
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-command"
         label="Command"
         description="Executable used to launch the ACP subprocess."
@@ -50,8 +48,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           />
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-display-name"
         label="Display name"
         description="Operator-facing label shown beside the provider id."
@@ -67,8 +64,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           />
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-model"
         label="Default model"
         description="Sent to the provider when an agent does not specify one."
@@ -84,8 +80,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           />
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-curated-models"
         label="Curated models"
         description="Provider-scoped model IDs stored under models.curated."
@@ -101,8 +96,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           />
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-harness"
         label="Harness"
         description="Runtime adapter used to launch the provider."
@@ -116,8 +110,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           />
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-runtime-provider"
         label="Runtime provider"
         description="Downstream provider id used by the selected harness."
@@ -133,8 +126,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           />
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-transport"
         label="Transport"
         description="Provider API family or Pi models override transport."
@@ -148,8 +140,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           />
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-base-url"
         label="Base URL"
         description="Custom API base URL for Pi-backed model overrides."

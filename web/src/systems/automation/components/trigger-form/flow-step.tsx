@@ -37,7 +37,7 @@ export function FlowStep({
           <Icon aria-hidden="true" className="size-4" />
         </div>
         {last ? null : (
-          <div className="mt-1 w-px flex-1 bg-gradient-to-b from-line-strong to-line-soft" />
+          <div className="mt-1 w-px flex-1 bg-linear-to-b from-line-strong to-line-soft" />
         )}
       </div>
       <div className={cn("min-w-0 flex-1", last ? "pb-1" : "pb-6")}>

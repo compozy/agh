@@ -1,4 +1,9 @@
-import type { Filter, FilterFieldConfig, FilterFieldGroup, FilterFieldsConfig } from "../filters";
+import type {
+  Filter,
+  FilterFieldConfig,
+  FilterFieldGroup,
+  FilterFieldsConfig,
+} from "../filter-types";
 
 export const isFieldGroup = <T = unknown>(
   item: FilterFieldConfig<T> | FilterFieldGroup<T>
@@ -13,15 +18,17 @@ export const isGroupLevelField = <T = unknown>(field: FilterFieldConfig<T>): boo
 export const flattenFields = <T = unknown>(
   fields: FilterFieldsConfig<T>
 ): FilterFieldConfig<T>[] => {
-  return fields.reduce<FilterFieldConfig<T>[]>((acc, item) => {
+  const flattened: FilterFieldConfig<T>[] = [];
+  for (const item of fields) {
     if (isFieldGroup(item)) {
-      return [...acc, ...item.fields];
+      flattened.push(...item.fields);
+    } else if (isGroupLevelField(item) && item.fields) {
+      flattened.push(...item.fields);
+    } else {
+      flattened.push(item);
     }
-    if (isGroupLevelField(item)) {
-      return [...acc, ...item.fields!];
-    }
-    return [...acc, item];
-  }, []);
+  }
+  return flattened;
 };
 
 export const getFieldsMap = <T = unknown>(

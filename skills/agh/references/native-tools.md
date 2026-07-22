@@ -55,15 +55,13 @@ zero-based `{choice,text,fallback}`. It is not approval. CLI: `agh session clari
 
 Authored context tools: `agh__agent_heartbeat_status`, `agh__agent_heartbeat_wake`.
 
-Workspace tools: `agh__workspace_list`, `agh__workspace_info`, `agh__workspace_describe`, `agh__agent_create`. `agh__agent_create` authors one public `AGENT.md` at `global` or `workspace` scope; provide `scope`, `name`, `provider`, `prompt`, and `workspace` for workspace scope. Reserved internal names such as `onboarding` are rejected.
+Workspace tools: `agh__workspace_list`, `agh__workspace_info`, `agh__workspace_describe`, `agh__agent_create`. `agh__agent_create` authors one public `AGENT.md` at `global` or `workspace` scope; provide `scope`, `name`, `prompt`, and `workspace` for workspace scope. Provider, model, and reasoning are optional agent-level overrides; when omitted, the definition inherits the target project runtime defaults.
 
 Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `agh__workspace_list` should return at least that workspace on a clean install.
 
 A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `agh__workspace_list`, `agh workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog.
 
 Workspace unregister is atomic with credential cleanup: it removes workspace-scoped MCP OAuth rows and their encrypted access/refresh values, preserves global and sibling-workspace credentials, and leaves all state intact when cleanup fails.
-
-The managed `onboarding` agent is internal to first-run setup and is not granted the full workspace or coordination toolsets. It receives only `agh__workspace_list`, `agh__workspace_describe`, `agh__network_channels`, `agh__network_channel_create`, and `agh__agent_create`.
 
 Provider model tools: `agh__provider_models_list`, `agh__provider_models_curate`, `agh__provider_models_refresh`, `agh__provider_models_status`.
 
@@ -92,7 +90,7 @@ an execution.
 The coordination toolset is projected only when the caller's immutable participation snapshot is
 Live, then narrowed by policy and dependency gates. Daemon availability alone never exposes it. A
 Local caller receives `not_participating`; create a new explicitly Live execution instead of
-retrying. The reserved onboarding agent has only its documented first-run provisioning subset.
+retrying.
 
 Read references/network.md before sending or interpreting messages. Direct/mention `say` is the
 only current model-wake path; other messages may persist without activation. Use `agh network usage

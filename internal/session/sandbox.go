@@ -356,9 +356,6 @@ func (m *Manager) dispatchSandboxSyncBefore(
 		Direction:      string(direction),
 		Reason:         string(reason),
 	}
-	if m.hooks.hasSandboxHooks() {
-		payload.FileCount = m.sandboxSyncFileCount(session, direction)
-	}
 	applySandboxMetaFallbacks(&payload.SandboxID, &payload.Backend, &payload.Profile, &payload.InstanceID, meta)
 	return m.hooks.sandbox().DispatchSandboxSyncBefore(ctx, payload)
 }

@@ -18,6 +18,7 @@ import type { SessionProviderOption } from "@/systems/workspace";
 import { useWorkspace } from "@/systems/workspace";
 
 import { isAgentDigestConflict } from "../adapters/agent-api";
+import { resolveAgentRuntimeValue } from "../lib/agent-effective-runtime";
 import { buildSettingsDraftFromAgent, buildUpdateAgentParams } from "../lib/agent-settings-draft";
 import { agentKeys } from "../lib/query-keys";
 import type { AgentPayload } from "../types";
@@ -119,11 +120,7 @@ export function useAgentRuntimeEditor({
   }));
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: Boolean(agent) });
 
-  const value: RuntimeSelectorValue = {
-    provider: agent?.provider ?? "",
-    model: agent?.model ?? "",
-    reasoning_effort: agent?.reasoning_effort ?? "",
-  };
+  const value: RuntimeSelectorValue = resolveAgentRuntimeValue(agent);
 
   const onChange = (next: RuntimeSelectorValue) => {
     if (!agent || updateAgent.isPending) return;

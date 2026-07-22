@@ -51,9 +51,8 @@ func BenchmarkDispatchSandboxSyncBeforeNoHooks(b *testing.B) {
 	ctx := context.Background()
 	b.ReportAllocs()
 
-	var fileCount int
 	for b.Loop() {
-		payload, err := manager.dispatchSandboxSyncBefore(
+		_, err := manager.dispatchSandboxSyncBefore(
 			ctx,
 			session,
 			state,
@@ -64,11 +63,6 @@ func BenchmarkDispatchSandboxSyncBeforeNoHooks(b *testing.B) {
 		if err != nil {
 			b.Fatalf("dispatchSandboxSyncBefore() error = %v", err)
 		}
-		fileCount = payload.FileCount
-	}
-
-	if fileCount < 0 {
-		b.Fatalf("dispatchSandboxSyncBefore() file_count = %d, want non-negative", fileCount)
 	}
 }
 

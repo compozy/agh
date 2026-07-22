@@ -16,8 +16,8 @@ export interface TasksDashboardPanelProps extends Omit<React.ComponentProps<"sec
  * Dashboard panel primitive — flat warm card on `--canvas-soft` with a 13 px
  * `--text-section-head` title and an 18 px body padding. Title uses the
  * `<Section>` H2 grammar (13 / 510 / -0.008em) so the four dashboard panels
- * line up with the rest of the runtime body H2 ladder. The page-level 22 px
- * H1 lives in `<DetailHeader>` / `<Topbar>`, never inside a panel head.
+ * line up with the rest of the runtime body H2 ladder. The page-level identity
+ * H1 lives in the window `<Topbar>` (or a domain compact head), never in a panel.
  */
 export function TasksDashboardPanel({
   title,

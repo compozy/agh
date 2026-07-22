@@ -27,7 +27,7 @@ export function LoopGateCard({ verdict }: LoopGateCardProps) {
       data-testid="loop-gate-card"
       data-verdict={verdict.verdict}
     >
-      <div className={`flex items-center gap-2 text-[12.5px] font-medium ${verdictClass}`}>
+      <div className={`flex items-center gap-2 text-small-body font-medium ${verdictClass}`}>
         {passed ? (
           <Check className="size-3.5" aria-hidden="true" />
         ) : (
@@ -48,7 +48,7 @@ export function LoopGateCard({ verdict }: LoopGateCardProps) {
             {verdict.criteria.map(criterion => (
               <div
                 key={criterion.id}
-                className="flex items-center gap-2 border-t border-line-soft py-1.5 text-[11.5px] first:border-t-0"
+                className="flex items-center gap-2 border-t border-line-soft py-1.5 text-form-hint first:border-t-0"
               >
                 <span className="font-mono text-fg">{criterion.id}</span>
                 <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5">
@@ -74,7 +74,7 @@ export function LoopGateCard({ verdict }: LoopGateCardProps) {
             {verdict.blockingIssues.map(issue => (
               <div
                 key={issue.id}
-                className="flex items-start gap-2 border-t border-line-soft py-1.5 text-[11.5px] first:border-t-0"
+                className="flex items-start gap-2 border-t border-line-soft py-1.5 text-form-hint first:border-t-0"
               >
                 <span className="shrink-0 font-mono text-fg">{issue.id}</span>
                 {issue.note ? <span className="min-w-0 text-muted">{issue.note}</span> : null}
@@ -84,10 +84,10 @@ export function LoopGateCard({ verdict }: LoopGateCardProps) {
         </div>
       ) : null}
       {verdict.reason ? (
-        <p className="mt-2 text-[12px] leading-relaxed text-muted">{verdict.reason}</p>
+        <p className="mt-2 text-form-label leading-relaxed text-muted">{verdict.reason}</p>
       ) : null}
       {verdict.route ? (
-        <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-sm border border-line-soft bg-input-fill px-2 py-1 text-[11.5px] text-subtle">
+        <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-sm border border-line-soft bg-input-fill px-2 py-1 text-form-hint text-subtle">
           <ArrowRight className="size-3" aria-hidden="true" />
           Routed to <b className="font-medium text-accent-strong">{verdict.route}</b>
         </div>

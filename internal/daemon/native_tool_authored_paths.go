@@ -30,12 +30,19 @@ func (n *daemonNativeTools) skillsFor(
 	if n.deps.Skills == nil {
 		return nil, errors.New("daemon: skills registry is required")
 	}
-	agentName := strings.TrimSpace(scope.AgentName)
 	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace_id", workspaceID, scope)
 	if err != nil {
 		return nil, err
 	}
+	agentName := strings.TrimSpace(scope.AgentName)
+	agentDef, hasSessionAgent, err := n.sessionAgentDefinition(scope.SessionID)
+	if err != nil {
+		return nil, err
+	}
 	if workspaceID == "" {
+		if hasSessionAgent {
+			return n.skillsForSessionAgent(ctx, nil, agentDef, scope.SessionID)
+		}
 		if agentName != "" {
 			return n.deps.Skills.ForAgentSession(ctx, nil, agentName, scope.SessionID)
 		}
@@ -48,10 +55,50 @@ func (n *daemonNativeTools) skillsFor(
 	if err != nil {
 		return nil, err
 	}
+	if hasSessionAgent {
+		return n.skillsForSessionAgent(ctx, &resolved, agentDef, scope.SessionID)
+	}
 	if agentName != "" {
 		return n.deps.Skills.ForAgentSession(ctx, &resolved, agentName, scope.SessionID)
 	}
 	return n.deps.Skills.ForWorkspace(ctx, &resolved)
+}
+
+func (n *daemonNativeTools) skillsForSessionAgent(
+	ctx context.Context,
+	workspace *workspacepkg.ResolvedWorkspace,
+	agent aghconfig.AgentDef,
+	sessionID string,
+) ([]*skills.Skill, error) {
+	if strings.TrimSpace(agent.SourcePath) == "" {
+		return n.deps.Skills.ForAgentDefSession(ctx, workspace, agent, sessionID)
+	}
+	return n.deps.Skills.ForAgentSession(ctx, workspace, agent.Name, sessionID)
+}
+
+type sessionAgentDefinitionReader interface {
+	SessionAgentDefinition(id string) (aghconfig.AgentDef, bool)
+}
+
+func (n *daemonNativeTools) sessionAgentDefinition(sessionID string) (aghconfig.AgentDef, bool, error) {
+	trimmedID := strings.TrimSpace(sessionID)
+	if trimmedID == "" {
+		return aghconfig.AgentDef{}, false, nil
+	}
+	reader, ok := n.deps.Sessions.(sessionAgentDefinitionReader)
+	if !ok || reader == nil {
+		return aghconfig.AgentDef{}, false, errors.New(
+			"daemon: concrete session agent definition is unavailable",
+		)
+	}
+	agent, ok := reader.SessionAgentDefinition(trimmedID)
+	if !ok {
+		return aghconfig.AgentDef{}, false, fmt.Errorf(
+			"daemon: session %q agent definition is unavailable",
+			trimmedID,
+		)
+	}
+	return agent, true, nil
 }
 
 func (n *daemonNativeTools) resolveSkill(

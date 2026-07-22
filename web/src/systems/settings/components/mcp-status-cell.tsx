@@ -16,7 +16,7 @@ export function MCPStatusCell({ cell, testId }: { cell: MCPStatusCellModel; test
       </Pill>
       {cell.code ? (
         <div
-          className="mt-1 truncate font-mono text-[10px] text-subtle"
+          className="mt-1 truncate font-mono text-mono-id text-subtle"
           title={cell.code}
           data-testid={testId ? `${testId}-code` : undefined}
         >

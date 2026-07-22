@@ -53,7 +53,7 @@ export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
             <ListingRow.Description>{entry.contract.goal}</ListingRow.Description>
           ) : null}
           <ListingRow.Meta>
-            <span className="font-mono text-badge text-subtle">{inputCount} inputs</span>
+            <span className="font-mono text-mono-id text-subtle">{inputCount} inputs</span>
             <ListingRow.MetaDot />
             <span>iteration cap {iterationCapLabel(entry.contract.iteration_cap)}</span>
             {hasHumanGate(entry) ? (

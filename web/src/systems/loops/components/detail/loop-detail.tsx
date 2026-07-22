@@ -184,7 +184,7 @@ export function LoopDetailView({
                   <button
                     type="button"
                     onClick={onOpenEditor}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted transition-colors hover:text-fg-strong"
+                    className="inline-flex items-center gap-1.5 text-form-hint font-medium text-muted transition-colors hover:text-fg-strong"
                     data-testid="loop-open-builder"
                   >
                     Open in builder
@@ -199,7 +199,7 @@ export function LoopDetailView({
                 right={
                   <Link
                     to="/loop-runs"
-                    className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted transition-colors hover:text-fg-strong"
+                    className="inline-flex items-center gap-1.5 text-form-hint font-medium text-muted transition-colors hover:text-fg-strong"
                     data-testid="loop-all-runs"
                   >
                     All runs

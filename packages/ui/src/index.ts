@@ -21,11 +21,7 @@ export { RightRail, type RightRailMode, type RightRailProps } from "./components
 // Net-new shared-kit composites (P3).
 export { LaneTabs, type LaneTabsItem, type LaneTabsProps } from "./components/custom/lane-tabs";
 export { Sparkline, type SparklineProps } from "./components/custom/sparkline";
-export {
-  RouteState,
-  type RouteStateMode,
-  type RouteStateProps,
-} from "./components/custom/route-state";
+export { IntensityMeter, type IntensityMeterProps } from "./components/custom/intensity-meter";
 export { FieldRow, type FieldRowProps } from "./components/custom/field-row";
 export {
   ContextBox,
@@ -34,18 +30,12 @@ export {
 } from "./components/custom/context-box";
 export { JsonViewer, type JsonViewerProps } from "./components/custom/json-viewer";
 export { EditorFooter, type EditorFooterProps } from "./components/custom/editor-footer";
-export { KpiCard, type KpiCardProps } from "./components/custom/kpi-card";
 export {
   StatusBreakdown,
   type StatusBreakdownItem,
   type StatusBreakdownProps,
 } from "./components/custom/status-breakdown";
 export { MetadataTile, type MetadataTileProps } from "./components/custom/metadata-tile";
-export {
-  DetailHeader,
-  type DetailHeaderCrumb,
-  type DetailHeaderProps,
-} from "./components/custom/detail-header";
 export {
   FormSection,
   type FormSectionProps,
@@ -338,15 +328,6 @@ export {
   type AvatarShape,
   type AvatarSize,
 } from "./components/avatar";
-export {
-  Breadcrumb,
-  BreadcrumbEllipsis,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "./components/breadcrumb";
 export { ButtonGroup, ButtonGroupSeparator, ButtonGroupText } from "./components/button-group";
 export { buttonGroupVariants } from "./components/button-group-variants";
 export {
@@ -388,6 +369,9 @@ export {
   type ItemSelectionIndicatorProps,
 } from "./components/item";
 export { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "./components/native-select";
+export { Checkbox } from "./components/checkbox";
+export { RadioGroup, RadioGroupItem } from "./components/radio-group";
+export { Surface, type SurfaceProps, type SurfaceSize } from "./components/surface";
 export {
   useStepper,
   useStepItem,
@@ -415,7 +399,7 @@ export type {
   TreeItemLabelProps,
   TreeDragLineProps,
 } from "./components/reui/tree";
-export { Filters } from "./components/reui/filters";
+export { Filters, FiltersWithSearch } from "./components/reui/filters";
 export { createFilter } from "./components/reui/hooks/filter-helpers";
 export type { Filter, FilterFieldsConfig, FilterFieldConfig } from "./components/reui/filters";
 export { Textarea, type TextareaProps, type TextareaVariant } from "./components/textarea";

@@ -17,13 +17,13 @@ interface LoopEditorDslViewProps {
 export function LoopEditorDslView({ lines }: LoopEditorDslViewProps) {
   return (
     <div className="min-h-0 overflow-auto p-6" data-testid="loop-editor-dsl">
-      <p className="mb-3 max-w-[74ch] text-[12px] leading-relaxed text-subtle">
+      <p className="mb-3 max-w-[74ch] text-form-label leading-relaxed text-subtle">
         A read-only view of the <span className="font-medium text-fg">agh.loop/v1</span> definition
         you&apos;re editing — persisted to disk (the source of truth) on Publish. String values
         interpolate with Go templates <span className="font-mono">{"{{ }}"}</span>; conditions are
         CEL; node ids are snake_case.
       </p>
-      <pre className="overflow-x-auto rounded-md border border-line-soft bg-rail p-4 font-mono text-[12px] leading-relaxed text-fg">
+      <pre className="overflow-x-auto rounded-md border border-line-soft bg-rail p-4 font-mono text-small-body leading-relaxed text-fg">
         {lines.map((line, index) => (
           <div
             key={index}

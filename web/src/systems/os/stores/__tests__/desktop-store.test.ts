@@ -240,15 +240,11 @@ describe("desktop store", () => {
     expect(win.rect).toEqual(rectBefore);
   });
 
-  it("Should toggle the rail and retain collapsed groups in the desktop document (UT-068, UT-084)", () => {
+  it("Should retain collapsed session groups in the desktop document (UT-068)", () => {
     const store = createDesktopStore();
 
-    store.getState().toggleRail();
     store.getState().toggleRailGroup("codex");
-    expect(store.getState()).toMatchObject({
-      railOpen: true,
-      railCollapsedAgentIds: ["codex"],
-    });
+    expect(store.getState().railCollapsedAgentIds).toEqual(["codex"]);
 
     const restored = createDesktopStore();
     restored.getState().hydrate([
@@ -256,7 +252,6 @@ describe("desktop store", () => {
         key: OS_DESKTOP_KEY,
         value: encodeDesktopPayload({
           focusedId: null,
-          railOpen: store.getState().railOpen,
           railCollapsedAgentIds: store.getState().railCollapsedAgentIds,
           wallpaper: "ember",
         }),
@@ -267,16 +262,9 @@ describe("desktop store", () => {
       },
     ]);
 
-    expect(restored.getState()).toMatchObject({
-      railOpen: true,
-      railCollapsedAgentIds: ["codex"],
-    });
-    restored.getState().toggleRail();
+    expect(restored.getState().railCollapsedAgentIds).toEqual(["codex"]);
     restored.getState().toggleRailGroup("codex");
-    expect(restored.getState()).toMatchObject({
-      railOpen: false,
-      railCollapsedAgentIds: [],
-    });
+    expect(restored.getState().railCollapsedAgentIds).toEqual([]);
   });
 
   it("Should drop invalid hydration entries individually and restore the valid windows (UT-063)", () => {
@@ -372,7 +360,7 @@ describe("desktop store", () => {
     store.getState().applyRemote({
       entry: {
         key: OS_DESKTOP_KEY,
-        value: encodeDesktopPayload({ focusedId: "app:tasks", railOpen: true, wallpaper: "mesh" }),
+        value: encodeDesktopPayload({ focusedId: "app:tasks", wallpaper: "mesh" }),
         rev: 1,
         seq: 2,
         deleted: false,
@@ -383,7 +371,6 @@ describe("desktop store", () => {
 
     const state = store.getState();
     expect(state.focusedId).toBe("app:tasks");
-    expect(state.railOpen).toBe(true);
     expect(state.wallpaper).toBe("mesh");
   });
 
@@ -394,7 +381,7 @@ describe("desktop store", () => {
     store.getState().applyRemote({
       entry: {
         key: OS_DESKTOP_KEY,
-        value: encodeDesktopPayload({ focusedId: "app:tasks", railOpen: true, wallpaper: "mesh" }),
+        value: encodeDesktopPayload({ focusedId: "app:tasks", wallpaper: "mesh" }),
         rev: 1,
         seq: 2,
         deleted: false,
@@ -409,7 +396,6 @@ describe("desktop store", () => {
     expect(store.getState()).toMatchObject({
       windows: {},
       focusedId: null,
-      railOpen: false,
       railCollapsedAgentIds: [],
       wallpaper: "ember",
       hydration: "pending",

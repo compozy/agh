@@ -127,6 +127,7 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		MaskInternalErrors:           true,
 		IncludeSessionWorkspaceInSSE: true,
 		Sessions:                     cfg.sessions,
+		SessionAcceptance:            sessionAcceptanceManager(cfg.sessions),
 		DrainController:              cfg.drainController,
 		SessionCatalog:               cfg.sessionCatalog,
 		Tasks:                        cfg.tasks,
@@ -190,6 +191,14 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		AgentLoader:                  cfg.agentLoader,
 		HTTPPort:                     cfg.httpPort,
 	}
+}
+
+func sessionAcceptanceManager(manager core.SessionManager) core.SessionAcceptanceManager {
+	accepted, ok := manager.(core.SessionAcceptanceManager)
+	if !ok {
+		return nil
+	}
+	return accepted
 }
 
 func (h *Handlers) setStreamDone(done <-chan struct{}) {

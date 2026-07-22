@@ -1453,7 +1453,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 					Prompt:   "extension agent",
 				},
 				{
-					Name:     aghconfig.OnboardingAgentName,
+					Name:     "onboarding",
 					Provider: "codex",
 					Prompt:   "internal onboarding",
 				},
@@ -1467,7 +1467,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 
 		var getPayload contract.WorkspaceDetailPayload
 		testutil.DecodeJSONResponse(t, getResp, &getPayload)
-		if got, want := len(getPayload.Agents), 2; got != want {
+		if got, want := len(getPayload.Agents), 3; got != want {
 			t.Fatalf("len(agents) = %d, want %d: %#v", got, want, getPayload.Agents)
 		}
 		if got, want := getPayload.Agents[0].Name, "coder"; got != want {
@@ -1476,8 +1476,11 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		if got, want := getPayload.Agents[0].Provider, "fake"; got != want {
 			t.Fatalf("agents[0].provider = %q, want workspace-scoped provider %q", got, want)
 		}
-		if got, want := getPayload.Agents[1].Name, "qa-extension-agent"; got != want {
+		if got, want := getPayload.Agents[1].Name, "onboarding"; got != want {
 			t.Fatalf("agents[1].name = %q, want %q", got, want)
+		}
+		if got, want := getPayload.Agents[2].Name, "qa-extension-agent"; got != want {
+			t.Fatalf("agents[2].name = %q, want %q", got, want)
 		}
 	})
 

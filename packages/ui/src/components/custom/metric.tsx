@@ -2,89 +2,113 @@
 
 import * as React from "react";
 
+import { toneText } from "../../lib/tone";
 import { cn } from "../../lib/utils";
+import { Surface, type SurfaceSize } from "../surface";
+import { Eyebrow } from "./eyebrow";
+
+type IconComponent = React.ComponentType<{ className?: string; size?: number }>;
 
 export type MetricTone = "default" | "accent" | "success" | "warning" | "danger";
-export type MetricSize = "default" | "lg";
+export type MetricSize = "compact" | "default" | "lg";
+export type MetricLabelCase = "sentence" | "eyebrow";
 
 export interface MetricProps extends Omit<React.ComponentProps<"div">, "title"> {
   label: React.ReactNode;
   value: React.ReactNode;
-  /**
-   * Small inline detail baseline-aligned with the value , mono micro-unit (e.g. "+12%").
-   * Mirrors `detail` in `docs/design/web-inspiration/src/primitives.jsx`.
-   */
+  /** Small inline detail baseline-aligned with the value — mono micro-unit (e.g. "+12%"). */
   detail?: React.ReactNode;
-  /**
-   * Secondary line rendered below the value , Inter 13px per DESIGN.md §4 "Metric Cards With Subtext".
-   */
+  /** Secondary line rendered below the value. */
   subtext?: React.ReactNode;
+  /** Optional leading head glyph (dashboard KPI voice). */
+  icon?: IconComponent;
+  /** Optional trailing head slot — delta, sparkline, or link. */
+  trailing?: React.ReactNode;
   tone?: MetricTone;
   /**
-   * `default` — value at 24 px, generic card density.
-   * `lg` — value at 28 px with tighter tracking, mirrors `.dash__card-value`
-   * from `docs/design/new-proposal/agh-refined-7.html`. Use for top-level
-   * dashboard metrics (Active runs, Success rate, etc.).
+   * `compact` — 17px value, in-line KPI density.
+   * `default` / `lg` — 24px display value (`--text-kpi-value`) at
+   * `--font-weight-display` (620), the approved dashboard scale.
    */
   size?: MetricSize;
+  /** `sentence` — Inter sentence-case label; `eyebrow` — uppercase KPI label. */
+  labelCase?: MetricLabelCase;
 }
 
-const TONE_VALUE_CLASS: Record<MetricTone, string> = {
-  default: "text-fg",
-  accent: "text-accent",
-  success: "text-success",
-  warning: "text-warning",
-  danger: "text-danger",
-};
-
-const SIZE_VALUE_CLASS: Record<MetricSize, string> = {
-  default: "text-detail-h1 leading-(--text-detail-h1--line-height) tracking-detail-h1",
-  lg: "text-kpi-value leading-(--text-kpi-value--line-height) tracking-detail-h1",
-};
-
-const SIZE_CONTAINER_CLASS: Record<MetricSize, string> = {
-  default: "px-5 py-4",
-  lg: "px-5 py-4",
-};
+function metricValueToneClass(tone: MetricTone): string {
+  return tone === "default" ? "text-fg-strong" : toneText(tone);
+}
 
 /**
- * Metric card — sentence-case Inter label (DESIGN.md §9: not an eyebrow) +
- * Inter 24/28px value + optional inline detail or subtext. Surface container
- * with rounded-lg; semantic tone colors the value.
+ * Metric tile — one voice for every KPI and stat. Label (sentence or eyebrow) +
+ * display value at `--text-kpi-value` / `--font-weight-display` + optional
+ * inline detail, subtext, head icon, and trailing slot. Composes `Surface`;
+ * semantic tone colors the value.
  */
 function Metric({
   label,
   value,
   detail,
   subtext,
+  icon: Icon,
+  trailing,
   tone = "default",
   size = "default",
+  labelCase = "sentence",
   className,
   ...props
 }: MetricProps) {
+  const surfaceSize: SurfaceSize = size === "compact" ? "compact" : "default";
+  const valueSizeClass =
+    size === "compact"
+      ? "text-kpi-compact leading-none tracking-tight"
+      : "text-kpi-value leading-(--text-kpi-value--line-height) tracking-detail-h1";
   return (
-    <div
+    <Surface
+      size={surfaceSize}
       data-slot="metric"
       data-tone={tone}
       data-size={size}
-      className={cn(
-        "flex min-w-0 flex-col gap-2 rounded-lg bg-canvas-soft",
-        SIZE_CONTAINER_CLASS[size],
-        className
-      )}
+      className={cn("flex min-w-0 flex-col gap-2", className)}
       {...props}
     >
-      <span data-slot="metric-label" className="block truncate text-form-label text-muted">
-        {label}
-      </span>
+      <div data-slot="metric-head" className="flex min-w-0 items-center gap-2">
+        {Icon ? (
+          <span
+            aria-hidden="true"
+            data-slot="metric-icon"
+            className="inline-flex size-5 shrink-0 items-center justify-center text-muted"
+          >
+            <Icon className="size-3" />
+          </span>
+        ) : null}
+        {labelCase === "eyebrow" ? (
+          <Eyebrow data-slot="metric-label" className="min-w-0 truncate text-muted">
+            {label}
+          </Eyebrow>
+        ) : (
+          <span
+            data-slot="metric-label"
+            className="block min-w-0 truncate text-form-label text-muted"
+          >
+            {label}
+          </span>
+        )}
+        {trailing ? (
+          <span data-slot="metric-trailing" className="ml-auto inline-flex shrink-0 items-center">
+            {trailing}
+          </span>
+        ) : null}
+      </div>
       <div data-slot="metric-value-row" className="flex min-w-0 items-baseline gap-2">
         <span
           data-slot="metric-value"
           className={cn(
-            "min-w-0 truncate font-medium tabular-nums",
-            SIZE_VALUE_CLASS[size],
-            TONE_VALUE_CLASS[tone]
+            "min-w-0 truncate tabular-nums",
+            valueSizeClass,
+            metricValueToneClass(tone)
           )}
+          style={{ fontWeight: "var(--font-weight-display)" }}
         >
           {value}
         </span>
@@ -102,7 +126,7 @@ function Metric({
           {subtext}
         </p>
       ) : null}
-    </div>
+    </Surface>
   );
 }
 

@@ -63,7 +63,7 @@ function PillGroup<V extends string = string>({
             }}
             className={pillGroupSegmentVariants({ active: isActive, size })}
           >
-            <span>{item.label}</span>
+            <span className="inline-flex items-center gap-1.5">{item.label}</span>
             {typeof item.badge === "number" && item.badge > 0 ? (
               <span
                 data-slot="pill-group-badge"

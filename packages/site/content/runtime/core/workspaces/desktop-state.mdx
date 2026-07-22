@@ -19,10 +19,10 @@ convergence. An agent that writes a `win:*` doc moves a window on every connecte
 
 ## Key conventions
 
-| Key              | Holds                                                                                                   |
-| ---------------- | ------------------------------------------------------------------------------------------------------- |
-| `desktop`        | Desktop-wide preferences: focused window, sessions rail, wallpaper, dock magnification, reduced motion. |
-| `win:<windowId>` | One window: app identity, location, `rect`, `prevRect`, `z`, `minimized`, `maximized`, `snap`.          |
+| Key              | Holds                                                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `desktop`        | Desktop-wide preferences: focused window, sessions group collapse, wallpaper, dock magnification, reduced motion. |
+| `win:<windowId>` | One window: app identity, location, `rect`, `prevRect`, `z`, `minimized`, `maximized`, `snap`.                    |
 
 Window ids are `app:<appId>` for single-instance apps and `session:<sessionId>` for session
 windows. Include `v` in every value object, and batch multi-key changes through one atomic

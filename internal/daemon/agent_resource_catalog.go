@@ -41,9 +41,6 @@ func (c *resourceAgentCatalog) GetAgent(ctx context.Context, name string) (core.
 	if target == "" {
 		return core.AgentCatalogEntry{}, errors.New("agent name is required")
 	}
-	if aghconfig.IsInternalManagedAgentName(target) {
-		return core.AgentCatalogEntry{}, fmt.Errorf("%w: %s", os.ErrNotExist, target)
-	}
 	for _, entry := range c.agentEntriesForWorkspace(nil) {
 		if strings.TrimSpace(entry.Def.Name) == target {
 			entry.Def = cloneAgentDef(entry.Def)
@@ -69,7 +66,7 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 			continue
 		}
 		name := strings.TrimSpace(record.Spec.Name)
-		if name != "" && aghconfig.IsPublicAgentDef(record.Spec) {
+		if name != "" {
 			merged[name] = core.AgentCatalogEntry{
 				Def:    cloneAgentDef(record.Spec),
 				Origin: contract.AgentOriginGlobal,
@@ -87,7 +84,7 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 				continue
 			}
 			name := strings.TrimSpace(record.Spec.Name)
-			if name != "" && aghconfig.IsPublicAgentDef(record.Spec) {
+			if name != "" {
 				merged[name] = core.AgentCatalogEntry{
 					Def:         cloneAgentDef(record.Spec),
 					Origin:      contract.AgentOriginWorkspace,

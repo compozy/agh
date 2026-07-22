@@ -1,5 +1,4 @@
 import {
-  BlockLoading,
   CodeBlock,
   LaneTabs,
   MetadataTile,
@@ -23,6 +22,7 @@ import type {
 } from "../types";
 import { TaskBridgeSubscriptionsPane } from "./task-bridge-subscriptions-pane";
 import { TaskOperatorSheetHeader } from "./task-operator-sheet-header";
+import { TaskInspectLoadingSkeleton } from "./task-loading-skeletons";
 import { TaskRawPane } from "./task-raw-pane";
 
 import type { TaskInspectTarget } from "../lib/task-detail-search";
@@ -107,7 +107,7 @@ function DiagnosticsPane({
   errorMessage: string | null;
 }) {
   if (isLoading && !inspect) {
-    return <BlockLoading label="Loading inspect snapshot" size="sm" surface="bare" />;
+    return <TaskInspectLoadingSkeleton label="Loading inspect snapshot" />;
   }
   if (errorMessage && !inspect) {
     return (

@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/compozy/agh/internal/acp"
 )
@@ -17,48 +16,30 @@ func (m *Manager) prepareSessionLaunch(
 	startOpts := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
 	startOpts, err := m.prepareProviderForStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
-		return acp.StartOpts{}, m.failSessionStart(
-			ctx,
-			spec,
-			session,
-			"session provider startup failed",
-			err,
-		)
+		return acp.StartOpts{}, startupFailure("session provider startup failed", err)
 	}
 	startOpts, err = m.prepareSandboxForStart(ctx, spec, session, startOpts)
 	if err != nil {
-		return acp.StartOpts{}, m.failSessionStart(
-			ctx,
-			spec,
-			session,
-			"session sandbox startup failed",
-			err,
-		)
+		return acp.StartOpts{}, startupFailure("session sandbox startup failed", err)
 	}
 	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
-		return acp.StartOpts{}, m.failSessionStart(ctx, spec, session, "session pre-start hook failed", err)
+		return acp.StartOpts{}, startupFailure("session pre-start hook failed", err)
 	}
 	if spec.resumeReplay {
 		spec.resumeReplayBlock, spec.resumeReplayMessageCount, err = m.buildResumeReplay(ctx, session)
 		if err != nil {
-			return acp.StartOpts{}, m.failSessionStart(ctx, spec, session, "session replay preparation failed", err)
+			return acp.StartOpts{}, startupFailure("session replay preparation failed", err)
 		}
 	}
-	session.EffectivePermissions = strings.TrimSpace(string(startOpts.Permissions))
+	session.setEffectivePermissions(string(startOpts.Permissions))
 	if err := finalizeStartCreationIdentityIfEnabled(spec, session); err != nil {
-		return acp.StartOpts{}, m.failSessionStart(
-			ctx,
-			spec,
-			session,
-			"session creation identity changed",
-			err,
-		)
+		return acp.StartOpts{}, startupFailure("session creation identity changed", err)
 	}
-	if err := m.persistSessionMetadataOnly(session); err != nil {
+	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
 		m.sessionLogger(session).Warn("session.start.meta_write_failed", "phase", spec.startAction, "error", err)
 		return acp.StartOpts{}, fmt.Errorf(
-			"session: persist %s metadata for %q: %w",
+			"session: persist %s launch identity for %q: %w",
 			spec.startAction,
 			spec.sessionID,
 			err,

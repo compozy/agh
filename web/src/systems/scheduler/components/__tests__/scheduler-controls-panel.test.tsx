@@ -10,6 +10,26 @@ import {
 import { SchedulerControlsPanel } from "../scheduler-controls-panel";
 
 describe("SchedulerControlsPanel", () => {
+  it("does not publish scheduler state or enable controls before status loads", () => {
+    render(
+      <SchedulerControlsPanel
+        backlog={null}
+        isBacklogLoading
+        isLoading
+        onDrain={vi.fn()}
+        onPause={vi.fn()}
+        status={null}
+      />
+    );
+
+    expect(screen.getByTestId("scheduler-controls-state")).toHaveTextContent("Loading");
+    expect(screen.queryByTestId("scheduler-controls-meta")).not.toBeInTheDocument();
+    expect(screen.getByTestId("scheduler-controls-pause")).toBeDisabled();
+    expect(screen.getByTestId("scheduler-controls-drain")).toBeDisabled();
+    expect(screen.getByRole("status", { name: "Loading scheduler status" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading scheduler backlog" })).toBeInTheDocument();
+  });
+
   it("renders scheduler status and backlog pressure", () => {
     render(
       <SchedulerControlsPanel backlog={schedulerBacklogFixture} status={schedulerStatusFixture} />
@@ -61,6 +81,11 @@ describe("SchedulerControlsPanel", () => {
     fireEvent.click(screen.getByTestId("scheduler-controls-pause-confirm"));
     expect(screen.getByTestId("scheduler-controls-pause-error")).toHaveTextContent(
       "Provide a pause reason."
+    );
+    expect(screen.getByTestId("scheduler-controls-pause-error")).toHaveAttribute("role", "alert");
+    expect(screen.getByTestId("scheduler-controls-pause-reason")).toHaveAttribute(
+      "aria-describedby",
+      "scheduler-controls-pause-error"
     );
 
     fireEvent.change(screen.getByTestId("scheduler-controls-pause-reason"), {

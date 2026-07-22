@@ -20,7 +20,7 @@ import { OsCommandPalette } from "./os-command-palette";
 import { OsSpacesOverview } from "./os-spaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { OsWinLayer } from "./os-win-layer";
-import { DesktopSessionsRail } from "./sessions-rail";
+import { OsSessionsModal } from "./sessions-modal";
 
 /**
  * The desktop shell replaces the AppShell chrome (ADR-001): onboarding gate,
@@ -113,13 +113,11 @@ function DesktopShellBody({
           <OsAppPreloader key={windowId} windowId={windowId} />
         ))}
         <OsWinLayer />
-        <DesktopSessionsRail
-          sessions={attention.sessions}
-          disconnected={attention.sessionsDisconnected}
-        />
         <DesktopDock
           onNewSession={() => model.sessionCreate.openForAgent("")}
           badges={attention.badges}
+          sessionsOpen={overlays.activeOverlay === "sessions"}
+          onToggleSessions={() => overlays.toggleOverlay("sessions")}
         />
       </div>
       {/* Route matches mount here as sync-controllers; they render null. */}
@@ -128,6 +126,13 @@ function DesktopShellBody({
         open={overlays.activeOverlay === "palette"}
         onOpenChange={open => overlays.setOverlayOpen("palette", open)}
         onOpenSpaces={() => overlays.setOverlayOpen("spaces", true)}
+        onToggleSessions={() => overlays.toggleOverlay("sessions")}
+      />
+      <OsSessionsModal
+        open={overlays.activeOverlay === "sessions"}
+        onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
+        sessions={attention.sessions}
+        disconnected={attention.sessionsDisconnected}
       />
       <OsSpacesOverview
         open={overlays.activeOverlay === "spaces"}

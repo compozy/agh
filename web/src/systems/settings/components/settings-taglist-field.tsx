@@ -55,7 +55,7 @@ export function SettingsTaglistField({
               {entry}
               <button
                 aria-label={`Remove ${entry}`}
-                className="inline-flex items-center text-subtle transition-colors duration-base hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none disabled:pointer-events-none"
+                className="inline-flex size-6 items-center justify-center rounded-xxs text-subtle transition-colors duration-base hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none disabled:pointer-events-none"
                 disabled={disabled}
                 onClick={() => removeEntry(entry)}
                 type="button"

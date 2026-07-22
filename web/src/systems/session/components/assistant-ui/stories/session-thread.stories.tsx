@@ -190,6 +190,32 @@ export const Disabled: Story = {
 };
 
 /**
+ * Durable startup state — the persisted session is already addressable while AGH
+ * prepares its runtime, and the composer remains disabled until activation.
+ */
+export const Starting: Story = {
+  args: {
+    ...baseArgs,
+    sessionState: "starting",
+  },
+};
+
+/**
+ * Durable generic startup failure — the diagnostic replaces transcript chrome
+ * without claiming that agent runtime settings are always the recovery path.
+ */
+export const StartupFailure: Story = {
+  args: {
+    ...baseArgs,
+    sessionState: "stopped",
+    failure: {
+      kind: "startup_failure",
+      summary: "The configured model is unavailable for this provider.",
+    },
+  },
+};
+
+/**
  * Mixed streaming turn — reasoning, unregistered and registered tool calls, then later markdown text.
  */
 export const MixedStreaming: Story = {

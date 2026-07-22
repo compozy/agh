@@ -2,7 +2,9 @@
 
 import * as React from "react";
 
+import { toneText, toneTint } from "../../lib/tone";
 import { cn } from "../../lib/utils";
+import { Surface } from "../surface";
 import { Eyebrow } from "./eyebrow";
 import { MonoId } from "./mono-id";
 import { Pill, type PillTone } from "./pill";
@@ -41,7 +43,7 @@ export interface RunCardWarning {
   message: React.ReactNode;
 }
 
-export interface RunCardProps extends Omit<React.ComponentProps<"section">, "title"> {
+export interface RunCardProps extends Omit<React.ComponentProps<"div">, "title"> {
   /** Run lifecycle status; resolves the pill tone + label via the internal dictionary. */
   status: RunCardStatus;
   /** Run identifier rendered as a `<MonoId>`. */
@@ -62,11 +64,6 @@ export interface RunCardProps extends Omit<React.ComponentProps<"section">, "tit
   elapsed?: React.ReactNode;
 }
 
-const WARNING_TONE_CLASS: Record<RunCardWarningTone, string> = {
-  warning: "bg-warning-tint text-warning",
-  danger: "bg-danger-tint text-danger",
-};
-
 const PLACEHOLDER = "—";
 
 function RunCard({
@@ -85,10 +82,10 @@ function RunCard({
   const tone = RUN_STATUS_TONE[status];
   const statusLabel = RUN_STATUS_LABEL[status];
   return (
-    <section
+    <Surface
       data-slot="run-card"
       data-status={status}
-      className={cn("flex flex-col gap-3 rounded-lg bg-canvas-soft px-5 py-4", className)}
+      className={cn("flex flex-col gap-3", className)}
       {...props}
     >
       <header
@@ -114,7 +111,11 @@ function RunCard({
         <div
           data-slot="run-card-warning"
           data-tone={warning.tone}
-          className={cn("rounded px-3 py-2 text-form-input", WARNING_TONE_CLASS[warning.tone])}
+          className={cn(
+            "rounded-md px-3 py-2 text-form-input",
+            toneTint(warning.tone),
+            toneText(warning.tone)
+          )}
           role="status"
         >
           {warning.message}
@@ -134,7 +135,7 @@ function RunCard({
         />
         <RunCardStat label="ELAPSED" value={elapsed ?? PLACEHOLDER} slot="elapsed" />
       </div>
-    </section>
+    </Surface>
   );
 }
 

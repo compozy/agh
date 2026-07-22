@@ -36,9 +36,6 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		return sessionStartSpec{}, fmt.Errorf("session: resolve agent name: %w", err)
 	}
 	sessionType := normalizeSessionType(opts.Type)
-	if aghconfig.IsInternalManagedAgentName(agentName) {
-		sessionType = SessionTypeSystem
-	}
 	sessionID, err := m.createSessionID(opts.DesiredSessionID)
 	if err != nil {
 		return sessionStartSpec{}, err

@@ -17,14 +17,21 @@ export interface DesktopDockModel {
   handleSelect: (id: string) => void;
 }
 
+export interface UseDesktopDockOptions {
+  sessionsOpen: boolean;
+  onToggleSessions: () => void;
+}
+
 /**
  * Dock view-model: registry groups with running/minimized/badge state, the
  * open-or-minimize activation semantics (tab-bar taps never minimize —
  * os-v2.js:462), and the magnification gates the prototype applies.
  */
-export function useDesktopDock(badges: OsAttentionBadges): DesktopDockModel {
-  const { coordinator, store } = useOsShell();
-  const railOpen = useDesktop(state => state.railOpen);
+export function useDesktopDock(
+  badges: OsAttentionBadges,
+  { sessionsOpen, onToggleSessions }: UseDesktopDockOptions
+): DesktopDockModel {
+  const { coordinator } = useOsShell();
   const presentation = useDesktop(state => state.presentation);
   // Magnification composes every gate the prototype applies (os-v2.js): the
   // appearance toggle here, the system reduced-motion preference inside
@@ -52,7 +59,7 @@ export function useDesktopDock(badges: OsAttentionBadges): DesktopDockModel {
       id: sessionApp.id,
       name: "Sessions",
       icon: DockIcons.sessions,
-      running: railOpen,
+      running: sessionsOpen,
       badge: dockBadgeFor(sessionApp, badges),
     },
   ];
@@ -75,7 +82,7 @@ export function useDesktopDock(badges: OsAttentionBadges): DesktopDockModel {
   const handleSelect = (id: string) => {
     const appId = id as OsAppId;
     if (appId === "session") {
-      store.getState().toggleRail();
+      onToggleSessions();
       return;
     }
     // Tab-bar semantics (compact): tap = switch to, never minimize.

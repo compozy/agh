@@ -114,6 +114,10 @@ type Manager struct {
 	compactions        map[string]*sessionCompactionState
 	compactionWG       sync.WaitGroup
 	compactionClosing  bool
+	startMu            sync.Mutex
+	startRuns          map[string]*sessionStartRun
+	startWG            sync.WaitGroup
+	startClosing       bool
 
 	syntheticMu           sync.Mutex
 	syntheticQueues       map[string][]queuedSyntheticPrompt

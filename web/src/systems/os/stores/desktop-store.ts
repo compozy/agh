@@ -41,7 +41,6 @@ export function createDesktopStore(): DesktopStoreApi {
   return createStore<OsDesktopRuntimeStore & DesktopInternals>()((set, get) => ({
     windows: {},
     focusedId: null,
-    railOpen: false,
     railCollapsedAgentIds: [],
     wallpaper: "ember",
     reduceMotion: false,
@@ -190,18 +189,6 @@ export function createDesktopStore(): DesktopStoreApi {
       });
     },
 
-    toggleRail: () => {
-      set(state => ({ railOpen: !state.railOpen }));
-    },
-
-    openRail: () => {
-      if (!get().railOpen) set({ railOpen: true });
-    },
-
-    closeRail: () => {
-      if (get().railOpen) set({ railOpen: false });
-    },
-
     setWallpaper: wallpaper => {
       if (get().wallpaper !== wallpaper) set({ wallpaper });
     },
@@ -292,7 +279,6 @@ export function createDesktopStore(): DesktopStoreApi {
         set({
           settledSeqs,
           focusedId,
-          railOpen: desktop.railOpen,
           railCollapsedAgentIds: desktop.railCollapsedAgentIds,
           wallpaper: desktop.wallpaper,
           reduceMotion: desktop.reduceMotion,
@@ -360,7 +346,6 @@ export function createDesktopStore(): DesktopStoreApi {
       set({
         windows,
         focusedId,
-        railOpen: desktop?.railOpen ?? state.railOpen,
         railCollapsedAgentIds: desktop?.railCollapsedAgentIds ?? state.railCollapsedAgentIds,
         wallpaper: desktop?.wallpaper ?? state.wallpaper,
         reduceMotion: desktop?.reduceMotion ?? state.reduceMotion,
@@ -478,7 +463,6 @@ export function createDesktopStore(): DesktopStoreApi {
       set({
         windows: {},
         focusedId: null,
-        railOpen: false,
         railCollapsedAgentIds: [],
         wallpaper: "ember",
         reduceMotion: false,

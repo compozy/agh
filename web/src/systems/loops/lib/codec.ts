@@ -1,6 +1,6 @@
 import type { Edge as FlowEdge, Node as FlowNode } from "@xyflow/react";
 
-import type { LoopDefinition } from "../types";
+import type { LoopDefinition, LoopDefinitionGraph } from "../types";
 import { toLoopNodeClass, type LoopNodeClass } from "./loop-graph";
 
 /**
@@ -17,7 +17,7 @@ import { toLoopNodeClass, type LoopNodeClass } from "./loop-graph";
  */
 
 /** The opaque per-node JSON exactly as it appears in the canonical graph. */
-export type RawLoopNode = Record<string, unknown> & { id: string };
+export type RawLoopNode = Record<string, unknown> & { id: string; class: string; kind: string };
 /** The opaque per-edge JSON (`{ from, to, ... }`, may carry `sourceHandle`/`condition`). */
 export type RawLoopEdge = Record<string, unknown> & { from: string; to: string };
 
@@ -51,14 +51,29 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function isRawLoopNode(value: unknown): value is RawLoopNode {
+  const record = asRecord(value);
+  return Boolean(
+    record &&
+    asString(record.id) !== "" &&
+    asString(record.class) !== "" &&
+    asString(record.kind) !== ""
+  );
+}
+
+function isRawLoopEdge(value: unknown): value is RawLoopEdge {
+  const record = asRecord(value);
+  return Boolean(record && asString(record.from) !== "" && asString(record.to) !== "");
+}
+
 function rawGraph(definition: Pick<LoopDefinition, "graph">): {
   nodes: unknown[];
   edges: unknown[];
 } {
-  const graph = definition.graph as unknown as { nodes?: unknown; edges?: unknown } | undefined;
+  const graph = asRecord(definition.graph);
   return {
-    nodes: Array.isArray(graph?.nodes) ? graph!.nodes : [],
-    edges: Array.isArray(graph?.edges) ? graph!.edges : [],
+    nodes: Array.isArray(graph?.nodes) ? graph.nodes : [],
+    edges: Array.isArray(graph?.edges) ? graph.edges : [],
   };
 }
 
@@ -76,46 +91,47 @@ export function definitionToGraph(definition: Pick<LoopDefinition, "graph">): Ed
   const { nodes, edges } = rawGraph(definition);
   const editorNodes: EditorNode[] = [];
   for (const candidate of nodes) {
-    const record = asRecord(candidate);
-    if (!record) continue;
+    if (!isRawLoopNode(candidate)) continue;
     // A node without a non-empty string id (or an edge missing from/to) cannot be placed
     // on the canvas or referenced, and is unreachable for a valid agh.loop/v1 document —
     // ADR-020 enforces snake_case string ids, and the linter rejects anything else. Such
     // an element is intentionally dropped here; the definition it came from is malformed
     // and would fail publish, so the round-trip contract holds for every valid input.
-    const id = asString(record.id);
-    if (id === "") continue;
-    const raw = record as RawLoopNode;
+    const raw = candidate;
     editorNodes.push({
-      id,
+      id: raw.id,
       type: "loopNode",
       position: { x: 0, y: 0 },
       data: {
         raw,
-        nodeClass: toLoopNodeClass(record.class),
-        kind: asString(record.kind),
+        nodeClass: toLoopNodeClass(raw.class),
+        kind: raw.kind,
         hasError: false,
       },
     });
   }
   const editorEdges: EditorEdge[] = [];
   edges.forEach((candidate, index) => {
-    const record = asRecord(candidate);
-    if (!record) return;
-    const from = asString(record.from);
-    const to = asString(record.to);
-    if (from === "" || to === "") return;
-    const raw = record as RawLoopEdge;
-    const handle = asString(record.sourceHandle);
+    if (!isRawLoopEdge(candidate)) return;
+    const raw = candidate;
+    const handle = asString(raw.sourceHandle);
     editorEdges.push({
-      id: editorEdgeId(from, to, index),
-      source: from,
-      target: to,
+      id: editorEdgeId(raw.from, raw.to, index),
+      source: raw.from,
+      target: raw.to,
       ...(handle === "" ? {} : { sourceHandle: handle }),
       data: { raw },
     });
   });
   return { nodes: editorNodes, edges: editorEdges };
+}
+
+function definitionNode(raw: RawLoopNode): LoopDefinitionGraph["nodes"][number] {
+  const nodeClass = toLoopNodeClass(raw.class);
+  if (!nodeClass) {
+    throw new Error(`Loop node ${raw.id} has unsupported class ${raw.class}`);
+  }
+  return { ...raw, class: nodeClass, id: raw.id, kind: raw.kind };
 }
 
 /** Rebuilds a raw edge for a connection the user drew that has no original JSON. */
@@ -140,11 +156,15 @@ export function graphToDefinition(
   nodes: EditorNode[],
   edges: EditorEdge[]
 ): LoopDefinition {
-  const rawNodes = nodes.map(node => node.data.raw);
+  const rawNodes = nodes.map(node => definitionNode(node.data.raw));
   const rawEdges = edges.map(edge => edge.data?.raw ?? synthesizeEdge(edge));
-  const graph = (base.graph as unknown as Record<string, unknown>) ?? {};
+  const graph: LoopDefinitionGraph = {
+    ...base.graph,
+    nodes: rawNodes,
+    edges: rawEdges,
+  };
   return {
     ...base,
-    graph: { ...graph, nodes: rawNodes, edges: rawEdges } as unknown as LoopDefinition["graph"],
+    graph,
   };
 }

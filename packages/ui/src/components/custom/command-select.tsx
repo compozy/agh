@@ -60,7 +60,7 @@ function CommandSelectTrigger({
       data-slot="command-select-trigger"
       type={type}
       className={cn(
-        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-line bg-elevated px-3 py-2 text-small-body text-fg transition-colors outline-none hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:border-line-strong focus-visible:shadow-focus-ring",
+        "flex h-input w-full items-center justify-between gap-2 rounded-md border border-line bg-elevated px-3 py-2 text-small-body text-fg transition-colors outline-none hover:bg-btn-default-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:border-line-strong focus-visible:shadow-focus-ring",
         className
       )}
       {...props}

@@ -1,12 +1,6 @@
 import {
   Avatar,
   AvatarFallback,
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
   Button,
   ChatMessageBubble,
   CodeBlock,
@@ -175,17 +169,20 @@ export function LayoutSection() {
             }
             detail={
               <div className="flex flex-1 flex-col gap-4 p-4">
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbLink href="#">Skills</BreadcrumbLink>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage>repo-refactor</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
+                <nav
+                  aria-label="Breadcrumb"
+                  className="flex items-center gap-1.5 text-small-body text-muted"
+                >
+                  <a href="#" className="transition-colors duration-base ease-out hover:text-fg">
+                    Skills
+                  </a>
+                  <span aria-hidden="true" className="text-faint">
+                    /
+                  </span>
+                  <span aria-current="page" className="text-fg">
+                    repo-refactor
+                  </span>
+                </nav>
                 <Table>
                   <TableHeader>
                     <TableRow>

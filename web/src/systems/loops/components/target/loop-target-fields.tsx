@@ -150,7 +150,7 @@ export function LoopTargetFields({
           ))}
         </div>
       ) : selected ? (
-        <p className="text-[11.5px] text-subtle">This Loop declares no inputs.</p>
+        <p className="text-form-hint text-subtle">This Loop declares no inputs.</p>
       ) : null}
 
       {selected && showMapping ? (

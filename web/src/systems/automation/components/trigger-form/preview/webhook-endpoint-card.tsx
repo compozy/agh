@@ -1,7 +1,4 @@
-import { useState } from "react";
-import { Check, Copy } from "lucide-react";
-
-import { Button, cn } from "@agh/ui";
+import { cn, CopyIconButton } from "@agh/ui";
 
 import type { CurlLine } from "../../../lib/trigger-preview";
 import { PreviewCard } from "./preview-card";
@@ -13,18 +10,6 @@ interface WebhookEndpointCardProps {
 
 /** Real webhook endpoint URL + signed curl example, with copy-to-clipboard. */
 export function WebhookEndpointCard({ url, curl }: WebhookEndpointCardProps) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    void navigator.clipboard
-      ?.writeText(url)
-      .then(() => {
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1200);
-      })
-      .catch(() => undefined);
-  };
-
   return (
     <PreviewCard label="Webhook endpoint">
       <div className="mb-2.5 flex items-center gap-2 rounded border border-line-soft bg-rail px-2.5 py-2">
@@ -32,19 +17,7 @@ export function WebhookEndpointCard({ url, curl }: WebhookEndpointCardProps) {
           POST
         </span>
         <span className="flex-1 truncate font-mono text-form-hint text-fg">{url}</span>
-        <Button
-          aria-label="Copy webhook URL"
-          onClick={handleCopy}
-          size="icon-xs"
-          type="button"
-          variant="ghost"
-        >
-          {copied ? (
-            <Check aria-hidden="true" className="text-success" />
-          ) : (
-            <Copy aria-hidden="true" />
-          )}
-        </Button>
+        <CopyIconButton copyLabel="Copy webhook URL" copiedLabel="Webhook URL copied" value={url} />
       </div>
       <pre className="overflow-x-auto rounded border border-line-soft bg-rail p-3 font-mono text-form-hint leading-relaxed whitespace-pre text-fg">
         {curl.map(line => (

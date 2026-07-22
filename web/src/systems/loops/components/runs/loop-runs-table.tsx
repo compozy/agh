@@ -24,7 +24,7 @@ export function LoopRunsTable({ title, runs, testId }: LoopRunsTableProps) {
     <section data-testid={testId}>
       <div className="flex items-center gap-2 px-0.5 pb-2 pt-1">
         <Eyebrow className="text-subtle">{title}</Eyebrow>
-        <span className="font-mono text-[11px] tabular-nums text-faint">{runs.length}</span>
+        <span className="font-mono text-mono-id tabular-nums text-faint">{runs.length}</span>
       </div>
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
         <div

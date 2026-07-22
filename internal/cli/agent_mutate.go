@@ -215,7 +215,7 @@ func agentDeleteBundle(result contract.DeleteAgentResponse) outputBundle {
 
 func normalizePublicAgentName(name string) (string, error) {
 	name = aghconfig.NormalizeAgentName(name)
-	if err := aghconfig.ValidatePublicAgentName(name); err != nil {
+	if err := aghconfig.ValidateAgentName(name); err != nil {
 		return "", err
 	}
 	return name, nil

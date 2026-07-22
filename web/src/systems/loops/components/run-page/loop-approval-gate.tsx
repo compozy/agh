@@ -44,14 +44,14 @@ export function LoopApprovalGate({ run, request, isPending, onDecision }: LoopAp
         <MonoTag className="rounded-xs border border-info/30 bg-info-tint px-1.5 py-0.5 text-info">
           needs-approval
         </MonoTag>
-        <h2 className="text-[14px] font-medium text-fg-strong">{title}</h2>
+        <h2 className="text-card-title font-medium text-fg-strong">{title}</h2>
       </div>
       {request?.prompt ? (
-        <p className="mt-2 max-w-[68ch] text-[12.5px] leading-relaxed text-muted">
+        <p className="mt-2 max-w-[68ch] text-small-body leading-relaxed text-muted">
           {request.prompt}
         </p>
       ) : (
-        <p className="mt-2 max-w-[68ch] text-[12.5px] leading-relaxed text-muted">
+        <p className="mt-2 max-w-[68ch] text-small-body leading-relaxed text-muted">
           This run is paused at a human gate. It stays a live{" "}
           <b className="text-info">needs-approval</b> state — not a finish — and resumes the moment
           you decide.
@@ -66,7 +66,7 @@ export function LoopApprovalGate({ run, request, isPending, onDecision }: LoopAp
               data-testid="loop-approval-fact"
             >
               <Eyebrow className="text-faint">{fact.label}</Eyebrow>
-              <span className="font-mono text-[11.5px] text-fg">{fact.value}</span>
+              <span className="font-mono text-mono-id text-fg">{fact.value}</span>
             </div>
           ))}
         </div>

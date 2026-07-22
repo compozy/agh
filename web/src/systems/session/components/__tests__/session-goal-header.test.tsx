@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SessionComposerPrefillProvider } from "@/components/assistant-ui/session-composer-prefill-context";
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import type { SessionGoalCommandResult, SessionGoalSnapshot } from "@/systems/session/types";
 
@@ -117,9 +116,11 @@ function renderHeader(setComposerText = vi.fn()) {
   });
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <SessionComposerPrefillProvider setComposerText={setComposerText}>
-        <SessionGoalHeaderContainer sessionId={SESSION_ID} workspaceId={WORKSPACE_ID} />
-      </SessionComposerPrefillProvider>
+      <SessionGoalHeaderContainer
+        onPrefillComposer={setComposerText}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+      />
     </QueryClientProvider>
   );
   return { ...result, queryClient, setComposerText };

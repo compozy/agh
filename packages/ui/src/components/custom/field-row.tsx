@@ -29,7 +29,7 @@ function FieldRow({
       data-layout={layout}
       className={cn(
         layout === "two-column"
-          ? "grid grid-cols-[minmax(0,180px)_1fr] items-start gap-x-4 gap-y-1"
+          ? "grid grid-cols-[minmax(0,var(--width-form-label-col))_1fr] items-start gap-x-4 gap-y-1"
           : "flex min-w-0 flex-col gap-1.5",
         className
       )}

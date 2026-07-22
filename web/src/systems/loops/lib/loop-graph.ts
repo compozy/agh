@@ -92,9 +92,9 @@ function projectEdge(raw: unknown): LoopGraphEdge | null {
  * empty rows.
  */
 export function readLoopGraph(definition: Pick<LoopDefinition, "graph">): LoopGraph {
-  const graph = definition.graph as unknown as { nodes?: unknown; edges?: unknown } | undefined;
-  const rawNodes = Array.isArray(graph?.nodes) ? graph?.nodes : [];
-  const rawEdges = Array.isArray(graph?.edges) ? graph?.edges : [];
+  const graph = asRecord(definition.graph);
+  const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const rawEdges = Array.isArray(graph?.edges) ? graph.edges : [];
   return {
     nodes: rawNodes.map(projectNode).filter((node): node is LoopGraphNode => node !== null),
     edges: rawEdges.map(projectEdge).filter((edge): edge is LoopGraphEdge => edge !== null),

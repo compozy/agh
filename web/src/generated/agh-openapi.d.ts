@@ -10738,6 +10738,17 @@ export interface operations {
                 message: string;
                 path: string;
               }[];
+              effective_runtime?: {
+                model?: string;
+                provider: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                sources: {
+                  model?: string;
+                  provider: string;
+                  reasoning_effort?: string;
+                };
+              } | null;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -10828,7 +10839,7 @@ export interface operations {
             /** @enum {string} */
             permissions?: "deny-all" | "approve-reads" | "approve-all";
             prompt: string;
-            provider: string;
+            provider?: string;
             /** @enum {string} */
             reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
             skills?: {
@@ -10861,6 +10872,17 @@ export interface operations {
                 message: string;
                 path: string;
               }[];
+              effective_runtime?: {
+                model?: string;
+                provider: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                sources: {
+                  model?: string;
+                  provider: string;
+                  reasoning_effort?: string;
+                };
+              } | null;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -11098,6 +11120,24 @@ export interface operations {
                   message: string;
                   path: string;
                 }[];
+                effective_runtime?: {
+                  model?: string;
+                  provider: string;
+                  /** @enum {string} */
+                  reasoning_effort?:
+                    | "none"
+                    | "minimal"
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "xhigh"
+                    | "max";
+                  sources: {
+                    model?: string;
+                    provider: string;
+                    reasoning_effort?: string;
+                  };
+                } | null;
                 mcp_servers?: {
                   args?: string[];
                   auth?: {
@@ -11323,6 +11363,17 @@ export interface operations {
                 message: string;
                 path: string;
               }[];
+              effective_runtime?: {
+                model?: string;
+                provider: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                sources: {
+                  model?: string;
+                  provider: string;
+                  reasoning_effort?: string;
+                };
+              } | null;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -11441,7 +11492,7 @@ export interface operations {
             /** @enum {string} */
             permissions?: "deny-all" | "approve-reads" | "approve-all";
             prompt: string;
-            provider: string;
+            provider?: string;
             /** @enum {string} */
             reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
             skills?: {
@@ -11473,6 +11524,17 @@ export interface operations {
                 message: string;
                 path: string;
               }[];
+              effective_runtime?: {
+                model?: string;
+                provider: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                sources: {
+                  model?: string;
+                  provider: string;
+                  reasoning_effort?: string;
+                };
+              } | null;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -11856,6 +11918,17 @@ export interface operations {
                 message: string;
                 path: string;
               }[];
+              effective_runtime?: {
+                model?: string;
+                provider: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                sources: {
+                  model?: string;
+                  provider: string;
+                  reasoning_effort?: string;
+                };
+              } | null;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -74887,6 +74960,17 @@ export interface operations {
                 message: string;
                 path: string;
               }[];
+              effective_runtime?: {
+                model?: string;
+                provider: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                sources: {
+                  model?: string;
+                  provider: string;
+                  reasoning_effort?: string;
+                };
+              } | null;
               mcp_servers?: {
                 args?: string[];
                 auth?: {

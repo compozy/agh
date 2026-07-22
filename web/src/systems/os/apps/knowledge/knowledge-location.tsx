@@ -13,7 +13,8 @@ import {
   Input,
   ListingToolbar,
   PillGroup,
-  Spinner,
+  Skeleton,
+  SkeletonRows,
   SplitPane,
   useTopbarSlot,
 } from "@agh/ui";
@@ -121,11 +122,17 @@ export function KnowledgeLocation() {
   if (page.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        <div
-          className="flex min-h-0 flex-1 items-center justify-center"
-          data-testid="knowledge-loading"
-        >
-          <Spinner aria-hidden="true" className="size-5 text-subtle" />
+        <div className="grid min-h-0 flex-1 grid-cols-[18rem_1fr]" data-testid="knowledge-loading">
+          <SkeletonRows
+            className="border-r border-line p-4"
+            count={6}
+            rowClassName="border-b border-line-soft py-3"
+          />
+          <div className="space-y-4 p-5">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-28 w-full" />
+          </div>
         </div>
       </div>
     );

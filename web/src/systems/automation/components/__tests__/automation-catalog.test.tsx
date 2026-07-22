@@ -163,4 +163,11 @@ describe("AutomationCatalogShell", () => {
     expect(empty.className).toContain("min-h-0");
     expect(empty.querySelector('[data-slot="empty"]')).toHaveAttribute("data-fill", "true");
   });
+
+  it("Should preserve the selected card geometry while the catalog is loading", () => {
+    renderShell({ isLoading: true, itemCount: 0, view: "cards" });
+
+    expect(screen.getByRole("status", { name: "Loading jobs as cards" })).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Loading jobs as rows" })).not.toBeInTheDocument();
+  });
 });

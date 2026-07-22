@@ -5,60 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
-
-	"path/filepath"
-
 	"strings"
 	"time"
 
 	envpkg "github.com/compozy/agh/internal/sandbox"
 	"github.com/compozy/agh/internal/store"
 )
-
-func (m *Manager) sandboxSyncFileCount(session *Session, direction envpkg.SyncDirection) int {
-	if direction != envpkg.SyncDirectionToRuntime || session == nil {
-		return 0
-	}
-	info := session.Info()
-	if info == nil {
-		return 0
-	}
-	root := strings.TrimSpace(info.Workspace)
-	if root == "" {
-		return 0
-	}
-	count, err := countRegularFiles(root)
-	if err != nil {
-		m.sessionLogger(session).Warn("session: count sandbox sync files failed", "root", root, "error", err)
-		return 0
-	}
-	return count
-}
-
-func countRegularFiles(root string) (int, error) {
-	count := 0
-	err := filepath.WalkDir(root, func(_ string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry == nil || entry.IsDir() {
-			return nil
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		if info.Mode().IsRegular() {
-			count++
-		}
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
-}
 
 func syncResultErrors(result envpkg.SyncResult, err error) []string {
 	if err == nil && len(result.Errors) == 0 {

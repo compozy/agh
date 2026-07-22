@@ -3,14 +3,13 @@ import { toast } from "sonner";
 
 import { useOnboardingDraftStore } from "../stores/use-onboarding-draft-store";
 import { useCompleteOnboarding } from "./use-complete-onboarding";
-import { useOnboardingChat, type OnboardingChatApi } from "./use-onboarding-chat";
 import {
   useOnboardingDefaultModel,
   type OnboardingDefaultModelApi,
 } from "./use-onboarding-default-model";
 import { useOnboardingWorkspaces, type OnboardingWorkspacesApi } from "./use-onboarding-workspaces";
 
-export const ONBOARDING_STEP_COUNT = 3;
+export const ONBOARDING_STEP_COUNT = 2;
 
 export interface OnboardingStepMeta {
   eyebrow: string;
@@ -21,22 +20,16 @@ export interface OnboardingStepMeta {
 
 const STEP_META: Record<number, OnboardingStepMeta> = {
   1: {
-    eyebrow: "Step 1 of 3",
+    eyebrow: "Step 1 of 2",
     title: "Choose your default model",
     lead: "This is the provider and model new agents use unless you override it per agent. AGH reaches it through your chosen credentials.",
     hint: "Default model",
   },
   2: {
-    eyebrow: "Step 2 of 3",
+    eyebrow: "Step 2 of 2",
     title: "Add your workspaces",
     lead: "Workspaces are the folders AGH operates inside. Add at least one — every agent session is scoped to a workspace.",
     hint: "Workspaces",
-  },
-  3: {
-    eyebrow: "Step 3 of 3",
-    title: "Meet your onboarding agent",
-    lead: "Your onboarding agent finishes setup in a short chat — it can create the channels and agents you ask for. You can finish without it. After setup, open Network anytime to explore channels; visiting Network does not change settings.",
-    hint: "Onboarding chat",
   },
 };
 
@@ -46,7 +39,6 @@ export interface OnboardingWizardApi {
   meta: OnboardingStepMeta;
   defaultModel: OnboardingDefaultModelApi;
   workspaces: OnboardingWorkspacesApi;
-  chat: OnboardingChatApi;
   canContinue: boolean;
   isLastStep: boolean;
   isBusy: boolean;
@@ -64,7 +56,6 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
 
   const defaultModel = useOnboardingDefaultModel();
   const workspaces = useOnboardingWorkspaces();
-  const chat = useOnboardingChat();
   const complete = useCompleteOnboarding();
   const [commitError, setCommitError] = useState<string | null>(null);
 
@@ -111,11 +102,9 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
       return;
     }
     if (step === 2) {
-      setStep(3);
-      void chat.ensureSession();
+      await finish();
       return;
     }
-    await finish();
   };
 
   return {
@@ -124,7 +113,6 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     meta: STEP_META[step] ?? STEP_META[1],
     defaultModel,
     workspaces,
-    chat,
     canContinue,
     isLastStep: step === ONBOARDING_STEP_COUNT,
     isBusy: defaultModel.isCommitting || complete.isPending,

@@ -1,6 +1,7 @@
 // Suite: useSessionLiveTail
-// Invariants: the infinite transcript cache owns cursor/fences and preserves loaded history;
-// Goal snapshot frames invalidate only the exact Goal cache without mutating transcript pages.
+// Invariants: the infinite transcript cache owns cursor/fences, preserves loaded history, and
+// retains readonly array identity while the exact message sequence is unchanged; Goal snapshot
+// frames invalidate only the exact Goal cache without mutating transcript pages.
 // Boundary IN: REST transcript pages, transcript SSE frames, Goal frames, and terminal frames.
 // Boundary OUT: real HTTP transport and final thread visuals.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -766,10 +767,14 @@ describe("useSessionLiveTail", () => {
     vi.mocked(fetchSessionTranscript).mockResolvedValue(
       transcriptResponse([sessionTranscriptFixture[0]!, sessionTranscriptFixture[1]!])
     );
-    const { result, sources } = renderLiveTail();
+    const { result, rerender, sources } = renderLiveTail();
     await waitFor(() => expect(result.current.messages).toHaveLength(2));
+    const unchanged = result.current.messages;
     const first = result.current.messages[0];
     const second = result.current.messages[1];
+
+    rerender();
+    expect(result.current.messages).toBe(unchanged);
 
     act(() => {
       sources[0]?.emit(

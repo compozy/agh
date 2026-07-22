@@ -18,7 +18,7 @@ interface LoopBudgetMiniBarProps {
 export function LoopBudgetMiniBar({ bar }: LoopBudgetMiniBarProps) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5" data-testid="loop-budget-bar">
-      <div className="flex justify-between gap-2 font-mono text-[10px] text-subtle">
+      <div className="flex justify-between gap-2 font-mono text-mono-id text-subtle">
         <span>{bar.tokensLabel}</span>
         {bar.percent !== null ? (
           <span>{bar.percent}%</span>
@@ -26,7 +26,7 @@ export function LoopBudgetMiniBar({ bar }: LoopBudgetMiniBarProps) {
           <span className="text-faint">no cap</span>
         )}
       </div>
-      <div className="h-[3px] overflow-hidden rounded-full bg-white/[0.06]">
+      <div className="h-0.75 overflow-hidden rounded-full bg-white/[0.06]">
         {bar.hasCap && bar.percent !== null ? (
           <div
             className={`h-full rounded-full ${FILL_CLASS[bar.tone]}`}

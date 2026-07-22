@@ -170,7 +170,7 @@ func (m *Manager) handleProcessExit(ctx context.Context, session *Session, waitE
 func (m *Manager) resolveStartMCPServers(
 	ctx context.Context,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
-	agentName string,
+	agent aghconfig.AgentDef,
 	base []aghconfig.MCPServer,
 ) ([]aghconfig.MCPServer, error) {
 	switch {
@@ -182,8 +182,8 @@ func (m *Manager) resolveStartMCPServers(
 
 	var activeSkills []*skillspkg.Skill
 	var err error
-	if strings.TrimSpace(agentName) != "" {
-		activeSkills, err = m.skillRegistry.ForAgent(ctx, resolvedWorkspace, agentName)
+	if strings.TrimSpace(agent.Name) != "" {
+		activeSkills, err = m.skillRegistry.ForAgentDef(ctx, resolvedWorkspace, agent)
 	} else {
 		activeSkills, err = m.skillRegistry.ForWorkspace(ctx, resolvedWorkspace)
 	}
@@ -338,7 +338,12 @@ func sessionStoppedTranscriptMarker(event acp.AgentEvent) (string, string, map[s
 	}
 }
 
-func (m *Manager) persistFailedStart(ctx context.Context, session *Session, startErr error) error {
+func (m *Manager) persistFailedStart(
+	ctx context.Context,
+	session *Session,
+	startErr error,
+	notify bool,
+) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -362,7 +367,9 @@ func (m *Manager) persistFailedStart(ctx context.Context, session *Session, star
 	errs = appendLifecycleErr(errs, bundleErr)
 	errs = appendLifecycleErr(errs, m.persistSessionLifecycleState(ctx, session, true))
 	errs = appendLifecycleErr(errs, m.recordFailedStartEvents(ctx, session, failure, summary, stopReason))
-	m.notifyFailedStart(ctx, session)
+	if notify {
+		m.notifyFailedStart(ctx, session)
+	}
 	return errors.Join(errs...)
 }
 

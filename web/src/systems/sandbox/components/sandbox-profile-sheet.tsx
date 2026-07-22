@@ -66,7 +66,7 @@ export function SandboxProfileSheet({
               className="flex items-center gap-2.5 border-t border-line-soft px-5 py-3"
               data-testid="sandbox-profile-sheet-foot"
             >
-              <span className="min-w-0 truncate font-mono text-[10px] text-faint">
+              <span className="min-w-0 truncate font-mono text-mono-id text-faint">
                 agh config get sandboxes.{entry.name}.backend
               </span>
             </footer>
@@ -91,32 +91,34 @@ function SheetHead({ entry, onClose }: { entry: SettingsSandboxEntry; onClose: (
         <Eyebrow className="text-subtle">Sandbox profile</Eyebrow>
         <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-2">
           <h2
-            className="mt-0.5 text-[15px] font-medium tracking-[-0.014em] text-fg-strong"
+            className="mt-0.5 text-item-title font-medium tracking-tight text-fg-strong"
             data-testid="sandbox-profile-sheet-title"
             id="sandbox-profile-sheet-title"
           >
-            <span className="font-mono text-[14px]">{entry.name}</span>
+            <span className="font-mono">{entry.name}</span>
           </h2>
           <Pill mono size="sm" tone={sandboxBackendTone(backend)}>
             {backend}
           </Pill>
         </div>
         <p
-          className="mt-1.5 truncate text-[11px] text-muted"
+          className="mt-1.5 truncate text-form-hint text-muted"
           data-testid="sandbox-profile-sheet-sub"
         >
           {sandboxBackendLabel(backend)}
         </p>
       </div>
-      <button
+      <Button
         aria-label="Close"
-        className="inline-grid size-[26px] shrink-0 place-items-center rounded-sm text-muted transition-colors hover:bg-row-hover hover:text-fg-strong"
+        className="shrink-0 text-muted hover:bg-row-hover hover:text-fg-strong"
         data-testid="sandbox-profile-sheet-close"
         onClick={onClose}
+        size="icon-sm"
         type="button"
+        variant="ghost"
       >
         <X aria-hidden="true" className="size-3.5" />
-      </button>
+      </Button>
     </header>
   );
 }
@@ -131,15 +133,17 @@ function SheetTiles({ entry }: { entry: SettingsSandboxEntry }) {
         </Pill>
       </Tile>
       <Tile label="Sync mode">
-        <span className="font-mono text-[11px] text-muted">{sandboxOrDash(profile.sync_mode)}</span>
+        <span className="font-mono text-mono-id text-muted">
+          {sandboxOrDash(profile.sync_mode)}
+        </span>
       </Tile>
       <Tile label="Persistence">
-        <span className="font-mono text-[11px] text-muted">
+        <span className="font-mono text-mono-id text-muted">
           {sandboxOrDash(profile.persistence)}
         </span>
       </Tile>
       <Tile label="Runtime root">
-        <span className="font-mono text-[11px] text-muted">
+        <span className="font-mono text-mono-id text-muted">
           {sandboxOrDash(profile.runtime_root)}
         </span>
       </Tile>
@@ -207,32 +211,32 @@ function DaytonaSection({ entry }: { entry: SettingsSandboxEntry }) {
       <div className="overflow-hidden rounded-md border border-line-soft">
         {daytona.image ? (
           <KvRow label="Image">
-            <code className="font-mono text-[11px] text-muted">{daytona.image}</code>
+            <code className="font-mono text-mono-id text-muted">{daytona.image}</code>
           </KvRow>
         ) : null}
         {daytona.target ? (
           <KvRow label="Target">
-            <code className="font-mono text-[11px] text-muted">{daytona.target}</code>
+            <code className="font-mono text-mono-id text-muted">{daytona.target}</code>
           </KvRow>
         ) : null}
         {daytona.auto_stop ? (
           <KvRow label="Auto stop">
-            <code className="font-mono text-[11px] text-muted">{daytona.auto_stop}</code>
+            <code className="font-mono text-mono-id text-muted">{daytona.auto_stop}</code>
           </KvRow>
         ) : null}
         {daytona.auto_archive ? (
           <KvRow label="Auto archive">
-            <code className="font-mono text-[11px] text-muted">{daytona.auto_archive}</code>
+            <code className="font-mono text-mono-id text-muted">{daytona.auto_archive}</code>
           </KvRow>
         ) : null}
         {daytona.class ? (
           <KvRow label="Class">
-            <code className="font-mono text-[11px] text-muted">{daytona.class}</code>
+            <code className="font-mono text-mono-id text-muted">{daytona.class}</code>
           </KvRow>
         ) : null}
         {daytona.snapshot ? (
           <KvRow label="Snapshot">
-            <code className="font-mono text-[11px] text-muted">{daytona.snapshot}</code>
+            <code className="font-mono text-mono-id text-muted">{daytona.snapshot}</code>
           </KvRow>
         ) : null}
       </div>
@@ -263,7 +267,7 @@ function EnvSection({ entry }: { entry: SettingsSandboxEntry }) {
         ) : null}
       </div>
       {secretKeys.length > 0 ? (
-        <p className="mt-1.5 text-[11.5px] leading-normal text-subtle">
+        <p className="mt-1.5 text-form-hint leading-normal text-subtle">
           Secret bindings are references and never return in plaintext.
         </p>
       ) : null}
@@ -277,7 +281,7 @@ function UsageSection({ entry }: { entry: SettingsSandboxEntry }) {
       <Eyebrow className="mb-2.5 text-subtle">Usage</Eyebrow>
       <div className="overflow-hidden rounded-md border border-line-soft">
         <KvRow label="Workspaces">
-          <span className="text-[12px] text-muted">
+          <span className="text-form-label text-muted">
             {sandboxUsageLabel(entry.workspace_usage_count)} reference this profile
           </span>
         </KvRow>
@@ -288,7 +292,7 @@ function UsageSection({ entry }: { entry: SettingsSandboxEntry }) {
               shadowed={entry.source_metadata.shadowed_sources ?? []}
               source={entry.source_metadata.effective_source}
             />
-            <span className="font-mono text-[10px] text-faint">[sandboxes.{entry.name}]</span>
+            <span className="font-mono text-mono-id text-faint">[sandboxes.{entry.name}]</span>
           </div>
         </KvRow>
       </div>
@@ -299,14 +303,15 @@ function UsageSection({ entry }: { entry: SettingsSandboxEntry }) {
 function QuietNote() {
   return (
     <p
-      className="mb-4.5 flex items-start gap-2 rounded-md border border-line-soft bg-canvas-soft px-3 py-2.5 text-[11.5px] leading-snug text-subtle"
+      className="mb-4.5 flex items-start gap-2 rounded-md border border-line-soft bg-canvas-soft px-3 py-2.5 text-form-hint leading-snug text-subtle"
       data-testid="sandbox-profile-sheet-quiet-note"
     >
       <span>
-        <code className="font-mono text-[11px]">daytona</code>,{" "}
-        <code className="font-mono text-[11px]">network</code>, and{" "}
-        <code className="font-mono text-[11px]">env</code> sub-fields are edited via{" "}
-        <code className="font-mono text-[11px]">agh config set</code> and preserved on dialog saves.
+        <code className="font-mono text-inline-code">daytona</code>,{" "}
+        <code className="font-mono text-inline-code">network</code>, and{" "}
+        <code className="font-mono text-inline-code">env</code> sub-fields are edited via{" "}
+        <code className="font-mono text-inline-code">agh config set</code> and preserved on dialog
+        saves.
       </span>
     </p>
   );
@@ -317,8 +322,8 @@ function SheetDangerZone({ onRequestDelete }: { onRequestDelete: () => void }) {
     <section data-testid="sandbox-profile-sheet-danger">
       <div className="flex items-center justify-between gap-3 rounded-md border border-danger/20 bg-danger-tint px-3.5 py-3">
         <div className="min-w-0">
-          <b className="block text-[12.5px] font-medium text-danger">Delete profile</b>
-          <p className="mt-0.5 text-[11.5px] leading-snug text-muted">
+          <b className="block text-small-body font-medium text-danger">Delete profile</b>
+          <p className="mt-0.5 text-form-hint leading-snug text-muted">
             Removing the overlay stops making this profile selectable for new workspaces.
           </p>
         </div>
@@ -339,7 +344,7 @@ function SheetDangerZone({ onRequestDelete }: { onRequestDelete: () => void }) {
 function KvRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 border-b border-line-soft px-3.5 py-2.5 last:border-b-0">
-      <span className="shrink-0 text-[11.5px] text-subtle">{label}</span>
+      <span className="shrink-0 text-form-label text-subtle">{label}</span>
       <div className="min-w-0 text-right">{children}</div>
     </div>
   );
@@ -347,7 +352,7 @@ function KvRow({ label, children }: { label: string; children: ReactNode }) {
 
 function KeyChips({ values, tone = "neutral" }: { values: string[]; tone?: "neutral" | "info" }) {
   if (values.length === 0) {
-    return <span className="text-[11.5px] text-faint">--</span>;
+    return <span className="text-form-hint text-faint">--</span>;
   }
   return (
     <span className="flex flex-wrap justify-end gap-1">

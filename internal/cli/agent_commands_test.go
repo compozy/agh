@@ -292,26 +292,37 @@ func TestAgentCreateCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject the reserved onboarding agent name", func(t *testing.T) {
+	t.Run("Should allow onboarding as an ordinary agent name", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
-		_, _, err := executeRootCommand(
+		deps := newTestDeps(t, &stubClient{createAgentFn: func(
+			_ context.Context,
+			request contract.CreateAgentRequest,
+		) (AgentRecord, error) {
+			return AgentRecord{Name: request.Agent.Name, Provider: request.Agent.Provider}, nil
+		}})
+		stdout, _, err := executeRootCommand(
 			t,
 			deps,
 			"agent",
 			"create",
-			aghconfig.OnboardingAgentName,
+			"onboarding",
 			"--provider",
 			"claude",
 			"--prompt",
 			"Reserved.",
+			"-o",
+			"json",
 		)
-		if err == nil {
-			t.Fatal("agent create onboarding error = nil, want reserved-name error")
+		if err != nil {
+			t.Fatalf("agent create onboarding error = %v", err)
 		}
-		if !strings.Contains(err.Error(), "reserved for internal AGH use") {
-			t.Fatalf("agent create onboarding error = %v, want reserved-name message", err)
+		var created AgentRecord
+		if err := json.Unmarshal([]byte(stdout), &created); err != nil {
+			t.Fatalf("json.Unmarshal(agent create onboarding) error = %v", err)
+		}
+		if created.Name != "onboarding" {
+			t.Fatalf("created.Name = %q, want onboarding", created.Name)
 		}
 	})
 }

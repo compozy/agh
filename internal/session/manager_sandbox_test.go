@@ -578,9 +578,6 @@ func TestSessionSandboxHooksDispatchPayloadsAcrossLifecycle(t *testing.T) {
 		syncBefore.Reason != string(sandbox.SyncReasonStart) {
 		t.Fatalf("sync.before start direction/reason = %q/%q", syncBefore.Direction, syncBefore.Reason)
 	}
-	if syncBefore.FileCount != 1 {
-		t.Fatalf("sync.before file_count = %d, want 1", syncBefore.FileCount)
-	}
 	syncAfter := hooks.syncAfterSnapshot()[0]
 	if syncAfter.FilesSynced != 2 || syncAfter.BytesTransferred != 17 {
 		t.Fatalf("sync.after stats = files %d bytes %d, want 2/17", syncAfter.FilesSynced, syncAfter.BytesTransferred)
@@ -817,7 +814,7 @@ func TestSessionSandboxSyncBeforeWithoutHooksSkipsFileCount(t *testing.T) {
 		RuntimeRootDir: root,
 	}
 
-	payload, err := manager.dispatchSandboxSyncBefore(
+	_, err := manager.dispatchSandboxSyncBefore(
 		context.Background(),
 		session,
 		state,
@@ -827,9 +824,6 @@ func TestSessionSandboxSyncBeforeWithoutHooksSkipsFileCount(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("dispatchSandboxSyncBefore() error = %v", err)
-	}
-	if payload.FileCount != 0 {
-		t.Fatalf("dispatchSandboxSyncBefore() file_count = %d, want 0 without sandbox hooks", payload.FileCount)
 	}
 }
 

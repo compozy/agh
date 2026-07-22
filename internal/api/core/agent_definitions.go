@@ -76,6 +76,10 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
+	if err := validateAgentDraftRuntime(draft, &resolved.Config); err != nil {
+		h.respondError(c, statusForAgentDefinitionError(err), err)
+		return
+	}
 	agent, err := aghconfig.CreateAgentDefFile(resolved.Entry.Def.SourcePath, draft, true)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
@@ -91,7 +95,9 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 	syncDuration := time.Since(syncStartedAt)
 	entry := h.agentCatalogEntryFromDef(agent, resolved.OperationWorkspace)
 	h.logAgentMutation("update", entry, startedAt, syncDuration)
-	c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromEntry(entry)})
+	c.JSON(http.StatusOK, contract.AgentResponse{
+		Agent: AgentPayloadFromEntryWithConfig(entry, &resolved.Config),
+	})
 }
 
 // DeleteAgent durably removes the effective authored directory and its scoped revision history.
@@ -117,12 +123,12 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		return
 	}
 	unshadowGlobal := h.globalAgentTwinExists(name, resolved.Entry.Def.SourcePath)
-	agentsRoot, err := h.agentDefinitionAgentsRoot(resolved)
+	agentsRoot, err := h.agentDefinitionAgentsRoot(&resolved)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	if err := h.purgeAgentDefinitionHistory(c.Request.Context(), resolved); err != nil {
+	if err := h.purgeAgentDefinitionHistory(c.Request.Context(), &resolved); err != nil {
 		h.logAgentMutationFailure("delete", resolved.Entry.Def.SourcePath, startedAt, 0, err)
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -172,7 +178,7 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errAgentDefinitionSyncUnavailable)
 		return
 	}
-	if err := aghconfig.ValidatePublicAgentName(aghconfig.NormalizeAgentName(req.Name)); err != nil {
+	if err := aghconfig.ValidateAgentName(aghconfig.NormalizeAgentName(req.Name)); err != nil {
 		h.respondError(c, http.StatusBadRequest, errors.Join(errAgentDefinitionInvalid, err))
 		return
 	}
@@ -181,7 +187,7 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	targetDir, targetOrigin, targetWorkspaceID, err := h.duplicateAgentTarget(c.Request.Context(), req, source)
+	target, err := h.duplicateAgentTarget(c.Request.Context(), req, &source)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
@@ -191,7 +197,11 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	agent, err := aghconfig.DuplicateAgentDefinition(source.Entry.Def, targetDir, draft)
+	if err := validateAgentDraftRuntime(draft, &target.Config); err != nil {
+		h.respondError(c, statusForAgentDefinitionError(err), err)
+		return
+	}
+	agent, err := aghconfig.DuplicateAgentDefinition(source.Entry.Def, target.Path, draft)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
@@ -204,9 +214,11 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 		return
 	}
 	syncDuration := time.Since(syncStartedAt)
-	entry := AgentCatalogEntry{Def: agent, Origin: targetOrigin, WorkspaceID: targetWorkspaceID}
+	entry := AgentCatalogEntry{Def: agent, Origin: target.Origin, WorkspaceID: target.WorkspaceID}
 	h.logAgentMutation("duplicate", entry, startedAt, syncDuration)
-	c.JSON(http.StatusCreated, contract.AgentResponse{Agent: AgentPayloadFromEntry(entry)})
+	c.JSON(http.StatusCreated, contract.AgentResponse{
+		Agent: AgentPayloadFromEntryWithConfig(entry, &target.Config),
+	})
 }
 
 func updateAgentDraft(
@@ -297,7 +309,7 @@ func authoredAgentDraftFromDef(agent aghconfig.AgentDef) (aghconfig.AgentDefinit
 
 func (h *BaseHandlers) purgeAgentDefinitionHistory(
 	ctx context.Context,
-	resolved resolvedAgentDefinition,
+	resolved *resolvedAgentDefinition,
 ) error {
 	workspaceID := strings.TrimSpace(resolved.OperationWorkspace)
 	if workspaceID == "" {

@@ -32,7 +32,7 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		{
 			ID:    "global:onboarding",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Spec:  aghconfig.AgentDef{Name: aghconfig.OnboardingAgentName, Prompt: "global onboarding"},
+			Spec:  aghconfig.AgentDef{Name: "onboarding", Prompt: "global onboarding"},
 		},
 		{
 			ID:    "global:coder",
@@ -47,7 +47,7 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		{
 			ID:    "workspace:onboarding",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
-			Spec:  aghconfig.AgentDef{Name: aghconfig.OnboardingAgentName, Prompt: "workspace onboarding"},
+			Spec:  aghconfig.AgentDef{Name: "onboarding", Prompt: "workspace onboarding"},
 		},
 	})
 
@@ -56,10 +56,10 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListAgents() error = %v", err)
 	}
-	if got, want := len(listed), 2; got != want {
+	if got, want := len(listed), 3; got != want {
 		t.Fatalf("len(ListAgents()) = %d, want %d", got, want)
 	}
-	if listed[0].Def.Name != "alpha" || listed[1].Def.Name != "coder" {
+	if listed[0].Def.Name != "alpha" || listed[1].Def.Name != "coder" || listed[2].Def.Name != "onboarding" {
 		t.Fatalf("ListAgents() = %#v, want global agents sorted by name", listed)
 	}
 	if listed[0].Origin != contract.AgentOriginGlobal || listed[0].WorkspaceID != "" {
@@ -76,16 +76,14 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	if _, err := dependency.GetAgent(context.Background(), "missing"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("GetAgent(missing) error = %v, want os.ErrNotExist", err)
 	}
-	if _, err := dependency.GetAgent(
-		context.Background(),
-		aghconfig.OnboardingAgentName,
-	); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("GetAgent(onboarding) error = %v, want os.ErrNotExist", err)
+	onboardingEntry, err := dependency.GetAgent(context.Background(), "onboarding")
+	if err != nil || onboardingEntry.Def.Prompt != "global onboarding" {
+		t.Fatalf("GetAgent(onboarding) = %#v, %v", onboardingEntry, err)
 	}
 
 	resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
 	workspaceEntries := dependency.agentEntriesForWorkspace(resolved)
-	if len(workspaceEntries) != 2 || workspaceEntries[1].Origin != contract.AgentOriginWorkspace ||
+	if len(workspaceEntries) != 3 || workspaceEntries[1].Origin != contract.AgentOriginWorkspace ||
 		workspaceEntries[1].WorkspaceID != "ws-1" {
 		t.Fatalf("workspace entries = %#v", workspaceEntries)
 	}
@@ -96,12 +94,12 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	if coder.Prompt != "workspace coder" || len(coder.Tools) != 1 || coder.Tools[0] != "agh__lookup" {
 		t.Fatalf("ResolveAgent(coder) = %#v, want workspace override", coder)
 	}
-	onboarding, err := dependency.ResolveAgent(aghconfig.OnboardingAgentName, resolved)
+	onboarding, err := dependency.ResolveAgent("onboarding", resolved)
 	if err != nil {
 		t.Fatalf("ResolveAgent(onboarding) error = %v", err)
 	}
-	if onboarding.Prompt != "global onboarding" {
-		t.Fatalf("ResolveAgent(onboarding).Prompt = %q, want global onboarding", onboarding.Prompt)
+	if onboarding.Prompt != "workspace onboarding" {
+		t.Fatalf("ResolveAgent(onboarding).Prompt = %q, want workspace onboarding", onboarding.Prompt)
 	}
 }
 
@@ -161,7 +159,7 @@ func TestResourceAgentCatalogFallsBackToResolvedWorkspaceSnapshot(t *testing.T) 
 				Prompt: "resolved snapshot",
 			},
 			{
-				Name:   aghconfig.OnboardingAgentName,
+				Name:   "onboarding",
 				Prompt: "workspace onboarding",
 			},
 		},
@@ -182,14 +180,9 @@ func TestResourceAgentCatalogFallsBackToResolvedWorkspaceSnapshot(t *testing.T) 
 	) {
 		t.Fatalf("ResolveAgent(missing) error = %v, want ErrAgentNotAvailable", err)
 	}
-	if _, err := (&resourceAgentCatalog{}).ResolveAgent(
-		aghconfig.OnboardingAgentName,
-		resolved,
-	); !errors.Is(
-		err,
-		workspacepkg.ErrAgentNotAvailable,
-	) {
-		t.Fatalf("ResolveAgent(onboarding) error = %v, want ErrAgentNotAvailable", err)
+	onboarding, err := (&resourceAgentCatalog{}).ResolveAgent("onboarding", resolved)
+	if err != nil || onboarding.Prompt != "workspace onboarding" {
+		t.Fatalf("ResolveAgent(onboarding) = %#v, %v", onboarding, err)
 	}
 }
 

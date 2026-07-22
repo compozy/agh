@@ -16,7 +16,12 @@ import {
   Spinner,
 } from "@agh/ui";
 
-import { AgentCommandSelect, AgentIcon, type AgentPayload } from "@/systems/agent";
+import {
+  AgentCommandSelect,
+  AgentIcon,
+  resolveAgentRuntimeValue,
+  type AgentPayload,
+} from "@/systems/agent";
 import {
   NetworkParticipationFields,
   isNetworkParticipationDraftValid,
@@ -94,7 +99,7 @@ function SessionCreateDialog({
   const activeAgent = workspaceSelected
     ? agents.find(agent => agent.name === trimmedSelectedAgentName)
     : undefined;
-  const activeAgentProvider = activeAgent?.provider.trim() ?? "";
+  const activeAgentProvider = resolveAgentRuntimeValue(activeAgent).provider;
   const hasAgents = agents.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
   const hasSelectedProvider = runtimeProviders.some(option => option.id === runtimeValue.provider);
@@ -174,7 +179,7 @@ function SessionCreateDialog({
                   data-testid="session-create-agent-default"
                 >
                   <AgentIcon className="size-3 text-subtle" provider={activeAgentProvider} />
-                  <span>Agent default provider: {activeAgentProvider}</span>
+                  <span>Effective provider: {activeAgentProvider}</span>
                 </div>
               ) : null}
             </Field>
@@ -182,8 +187,8 @@ function SessionCreateDialog({
             <Field>
               <FieldTitle id="session-create-runtime-label">Runtime</FieldTitle>
               <FieldDescription>
-                Provider, model, and reasoning effort for this session. The agent default is
-                preselected; override any axis for this session only.
+                The agent&apos;s effective project defaults are preselected. Changing this selector
+                creates overrides for this session only.
               </FieldDescription>
               <RuntimeSelector
                 value={runtimeValue}
@@ -246,8 +251,8 @@ function SessionCreateDialog({
                 data-testid="session-create-pending-status"
                 role="status"
               >
-                Waiting for provider startup and ACP confirmation. The session opens after the
-                runtime confirms it.
+                Saving the session. It opens as soon as AGH durably accepts it; runtime startup
+                continues in the session view.
               </p>
             ) : null}
 
@@ -282,7 +287,7 @@ function SessionCreateDialog({
             </Button>
             <Button data-testid="session-create-dialog-submit" disabled={!canSubmit} type="submit">
               {isSubmitting ? <Spinner aria-hidden="true" /> : null}
-              {isSubmitting ? "Starting session…" : "Start session"}
+              {isSubmitting ? "Saving session…" : "Start session"}
             </Button>
           </DialogFooter>
         </form>

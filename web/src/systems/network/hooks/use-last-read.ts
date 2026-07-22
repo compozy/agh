@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -66,6 +66,7 @@ export function useLastRead(options: { workspaceId?: string | null } = {}): UseL
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = options.workspaceId ?? activeWorkspaceId;
   const [state, setState] = useState<LastReadState>(() => readLastReadMap());
+  const stateRef = useRef(state);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -74,7 +75,9 @@ export function useLastRead(options: { workspaceId?: string | null } = {}): UseL
 
     function handleStorage(event: StorageEvent) {
       if (event.key === LAST_READ_STORAGE_KEY) {
-        setState(readLastReadMap());
+        const next = readLastReadMap();
+        stateRef.current = next;
+        setState(next);
       }
     }
 
@@ -92,14 +95,12 @@ export function useLastRead(options: { workspaceId?: string | null } = {}): UseL
       return;
     }
     const storageKey = buildLastReadStorageKey({ ...key, workspaceId });
-    setState(current => {
-      if (current[storageKey] === timestamp) {
-        return current;
-      }
-      const next = { ...current, [storageKey]: timestamp };
-      writeLastReadMap(next);
-      return next;
-    });
+    const current = stateRef.current;
+    if (current[storageKey] === timestamp) return;
+    const next = { ...current, [storageKey]: timestamp };
+    stateRef.current = next;
+    setState(next);
+    writeLastReadMap(next);
   };
 
   return { lastReadAt, markRead };

@@ -1,4 +1,4 @@
-import type { EditorEdge, EditorNode, RawLoopEdge, RawLoopNode } from "./codec";
+import type { EditorEdge, EditorNode, RawLoopEdge } from "./codec";
 import type { FieldPath } from "./loop-node-schema";
 
 /**
@@ -13,17 +13,54 @@ import type { FieldPath } from "./loop-node-schema";
 export function getAtPath(source: unknown, path: FieldPath): unknown {
   let current: unknown = source;
   for (const segment of path) {
-    if (current === null || typeof current !== "object") return undefined;
-    current = (current as Record<string | number, unknown>)[segment];
+    if (Array.isArray(current) && typeof segment === "number") {
+      current = current[segment];
+      continue;
+    }
+    if (!isRecord(current) || typeof segment !== "string") return undefined;
+    current = current[segment];
   }
   return current;
 }
 
-function cloneContainer(value: unknown, key: string | number): Record<string | number, unknown> {
-  if (Array.isArray(value)) return [...value] as unknown as Record<string | number, unknown>;
-  if (value && typeof value === "object") return { ...(value as Record<string | number, unknown>) };
+type MutableContainer = Record<string, unknown> | unknown[];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function cloneContainer(value: unknown, key: string | number): MutableContainer {
+  if (Array.isArray(value)) return [...value];
+  if (isRecord(value)) return { ...value };
   // Create the missing container: an array when the next key is a numeric index.
-  return (typeof key === "number" ? [] : {}) as Record<string | number, unknown>;
+  return typeof key === "number" ? [] : {};
+}
+
+function readContainer(container: MutableContainer, key: string | number): unknown {
+  if (Array.isArray(container)) return typeof key === "number" ? container[key] : undefined;
+  return typeof key === "string" ? container[key] : undefined;
+}
+
+function readContainerValue(value: unknown, key: string | number): unknown {
+  if (Array.isArray(value)) return typeof key === "number" ? value[key] : undefined;
+  if (isRecord(value)) return typeof key === "string" ? value[key] : undefined;
+  return undefined;
+}
+
+function writeContainer(container: MutableContainer, key: string | number, value: unknown): void {
+  if (Array.isArray(container)) {
+    if (typeof key === "number") container[key] = value;
+    return;
+  }
+  if (typeof key === "string") container[key] = value;
+}
+
+function deleteContainerValue(container: MutableContainer, key: string | number): void {
+  if (Array.isArray(container)) {
+    if (typeof key === "number") container.splice(key, 1);
+    return;
+  }
+  if (typeof key === "string") delete container[key];
 }
 
 /**
@@ -34,7 +71,7 @@ function cloneContainer(value: unknown, key: string | number): Record<string | n
 export function setAtPath<T extends object>(source: T, path: FieldPath, value: unknown): T {
   if (path.length === 0) return source;
   const [head, ...rest] = path;
-  const existing = (source as Record<string | number, unknown>)[head];
+  const existing = readContainerValue(source, head);
   // Clearing a value under a missing parent is a no-op — don't synthesize an empty
   // container (e.g. clearing `retry.max` on a node with no `retry` must not add `retry: {}`).
   if (value === undefined && rest.length > 0 && (existing === undefined || existing === null)) {
@@ -43,15 +80,18 @@ export function setAtPath<T extends object>(source: T, path: FieldPath, value: u
   const clone = cloneContainer(source, head);
   if (rest.length === 0) {
     if (value === undefined) {
-      if (Array.isArray(clone)) clone.splice(head as number, 1);
-      else delete clone[head];
+      deleteContainerValue(clone, head);
     } else {
-      clone[head] = value;
+      writeContainer(clone, head, value);
     }
-    return clone as unknown as T;
+    return clone as T;
   }
-  clone[head] = setAtPath(cloneContainer(clone[head], rest[0]) as object, rest, value);
-  return clone as unknown as T;
+  writeContainer(
+    clone,
+    head,
+    setAtPath(cloneContainer(readContainer(clone, head), rest[0]), rest, value)
+  );
+  return clone as T;
 }
 
 /** Applies one field edit to a node's raw JSON, returning a new node array. */
@@ -63,7 +103,7 @@ export function setNodeField(
 ): EditorNode[] {
   return nodes.map(node => {
     if (node.id !== nodeId) return node;
-    const raw = setAtPath(node.data.raw, path, value) as RawLoopNode;
+    const raw = setAtPath(node.data.raw, path, value);
     return { ...node, data: { ...node.data, raw } };
   });
 }

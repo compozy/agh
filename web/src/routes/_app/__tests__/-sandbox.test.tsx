@@ -181,7 +181,9 @@ describe("SandboxPage", () => {
   it("renders loading state", () => {
     pageState = makeState({ isLoading: true, envelope: null, sandboxes: [], filtered: [] });
     render(<SandboxPage />);
-    expect(screen.getByTestId("sandbox-page-loading")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading sandbox profiles" })).toBe(
+      screen.getByTestId("sandbox-page-loading")
+    );
   });
 
   it("renders error state with the error message", () => {

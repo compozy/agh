@@ -87,6 +87,10 @@ export {
 
 // Lib
 export {
+  inheritedAgentRuntimeFields,
+  resolveAgentRuntimeValue,
+} from "./lib/agent-effective-runtime";
+export {
   AGENT_CREATE_PERMISSION_OPTIONS,
   appendAgentCreateTokens,
   buildCreateAgentParams,

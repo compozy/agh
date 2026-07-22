@@ -97,7 +97,7 @@ func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bo
 	case StateStopping:
 		s.applyStopCauseLocked(cause, detail)
 		return false, s.promptSetupDone, nil
-	case StateActive:
+	case StateStarting, StateActive:
 		if !canTransition(s.State, StateStopping) {
 			return false, nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, s.State, StateStopping)
 		}

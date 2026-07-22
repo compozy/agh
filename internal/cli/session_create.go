@@ -16,6 +16,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		model           string
 		reasoningEffort string
 		workspaceRef    string
+		noWait          bool
 		networkFlags    networkParticipationFlags
 	)
 
@@ -61,6 +62,12 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if !noWait {
+				created, err = waitForSessionStartup(cmd.Context(), client, created, deps.pollInterval)
+				if err != nil {
+					return err
+				}
+			}
 
 			return writeCommandOutput(cmd, sessionBundle(created, deps.now))
 		},
@@ -72,6 +79,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	bindNamedNetworkParticipationFlags(cmd, &networkFlags)
 	cmd.Flags().StringVar(&provider, sessionProviderKey, "", "Optional provider override for this session")
 	cmd.Flags().StringVar(&model, "model", "", "Optional model override for this session")
+	cmd.Flags().BoolVar(&noWait, "no-wait", false, "Return after the durable starting session is accepted")
 	cmd.Flags().StringVar(
 		&reasoningEffort,
 		"reasoning-effort",

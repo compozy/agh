@@ -48,7 +48,7 @@ export function LoopRunPreview({
       <Eyebrow className="text-subtle">Run preview</Eyebrow>
       <div className="rounded-lg border border-line-soft bg-canvas-soft px-4 py-3.5">
         <Eyebrow className="text-faint">What will run</Eyebrow>
-        <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">
+        <p className="mt-1.5 text-small-body leading-relaxed text-muted">
           Run <b className="font-medium text-fg-strong">{loopName}</b> against its contract:{" "}
           {contract.goal} Iterates up to{" "}
           <b className="font-medium text-fg-strong">
@@ -75,7 +75,7 @@ export function LoopRunPreview({
       <LoopContractPanel contract={contract} />
       <div className="rounded-lg border border-line-soft bg-canvas-soft px-4 py-3.5">
         <Eyebrow className="text-faint">Lifecycle</Eyebrow>
-        <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[11.5px] text-subtle">
+        <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-mono-id text-subtle">
           <span className="text-muted">running</span>
           <span className="text-faint">→</span>
           <span className="text-muted">verify</span>

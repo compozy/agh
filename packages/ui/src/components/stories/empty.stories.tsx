@@ -12,7 +12,7 @@ const meta: Meta<typeof Empty> = {
     docs: {
       description: {
         component:
-          "Empty state with an icon container, muted title, optional description, and optional actions.",
+          "Empty state with an icon container, muted title, optional description, cause, and actions. `framed` is the bordered card variant for routed empty/error states.",
       },
     },
   },
@@ -54,6 +54,40 @@ export const WithAction: Story = {
             New task
           </Button>
         }
+      />
+    </div>
+  ),
+};
+
+export const Framed: Story = {
+  render: () => (
+    <div className="w-[420px]">
+      <Empty
+        framed
+        titleAs="h2"
+        icon={SearchIcon}
+        title="Unable to load this view"
+        description="The source did not respond. Retry, or come back in a moment."
+        action={
+          <Button size="sm" type="button">
+            Retry
+          </Button>
+        }
+      />
+    </div>
+  ),
+};
+
+export const WithCause: Story = {
+  render: () => (
+    <div className="w-[420px]">
+      <Empty
+        framed
+        titleAs="h2"
+        icon={SearchIcon}
+        title="The catalog is incomplete"
+        description="Installed status is unavailable until the catalog can be checked."
+        cause="marketplace: continuation token expired (409)"
       />
     </div>
   ),

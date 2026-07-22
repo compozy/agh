@@ -1,4 +1,4 @@
-import type { StatusDotProps, StatusDotTone, StatusDotVariant } from "@agh/ui";
+import type { StatusDotTone, StatusDotVariant } from "@agh/ui";
 
 import type { TaskInboxItem, TaskInboxLane } from "../types";
 
@@ -39,15 +39,6 @@ export const INBOX_GROUPS: InboxGroupDefinition[] = [
   { id: "blocked", label: "Blocked", dotTone: "danger", dotVariant: "solid" },
   { id: "updates", label: "Updates", dotTone: "faint", dotVariant: "ring" },
 ];
-
-/** Convenience accessor for `<StatusDot>` props derived from a group id. */
-export function inboxGroupDotProps(group: InboxGroupId): Pick<StatusDotProps, "tone" | "variant"> {
-  const definition = INBOX_GROUPS.find(entry => entry.id === group);
-  return {
-    tone: definition?.dotTone ?? "faint",
-    variant: definition?.dotVariant ?? "ring",
-  };
-}
 
 /**
  * Routes an inbox item into the three groups supported by backend signals.

@@ -44,7 +44,7 @@ export function LoopEditorNode({ data, selected }: NodeProps<EditorNode>) {
   return (
     <div
       className={cn(
-        "relative flex min-h-[56px] w-[132px] flex-col gap-1 rounded-md border bg-canvas-tint px-3 py-2.5 transition-colors",
+        "relative flex min-h-14 w-[132px] flex-col gap-1 rounded-md border bg-canvas-tint px-3 py-2.5 transition-colors",
         hasError ? "border-danger" : "border-line hover:border-line-strong",
         selected && !hasError && "border-accent-dim ring-1 ring-accent-dim",
         selected && hasError && "ring-1 ring-danger"
@@ -56,20 +56,20 @@ export function LoopEditorNode({ data, selected }: NodeProps<EditorNode>) {
       <Handle type="target" position={Position.Left} className="!size-2 !border-line !bg-canvas" />
       <MonoTag
         className={cn(
-          "text-[8px] tracking-[0.07em]",
+          "text-pill-group-badge tracking-[0.07em]",
           selected ? "text-accent-strong" : "text-faint"
         )}
       >
         {classLabel(nodeClass, kind)}
       </MonoTag>
       <span
-        className="min-w-0 truncate text-[12.5px] font-medium leading-tight text-fg-strong"
+        className="min-w-0 truncate text-small-body font-medium leading-tight text-fg-strong"
         title={String(raw.id)}
       >
         {String(raw.id)}
       </span>
       <span
-        className="min-w-0 truncate font-mono text-[10px] text-subtle"
+        className="min-w-0 truncate font-mono text-mono-id text-subtle"
         title={kind || undefined}
       >
         {kind || "—"}
@@ -79,7 +79,7 @@ export function LoopEditorNode({ data, selected }: NodeProps<EditorNode>) {
           {chips.map(chip => (
             <span
               key={chip}
-              className="rounded-xs bg-badge-fill px-1 py-px font-mono text-[8.5px] text-subtle"
+              className="rounded-xs bg-badge-fill px-1 py-px font-mono text-pill-group-badge text-subtle"
             >
               {chip}
             </span>
@@ -88,7 +88,7 @@ export function LoopEditorNode({ data, selected }: NodeProps<EditorNode>) {
       ) : null}
       {hasError ? (
         <span
-          className="absolute -right-2 -top-2 grid size-[18px] place-items-center rounded-full border-2 border-canvas bg-danger text-accent-ink"
+          className="absolute -right-2 -top-2 grid size-4.5 place-items-center rounded-full border-2 border-canvas bg-danger text-accent-ink"
           data-testid="loop-editor-node-badge"
           title="This node has a validation error"
         >

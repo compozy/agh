@@ -76,19 +76,19 @@ export const Small: Story = {
   ),
 };
 
-export const ActiveRail: Story = {
-  name: "Active rail",
+export const Selected: Story = {
+  name: "Selected",
   args: {},
   render: () => (
     <div className="flex flex-col gap-3">
-      <Card activeRail size="sm">
+      <Card size="sm" className="bg-surface-glaze shadow-inset-strong">
         <CardHeader>
           <CardTitle>Agent · claude-sonnet</CardTitle>
-          <CardDescription>Run in-flight, 2 events in the last second.</CardDescription>
+          <CardDescription>Selected — neutral glaze fill + inset rim.</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
-            The 2px accent left-rail flags attention without framing the whole card.
+            The selected surface reads via glaze + inset, never a decorative accent bar.
           </p>
         </CardContent>
       </Card>
@@ -98,7 +98,7 @@ export const ActiveRail: Story = {
           <CardDescription>Idle, last activity 4m ago.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Idle cards stay fully neutral.</p>
+          <p className="text-muted-foreground">Unselected cards stay fully neutral.</p>
         </CardContent>
       </Card>
     </div>

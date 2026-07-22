@@ -4,6 +4,7 @@ import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { AnimatePresence, m } from "motion/react";
 import * as React from "react";
 
+import { MOTION_DURATION_BASE, MOTION_EASE_OUT } from "../lib/motion";
 import { cn } from "../lib/utils";
 import {
   PopoverMotionContext,
@@ -94,7 +95,7 @@ function PopoverContent({
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.14, ease: [0.2, 0, 0, 1] }}
+                  transition={{ duration: MOTION_DURATION_BASE, ease: MOTION_EASE_OUT }}
                 />
               }
               className={cn(

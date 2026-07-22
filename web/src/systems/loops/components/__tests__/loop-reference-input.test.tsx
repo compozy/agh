@@ -35,6 +35,10 @@ describe("LoopReferenceInput", () => {
     input.setSelectionRange(input.value.length, input.value.length);
     fireEvent.keyUp(input);
     const list = screen.getByTestId("loop-reference-suggestions");
+    expect(input).toHaveAttribute("role", "combobox");
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(input).toHaveAttribute("aria-controls", list.id);
+    expect(list).toHaveAttribute("role", "listbox");
     expect(list).toHaveTextContent("inputs.slug");
     // Selecting a suggestion inserts the closed reference.
     fireEvent.mouseDown(screen.getByText("inputs.slug"));
@@ -81,9 +85,13 @@ describe("LoopReferenceInput", () => {
     input.setSelectionRange(input.value.length, input.value.length);
     fireEvent.keyUp(input);
     fireEvent.keyDown(input, { key: "ArrowDown" });
-    expect(screen.getByText("nodes.load_tasks.output").closest("button")).toHaveAttribute(
+    expect(screen.getByText("nodes.load_tasks.output").closest('[role="option"]')).toHaveAttribute(
       "data-active",
       "true"
+    );
+    expect(input).toHaveAttribute(
+      "aria-activedescendant",
+      screen.getByText("nodes.load_tasks.output").closest('[role="option"]')?.id
     );
     fireEvent.keyDown(input, { key: "Enter" });
     expect(screen.getByTestId("value")).toHaveTextContent("post {{ .nodes.load_tasks.output }}");

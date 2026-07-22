@@ -28,8 +28,8 @@ export interface OsAppDefinition {
   paths: string[];
   /** App-specific opening geometry; enlarged work surfaces override the prototype cascade. */
   defaultRect: OsRect;
-  /** Dock strip group, rail toggle, or null for menubar-only settings. */
-  dock: { group: 1 | 2 | 3 | 4 } | "rail-toggle" | null;
+  /** Dock strip group, sessions modal toggle, or null for menubar-only settings. */
+  dock: { group: 1 | 2 | 3 | 4 } | "sessions-toggle" | null;
   badge?: "sessions" | "tasks";
   /** Extracts the multi-instance key from a pathname (session windows). */
   matchInstance?: (pathname: string) => string | null;
@@ -164,7 +164,7 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     icon: SquareTerminal,
     paths: [],
     defaultRect: { x: 470, y: 26, w: 630, h: 570 },
-    dock: "rail-toggle",
+    dock: "sessions-toggle",
     badge: "sessions",
     matchInstance: matchSessionInstance,
     Controller: SessionWindow,
@@ -299,7 +299,7 @@ export function getOsApp(id: OsAppId): OsAppDefinition {
 export function dockApps(): OsAppDefinition[][] {
   const groups: OsAppDefinition[][] = [[], [], [], []];
   for (const app of Object.values(OS_APPS)) {
-    if (app.dock && app.dock !== "rail-toggle") groups[app.dock.group - 1].push(app);
+    if (app.dock && app.dock !== "sessions-toggle") groups[app.dock.group - 1].push(app);
   }
   return groups.filter(group => group.length > 0);
 }

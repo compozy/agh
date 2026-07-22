@@ -21,9 +21,14 @@ export { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
 export { NetworkSettingsSections } from "./network-settings-sections";
 export { SettingsDecimalInput } from "./settings-decimal-input";
 export { SettingsDisabledSkillsSection } from "./settings-disabled-skills-section";
-export { SettingsFieldRow } from "./settings-field-row";
-export type { SettingsFieldRowVariant } from "./settings-field-row";
-export { SettingActionRow, SettingLinkRow, SettingRow, SettingValue } from "./setting-row";
+export { ModalSettingsFieldRow, SettingsFieldRow } from "./settings-field-row";
+export {
+  ModalSettingRow,
+  SettingActionRow,
+  SettingLinkRow,
+  SettingRow,
+  SettingValue,
+} from "./setting-row";
 export type { SettingActionRowProps, SettingLinkRowProps, SettingRowProps } from "./setting-row";
 export { SettingsGroup } from "./settings-group";
 export type { SettingsGroupProps } from "./settings-group";

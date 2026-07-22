@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { LayoutList, Package, ShoppingBag } from "lucide-react";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
@@ -113,6 +114,64 @@ export const SizeSm: Story = {
     },
   },
   render: () => <SmallPillGroupHarness />,
+};
+
+type ScopeMode = "installed" | "market" | "list";
+
+function IconsPillGroupHarness() {
+  const [value, setValue] = useState<ScopeMode>("installed");
+  return (
+    <PillGroup
+      value={value}
+      onChange={setValue}
+      aria-label="Scope with icons"
+      items={[
+        {
+          value: "installed",
+          label: (
+            <>
+              <Package aria-hidden="true" />
+              Installed
+            </>
+          ),
+          badge: 2,
+          testId: "scope-installed",
+        },
+        {
+          value: "market",
+          label: (
+            <>
+              <ShoppingBag aria-hidden="true" />
+              Marketplace
+            </>
+          ),
+          testId: "scope-market",
+        },
+        {
+          value: "list",
+          label: (
+            <>
+              <LayoutList aria-hidden="true" />
+              List
+            </>
+          ),
+          testId: "scope-list",
+        },
+      ]}
+    />
+  );
+}
+
+export const WithIcons: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Icon + label (+ optional badge) composition. Segment uses `leading-none` and `[&_svg]` sizing so Lucide icons sit on the same optical center as the Inter label.",
+      },
+    },
+  },
+  render: () => <IconsPillGroupHarness />,
 };
 
 export const DisabledItem: Story = {

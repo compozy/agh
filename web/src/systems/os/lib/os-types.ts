@@ -116,7 +116,6 @@ export interface OsDesktopBounds {
 export interface OsDesktopStore {
   windows: Record<string, OsWindow>;
   focusedId: string | null;
-  railOpen: boolean;
   railCollapsedAgentIds: string[];
   wallpaper: OsWallpaper;
   /** Desktop-doc motion preference (in-product toggle; system pref composes at read sites). */
@@ -143,9 +142,6 @@ export interface OsDesktopStore {
    * still returns the pre-snap rect exactly. No-op when not snapped.
    */
   resizeSnapped(id: string, rect: OsRect): void;
-  toggleRail(): void;
-  openRail(): void;
-  closeRail(): void;
   toggleRailGroup(agentId: string): void;
   /** Appearance prefs (US-015): persisted with the space via the desktop doc. */
   setWallpaper(wallpaper: OsWallpaper): void;

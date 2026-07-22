@@ -18,7 +18,7 @@ import (
 // ListAgents returns all readable agent definitions in home paths.
 func (h *BaseHandlers) ListAgents(c *gin.Context) {
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
-		entries, workspaceID, diagnostics, err := h.workspaceAgentEntriesWithDiagnostics(
+		entries, workspaceID, cfg, diagnostics, err := h.workspaceAgentEntriesWithDiagnostics(
 			c.Request.Context(),
 			workspaceRef,
 		)
@@ -31,7 +31,7 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 				entries[index].WorkspaceID = workspaceID
 			}
 		}
-		h.respondAgentEntries(c, entries, workspaceID, diagnostics)
+		h.respondAgentEntries(c, entries, &cfg, workspaceID, diagnostics)
 		return
 	}
 
@@ -45,7 +45,7 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 			h.respondError(c, http.StatusInternalServerError, err)
 			return
 		}
-		h.respondAgentEntries(c, entries, "")
+		h.respondAgentEntries(c, entries, &h.Config, "")
 		return
 	}
 
@@ -71,7 +71,7 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 		}
 
 		name := strings.TrimSpace(entry.Name())
-		if name == "" || aghconfig.IsInternalManagedAgentName(name) {
+		if name == "" {
 			continue
 		}
 
@@ -86,12 +86,10 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 			)
 			continue
 		}
-		if aghconfig.IsPublicAgentDef(agent) {
-			agentDefs = append(agentDefs, agent)
-		}
+		agentDefs = append(agentDefs, agent)
 	}
 
-	h.respondAgentDefs(c, agentDefs, "")
+	h.respondAgentDefs(c, agentDefs, &h.Config, "")
 }
 
 // CreateAgent writes a new global or workspace-local AGENT.md definition.
@@ -107,12 +105,8 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 		return
 	}
 
-	draft, path, workspaceID, err := h.createAgentDraftAndPath(c.Request.Context(), req)
+	draft, path, workspaceID, runtimeConfig, err := h.createAgentDraftAndPath(c.Request.Context(), req)
 	if err != nil {
-		h.respondError(c, statusForCreateAgentError(err), err)
-		return
-	}
-	if _, _, err := aghconfig.RenderAgentDefinition(draft); err != nil {
 		h.respondError(c, statusForCreateAgentError(err), err)
 		return
 	}
@@ -138,7 +132,9 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 	}
 	entry := h.agentCatalogEntryFromDef(agent, workspaceID)
 	h.logAgentMutation("create", entry, startedAt, time.Since(syncStartedAt))
-	c.JSON(http.StatusCreated, contract.AgentResponse{Agent: AgentPayloadFromEntry(entry)})
+	c.JSON(http.StatusCreated, contract.AgentResponse{
+		Agent: AgentPayloadFromEntryWithConfig(entry, &runtimeConfig),
+	})
 }
 
 func (h *BaseHandlers) rollbackCreatedAgentDefinition(ctx context.Context, sourcePath string) error {
@@ -154,22 +150,13 @@ func (h *BaseHandlers) rollbackCreatedAgentDefinition(ctx context.Context, sourc
 
 // GetAgent returns one agent definition by name.
 func (h *BaseHandlers) GetAgent(c *gin.Context) {
-	if aghconfig.IsInternalManagedAgentName(c.Param("name")) {
-		h.respondError(
-			c,
-			http.StatusNotFound,
-			fmt.Errorf("%s: agent %q is not available: %w", h.transportName(), c.Param("name"), os.ErrNotExist),
-		)
-		return
-	}
-
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
-		entry, err := h.workspaceAgentDef(c.Request.Context(), workspaceRef, c.Param("name"))
+		entry, cfg, err := h.workspaceAgentDef(c.Request.Context(), workspaceRef, c.Param("name"))
 		if err != nil {
 			h.respondError(c, statusForAgentWorkspaceError(err), err)
 			return
 		}
-		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromEntry(entry)})
+		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromEntryWithConfig(entry, &cfg)})
 		return
 	}
 
@@ -183,7 +170,7 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 			h.respondError(c, status, err)
 			return
 		}
-		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromEntry(entry)})
+		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromEntryWithConfig(entry, &h.Config)})
 		return
 	}
 
@@ -197,5 +184,7 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromEntry(h.agentCatalogEntryFromDef(agent, ""))})
+	c.JSON(http.StatusOK, contract.AgentResponse{
+		Agent: AgentPayloadFromEntryWithConfig(h.agentCatalogEntryFromDef(agent, ""), &h.Config),
+	})
 }

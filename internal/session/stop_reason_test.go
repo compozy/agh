@@ -270,7 +270,7 @@ func TestPrepareStopWithCauseWrapsStageFailures(t *testing.T) {
 				h := newHarness(t)
 				session := createSession(t, h)
 				session.mu.Lock()
-				session.State = StateStarting
+				session.State = State("invalid")
 				session.mu.Unlock()
 				return h.manager, session, testutil.Context(t)
 			},

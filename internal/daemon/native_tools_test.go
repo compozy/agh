@@ -7863,6 +7863,76 @@ func newLoadedNativeSkillRegistry(t *testing.T) *skills.Registry {
 	return registry
 }
 
+func TestNativeSkillsForSessionAgentUsesLiveAuthoredDefinition(t *testing.T) {
+	t.Run("Should resolve authored agents by name and preserve package-owned session snapshots", func(t *testing.T) {
+		t.Parallel()
+
+		registry := &recordingNativeSessionSkillRegistry{
+			Registry: newLoadedNativeSkillRegistry(t),
+		}
+		manager := &nativeSessionAgentManager{
+			agent: aghconfig.AgentDef{
+				Name:       "reviewer",
+				SourcePath: "/tmp/.agh/agents/reviewer/AGENT.md",
+			},
+		}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Skills:   registry,
+			Sessions: manager,
+		}}
+		scope := toolspkg.Scope{SessionID: "sess-authored", AgentName: "reviewer"}
+		if _, err := native.skillsFor(t.Context(), scope, toolspkg.ToolIDSkillList, ""); err != nil {
+			t.Fatalf("skillsFor(authored) error = %v", err)
+		}
+
+		manager.agent.SourcePath = ""
+		if _, err := native.skillsFor(t.Context(), scope, toolspkg.ToolIDSkillList, ""); err != nil {
+			t.Fatalf("skillsFor(packaged) error = %v", err)
+		}
+		if got, want := registry.resolvedNames, []string{"reviewer"}; !slices.Equal(got, want) {
+			t.Fatalf("resolved agent names = %#v, want %#v", got, want)
+		}
+		if got, want := registry.concreteNames, []string{"reviewer"}; !slices.Equal(got, want) {
+			t.Fatalf("concrete agent names = %#v, want %#v", got, want)
+		}
+	})
+}
+
+type nativeSessionAgentManager struct {
+	apitest.StubSessionManager
+	agent aghconfig.AgentDef
+}
+
+func (m *nativeSessionAgentManager) SessionAgentDefinition(string) (aghconfig.AgentDef, bool) {
+	return aghconfig.CloneAgentDef(m.agent), true
+}
+
+type recordingNativeSessionSkillRegistry struct {
+	*skills.Registry
+	resolvedNames []string
+	concreteNames []string
+}
+
+func (r *recordingNativeSessionSkillRegistry) ForAgentSession(
+	_ context.Context,
+	_ *workspacepkg.ResolvedWorkspace,
+	agentName string,
+	_ string,
+) ([]*skills.Skill, error) {
+	r.resolvedNames = append(r.resolvedNames, agentName)
+	return nil, nil
+}
+
+func (r *recordingNativeSessionSkillRegistry) ForAgentDefSession(
+	_ context.Context,
+	_ *workspacepkg.ResolvedWorkspace,
+	agent aghconfig.AgentDef,
+	_ string,
+) ([]*skills.Skill, error) {
+	r.concreteNames = append(r.concreteNames, agent.Name)
+	return nil, nil
+}
+
 func requireNativeStructuredContains(t *testing.T, result toolspkg.ToolResult, needle []byte) {
 	t.Helper()
 

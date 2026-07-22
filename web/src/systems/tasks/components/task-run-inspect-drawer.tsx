@@ -1,7 +1,8 @@
-import { BlockLoading, MetadataTile, Sheet, SheetContent, Time } from "@agh/ui";
+import { MetadataTile, Sheet, SheetContent, Time } from "@agh/ui";
 
 import type { TaskRunDetailView, TaskRunInspectView } from "../types";
 import { TaskOperatorSheetHeader } from "./task-operator-sheet-header";
+import { TaskInspectLoadingSkeleton } from "./task-loading-skeletons";
 
 export interface TaskRunInspectDrawerProps {
   open: boolean;
@@ -51,7 +52,7 @@ export function TaskRunInspectDrawer({
         />
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {isLoading && !inspect ? (
-            <BlockLoading label="Loading run inspection" size="sm" surface="bare" />
+            <TaskInspectLoadingSkeleton label="Loading run inspection" />
           ) : errorMessage && !inspect ? (
             <p className="text-small-body text-danger" role="alert">
               {errorMessage}

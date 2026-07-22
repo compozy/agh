@@ -1,13 +1,14 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useState, type ComponentPropsWithoutRef } from "react";
 
-import { BlockLoading, Button, cn, ConfirmDialog, MonoId, Time } from "@agh/ui";
+import { Button, cn, ConfirmDialog, MonoId, Time } from "@agh/ui";
 
 import type {
   TaskBridgeNotificationSubscription,
   TaskBridgeNotificationSubscriptionCreateRequest,
 } from "../types";
 import { TaskBridgeSubscriptionCreateDialog } from "./task-bridge-subscription-create-dialog";
+import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
 
 export interface TaskBridgeSubscriptionsPaneProps {
   workspaceId: string | null;
@@ -122,7 +123,7 @@ export function TaskBridgeSubscriptionsPane({
   const [createOpen, setCreateOpen] = useState(false);
 
   if (isLoading && subscriptions.length === 0) {
-    return <BlockLoading label="Loading subscriptions" size="sm" surface="bare" />;
+    return <TaskRowsLoadingSkeleton label="Loading subscriptions" rows={2} />;
   }
 
   return (

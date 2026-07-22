@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 )
 
 func TestParseSinceFlagRFC3339(t *testing.T) {
@@ -72,6 +73,92 @@ func TestSessionNewUsesConfigDefaultWhenAgentFlagIsOmitted(t *testing.T) {
 	}
 	if decoded.AgentName != "general" {
 		t.Fatalf("decoded.AgentName = %q, want %q", decoded.AgentName, "general")
+	}
+}
+
+func TestSessionNewWaitsForStartupByDefault(t *testing.T) {
+	t.Parallel()
+
+	var statusCalls int
+	deps := newTestDeps(t, &stubClient{
+		createSessionFn: func(_ context.Context, _ CreateSessionRequest) (SessionRecord, error) {
+			return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
+		},
+		getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			statusCalls++
+			if id != "sess-1" {
+				t.Fatalf("GetSession() id = %q, want sess-1", id)
+			}
+			return SessionRecord{ID: id, State: session.StateActive}, nil
+		},
+	})
+	deps.pollInterval = time.Millisecond
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "new", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand(session new) error = %v", err)
+	}
+	if statusCalls != 1 {
+		t.Fatalf("GetSession() calls = %d, want 1", statusCalls)
+	}
+	var decoded SessionRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(session new) error = %v", err)
+	}
+	if decoded.State != session.StateActive {
+		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateActive)
+	}
+}
+
+func TestSessionNewNoWaitReturnsAcceptedStartingSession(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, &stubClient{
+		createSessionFn: func(_ context.Context, _ CreateSessionRequest) (SessionRecord, error) {
+			return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
+		},
+		getSessionFn: func(context.Context, string) (SessionRecord, error) {
+			t.Fatal("GetSession() called with --no-wait")
+			return SessionRecord{}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "new", "--no-wait", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand(session new --no-wait) error = %v", err)
+	}
+	var decoded SessionRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(session new --no-wait) error = %v", err)
+	}
+	if decoded.State != session.StateStarting {
+		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStarting)
+	}
+}
+
+func TestSessionNewReportsDurableStartupFailure(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, &stubClient{
+		createSessionFn: func(_ context.Context, _ CreateSessionRequest) (SessionRecord, error) {
+			return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
+		},
+		getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			return SessionRecord{
+				ID:    id,
+				State: session.StateStopped,
+				Failure: &contract.SessionFailurePayload{
+					Kind:    store.FailureStartup,
+					Summary: "provider authentication expired",
+				},
+			}, nil
+		},
+	})
+	deps.pollInterval = time.Millisecond
+
+	_, _, err := executeRootCommand(t, deps, "session", "new", "-o", "json")
+	if err == nil || !strings.Contains(err.Error(), "provider authentication expired") {
+		t.Fatalf("executeRootCommand(session new) error = %v, want startup failure summary", err)
 	}
 }
 

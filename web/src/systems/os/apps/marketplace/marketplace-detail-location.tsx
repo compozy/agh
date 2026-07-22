@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
+import { AlertCircle } from "lucide-react";
 
-import { Button, RouteState, useTopbarSlot } from "@agh/ui";
+import { Button, Empty, useTopbarSlot } from "@agh/ui";
 import {
   MarketplaceApiError,
   MarketplaceDetail,
@@ -76,12 +77,14 @@ function MarketplaceDetailRouteBody({
   if (query.error || !query.data) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
-        <RouteState
-          action={<Button onClick={() => void query.refetch()}>Retry</Button>}
-          cause={query.error?.message}
-          message="The marketplace entry could not be loaded."
-          mode="error"
+        <Empty
+          framed
+          titleAs="h2"
+          icon={AlertCircle}
           title="Unable to load this item"
+          description="The marketplace entry could not be loaded."
+          cause={query.error?.message}
+          action={<Button onClick={() => void query.refetch()}>Retry</Button>}
         />
       </div>
     );

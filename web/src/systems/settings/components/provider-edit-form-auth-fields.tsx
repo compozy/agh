@@ -3,7 +3,7 @@ import { Input, NativeSelect, NativeSelectOption } from "@agh/ui";
 import type { ProviderDraft } from "../types";
 import type { ProviderDraftChange } from "./provider-edit-form";
 import { ProviderCredentialFields } from "./provider-edit-form-credential-fields";
-import { SettingsFieldRow } from "./settings-field-row";
+import { ModalSettingsFieldRow } from "./settings-field-row";
 
 interface ProviderAuthFieldsProps {
   draft: ProviderDraft;
@@ -13,8 +13,7 @@ interface ProviderAuthFieldsProps {
 export function ProviderAuthFields({ draft, onChange }: ProviderAuthFieldsProps) {
   return (
     <>
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-auth-mode"
         label="Auth mode"
         description="Owner of provider authentication at launch."
@@ -48,8 +47,7 @@ export function ProviderAuthFields({ draft, onChange }: ProviderAuthFieldsProps)
           </NativeSelect>
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-env-policy"
         label="Env policy"
         description="Daemon environment inheritance policy for provider subprocesses."
@@ -70,8 +68,7 @@ export function ProviderAuthFields({ draft, onChange }: ProviderAuthFieldsProps)
           </NativeSelect>
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-home-policy"
         label="Home policy"
         description="Provider CLI state location policy."
@@ -92,8 +89,7 @@ export function ProviderAuthFields({ draft, onChange }: ProviderAuthFieldsProps)
           </NativeSelect>
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-auth-status-command"
         label="Status command"
         description="Provider-owned command used for auth diagnostics."
@@ -109,8 +105,7 @@ export function ProviderAuthFields({ draft, onChange }: ProviderAuthFieldsProps)
           />
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-auth-login-command"
         label="Login command"
         description="Provider-owned command opened by provider auth login."

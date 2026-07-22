@@ -56,6 +56,7 @@ export function AgentSettingsPanels(props: AgentSettingsPanelsProps) {
       ) : null}
       {section === "runtime" ? (
         <AgentSettingsRuntimeSection
+          agent={agent}
           draft={draft}
           errors={errors}
           disabled={disabled}

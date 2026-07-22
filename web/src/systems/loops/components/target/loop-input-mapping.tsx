@@ -18,7 +18,7 @@ export function LoopInputMapping({ inputs, mapping, onChange }: LoopInputMapping
   if (names.length === 0) return null;
   return (
     <div className="flex flex-col gap-2" data-testid="loop-input-mapping">
-      <p className="text-[11px] text-subtle">
+      <p className="text-form-hint text-subtle">
         Map fields from the event payload into the Loop inputs. Leave a row blank to use the static
         value above.
       </p>
@@ -30,7 +30,7 @@ export function LoopInputMapping({ inputs, mapping, onChange }: LoopInputMapping
             data-testid="loop-mapping-row"
             data-input={name}
           >
-            <span className="truncate font-mono text-[11px] text-fg-strong">{name}</span>
+            <span className="truncate font-mono text-mono-id text-fg-strong">{name}</span>
             <Input
               className="font-mono"
               data-testid={`loop-mapping-field-${name}`}

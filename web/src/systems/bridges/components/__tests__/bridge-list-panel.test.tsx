@@ -152,6 +152,15 @@ describe("BridgeListPanel", () => {
     expect(screen.getByTestId("bridge-list-error")).toHaveTextContent("boom");
   });
 
+  it("preserves the selected card geometry while bridges are loading", () => {
+    render(<BridgeListPanel {...defaultProps} bridges={[]} status="loading" view="cards" />);
+
+    expect(screen.getByRole("status", { name: "Loading bridges as cards" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Loading bridges as rows" })
+    ).not.toBeInTheDocument();
+  });
+
   it("shows route count and status label from health", () => {
     render(
       <BridgeListPanel

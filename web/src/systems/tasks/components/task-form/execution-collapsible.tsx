@@ -37,7 +37,7 @@ export function ExecutionCollapsible({
   return (
     <Collapsible className="mt-5 border-t border-line-soft pt-1" onOpenChange={setOpen} open={open}>
       <CollapsibleTrigger
-        className="flex w-full items-center gap-2 py-2.5 text-left outline-none"
+        className="flex w-full items-center gap-2 rounded-sm py-2.5 text-left outline-none focus-visible:shadow-focus-ring"
         data-testid="task-execution-toggle"
         type="button"
       >

@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-
 	"strings"
 )
 
@@ -56,17 +55,7 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		mcpServers = c.MCPServers
 	}
 
-	providerName := CanonicalProviderName(agent.Provider)
-	if providerName == "" {
-		providerName = CanonicalProviderName(defaults.Provider)
-	}
-	if providerName == "" {
-		return ResolvedAgent{}, errors.New(
-			"agent provider is required; run `agh install` or set agent.provider/defaults.provider",
-		)
-	}
-
-	provider, err := c.ResolveProvider(providerName)
+	providerName, provider, providerSource, err := c.resolveAgentProvider(agent.Provider, defaults.Provider)
 	if err != nil {
 		return ResolvedAgent{}, err
 	}
@@ -81,15 +70,13 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		command = strings.TrimSpace(provider.Command)
 	}
 
-	model := strings.TrimSpace(agent.Model)
-	if model == "" {
-		model = strings.TrimSpace(provider.Models.Default)
-	}
-	if model == "" && provider.RequiresRuntimeModel() {
-		return ResolvedAgent{}, fmt.Errorf(
-			"agent model is required when provider %q has no default model",
-			providerName,
-		)
+	model, reasoningEffort, modelSource, reasoningSource, err := resolveAgentModelRuntime(
+		providerName,
+		provider,
+		agent,
+	)
+	if err != nil {
+		return ResolvedAgent{}, err
 	}
 
 	resolved := resolvedAgentFromProvider(
@@ -99,19 +86,86 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		resolvedPermissions,
 		command,
 		model,
+		reasoningEffort,
 		mcpServers,
 	)
-
-	if strings.TrimSpace(resolved.Command) == "" {
-		return ResolvedAgent{}, fmt.Errorf("provider %q command is required", providerName)
+	resolved.RuntimeSources = ResolvedRuntimeSources{
+		Provider:        providerSource,
+		Model:           modelSource,
+		ReasoningEffort: reasoningSource,
 	}
-	if strings.TrimSpace(resolved.Permissions) != "" {
-		if err := PermissionMode(resolved.Permissions).Validate("agent.permissions"); err != nil {
-			return ResolvedAgent{}, err
-		}
+
+	if err := validateResolvedAgentRuntime(providerName, resolved); err != nil {
+		return ResolvedAgent{}, err
 	}
 
 	return resolved, nil
+}
+
+func (c *Config) resolveAgentProvider(
+	agentProvider string,
+	defaultProvider string,
+) (string, ProviderConfig, RuntimeValueSource, error) {
+	providerName := CanonicalProviderName(agentProvider)
+	providerSource := RuntimeValueSourceAgent
+	if providerName == "" {
+		providerName = CanonicalProviderName(defaultProvider)
+		providerSource = RuntimeValueSourceProjectDefault
+	}
+	if providerName == "" {
+		return "", ProviderConfig{}, "", errors.New(
+			"agent provider is required; run `agh install` or set agent.provider/defaults.provider",
+		)
+	}
+
+	provider, err := c.ResolveProvider(providerName)
+	if err != nil {
+		return "", ProviderConfig{}, "", err
+	}
+	return providerName, provider, providerSource, nil
+}
+
+func resolveAgentModelRuntime(
+	providerName string,
+	provider ProviderConfig,
+	agent AgentDef,
+) (string, string, RuntimeValueSource, RuntimeValueSource, error) {
+	model := strings.TrimSpace(agent.Model)
+	modelSource := RuntimeValueSourceAgent
+	if model == "" {
+		model = strings.TrimSpace(provider.Models.Default)
+		modelSource = RuntimeValueSourceProviderDefault
+	}
+	if model == "" {
+		modelSource = ""
+	}
+	if model == "" && provider.RequiresRuntimeModel() {
+		return "", "", "", "", fmt.Errorf(
+			"agent model is required when provider %q has no default model",
+			providerName,
+		)
+	}
+
+	reasoningEffort := strings.TrimSpace(agent.ReasoningEffort)
+	reasoningSource := RuntimeValueSourceAgent
+	if reasoningEffort == "" {
+		reasoningEffort = defaultReasoningEffortForModel(provider, model)
+		reasoningSource = RuntimeValueSourceModelDefault
+	}
+	if reasoningEffort == "" {
+		reasoningSource = ""
+	}
+	return model, reasoningEffort, modelSource, reasoningSource, nil
+}
+
+func validateResolvedAgentRuntime(providerName string, resolved ResolvedAgent) error {
+	if strings.TrimSpace(resolved.Command) == "" {
+		return fmt.Errorf("provider %q command is required", providerName)
+	}
+	if strings.TrimSpace(resolved.Permissions) == "" {
+		return nil
+	}
+	return PermissionMode(resolved.Permissions).Validate("agent.permissions")
 }
 
 func resolvedAgentFromProvider(
@@ -121,6 +175,7 @@ func resolvedAgentFromProvider(
 	resolvedPermissions string,
 	command string,
 	model string,
+	reasoningEffort string,
 	mcpServers []MCPServer,
 ) ResolvedAgent {
 	return ResolvedAgent{
@@ -129,7 +184,7 @@ func resolvedAgentFromProvider(
 		Command:         command,
 		DisplayName:     provider.DisplayName,
 		Model:           model,
-		ReasoningEffort: strings.TrimSpace(agent.ReasoningEffort),
+		ReasoningEffort: reasoningEffort,
 		Tools:           cloneStrings(agent.Tools),
 		Toolsets:        cloneStrings(agent.Toolsets),
 		DenyTools:       cloneStrings(agent.DenyTools),
@@ -179,6 +234,9 @@ func (c *Config) ResolveSessionAgentWithRuntime(
 	if override == "" || override == effectiveProvider {
 		sessionAgent := agent
 		if model != "" {
+			if model != strings.TrimSpace(agent.Model) {
+				sessionAgent.ReasoningEffort = ""
+			}
 			sessionAgent.Model = model
 		}
 		return c.ResolveAgent(sessionAgent)

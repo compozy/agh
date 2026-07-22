@@ -8,7 +8,6 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
-  Spinner,
   useTopbarSlot,
 } from "@agh/ui";
 import { type BridgesRouteSearch, useBridgesPage } from "./use-bridges-page";
@@ -80,17 +79,6 @@ export function BridgesCatalogLocation({ search }: { search: BridgesRouteSearch 
       ),
   });
 
-  if (page.isInitialLoading) {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center"
-        data-testid="bridges-loading"
-      >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </div>
-    );
-  }
-
   if (page.fatalError) {
     return (
       <div
@@ -107,7 +95,7 @@ export function BridgesCatalogLocation({ search }: { search: BridgesRouteSearch 
     );
   }
 
-  if (page.totalBridgeCount === 0 && !page.hasActiveFilters) {
+  if (!page.isInitialLoading && page.totalBridgeCount === 0 && !page.hasActiveFilters) {
     return (
       <>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="bridges-shell">
@@ -148,6 +136,7 @@ export function BridgesCatalogLocation({ search }: { search: BridgesRouteSearch 
             }
             onClearFilters={page.clearFilters}
             onLoadMore={() => void page.loadMore()}
+            status={page.isInitialLoading ? "loading" : "ready"}
             view={page.view}
           />
         </div>

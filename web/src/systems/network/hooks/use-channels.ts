@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -78,6 +78,7 @@ export function useNetworkChannels({
     ids: readPinnedChannels(selectedWorkspaceId),
     workspaceKey,
   }));
+  const pinnedStateRef = useRef(pinnedState);
   const pinnedIds =
     pinnedState.workspaceKey === workspaceKey
       ? pinnedState.ids
@@ -87,10 +88,12 @@ export function useNetworkChannels({
     if (typeof window === "undefined") return undefined;
     function handleStorage(event: StorageEvent) {
       if (event.key === PINNED_CHANNELS_STORAGE_KEY) {
-        setPinnedState({
+        const next = {
           ids: readPinnedChannels(selectedWorkspaceId),
           workspaceKey,
-        });
+        };
+        pinnedStateRef.current = next;
+        setPinnedState(next);
       }
     }
     window.addEventListener("storage", handleStorage);
@@ -99,14 +102,15 @@ export function useNetworkChannels({
 
   const togglePinned = (channel: string) => {
     if (!selectedWorkspaceId) return;
-    setPinnedState(current => {
-      const currentIds = current.workspaceKey === workspaceKey ? current.ids : pinnedIds;
-      const next = currentIds.includes(channel)
-        ? currentIds.filter(value => value !== channel)
-        : [channel, ...currentIds];
-      writePinnedChannels(selectedWorkspaceId, next);
-      return { ids: next, workspaceKey };
-    });
+    const current = pinnedStateRef.current;
+    const currentIds = current.workspaceKey === workspaceKey ? current.ids : pinnedIds;
+    const nextIds = currentIds.includes(channel)
+      ? currentIds.filter(value => value !== channel)
+      : [channel, ...currentIds];
+    const next = { ids: nextIds, workspaceKey };
+    pinnedStateRef.current = next;
+    setPinnedState(next);
+    writePinnedChannels(selectedWorkspaceId, nextIds);
   };
   const channels = query.data?.channels ?? [];
   const pinnedIdSet = new Set(pinnedIds);

@@ -26,7 +26,7 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
       <Eyebrow className="text-subtle">Add node</Eyebrow>
       {LOOP_PALETTE.map(group => (
         <div key={group.label} className="flex flex-col gap-1.5">
-          <MonoTag className="px-0.5 text-[8.5px] tracking-[0.09em] text-faint">
+          <MonoTag className="px-0.5 text-pill-group-badge tracking-[0.09em] text-faint">
             {group.label}
           </MonoTag>
           {group.items.map(item => (
@@ -40,15 +40,15 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
               className="flex items-center gap-2 rounded-md border border-line-soft bg-canvas-soft px-2 py-1.5 text-left transition-colors hover:border-line-strong hover:bg-canvas-tint disabled:cursor-not-allowed disabled:opacity-60"
             >
               <GripVertical aria-hidden="true" className="size-3 shrink-0 text-faint" />
-              <span className="text-[12px] font-medium text-fg-strong">{item.label}</span>
-              <span className="ml-auto truncate font-mono text-[9px] text-subtle">
+              <span className="text-form-label font-medium text-fg-strong">{item.label}</span>
+              <span className="ml-auto truncate font-mono text-pill-group-badge text-subtle">
                 {item.kindLabel}
               </span>
             </button>
           ))}
         </div>
       ))}
-      <p className="rounded-md border border-line-soft bg-canvas-soft px-2.5 py-2.5 text-[11px] leading-relaxed text-faint">
+      <p className="rounded-md border border-line-soft bg-canvas-soft px-2.5 py-2.5 text-form-hint leading-relaxed text-faint">
         <span className="font-medium text-subtle">Kinds are ToolIDs.</span> Beyond run-agent,
         run-loop and transform, an action&apos;s kind is the tool it calls. Tool params are edited
         as JSON today; schema-driven forms are a follow-up.

@@ -13,7 +13,6 @@ import {
 import {
   deriveMCPAuthFilter,
   deriveMCPManagementFilter,
-  MCPAuthorizeDialog,
   useDeleteSettingsMCPServer,
   type SettingsMCPServerEntry,
 } from "@/systems/settings";
@@ -35,10 +34,9 @@ import type {
   MCPInstallRequest,
 } from "../types";
 import { marketplaceRouteKindFor } from "../types";
-import { BundleActivationDialog } from "./bundle-activation-dialog";
-import { ExtensionTrustDialog } from "./extension-trust-dialog";
-import { MCPInstallDialog } from "./mcp-install-dialog";
+import { MarketplaceActionDialogs } from "./marketplace-action-dialogs";
 import { marketplaceEntrySlug, marketplaceErrorMessage } from "./marketplace-ui";
+import { useMarketplacePending } from "./use-marketplace-pending";
 
 interface MarketplaceActionControllerOptions {
   onViewInstalled?: () => void;
@@ -58,23 +56,6 @@ interface MarketplaceActionController {
   isInstalledItemPending: (item: MarketplaceInstalledItem) => boolean;
   isEntryFlashing: (entry: MarketplaceListing) => boolean;
   isAuthorizing: boolean;
-}
-
-function pendingKey(entry: MarketplaceListing): string {
-  return `${entry.kind}:${entry.entry_id}`;
-}
-
-function installedItemPendingKey(item: MarketplaceInstalledItem): string {
-  if (item.activationId) return `bundle:${item.activationId}`;
-  if (item.mcpServer) {
-    const filter = deriveMCPManagementFilter(item.mcpServer);
-    const owner = filter
-      ? `${filter.scope}:${filter.target}:${filter.scope === "workspace" ? filter.workspace_id : ""}`
-      : `${item.mcpServer.scope}:${item.mcpServer.workspace_id ?? ""}:unknown`;
-    return `mcp:${owner}:${item.mcpServer.name}`;
-  }
-  if (item.skill) return `skill:${item.skill.source}:${item.skill.name}`;
-  return `${item.entry.kind}:${item.entry.installed_name ?? item.entry.entry_id}`;
 }
 
 function installedName(entry: MarketplaceListing): string {
@@ -101,14 +82,11 @@ function useMarketplaceActionController(
   const toggleExtension = useToggleExtension();
   const deactivateBundle = useDeactivateBundle();
   const updateBundle = useUpdateBundleActivation();
-  const [pendingEntries, setPendingEntries] = useState<ReadonlyMap<string, number>>(
-    () => new Map()
-  );
+  const pending = useMarketplacePending();
   const [mcpDetail, setMCPDetail] = useState<MarketplaceEntryResponse | null>(null);
   const [bundleDetail, setBundleDetail] = useState<MarketplaceEntryResponse | null>(null);
   const [trustEntry, setTrustEntry] = useState<MarketplaceListing | null>(null);
   const [trustError, setTrustError] = useState<string | null>(null);
-  const [flashIds, setFlashIds] = useState<ReadonlySet<string>>(() => new Set());
   const [authServer, setAuthServer] = useState<SettingsMCPServerEntry | null>(null);
   const [authKick, setAuthKick] = useState(0);
   const startedAuthKick = useRef(0);
@@ -168,48 +146,9 @@ function useMarketplaceActionController(
     });
   };
 
-  const markFlash = (entry: MarketplaceListing) => {
-    const key = pendingKey(entry);
-    setFlashIds(current => new Set(current).add(key));
-  };
-
-  const handleFlashEnd = (entry: MarketplaceListing) => {
-    const key = pendingKey(entry);
-    setFlashIds(current => {
-      const next = new Set(current);
-      next.delete(key);
-      return next;
-    });
-  };
-
-  const trackPending = async <T,>(key: string, action: () => Promise<T>): Promise<T> => {
-    setPendingEntries(current => {
-      const next = new Map(current);
-      next.set(key, (next.get(key) ?? 0) + 1);
-      return next;
-    });
-    return Promise.resolve()
-      .then(action)
-      .finally(() => {
-        setPendingEntries(current => {
-          const next = new Map(current);
-          const remaining = (next.get(key) ?? 1) - 1;
-          if (remaining > 0) next.set(key, remaining);
-          else next.delete(key);
-          return next;
-        });
-      });
-  };
-
-  const trackPendingEntry = <T,>(entry: MarketplaceListing, action: () => Promise<T>) =>
-    trackPending(pendingKey(entry), action);
-
-  const trackPendingItem = <T,>(item: MarketplaceInstalledItem, action: () => Promise<T>) =>
-    trackPending(installedItemPendingKey(item), action);
-
   const withPendingEntry = async (entry: MarketplaceListing, action: () => Promise<void>) => {
     try {
-      await trackPendingEntry(entry, action);
+      await pending.trackEntry(entry, action);
     } catch (error) {
       toast.error(marketplaceErrorMessage(error, `Failed to update ${entry.name}`));
     }
@@ -217,7 +156,7 @@ function useMarketplaceActionController(
 
   const withPendingItem = async (item: MarketplaceInstalledItem, action: () => Promise<void>) => {
     try {
-      await trackPendingItem(item, action);
+      await pending.trackItem(item, action);
     } catch (error) {
       toast.error(marketplaceErrorMessage(error, `Failed to update ${item.entry.name}`));
     }
@@ -260,7 +199,7 @@ function useMarketplaceActionController(
             slug: marketplaceEntrySlug(entry),
             version: entry.version,
           });
-          markFlash(entry);
+          pending.flash(entry);
           viewInstalledToast(entry, `${entry.name} installed`);
         }
         return;
@@ -281,7 +220,7 @@ function useMarketplaceActionController(
           slug: marketplaceEntrySlug(entry),
           version: entry.version,
         });
-        markFlash(entry);
+        pending.flash(entry);
         viewInstalledToast(entry, `${entry.name} installed`);
         return;
       }
@@ -309,7 +248,7 @@ function useMarketplaceActionController(
     if (!trustEntry) return;
     setTrustError(null);
     try {
-      await trackPendingEntry(trustEntry, async () => {
+      await pending.trackEntry(trustEntry, async () => {
         if (trustEntry.update_available) {
           await updateExtension.mutateAsync({
             body: { allow_unverified: true, version: trustEntry.version },
@@ -323,7 +262,7 @@ function useMarketplaceActionController(
           slug: marketplaceEntrySlug(trustEntry),
           version: trustEntry.version,
         });
-        markFlash(trustEntry);
+        pending.flash(trustEntry);
         viewInstalledToast(trustEntry, `${trustEntry.name} installed`);
       });
       setTrustEntry(null);
@@ -338,7 +277,7 @@ function useMarketplaceActionController(
 
   const handleRemove = async (item: MarketplaceInstalledItem) => {
     const entry = item.entry;
-    await trackPendingItem(item, async () => {
+    await pending.trackItem(item, async () => {
       if (entry.kind === "skill") {
         await removeSkill.mutateAsync({
           name: installedName(entry),
@@ -372,7 +311,7 @@ function useMarketplaceActionController(
     if (!activationId) {
       throw new Error(`Activation id is unavailable for ${item.entry.name}`);
     }
-    await trackPendingItem(item, async () => {
+    await pending.trackItem(item, async () => {
       await deactivateBundle.mutateAsync(activationId);
     });
   };
@@ -397,48 +336,22 @@ function useMarketplaceActionController(
   };
 
   const dialogs = (
-    <>
-      {mcpDetail ? (
-        <MCPInstallDialog
-          data={mcpDetail}
-          key={mcpDetail.entry.entry_id}
-          onInstall={installSelectedMCP}
-          onOpenChange={open => {
-            if (!open) setMCPDetail(null);
-          }}
-          open
-          workspaceId={workspaceId}
-        />
-      ) : null}
-      {bundleDetail ? (
-        <BundleActivationDialog
-          data={bundleDetail}
-          key={bundleDetail.entry.entry_id}
-          onOpenChange={open => {
-            if (!open) setBundleDetail(null);
-          }}
-          open
-          workspaceId={workspaceId}
-        />
-      ) : null}
-      {trustEntry ? (
-        <ExtensionTrustDialog
-          entry={trustEntry}
-          error={trustError}
-          onConfirm={() => void confirmUnverifiedExtension()}
-          onOpenChange={open => {
-            if (!open) setTrustEntry(null);
-          }}
-          open
-          pending={installExtension.isPending || updateExtension.isPending}
-        />
-      ) : null}
-      <MCPAuthorizeDialog
-        authorize={authorize}
-        scope={authFilter?.scope ?? "global"}
-        server={authServer}
-      />
-    </>
+    <MarketplaceActionDialogs
+      authorize={authorize}
+      authScope={authFilter?.scope ?? "global"}
+      authServer={authServer}
+      bundleDetail={bundleDetail}
+      mcpDetail={mcpDetail}
+      onBundleClose={() => setBundleDetail(null)}
+      onConfirmTrust={() => void confirmUnverifiedExtension()}
+      onInstallMCP={installSelectedMCP}
+      onMCPClose={() => setMCPDetail(null)}
+      onTrustClose={() => setTrustEntry(null)}
+      trustEntry={trustEntry}
+      trustError={trustError}
+      trustPending={installExtension.isPending || updateExtension.isPending}
+      workspaceId={workspaceId}
+    />
   );
 
   return {
@@ -446,14 +359,14 @@ function useMarketplaceActionController(
     handleAction,
     handleAuthorize,
     handleDeactivate,
-    handleFlashEnd,
+    handleFlashEnd: pending.handleFlashEnd,
     handleRemove,
     handleToggleEnabled,
     handleUpdateBundle,
     isAuthorizing: authorize.isAwaiting,
-    isEntryFlashing: entry => flashIds.has(pendingKey(entry)),
-    isEntryPending: entry => (pendingEntries.get(pendingKey(entry)) ?? 0) > 0,
-    isInstalledItemPending: item => (pendingEntries.get(installedItemPendingKey(item)) ?? 0) > 0,
+    isEntryFlashing: pending.isEntryFlashing,
+    isEntryPending: pending.isEntryPending,
+    isInstalledItemPending: pending.isItemPending,
   };
 }
 

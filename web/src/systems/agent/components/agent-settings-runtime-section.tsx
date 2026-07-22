@@ -1,6 +1,7 @@
 import { Settings2 } from "lucide-react";
 
 import {
+  Button,
   Field,
   FieldDescription,
   FieldError,
@@ -22,7 +23,9 @@ import {
   AGENT_CREATE_PERMISSION_OPTIONS,
   type AgentCreatePermissionChoice,
 } from "../lib/agent-create-draft";
+import { inheritedAgentRuntimeFields } from "../lib/agent-effective-runtime";
 import type { AgentSettingsDraft, AgentSettingsValidation } from "../lib/agent-settings-draft";
+import type { AgentPayload } from "../types";
 
 const PERMISSION_DESCRIPTIONS: Record<AgentCreatePermissionChoice, string> = {
   "": "Use the runtime's default approval mode.",
@@ -33,6 +36,7 @@ const PERMISSION_DESCRIPTIONS: Record<AgentCreatePermissionChoice, string> = {
 
 export interface AgentSettingsRuntimeSectionProps {
   draft: AgentSettingsDraft;
+  agent: AgentPayload;
   errors: AgentSettingsValidation["fields"];
   disabled: boolean;
   readOnly: boolean;
@@ -50,6 +54,7 @@ export interface AgentSettingsRuntimeSectionProps {
 
 export function AgentSettingsRuntimeSection({
   draft,
+  agent,
   errors,
   disabled,
   readOnly,
@@ -64,11 +69,25 @@ export function AgentSettingsRuntimeSection({
   onRefreshCatalog,
   onOpenProviderSettings,
 }: AgentSettingsRuntimeSectionProps) {
+  const effectiveRuntime = agent.effective_runtime;
+  const effectiveProvider = effectiveRuntime?.provider?.trim() ?? "";
+  const selectedProvider = draft.provider.trim() || effectiveProvider;
+  const providerMatchesEffective = selectedProvider === effectiveProvider;
+  const selectedModel =
+    draft.model.trim() || (providerMatchesEffective ? (effectiveRuntime?.model?.trim() ?? "") : "");
   const runtimeValue: RuntimeSelectorValue = {
-    provider: draft.provider,
-    model: draft.model,
-    reasoning_effort: draft.reasoningEffort,
+    provider: selectedProvider,
+    model: selectedModel,
+    reasoning_effort:
+      draft.reasoningEffort ||
+      (providerMatchesEffective && selectedModel === effectiveRuntime?.model?.trim()
+        ? (effectiveRuntime?.reasoning_effort ?? "")
+        : ""),
   };
+  const inheritedFields = inheritedAgentRuntimeFields(agent);
+  const hasRuntimeOverride = Boolean(
+    draft.provider.trim() || draft.model.trim() || draft.reasoningEffort
+  );
 
   return (
     <FormSection
@@ -83,6 +102,12 @@ export function AgentSettingsRuntimeSection({
         <FieldDescription>
           Provider, model, and reasoning effort inherited by new sessions.
         </FieldDescription>
+        {inheritedFields.length > 0 ? (
+          <p className="text-form-hint text-info" data-testid="agent-settings-runtime-inherited">
+            Inheriting {inheritedFields.join(", ")} from project runtime defaults. A selection here
+            creates an agent override.
+          </p>
+        ) : null}
         <RuntimeSelector
           value={runtimeValue}
           onChange={next =>
@@ -107,6 +132,19 @@ export function AgentSettingsRuntimeSection({
           triggerId="agent-settings-runtime-trigger"
           triggerTestId="agent-settings-runtime-select"
         />
+        {hasRuntimeOverride && !readOnly ? (
+          <Button
+            className="mt-2"
+            data-testid="agent-settings-runtime-use-project-defaults"
+            disabled={disabled}
+            onClick={() => onPatch({ provider: "", model: "", reasoningEffort: "" })}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Use project defaults
+          </Button>
+        ) : null}
         <FieldError data-testid="agent-settings-provider-error">{errors.provider}</FieldError>
         {modelCatalogError ? (
           <p className="text-small-body text-warning" data-testid="agent-settings-model-error">

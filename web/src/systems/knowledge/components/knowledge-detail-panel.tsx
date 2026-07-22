@@ -11,7 +11,7 @@ import {
   PAGE_CONTENT_GUTTER,
   Pill,
   Section,
-  Spinner,
+  Skeleton,
   StatusDot,
   Time,
 } from "@agh/ui";
@@ -247,14 +247,7 @@ function KnowledgeDetailPanel({
   const editOpen = isCurrentDialogState && dialogState.editOpen;
 
   if (isLoading) {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center"
-        data-testid="knowledge-detail-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
+    return <KnowledgeDetailSkeleton />;
   }
 
   if (error) {
@@ -429,6 +422,37 @@ function KnowledgeDetailPanel({
           scope={resolvedScope}
         />
       ) : null}
+    </div>
+  );
+}
+
+function KnowledgeDetailSkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden")}
+      data-testid="knowledge-detail-loading"
+      role="status"
+    >
+      <div className="flex flex-col gap-2 pt-4">
+        <Skeleton className="h-3 w-48" />
+        <div className="flex gap-2">
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-20" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-6 py-5">
+        <Skeleton className="h-44 w-full" />
+        <div className="space-y-2.5">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-20 w-full" />
+        </div>
+        <div className="space-y-2.5">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      </div>
+      <span className="sr-only">Loading knowledge details</span>
     </div>
   );
 }

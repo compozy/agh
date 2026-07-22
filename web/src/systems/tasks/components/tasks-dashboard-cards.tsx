@@ -1,4 +1,4 @@
-import { KpiCard } from "@agh/ui";
+import { Metric } from "@agh/ui";
 
 import { formatDurationMs, formatPercent } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
@@ -8,9 +8,9 @@ export interface TasksDashboardCardsProps {
 }
 
 /**
- * Dashboard KPI strip — four flat `<KpiCard>` neutrals. KpiCard owns its own
- * label / value typography contract; the value stays `--fg-strong`, never tone
- * recolored. The freshness pill lives in the window topbar, not here.
+ * Dashboard KPI strip — four flat `<Metric>` neutrals with eyebrow labels. The
+ * value stays `--fg-strong`, never tone recolored. The freshness pill lives in
+ * the window topbar, not here.
  */
 export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
   const { active_runs, totals, cards, queue } = dashboard;
@@ -41,27 +41,31 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
       className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       data-testid="tasks-dashboard-cards"
     >
-      <KpiCard
+      <Metric
+        labelCase="eyebrow"
         data-testid="tasks-dashboard-card-active-runs"
-        detail={activeDetail}
+        subtext={activeDetail}
         label="Active runs"
         value={activeRuns}
       />
-      <KpiCard
+      <Metric
+        labelCase="eyebrow"
         data-testid="tasks-dashboard-card-success-rate"
-        detail="last 24h"
+        subtext="last 24h"
         label="Success rate"
         value={successRate === null ? "--" : formatPercent(successRate)}
       />
-      <KpiCard
+      <Metric
+        labelCase="eyebrow"
         data-testid="tasks-dashboard-card-average-duration"
-        detail={avgDurationDetail}
+        subtext={avgDurationDetail}
         label="Average duration"
         value={formatDurationMs(avgDurationMs)}
       />
-      <KpiCard
+      <Metric
+        labelCase="eyebrow"
         data-testid="tasks-dashboard-card-queue-depth"
-        detail={queueDetail}
+        subtext={queueDetail}
         label="Queue depth"
         value={queueDepth}
       />

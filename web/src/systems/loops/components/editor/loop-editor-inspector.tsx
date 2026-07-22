@@ -120,11 +120,11 @@ export function LoopEditorInspector({
           >
             {String(raw.id)}
           </span>
-          <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5 text-[8.5px] text-subtle">
+          <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5 text-pill-group-badge text-subtle">
             {node.data.nodeClass ?? "node"}
           </MonoTag>
         </div>
-        <p className="mt-1.5 flex items-center gap-2 font-mono text-[10.5px] text-subtle">
+        <p className="mt-1.5 flex items-center gap-2 font-mono text-mono-id text-subtle">
           <span>{node.data.kind || "—"}</span>
           <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
           <span>id: {String(raw.id)}</span>

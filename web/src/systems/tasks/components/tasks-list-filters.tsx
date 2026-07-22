@@ -1,7 +1,7 @@
 import { ListFilter } from "lucide-react";
 
 import { Button } from "@agh/ui";
-import { Filters, type Filter } from "@agh/ui";
+import { FiltersWithSearch, type Filter } from "@agh/ui";
 
 import {
   applyTaskFilterChips,
@@ -41,7 +41,7 @@ export function TasksListFilters({
 
   return (
     <div className="flex flex-nowrap items-center gap-2" data-testid="tasks-list-filters">
-      <Filters<string>
+      <FiltersWithSearch<string>
         allowMultiple={false}
         fields={fields}
         filters={chips}

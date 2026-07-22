@@ -55,4 +55,31 @@ describe("Metric", () => {
     expect(container.querySelector('[data-slot="metric-detail"]')).toBeNull();
     expect(container.querySelector('[data-slot="metric-subtext"]')).toBeNull();
   });
+
+  it("Should render an eyebrow-cased label distinct from the sentence label", () => {
+    const { container } = render(<Metric labelCase="eyebrow" label="Active runs" value="18" />);
+    const label = container.querySelector('[data-slot="metric-label"]');
+    expect(label?.textContent).toBe("Active runs");
+    expect(label?.className).not.toContain("text-form-label");
+  });
+
+  it("Should reflect the compact size and value tier via data-size", () => {
+    const { container } = render(<Metric size="compact" label="Queue" value="142" />);
+    expect(container.querySelector('[data-slot="metric"]')?.getAttribute("data-size")).toBe(
+      "compact"
+    );
+    const value = container.querySelector('[data-slot="metric-value"]');
+    expect(value?.className).toContain("text-kpi-compact");
+  });
+
+  it("Should render the head icon and trailing slots when provided", () => {
+    function Dot() {
+      return <svg data-testid="metric-head-icon" />;
+    }
+    const { container } = render(
+      <Metric label="Signal" value="8" icon={Dot} trailing={<span>t</span>} />
+    );
+    expect(container.querySelector('[data-slot="metric-icon"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="metric-trailing"]')).not.toBeNull();
+  });
 });

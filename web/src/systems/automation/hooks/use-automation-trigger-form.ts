@@ -39,7 +39,7 @@ import type {
   AutomationTriggerFilter,
   CreateAutomationTriggerRequest,
 } from "../types";
-import type { SubConfigValues } from "../components/trigger-form/event-sub-config";
+import type { SubConfigValues } from "../lib/trigger-sub-config";
 
 export interface UseAutomationTriggerFormParams {
   activeWorkspaceId?: string | null;

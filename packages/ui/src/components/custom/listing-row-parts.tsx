@@ -21,8 +21,7 @@ export interface ListingRowTitleProps extends React.ComponentProps<"b"> {
   mono?: boolean;
 }
 
-type ListingRowNameContextValue = { mono: boolean };
-const ListingRowNameContext = React.createContext<ListingRowNameContextValue>({ mono: false });
+const ListingRowNameContext = React.createContext(false);
 
 function ListingRowLink({ className, render, ...props }: ListingRowLinkProps) {
   const element = useRender({
@@ -30,7 +29,7 @@ function ListingRowLink({ className, render, ...props }: ListingRowLinkProps) {
     props: mergeProps<"a">(
       {
         className: cn(
-          "col-span-2 grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-3.5 rounded-sm outline-none focus-visible:shadow-focus-inset",
+          "col-span-2 grid min-w-0 grid-cols-[var(--size-icon-well-row)_minmax(0,1fr)] items-center gap-3.5 rounded-sm outline-none focus-visible:shadow-focus-inset",
           className
         ),
       } as Record<string, unknown>,
@@ -49,7 +48,7 @@ function ListingRowIcon({ className, ...props }: ListingRowIconProps) {
       aria-hidden="true"
       data-slot="listing-row-icon"
       className={cn(
-        "grid size-[34px] shrink-0 place-items-center rounded-md bg-elevated text-muted",
+        "grid size-icon-well-row shrink-0 place-items-center rounded-md bg-elevated text-muted",
         className
       )}
       {...props}
@@ -62,9 +61,8 @@ function ListingRowMain({ className, ...props }: ListingRowMainProps) {
 }
 
 function ListingRowName({ mono = false, className, ...props }: ListingRowNameProps) {
-  const contextValue: ListingRowNameContextValue = { mono };
   return (
-    <ListingRowNameContext.Provider value={contextValue}>
+    <ListingRowNameContext.Provider value={mono}>
       <div
         data-slot="listing-row-name"
         data-mono={mono ? "true" : undefined}
@@ -76,15 +74,17 @@ function ListingRowName({ mono = false, className, ...props }: ListingRowNamePro
 }
 
 function ListingRowTitle({ mono, className, ...props }: ListingRowTitleProps) {
-  const nameContext = React.use(ListingRowNameContext);
-  const useMono = mono ?? nameContext.mono;
+  const nameMono = React.use(ListingRowNameContext);
+  const useMono = mono ?? nameMono;
   return (
     <b
       data-slot="listing-row-title"
       data-mono={useMono ? "true" : undefined}
       className={cn(
         "min-w-0 truncate font-medium text-fg-strong",
-        useMono ? "font-mono text-xs tracking-normal" : "font-sans text-sm tracking-[-0.01em]",
+        useMono
+          ? "font-mono text-xs tracking-normal"
+          : "font-sans text-card-title tracking-row-title",
         className
       )}
       {...props}
@@ -106,7 +106,7 @@ function ListingRowDescription({ className, ...props }: ListingRowDescriptionPro
   return (
     <p
       data-slot="listing-row-description"
-      className={cn("mt-1 truncate text-[12.5px] leading-[1.45] text-muted", className)}
+      className={cn("mt-1 truncate text-small-body text-muted", className)}
       {...props}
     />
   );

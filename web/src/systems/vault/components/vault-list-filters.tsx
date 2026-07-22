@@ -1,7 +1,7 @@
 import { ListFilter } from "lucide-react";
 
 import { Button } from "@agh/ui";
-import { Filters, type Filter } from "@agh/ui";
+import { FiltersWithSearch, type Filter } from "@agh/ui";
 
 import type { VaultNamespaceFilter } from "../hooks/use-vault-page";
 import {
@@ -29,7 +29,7 @@ export function VaultListFilters({ namespace, onNamespaceChange }: VaultListFilt
   };
 
   return (
-    <Filters<string>
+    <FiltersWithSearch<string>
       allowMultiple={false}
       data-testid="vault-list-filters"
       fields={fields}

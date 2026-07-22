@@ -75,10 +75,10 @@ export function LoopGenerationCard({
         onClick={() => setOpen(value => !value)}
         data-testid={`loop-generation-toggle-${generation.generation}`}
       >
-        <span className="w-6 font-mono text-[11px] font-semibold text-faint">
+        <span className="w-6 font-mono text-mono-id font-semibold text-faint">
           G{generation.generation}
         </span>
-        <span className="text-[13.5px] font-medium text-fg-strong">
+        <span className="text-modal-title font-medium text-fg-strong">
           Generation {generation.generation}
         </span>
         <span className="flex-1" />

@@ -2,7 +2,7 @@ import { useRender } from "@base-ui/react/use-render";
 import type React from "react";
 import { useEffect, useId, useReducer, useRef } from "react";
 
-import type { Filter, FilterFieldConfig, FilterFieldsConfig } from "../filters";
+import type { Filter, FilterFieldConfig, FilterFieldsConfig } from "../filter-types";
 import { createFilter, flattenFields, getFieldsMap } from "./filter-helpers";
 import {
   DEFAULT_I18N,

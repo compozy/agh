@@ -3076,7 +3076,7 @@ func TestBootConfigEnsuresManagedAgents(t *testing.T) {
 			t.Fatalf("bootConfig() error = %v", err)
 		}
 
-		for _, name := range []string{aghconfig.DefaultAgentName, aghconfig.OnboardingAgentName} {
+		for _, name := range []string{aghconfig.DefaultAgentName} {
 			agent, err := aghconfig.LoadAgentDef(name, homePaths)
 			if err != nil {
 				t.Fatalf("LoadAgentDef(%s) error = %v", name, err)

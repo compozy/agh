@@ -23,7 +23,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
   if (runs.length === 0) {
     return (
       <div
-        className="rounded-lg border border-line bg-canvas-soft px-4 py-6 text-center text-[12.5px] text-subtle"
+        className="rounded-lg border border-line bg-canvas-soft px-4 py-6 text-center text-small-body text-subtle"
         data-testid="loop-recent-runs-empty"
       >
         This Loop has not run yet.
@@ -44,10 +44,10 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
           data-testid="loop-recent-run-row"
         >
           <LoopStatusPill status={run.status} />
-          <span className="font-mono text-[11.5px] text-fg">{run.id}</span>
-          <span className="truncate text-[11.5px] text-subtle">{triggerLine(run)}</span>
+          <span className="font-mono text-mono-id text-fg">{run.id}</span>
+          <span className="truncate text-form-hint text-subtle">{triggerLine(run)}</span>
           <span className="text-xs tabular-nums text-muted">{run.generation} gens</span>
-          <span className="text-right text-[11px] tabular-nums text-faint">
+          <span className="text-right text-form-hint tabular-nums text-faint">
             {formatRelativeTime(run.created_at)}
           </span>
           <span className="justify-self-end text-faint">

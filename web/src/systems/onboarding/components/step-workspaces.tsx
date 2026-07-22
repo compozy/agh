@@ -4,6 +4,7 @@ import { Alert, AlertDescription, Button, Eyebrow } from "@agh/ui";
 
 import type { OnboardingWorkspacesApi } from "../hooks/use-onboarding-workspaces";
 import { DirectoryBrowser } from "./directory-browser";
+import { OnboardingNetworkMention } from "./onboarding-network-mention";
 
 interface StepWorkspacesProps {
   workspaces: OnboardingWorkspacesApi;
@@ -88,6 +89,8 @@ export function StepWorkspaces({ workspaces }: StepWorkspacesProps) {
           </ul>
         )}
       </section>
+
+      <OnboardingNetworkMention className="border-t border-line pt-4" />
     </div>
   );
 }

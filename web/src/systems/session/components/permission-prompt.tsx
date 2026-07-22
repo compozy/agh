@@ -1,11 +1,9 @@
 import { Check, ShieldAlert, ShieldCheck, ShieldOff, X } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
 
 import { Button, CodeBlock, Eyebrow, cn } from "@agh/ui";
 
 import type { PermissionDecision } from "../adapters/session-api";
-import { approveSession } from "../adapters/session-api";
+import { useSessionPermissionDecision } from "../hooks/use-session-permission-decision";
 import { toPermissionRequest } from "../lib/message-parts";
 import type { AghPermissionData, PermissionRequest } from "../types";
 
@@ -68,60 +66,18 @@ function permissionDecisionOptions(permission: PermissionRequest): PermissionDec
   return filtered.length > 0 ? filtered : FALLBACK_PERMISSION_DECISIONS;
 }
 
-interface SubmitPermissionDecisionArgs {
-  workspaceId: string;
-  sessionId: string;
-  permission: PermissionRequest;
-  decision: PermissionDecision;
-  onResolved?: () => void;
-}
-
-async function submitPermissionDecision({
-  workspaceId,
-  sessionId,
-  permission,
-  decision,
-  onResolved,
-}: SubmitPermissionDecisionArgs): Promise<boolean> {
-  try {
-    await approveSession(workspaceId, sessionId, {
-      request_id: permission.requestId,
-      turn_id: permission.turnId ?? "",
-      decision,
-    });
-    onResolved?.();
-    return true;
-  } catch (error) {
-    console.error("Failed to submit permission decision", error);
-    return false;
-  }
-}
-
 export function PermissionPrompt({
   permission,
   sessionId,
   workspaceId,
   onResolved,
 }: PermissionPromptProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isResolved, setIsResolved] = useState(false);
-
-  const handleDecision = async (decision: PermissionDecision) => {
-    setIsSubmitting(true);
-    const resolved = await submitPermissionDecision({
-      workspaceId,
-      sessionId,
-      permission,
-      decision,
-      onResolved,
-    });
-    if (resolved) {
-      setIsResolved(true);
-    } else {
-      toast.error("Failed to send permission response. The agent may continue waiting.");
-    }
-    setIsSubmitting(false);
-  };
+  const { decide, isResolved, isSubmitting } = useSessionPermissionDecision({
+    workspaceId,
+    sessionId,
+    permission,
+    onResolved,
+  });
 
   const tone = promptToneFor(permission.toolName);
   const isHighStakes = tone === "danger";
@@ -186,7 +142,7 @@ export function PermissionPrompt({
                 variant="outline"
                 size="sm"
                 disabled={isSubmitting}
-                onClick={() => handleDecision("allow-once")}
+                onClick={() => decide("allow-once")}
                 data-testid="permission-allow-once"
               >
                 <Check className="size-3" />
@@ -198,7 +154,7 @@ export function PermissionPrompt({
                 variant="outline"
                 size="sm"
                 disabled={isSubmitting}
-                onClick={() => handleDecision("allow-always")}
+                onClick={() => decide("allow-always")}
                 data-testid="permission-allow-always"
               >
                 <ShieldCheck className="size-3" />
@@ -210,7 +166,7 @@ export function PermissionPrompt({
                 variant={isHighStakes ? "destructive" : "outline"}
                 size="sm"
                 disabled={isSubmitting}
-                onClick={() => handleDecision("reject-once")}
+                onClick={() => decide("reject-once")}
                 data-testid="permission-reject-once"
               >
                 <X className="size-3" />
@@ -222,7 +178,7 @@ export function PermissionPrompt({
                 variant="destructive"
                 size="sm"
                 disabled={isSubmitting}
-                onClick={() => handleDecision("reject-always")}
+                onClick={() => decide("reject-always")}
                 data-testid="permission-reject-always"
               >
                 <ShieldOff className="size-3" />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   type QueryClient,
   useInfiniteQuery,
@@ -15,11 +15,7 @@ import {
   sessionDetailOptions,
   sessionTranscriptOptions,
 } from "../lib/query-options";
-import {
-  computeStableThreadMessages,
-  EMPTY_STABLE_THREAD_MESSAGES,
-  type StableThreadMessagesState,
-} from "../lib/session-thread-repository";
+import { toReadonlyThreadMessages } from "../lib/session-thread-repository";
 import {
   formatSessionDebugError,
   recordSessionDebugEvent,
@@ -140,9 +136,6 @@ export function useSessionLiveTail({
   eventSourceFactory,
 }: UseSessionLiveTailOptions) {
   const queryClient = useQueryClient();
-  const [stableMessages, setStableMessages] = useState<StableThreadMessagesState>(
-    EMPTY_STABLE_THREAD_MESSAGES
-  );
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTranscriptErrorRef = useRef<unknown>(null);
   const sourceFactory = eventSourceFactory ?? defaultEventSourceFactory;
@@ -156,11 +149,7 @@ export function useSessionLiveTail({
     : transcriptQuery.isError
       ? "error"
       : "success";
-  const nextStableMessages = computeStableThreadMessages(transcriptMessages, stableMessages);
-  if (nextStableMessages !== stableMessages) {
-    setStableMessages(nextStableMessages);
-  }
-  const readonlyMessages = nextStableMessages.result;
+  const readonlyMessages = toReadonlyThreadMessages(transcriptMessages);
 
   useEffect(() => {
     return () => {

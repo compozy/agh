@@ -119,6 +119,7 @@ describe("AgentCreateDialog", () => {
     renderStatefulDialog();
 
     expect(screen.getByTestId("agent-create-progress")).toHaveTextContent("Step 1 of 4");
+    expect(screen.getByTestId("agent-create-step-basics")).toHaveAttribute("aria-current", "step");
     expect(screen.getByTestId("agent-create-next")).toBeDisabled();
 
     await user.type(screen.getByTestId("agent-create-name"), "../bad");
@@ -177,6 +178,24 @@ describe("AgentCreateDialog", () => {
       "Choose a valid reasoning effort."
     );
     expect(screen.getByTestId("agent-create-next")).toBeDisabled();
+  });
+
+  it("Should clear authored runtime overrides back to project defaults", async () => {
+    const user = userEvent.setup();
+    renderStatefulDialog({
+      draft: validDraft({
+        model: "gpt-5.6-sol",
+        reasoningEffort: "high",
+      }),
+    });
+
+    await user.click(screen.getByTestId("agent-create-next"));
+    await user.click(screen.getByTestId("agent-create-runtime-use-project-defaults"));
+
+    expect(screen.getByTestId("agent-create-runtime-inherited")).toHaveTextContent(
+      "Project runtime defaults will be used."
+    );
+    expect(screen.queryByTestId("agent-create-runtime-use-project-defaults")).toBeNull();
   });
 
   it("Should accept comma and newline token input while preserving de-duped order", async () => {

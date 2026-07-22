@@ -66,12 +66,12 @@ export function LoopStartBindingsPanel({
               {kind}
             </MonoTag>
           ))}
-          <span className="ml-auto font-mono text-[9.5px] text-faint">declared</span>
+          <span className="ml-auto font-mono text-pill-group-badge text-faint">declared</span>
         </div>
 
         {hasPagination ? (
           <p
-            className="border-t border-line-soft px-3.5 py-2 font-mono text-[10.5px] text-faint"
+            className="border-t border-line-soft px-3.5 py-2 font-mono text-mono-id text-faint"
             data-testid="loop-bindings-progress"
           >
             {loadedBindings} of {totalBindings} attached loaded
@@ -79,13 +79,13 @@ export function LoopStartBindingsPanel({
         ) : null}
 
         {isLoading ? (
-          <div className="flex items-center gap-2 border-t border-line-soft px-3.5 py-3 text-[11.5px] text-subtle">
+          <div className="flex items-center gap-2 border-t border-line-soft px-3.5 py-3 text-form-hint text-subtle">
             <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
             Loading attached automations…
           </div>
         ) : bindings.length === 0 ? (
           <p
-            className="border-t border-line-soft px-3.5 py-3 text-[11.5px] leading-relaxed text-subtle"
+            className="border-t border-line-soft px-3.5 py-3 text-form-hint leading-relaxed text-subtle"
             data-testid="loop-bindings-empty"
           >
             Runs on demand. Attach an automation to one of the declared start kinds above to run
@@ -118,9 +118,7 @@ export function LoopStartBindingsPanel({
                   {bindingKindLabel(binding.kind)}
                 </MonoTag>
               </div>
-              <div className="mt-1.5 pl-3.5 font-mono text-[10.5px] text-subtle">
-                {binding.meta}
-              </div>
+              <div className="mt-1.5 pl-3.5 font-mono text-mono-id text-subtle">{binding.meta}</div>
             </div>
           ))
         )}
@@ -200,7 +198,7 @@ export function LoopStartBindingsPanel({
             ) : null}
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 border-t border-line-soft px-3.5 py-2.5 text-[10.5px] text-faint">
+          <div className="flex items-center gap-1.5 border-t border-line-soft px-3.5 py-2.5 text-badge text-faint">
             <Plus aria-hidden="true" className="size-3" />
             This Loop declares no automatable start kind.
           </div>

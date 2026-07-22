@@ -5943,10 +5943,10 @@ func (r *fakeSkillRegistry) ForWorkspace(
 	return append([]*skillspkg.Skill(nil), skills...), nil
 }
 
-func (r *fakeSkillRegistry) ForAgent(
+func (r *fakeSkillRegistry) ForAgentDef(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
-	_ string,
+	_ aghconfig.AgentDef,
 ) ([]*skillspkg.Skill, error) {
 	return r.ForWorkspace(ctx, resolved)
 }

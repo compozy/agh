@@ -1,12 +1,12 @@
 # J-17 — Start a session through the unified runtime selector
 
-The model-selector MVP's headline web path (`model-selector` _spec §3, §6). An operator opens the session-create dialog and, instead of three stacked form fields (provider select · model select · reasoning select) plus a separate refresh/status block, meets **one button-group control** — provider glyph+name · model · reasoning meter — that opens a single popup (search + refresh header, provider rail, grouped model list with availability + capability chips, reasoning footer). They pick a provider, a curated model, and a reasoning effort, then create the session; the session row and topbar reflect exactly what they chose. The regression risk lives in the wire contract (empty axes omitted from the POST body), the reset-on-switch rule, and the provisional custom-ID path.
+The model-selector MVP's headline web path (`model-selector` _spec §3, §6). An operator opens the session-create dialog and, instead of three stacked form fields (provider select · model select · reasoning select) plus a separate refresh/status block, meets **one button-group control** — provider glyph+name · model · reasoning meter — that opens a single popup (search + refresh header, provider rail, grouped model list with availability + capability chips, reasoning footer). The closed trigger starts from the agent's workspace-scoped effective runtime. Leaving it untouched preserves project inheritance; changing it creates one coherent session override. The regression risk lives in that authored-versus-effective boundary, the reset-on-switch rule, durable asynchronous startup, and the provisional custom-ID path.
 
 ```mermaid
 flowchart TD
     E1[Entry: Agents view → Start session] --> D[Session-create dialog]
     D --> A[Pick agent · AgentCommandSelect]
-    A --> RT[Runtime selector trigger shows agent default provider·model·reasoning]
+    A --> RT[Runtime selector trigger shows effective provider·model·reasoning]
     RT -->|click provider segment| RAIL[Popup opens, provider rail focused]
     RT -->|click model segment| SRCH[Popup opens, search focused]
     RT -->|click reasoning segment| RZ[Popup opens, effort strip focused]
@@ -26,12 +26,16 @@ flowchart TD
     CUST --> COMMITC[Provisional exact ID emitted; validated by adapter at start]
     PICKE --> SUB[Create session]
     COMMITC --> SUB
-    SUB --> BODY{Emitted value}
-    BODY -->|provider always; model/effort omitted when empty| POST[POST /api/sessions minimal body]
-    POST --> OK[Session created → navigates to session; topbar shows provider·model·reasoning]
-    OK --> REOPEN[Reopen dialog for the same agent → trigger again shows the agent default; per-session override is session-scoped, not persisted]
+    SUB --> BODY{Selector changed?}
+    BODY -->|no| INHERIT[Omit provider/model/reasoning]
+    BODY -->|yes| OVERRIDE[Send coherent provider/model/reasoning override]
+    INHERIT --> POST[POST /api/sessions]
+    OVERRIDE --> POST
+    POST --> ACCEPT[201 durable starting session → navigate immediately]
+    ACCEPT --> OK[Active → composer enabled]
+    OK --> REOPEN[Reopen dialog for the same agent → trigger again shows effective runtime; per-session override is not persisted]
     REOPEN --> READ[Fresh-read the created session: transcript begins with the chosen model and applied effort — true_end_state]
-    POST -->|custom/unavailable model| FAIL[422 model_unavailable surfaced, no silent default substitution]
+    ACCEPT -->|custom/unavailable model| FAIL[Durable stopped startup_failure surfaced, no silent default substitution]
     FAIL --> RECOVER[Operator picks a catalog-listed model or signs the provider in → no session against an unusable runtime — recovery terminal]
     D -.->|no providers in workspace| EMPTY[Empty-providers notice; submit disabled]
     RAIL -.->|needs-auth provider| WARN[Rail item dimmed, rows disabled with reason, trigger warning]
@@ -41,7 +45,7 @@ flowchart TD
 journey:
   id: J-17
   name: "Start a session through the unified runtime selector"
-  value_statement: "One fast control picks my provider, model, and reasoning truthfully — I never see effort options the runtime can't honor, and empty choices inherit the agent default instead of being forced."
+  value_statement: "One fast control shows my effective provider, model, and reasoning truthfully — untouched values keep project inheritance, while explicit choices become one session-scoped override."
   personas: [Bruno, Sol]
   entry_points:
     - url: "web Agents view → Start session (session-create dialog)"
@@ -63,11 +67,11 @@ journey:
       expected_observable: "Selecting a model whose efforts exclude the current level resets reasoning to provider default; the footer shows the levels strip (with a Default dot) for a model with efforts, a 'provider decides' note for supports-reasoning-without-levels, or a 'no reasoning' note otherwise, plus an ACP|catalog source badge."
     - step: 5
       verb: "Create the session"
-      expected_observable: "The POST body carries provider always; model and reasoning_effort appear only when non-empty (agent default inherited, not forced). The new session's topbar/list reflects the exact provider·model·reasoning chosen."
+      expected_observable: "An untouched selector omits provider, model, and reasoning_effort so project inheritance remains live; an explicit change sends one coherent runtime override. Navigation lands on a durable starting session, whose composer stays disabled until active."
   goal:
     observable: "A session is created with the operator's chosen runtime; the daemon applies the advertised reasoning effort after model selection and before the first prompt; the UI never advertised an effort the runtime could not honor."
     side_effects: [session-created, catalog-fetched-view-all, favorites-recents-localstorage-updated]
-  true_end_state: "Reopen the dialog for the same agent: the trigger again reflects the agent default (per-session overrides are session-scoped, not persisted to the agent). The created session's transcript begins with the chosen model and effort truthfully applied."
+  true_end_state: "Reopen the dialog for the same agent: the trigger again reflects workspace-scoped effective runtime (per-session overrides are not persisted to the agent). The created session becomes active with the chosen model and effort, or stops with a durable startup failure and recovery path."
   exit:
     natural: "Operator lands on the live session thread (hands off to J-13/J-11) with the runtime they chose."
   abandonment:
@@ -76,7 +80,7 @@ journey:
       resume: "The trigger shows the inline warning; the operator signs the provider in (settings) or picks another provider — no session is created against an unusable provider."
     - at_step: 4
       how: "Operator types an exact custom model ID the catalog doesn't list, then closes the dialog."
-      resume: "Reopening, the custom ID is provisional only; on create it is validated by the active adapter and fails loud with model_unavailable rather than silently substituting the provider default."
+      resume: "Reopening, the custom ID is provisional only; on create the accepted session is validated by the active adapter and fails durably with startup_failure rather than silently substituting the provider default."
   crosses: [runtime-selector, model-catalog-view, session-workspace-validation, acp-reasoning-apply, favorites-localstorage, workspace-providers]
 
 design_reference:
@@ -87,7 +91,7 @@ design_reference:
     - "Reasoning segment/strip is absent when the selected model advertises no effort (never a control the runtime can't honor) — invariant §7.1."
     - "Meter is hollow + 'Default' when reasoning is unset; filled at the canonical position for the selected level; renders only the model's effort subset."
     - "Needs-auth provider dims its rail item, disables its rows with a reason, and shows the trigger warning; a disabled row never selects."
-    - "Empty provider/model/reasoning are omitted from the POST body (wire compatibility of emptiness — invariant §7.9)."
+    - "Untouched effective provider/model/reasoning are omitted from the POST body; only an explicit selector change authors a session override."
     - "A model switch that drops the current effort resets reasoning to provider default (reset-on-switch — invariant §7.6)."
 
 e2e_backbone:

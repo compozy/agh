@@ -3,13 +3,13 @@ import { useNavigate } from "@tanstack/react-router";
 
 import type { ListingViewMode } from "@agh/ui";
 
-import { useAgentCreateHost } from "@/systems/agent/hooks/use-agent-create-host";
-import { useAgentCatalog } from "@/systems/agent/hooks/use-agents";
-import { projectAgentFleetRows } from "@/systems/agent/lib/agent-fleet-projection";
 import {
   hasActiveAgentFleetFilters,
+  projectAgentFleetRows,
+  useAgentCatalog,
+  useAgentCreateHost,
   type AgentsFleetSearch,
-} from "@/systems/agent/lib/agent-fleet-search";
+} from "@/systems/agent";
 import { useSessionCreate } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { normalizeListingSearchValue } from "@/lib/listing-search";

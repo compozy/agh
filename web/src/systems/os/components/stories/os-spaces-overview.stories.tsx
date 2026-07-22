@@ -73,7 +73,6 @@ const LABS_ENTRIES = [
     key: "desktop",
     value: encodeDesktopPayload({
       focusedId: "app:knowledge",
-      railOpen: false,
       wallpaper: "carbon",
     }),
     rev: 1,

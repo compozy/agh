@@ -43,10 +43,10 @@ export function LoopContractPanel({ contract, concurrency }: LoopContractPanelPr
     <Section label="Contract" data-testid="loop-contract">
       <div className="flex flex-col rounded-lg border border-line bg-canvas-soft">
         <ContractRow label="Goal">
-          <p className="text-[13px] leading-relaxed text-fg">{contract.goal}</p>
+          <p className="text-small-body leading-relaxed text-fg">{contract.goal}</p>
         </ContractRow>
         <ContractRow label="Definition of done">
-          <p className="text-[13px] leading-relaxed text-fg">{contract.definition_of_done}</p>
+          <p className="text-small-body leading-relaxed text-fg">{contract.definition_of_done}</p>
         </ContractRow>
         {verification.length > 0 ? (
           <ContractRow label="Gate criteria">
@@ -57,8 +57,8 @@ export function LoopContractPanel({ contract, concurrency }: LoopContractPanelPr
                     {criterion.type}
                   </MonoTag>
                   <div className="min-w-0">
-                    <b className="text-[12.5px] font-medium text-fg-strong">{criterion.id}</b>
-                    <div className="mt-0.5 font-mono text-[11px] text-subtle">
+                    <b className="text-small-body font-medium text-fg-strong">{criterion.id}</b>
+                    <div className="mt-0.5 font-mono text-mono-id text-subtle">
                       {verificationMethod(criterion) || "—"}
                     </div>
                   </div>
@@ -73,7 +73,7 @@ export function LoopContractPanel({ contract, concurrency }: LoopContractPanelPr
               {terminalStates.map(state => (
                 <span
                   key={state}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-line-soft bg-canvas-tint px-2.5 py-1 text-[11.5px] text-muted"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-line-soft bg-canvas-tint px-2.5 py-1 text-form-hint text-muted"
                   data-testid="loop-terminal-chip"
                 >
                   <span
@@ -88,7 +88,7 @@ export function LoopContractPanel({ contract, concurrency }: LoopContractPanelPr
         ) : null}
         {concurrency ? (
           <ContractRow label="Concurrency">
-            <p className="text-[13px] leading-relaxed text-fg">
+            <p className="text-small-body leading-relaxed text-fg">
               <code className="rounded-xs border border-line-soft bg-input-fill px-1.5 font-mono text-xs">
                 {concurrency}
               </code>

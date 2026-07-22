@@ -1,6 +1,6 @@
 import { Plus, X } from "lucide-react";
 
-import { Button, Label, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Button, Input, Label, NativeSelect, NativeSelectOption } from "@agh/ui";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 
@@ -99,10 +99,10 @@ export function LoopEditorCriteria({
           className="rounded-md border border-line-soft bg-canvas-soft p-2.5"
         >
           <div className="mb-2 flex items-center gap-2">
-            <span className="font-mono text-[11.5px] text-fg-strong">
+            <span className="font-mono text-mono-id text-fg-strong">
               {str(criterion.id) || "criterion"}
             </span>
-            <MonoTag className="ml-auto rounded-xs bg-badge-fill px-1.5 py-0.5 text-[8.5px] text-subtle">
+            <MonoTag className="ml-auto rounded-xs bg-badge-fill px-1.5 py-0.5 text-pill-group-badge text-subtle">
               {str(criterion.type) || "command"}
             </MonoTag>
             <Button
@@ -149,8 +149,7 @@ interface CriterionBodyProps {
   allowedTypes: readonly CriterionType[];
 }
 
-const fieldClass =
-  "w-full rounded-md border border-line bg-elevated px-2.5 py-1.5 font-mono text-[12px] text-fg outline-none placeholder:text-faint focus:border-line-strong";
+const fieldClass = "h-8 px-2.5 font-mono text-form-input";
 
 function CriterionBody({
   criterion,
@@ -181,6 +180,7 @@ function CriterionBody({
               value={str(criterion.check)}
               onChange={next => onChange({ check: next })}
               suggestions={suggestions}
+              disabled={disabled}
               mono
               placeholder="{{ .inputs.verify_command }}"
               ariaLabel="Command check"
@@ -200,7 +200,7 @@ function CriterionBody({
       ) : null}
       {type === "agent-judge" ? (
         <>
-          <input
+          <Input
             className={fieldClass}
             value={str(criterion.agent)}
             disabled={disabled}
@@ -212,6 +212,7 @@ function CriterionBody({
             value={str(criterion.rubric)}
             onChange={next => onChange({ rubric: next })}
             suggestions={suggestions}
+            disabled={disabled}
             multiline
             placeholder="Judge the diff against each task's acceptance…"
             ariaLabel="Rubric"
@@ -223,13 +224,14 @@ function CriterionBody({
           value={str(criterion.prompt)}
           onChange={next => onChange({ prompt: next })}
           suggestions={suggestions}
+          disabled={disabled}
           mono
           placeholder="Approve the delivered work?"
           ariaLabel="Human prompt"
         />
       ) : null}
       {type === "extension" ? (
-        <input
+        <Input
           className={fieldClass}
           value={str(criterion.tool)}
           disabled={disabled}
@@ -238,9 +240,9 @@ function CriterionBody({
           aria-label="Extension tool"
         />
       ) : null}
-      <Label className="text-[10.5px] text-faint">
+      <Label className="text-badge text-faint">
         id
-        <input
+        <Input
           className={`${fieldClass} mt-1`}
           value={str(criterion.id)}
           disabled={disabled}

@@ -219,6 +219,7 @@ type ResolvedAgent struct {
 	CredentialSlots []ProviderCredentialSlot
 	MCPServers      []MCPServer
 	Reasoning       ProviderReasoningConfig
+	RuntimeSources  ResolvedRuntimeSources
 	Prompt          string
 }
 

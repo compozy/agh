@@ -51,11 +51,11 @@ export function LoopRunFacts({ run, loopVersion, concurrency }: LoopRunFactsProp
         {facts.map(fact => (
           <div
             key={fact.label}
-            className="flex items-baseline justify-between gap-3 border-t border-line-soft py-1.5 text-[12px] first:border-t-0 first:pt-0"
+            className="flex items-baseline justify-between gap-3 border-t border-line-soft py-1.5 text-form-label first:border-t-0 first:pt-0"
           >
             <span className="text-subtle">{fact.label}</span>
             <span
-              className={`min-w-0 truncate text-right font-medium text-fg ${fact.mono ? "font-mono text-[11px]" : ""}`}
+              className={`min-w-0 truncate text-right font-medium text-fg ${fact.mono ? "font-mono text-mono-id" : ""}`}
               title={fact.value}
             >
               {fact.value}

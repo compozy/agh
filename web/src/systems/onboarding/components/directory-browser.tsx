@@ -102,7 +102,7 @@ export function DirectoryBrowser({ workspaces }: DirectoryBrowserProps) {
                 disabled={isAdded(entry.path) || isResolving}
                 aria-label={`Add ${entry.name} as a workspace`}
                 className={cn(
-                  "opacity-0 transition-opacity group-hover:opacity-100",
+                  "opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100",
                   isAdded(entry.path) && "opacity-40"
                 )}
               >

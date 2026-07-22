@@ -74,7 +74,6 @@ export const osWindowPayloadSchema = z.object({
 export const osDesktopPayloadSchema = z.object({
   v: z.literal(1),
   focusedId: z.string().nullable(),
-  railOpen: z.boolean(),
   railCollapsedAgentIds: z.array(z.string().min(1)).max(128),
   wallpaper: z.enum(["ember", "mesh", "carbon"]).catch("ember"),
   dockMagnify: z.boolean().catch(true),
@@ -101,7 +100,6 @@ export function encodeWindowPayload(win: OsWindow): OsWindowPayload {
 
 export interface OsDesktopDoc {
   focusedId: string | null;
-  railOpen: boolean;
   railCollapsedAgentIds?: readonly string[];
   wallpaper: "ember" | "mesh" | "carbon";
   dockMagnify?: boolean;
@@ -112,7 +110,6 @@ export function encodeDesktopPayload(doc: OsDesktopDoc): OsDesktopPayload {
   return {
     v: 1,
     focusedId: doc.focusedId,
-    railOpen: doc.railOpen,
     railCollapsedAgentIds: [...(doc.railCollapsedAgentIds ?? [])],
     wallpaper: doc.wallpaper,
     dockMagnify: doc.dockMagnify ?? true,

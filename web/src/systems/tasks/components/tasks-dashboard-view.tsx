@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { BlockLoading, Empty, Eyebrow } from "@agh/ui";
+import { Empty, Eyebrow } from "@agh/ui";
 import type { SchedulerBacklog, SchedulerStatus } from "@/systems/scheduler";
 import { SchedulerControlsPanel } from "@/systems/scheduler";
 
@@ -9,6 +9,7 @@ import { TasksDashboardActiveRuns } from "./tasks-dashboard-active-runs";
 import { TasksDashboardCards } from "./tasks-dashboard-cards";
 import { TasksDashboardQueueHealth } from "./tasks-dashboard-queue-health";
 import { TasksDashboardStatusBreakdown } from "./tasks-dashboard-status-breakdown";
+import { TasksDashboardLoadingSkeleton } from "./task-loading-skeletons";
 
 export interface TasksDashboardViewProps {
   dashboard: TaskDashboardView | null;
@@ -48,14 +49,7 @@ export function TasksDashboardView({
   onDrainScheduler,
 }: TasksDashboardViewProps) {
   if (dashboardStatus === "loading" && !dashboard) {
-    return (
-      <BlockLoading
-        label="Loading tasks dashboard"
-        size="md"
-        surface="bare"
-        data-testid="tasks-dashboard-loading"
-      />
-    );
+    return <TasksDashboardLoadingSkeleton />;
   }
 
   if (errorMessage && !dashboard) {

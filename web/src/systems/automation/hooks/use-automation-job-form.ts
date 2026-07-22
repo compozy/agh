@@ -51,6 +51,8 @@ type JobOwnerKind = JobOwner["kind"];
 
 const DEFAULT_CRON_EXPR = "0 9 * * *";
 const DEFAULT_EVERY_INTERVAL = "30m";
+const SECOND_MS = 1_000;
+const MINUTE_MS = 60_000;
 
 /** Weekday presets for the visual cron builder (0=Sun … 6=Sat). */
 const WEEKDAY_PRESETS = {
@@ -88,6 +90,25 @@ function scheduleValid(draft: CreateAutomationJobRequest, now: number): boolean 
   }
   const date = localInputToDate(schedule.time ?? "");
   return date !== null && date.getTime() > now;
+}
+
+function delayToBoundary(now: number, boundary: number): number {
+  const remainder = now % boundary;
+  return remainder === 0 ? boundary : boundary - remainder;
+}
+
+function scheduleClockDelay(
+  schedule: CreateAutomationJobRequest["schedule"],
+  now: number
+): number | null {
+  if (schedule.mode === "cron") {
+    return parseCron(schedule.expr ?? "") ? delayToBoundary(now, MINUTE_MS) : null;
+  }
+  if (schedule.mode === "every") {
+    return parseDuration(schedule.interval ?? "") ? delayToBoundary(now, SECOND_MS) : null;
+  }
+  const date = localInputToDate(schedule.time ?? "");
+  return date && date.getTime() > now ? delayToBoundary(now, SECOND_MS) : null;
 }
 
 /** A job runs an agent, a durable task, or a Loop (§9.14). */
@@ -149,10 +170,13 @@ export function useAutomationJobForm({
   const retry = retryDraftForStrategy(draft.retry?.strategy ?? "none", draft.retry ?? undefined);
   const [cronFrequencyOverride, setCronFrequencyOverride] = useState<CronFrequency | null>(null);
   const [now, setNow] = useState(Date.now);
+  const schedule = draft.schedule;
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, []);
+    const clockDelay = scheduleClockDelay(schedule, Date.now());
+    if (clockDelay === null) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), clockDelay);
+    return () => window.clearTimeout(timer);
+  }, [schedule, now]);
 
   const decodedCronModel = decodeCron(scheduleExpr(draft)) ?? { frequency: "custom" as const };
   const cronModel: CronModel = fullCronModel({
@@ -184,8 +208,10 @@ export function useAutomationJobForm({
   const patch = (next: Partial<CreateAutomationJobRequest>) => onChange({ ...draft, ...next });
 
   /** Patch the schedule object, preserving fields that belong to other modes. */
-  const patchSchedule = (next: Partial<CreateAutomationJobRequest["schedule"]>) =>
+  const patchSchedule = (next: Partial<CreateAutomationJobRequest["schedule"]>) => {
+    setNow(Date.now());
     patch({ schedule: { ...draft.schedule, ...next } });
+  };
 
   /** Patch the task object (only meaningful in task mode). */
   const patchTask = (next: Partial<JobTask>) => {
@@ -251,6 +277,7 @@ export function useAutomationJobForm({
   };
 
   const handleScheduleMode = (next: AutomationScheduleMode) => {
+    setNow(Date.now());
     setCronFrequencyOverride(null);
     // Carry the recurring-reliability fields across every switch so a
     // cron → at → cron round-trip preserves what the operator entered; the

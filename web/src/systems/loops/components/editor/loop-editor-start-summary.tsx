@@ -20,16 +20,16 @@ export function LoopEditorStartSummary({ start }: LoopEditorStartSummaryProps) {
       data-testid="loop-editor-start-summary"
       title="Declared in start[]; authored in the definition file/agent (read-only here)"
     >
-      <MonoTag className="text-[9px] tracking-[0.07em] text-faint">start</MonoTag>
+      <MonoTag className="text-pill-group-badge tracking-[0.07em] text-faint">start</MonoTag>
       {start.map(binding => (
         <MonoTag
           key={JSON.stringify(binding)}
-          className="rounded-xs bg-badge-fill px-1.5 py-0.5 text-[9.5px] tracking-[0.04em] text-subtle"
+          className="rounded-xs bg-badge-fill px-1.5 py-0.5 text-pill-group-badge tracking-[0.04em] text-subtle"
         >
           {binding.kind}
         </MonoTag>
       ))}
-      <span className="ml-1 text-[10.5px] text-faint">declared in start[]</span>
+      <span className="ml-1 text-badge text-faint">declared in start[]</span>
     </div>
   );
 }

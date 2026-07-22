@@ -125,7 +125,7 @@ describe("Pill.Dot", () => {
     expect(dot).not.toBeNull();
     expect(dot?.getAttribute("data-tone")).toBe("neutral");
     expect(dot?.getAttribute("data-size")).toBe("md");
-    expect(dot?.className).toContain("bg-subtle");
+    expect(dot?.className).toContain("bg-muted");
     expect(dot?.style.backgroundColor).toBe("");
     expect(dot?.getAttribute("aria-hidden")).toBe("true");
   });

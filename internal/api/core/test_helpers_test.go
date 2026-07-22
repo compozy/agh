@@ -298,6 +298,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 		MaskInternalErrors:           false,
 		IncludeSessionWorkspaceInSSE: true,
 		Sessions:                     manager,
+		SessionAcceptance:            manager,
 		SessionCatalog:               manager,
 		Observer:                     observer,
 		Automation:                   automation,

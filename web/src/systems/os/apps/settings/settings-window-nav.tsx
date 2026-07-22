@@ -100,7 +100,7 @@ interface SettingsSectionLinkProps extends Omit<ComponentProps<typeof Link>, "ch
   isActive: boolean;
 }
 
-export function SettingsSectionLink({
+function SettingsSectionLink({
   section,
   isActive,
   className,

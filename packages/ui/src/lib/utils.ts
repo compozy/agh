@@ -26,6 +26,8 @@ const customTwMerge = extendTailwindMerge({
         "text-form-required",
         "text-metric-value",
         "text-kpi-value",
+        "text-kpi-compact",
+        "text-card-title",
         "text-agent-metric",
         "text-rail-avatar",
         "text-ws-name",

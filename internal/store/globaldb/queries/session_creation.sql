@@ -7,7 +7,7 @@ ON CONFLICT(profile_ref) DO NOTHING;
 SELECT profile_json FROM session_creation_profiles WHERE profile_ref = sqlc.arg(profile_ref);
 
 -- name: GetSessionCreationIdentity :one
-SELECT workspace_id, creation_profile_ref, policy_spec_digest, creation_digest
+SELECT workspace_id, state, creation_profile_ref, policy_spec_digest, creation_digest
 FROM sessions
 WHERE id = sqlc.arg(id);
 

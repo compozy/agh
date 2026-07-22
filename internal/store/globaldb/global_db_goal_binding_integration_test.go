@@ -64,6 +64,19 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 		_, err = globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), legacy, identity)
 		requireSessionCreationIdentityMismatch(t, err)
 
+		provisional := goalSessionInfoForTest("session-starting-identity", "ws-goal-identity", now)
+		provisional.State = globalDBSessionStateStarting
+		if err := globalDB.RegisterSession(testutil.Context(t), provisional); err != nil {
+			t.Fatalf("RegisterSession(provisional) error = %v", err)
+		}
+		bound, err := globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), provisional, identity)
+		if err != nil {
+			t.Fatalf("RegisterSessionWithCreationIdentity(provisional) error = %v", err)
+		}
+		if bound.Created || bound.Identity != identity {
+			t.Fatalf("provisional registration = %#v, want bound existing starting session", bound)
+		}
+
 		loaded, err := globalDB.GetSessionCreationIdentity(testutil.Context(t), info.ID)
 		if err != nil {
 			t.Fatalf("GetSessionCreationIdentity() error = %v", err)

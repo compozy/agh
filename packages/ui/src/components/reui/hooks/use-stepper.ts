@@ -1,7 +1,7 @@
 "use client";
 
 import { Children, createContext, isValidElement, use, useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, ReactElement, ReactNode } from "react";
+import type { KeyboardEvent, ReactElement, ReactNode, RefObject } from "react";
 
 export type StepperOrientation = "horizontal" | "vertical";
 export type StepState = "active" | "completed" | "inactive" | "loading";
@@ -17,10 +17,9 @@ export interface StepperContextValue {
   setActiveStep: (step: number) => void;
   stepsCount: number;
   orientation: StepperOrientation;
-  registerTrigger: (node: HTMLButtonElement | null) => void;
-  triggerNodes: HTMLButtonElement[];
-  focusNext: (currentIdx: number) => void;
-  focusPrev: (currentIdx: number) => void;
+  triggerNodesRef: RefObject<Map<number, HTMLButtonElement>>;
+  focusNext: (currentStep: number) => void;
+  focusPrev: (currentStep: number) => void;
   focusFirst: () => void;
   focusLast: () => void;
   indicators: StepIndicators;
@@ -66,14 +65,7 @@ export function useStepperState({
   children,
 }: UseStepperStateOptions): StepperContextValue {
   const [activeStep, setActiveStep] = useState(defaultValue);
-  const [triggerNodes, setTriggerNodes] = useState<HTMLButtonElement[]>([]);
-
-  const registerTrigger = (node: HTMLButtonElement | null) => {
-    if (!node) {
-      return;
-    }
-    setTriggerNodes(prev => (prev.includes(node) ? prev : [...prev, node]));
-  };
+  const triggerNodesRef = useRef(new Map<number, HTMLButtonElement>());
 
   const handleSetActiveStep = (step: number) => {
     if (value === undefined) {
@@ -83,14 +75,25 @@ export function useStepperState({
   };
 
   const currentStep = value ?? activeStep;
-  const focusTrigger = (idx: number) => {
-    triggerNodes[idx]?.focus();
+  const orderedTriggers = () =>
+    [...triggerNodesRef.current.entries()].sort(([left], [right]) => left - right);
+  const focusTrigger = (index: number) => {
+    orderedTriggers()[index]?.[1].focus();
   };
-  const focusNext = (currentIdx: number) => focusTrigger((currentIdx + 1) % triggerNodes.length);
-  const focusPrev = (currentIdx: number) =>
-    focusTrigger((currentIdx - 1 + triggerNodes.length) % triggerNodes.length);
+  const focusNext = (currentStep: number) => {
+    const triggers = orderedTriggers();
+    const currentIndex = triggers.findIndex(([step]) => step === currentStep);
+    if (currentIndex !== -1) triggers[(currentIndex + 1) % triggers.length]?.[1].focus();
+  };
+  const focusPrev = (currentStep: number) => {
+    const triggers = orderedTriggers();
+    const currentIndex = triggers.findIndex(([step]) => step === currentStep);
+    if (currentIndex !== -1) {
+      triggers[(currentIndex - 1 + triggers.length) % triggers.length]?.[1].focus();
+    }
+  };
   const focusFirst = () => focusTrigger(0);
-  const focusLast = () => focusTrigger(triggerNodes.length - 1);
+  const focusLast = () => focusTrigger(triggerNodesRef.current.size - 1);
   const stepsCount = Children.toArray(children).filter(
     (child): child is ReactElement =>
       isValidElement(child) &&
@@ -102,12 +105,11 @@ export function useStepperState({
     setActiveStep: handleSetActiveStep,
     stepsCount,
     orientation,
-    registerTrigger,
+    triggerNodesRef,
     focusNext,
     focusPrev,
     focusFirst,
     focusLast,
-    triggerNodes,
     indicators,
   };
 }
@@ -117,8 +119,7 @@ export function useStepperTrigger() {
   const {
     setActiveStep,
     activeStep,
-    registerTrigger,
-    triggerNodes,
+    triggerNodesRef,
     focusNext,
     focusPrev,
     focusFirst,
@@ -130,24 +131,28 @@ export function useStepperTrigger() {
   const panelId = `stepper-panel-${step}`;
 
   useEffect(() => {
-    registerTrigger(buttonRef.current);
-  }, [registerTrigger]);
-
-  const triggerIndex = triggerNodes.findIndex(
-    (node: HTMLButtonElement) => node === buttonRef.current
-  );
+    const node = buttonRef.current;
+    if (!node) return;
+    const triggerNodes = triggerNodesRef.current;
+    triggerNodes.set(step, node);
+    return () => {
+      if (triggerNodes.get(step) === node) {
+        triggerNodes.delete(step);
+      }
+    };
+  }, [step, triggerNodesRef]);
   const selectStep = () => setActiveStep(step);
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     switch (event.key) {
       case "ArrowRight":
       case "ArrowDown":
         event.preventDefault();
-        if (triggerIndex !== -1) focusNext(triggerIndex);
+        focusNext(step);
         break;
       case "ArrowLeft":
       case "ArrowUp":
         event.preventDefault();
-        if (triggerIndex !== -1) focusPrev(triggerIndex);
+        focusPrev(step);
         break;
       case "Home":
         event.preventDefault();

@@ -50,8 +50,20 @@ vi.mock("@/systems/model-catalog", () => ({
 }));
 
 vi.mock("@/systems/runtime", () => ({
-  RuntimeSelector: ({ disabled }: { disabled?: boolean }) => (
-    <button disabled={disabled} type="button">
+  RuntimeSelector: ({
+    disabled,
+    value,
+  }: {
+    disabled?: boolean;
+    value: { provider: string; model: string; reasoning_effort: string };
+  }) => (
+    <button
+      disabled={disabled}
+      type="button"
+      data-provider={value.provider}
+      data-model={value.model}
+      data-reasoning-effort={value.reasoning_effort}
+    >
       Runtime selector
     </button>
   ),
@@ -81,6 +93,37 @@ beforeEach(() => {
 });
 
 describe("AgentRuntimeControl provider sources", () => {
+  it("Should display the effective runtime for an agent with blank authored fields", () => {
+    mocks.workspace.data = { providers: [] };
+
+    render(
+      <AgentRuntimeControl
+        agent={{
+          ...primaryAgentFixture,
+          provider: "",
+          model: undefined,
+          reasoning_effort: undefined,
+          effective_runtime: {
+            provider: "codex",
+            model: "gpt-5.4",
+            reasoning_effort: "high",
+            sources: {
+              provider: "project_default",
+              model: "provider_default",
+              reasoning_effort: "model_default",
+            },
+          },
+        }}
+        workspaceId="workspace-a"
+      />
+    );
+
+    const selector = screen.getByRole("button", { name: "Runtime selector" });
+    expect(selector).toHaveAttribute("data-provider", "codex");
+    expect(selector).toHaveAttribute("data-model", "gpt-5.4");
+    expect(selector).toHaveAttribute("data-reasoning-effort", "high");
+  });
+
   it("Should surface and retry a global provider-source failure", async () => {
     const user = userEvent.setup();
     mocks.settings.error = new Error("Global providers unavailable");

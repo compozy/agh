@@ -79,8 +79,6 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 	if resolved != nil {
 		workspaceID = strings.TrimSpace(resolved.ID)
 	}
-	internalTarget := aghconfig.IsInternalManagedAgentName(target)
-
 	var (
 		globalKey      string
 		globalAgent    resources.Record[aghconfig.AgentDef]
@@ -106,9 +104,6 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 				globalFound = true
 			}
 		case resources.ResourceScopeKindWorkspace:
-			if internalTarget {
-				continue
-			}
 			if workspaceID == "" || strings.TrimSpace(record.Scope.ID) != workspaceID {
 				continue
 			}
@@ -135,9 +130,6 @@ func resolveAgentFromWorkspaceSnapshot(
 ) (aghconfig.AgentDef, error) {
 	if resolved == nil {
 		return aghconfig.AgentDef{}, errors.New("session: resolved workspace is required")
-	}
-	if aghconfig.IsInternalManagedAgentName(target) {
-		return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 	}
 	for _, agent := range resolved.Agents {
 		if strings.TrimSpace(agent.Name) == target {

@@ -15,6 +15,8 @@ import {
   type StepState,
 } from "./hooks/use-stepper";
 
+const EMPTY_STEP_INDICATORS: StepIndicators = {};
+
 interface StepperProps extends HTMLAttributes<HTMLDivElement> {
   defaultValue?: number;
   value?: number;
@@ -30,7 +32,7 @@ function Stepper({
   orientation = "horizontal",
   className,
   children,
-  indicators = {},
+  indicators = EMPTY_STEP_INDICATORS,
   ...props
 }: StepperProps) {
   const contextValue = useStepperState({
@@ -197,7 +199,7 @@ function StepperIndicator({ children, className }: ComponentProps<"div">) {
       data-slot="stepper-indicator"
       data-state={state}
       className={cn(
-        "relative flex size-button-icon-default shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold tabular-nums transition-all duration-base",
+        "relative flex size-button-icon-default shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold tabular-nums transition-[background-color,color,box-shadow] duration-base ease-in-out",
         "data-[state=inactive]:bg-elevated data-[state=inactive]:text-subtle data-[state=inactive]:shadow-inset-strong",
         "data-[state=active]:bg-accent data-[state=active]:text-accent-ink data-[state=active]:shadow-[var(--shadow-highlight),0_0_0_4px_var(--color-accent-tint)]",
         "data-[state=completed]:bg-accent data-[state=completed]:text-accent-ink data-[state=completed]:shadow-highlight",

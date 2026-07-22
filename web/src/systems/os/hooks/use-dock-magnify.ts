@@ -12,11 +12,15 @@ function clearTransforms(root: HTMLElement): void {
 }
 
 function applyMagnify(root: HTMLElement, clientX: number): void {
-  for (const item of root.querySelectorAll<HTMLElement>(DOCK_ITEM_SELECTOR)) {
+  const items = Array.from(root.querySelectorAll<HTMLElement>(DOCK_ITEM_SELECTOR));
+  const transforms = items.map(item => {
     const rect = item.getBoundingClientRect();
     const distance = Math.abs(clientX - (rect.left + rect.width / 2));
     const factor = dockMagnifyFactor(distance, DOCK_MAG_RADIUS);
-    item.style.transform = dockMagnifyTransform(factor);
+    return dockMagnifyTransform(factor);
+  });
+  for (const [index, item] of items.entries()) {
+    item.style.transform = transforms[index];
   }
 }
 

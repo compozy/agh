@@ -75,7 +75,6 @@ describe("routing coordinator", () => {
         key: OS_DESKTOP_KEY,
         value: encodeDesktopPayload({
           focusedId: "app:settings",
-          railOpen: false,
           wallpaper: "ember",
         }),
         rev: 1,
@@ -120,7 +119,6 @@ describe("routing coordinator", () => {
         key: OS_DESKTOP_KEY,
         value: encodeDesktopPayload({
           focusedId: "app:tasks",
-          railOpen: false,
           wallpaper: "ember",
         }),
         rev: 1,
@@ -230,7 +228,6 @@ describe("routing coordinator", () => {
         key: OS_DESKTOP_KEY,
         value: encodeDesktopPayload({
           focusedId: "app:vault",
-          railOpen: false,
           wallpaper: "ember",
         }),
         rev: 1,

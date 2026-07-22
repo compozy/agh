@@ -17,14 +17,14 @@ import {
   providerKindIconRegistry,
 } from "@agh/ui";
 
-import { useAgentSettingsPage } from "@/systems/agent/hooks/use-agent-settings-page";
-import { AgentSettingsPanels } from "@/systems/agent/components/agent-settings-panels";
 import {
   AGENT_SETTINGS_SECTIONS,
+  AgentSettingsPanels,
   resolveAgentSettingsSearch,
+  useAgentSettingsPage,
   type AgentSettingsSearch,
   type AgentSettingsSection,
-} from "@/systems/agent/lib/agent-settings-search";
+} from "@/systems/agent";
 
 const SECTION_LABELS: Record<AgentSettingsSection, string> = {
   basics: "Basics",

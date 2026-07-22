@@ -6,18 +6,10 @@ import type { VariantProps } from "class-variance-authority";
 import { useReducedMotionConfig } from "motion/react";
 import * as React from "react";
 
+import { toneBg } from "../../lib/tone";
 import { cn } from "../../lib/utils";
 import { pillVariants } from "./pill-variants";
 import type { PillSize, PillTone } from "./pill-types";
-
-const TONE_DOT_BG_CLASS: Record<PillTone, string> = {
-  neutral: "bg-subtle",
-  accent: "bg-accent",
-  success: "bg-success",
-  warning: "bg-warning",
-  danger: "bg-danger",
-  info: "bg-info",
-};
 
 type PillContextValue = {
   size: PillSize;
@@ -120,7 +112,7 @@ function PillDot({
       className={cn(
         "inline-block shrink-0 rounded-full",
         effectiveSize === "sm" ? "size-1.5" : "size-2",
-        color === undefined && TONE_DOT_BG_CLASS[effectiveTone],
+        color === undefined && toneBg(effectiveTone),
         shouldAnimate && "animate-pulse",
         className
       )}
@@ -145,7 +137,7 @@ function PillLink({
       tone={tone}
       size={size}
       mono={mono}
-      className={cn("hover:border-accent hover:text-accent", className)}
+      className={cn("hover:text-accent-strong", className)}
       render={
         render ?? (
           <a href={href ?? "#"} aria-label={typeof children === "string" ? children : undefined} />

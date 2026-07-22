@@ -16,13 +16,18 @@ vi.mock("@/systems/runtime", () => ({
   RuntimeSelector: ({
     triggerTestId,
     onChange,
+    value,
   }: {
     triggerTestId?: string;
     onChange: (next: { provider: string; model: string; reasoning_effort: string }) => void;
+    value: { provider: string; model: string; reasoning_effort: string };
   }) => (
     <button
       type="button"
       data-testid={triggerTestId}
+      data-provider={value.provider}
+      data-model={value.model}
+      data-reasoning-effort={value.reasoning_effort}
       onClick={() => onChange({ provider: "codex", model: "gpt-5", reasoning_effort: "high" })}
     >
       Runtime selector
@@ -83,6 +88,43 @@ function props(section: AgentSettingsSection, overrides: Partial<AgentSettingsPa
 }
 
 describe("AgentSettingsPanels", () => {
+  it("Should render effective project runtime without authoring an agent override", () => {
+    const currentAgent = agent({
+      provider: "",
+      model: undefined,
+      reasoning_effort: undefined,
+      effective_runtime: {
+        provider: "codex",
+        model: "gpt-5.4",
+        reasoning_effort: "high",
+        sources: {
+          provider: "project_default",
+          model: "provider_default",
+          reasoning_effort: "model_default",
+        },
+      },
+    });
+    const draft = buildSettingsDraftFromAgent(currentAgent);
+
+    render(
+      <AgentSettingsPanels
+        {...props("runtime", {
+          agent: currentAgent,
+          draft,
+          validation: validateAgentSettingsDraft(draft),
+        })}
+      />
+    );
+
+    const selector = screen.getByTestId("agent-settings-runtime-select");
+    expect(selector).toHaveAttribute("data-provider", "codex");
+    expect(selector).toHaveAttribute("data-model", "gpt-5.4");
+    expect(selector).toHaveAttribute("data-reasoning-effort", "high");
+    expect(screen.getByTestId("agent-settings-runtime-inherited")).toHaveTextContent(
+      "provider, model, reasoning"
+    );
+  });
+
   it("Should render the Basics, Runtime, Instructions, and Access sections from one draft", async () => {
     const user = userEvent.setup();
     const onPatch = vi.fn();
@@ -98,6 +140,8 @@ describe("AgentSettingsPanels", () => {
       model: "gpt-5",
       reasoningEffort: "high",
     });
+    await user.click(screen.getByTestId("agent-settings-runtime-use-project-defaults"));
+    expect(onPatch).toHaveBeenCalledWith({ provider: "", model: "", reasoningEffort: "" });
     await user.click(screen.getByTestId("agent-settings-permissions-approve-all"));
     expect(onPatch).toHaveBeenCalledWith({ permissions: "approve-all", legacyPermissions: null });
 

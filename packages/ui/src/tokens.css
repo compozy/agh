@@ -1,6 +1,9 @@
 /* Canonical AGH Tailwind v4 tokens. DESIGN.md is the generated specification;
    this file owns utility-facing declarations while tokens-runtime.css owns
-   global base styles, custom utilities, and reduced-motion behavior. */
+   global base styles, custom utilities, and reduced-motion behavior.
+   Naming rule: `--spacing-*` (in `@theme`) generates gap/padding utilities;
+   `--space-*` (in `:root`) are bespoke component-internal values kept out of
+   `@theme` so Tailwind emits no utility for them. */
 
 @import "tw-animate-css";
 @import "./tokens-runtime.css";
@@ -28,8 +31,8 @@
   --color-fg: #ececef;
   --color-fg-strong: #f6f6f8;
   --color-muted: #9a9a9f;
-  --color-subtle: #76767c;
-  --color-faint: #545458;
+  --color-subtle: oklch(0.663 0.009 286.106);
+  --color-faint: oklch(0.638 0.006 286.136);
 
   /* Accent — warm operator orange (the only non-neutral hue). */
   --color-accent: #e8572a;
@@ -53,6 +56,15 @@
   --color-neutral: #7a7a80;
   --color-neutral-ink: #8a8a90;
   --color-neutral-tint: rgba(150, 150, 155, 0.06);
+
+  /* Data-viz ink — neutral white-alpha monochrome (DS Foundations §02). Charts
+     and sparklines paint generic magnitude with these, NEVER signal colors;
+     a signal hue appears only when the series itself IS that state. */
+  --color-viz-line: rgba(255, 255, 255, 0.42);
+  --color-viz-fill: rgba(255, 255, 255, 0.055);
+  --color-viz-bar: rgba(255, 255, 255, 0.3);
+  --color-viz-other: rgba(255, 255, 255, 0.26);
+  --color-viz-grid: rgba(255, 255, 255, 0.045);
 
   /* Surface glaze ladder — translucent white tints over the warm ramp. */
   --color-row-hover: rgba(255, 255, 255, 0.022);
@@ -180,8 +192,11 @@
   --text-form-hint: 0.71875rem;
   --text-form-required: 0.625rem;
   --text-metric-value: 1.375rem;
-  --text-kpi-value: 1.75rem;
+  /* In-window KPI / metric value (DS Components §09) — 24px display number,
+     pair with --font-weight-display (620). --text-kpi-compact is the 17px tier. */
+  --text-kpi-value: 1.5rem;
   --text-kpi-value--line-height: 1.05;
+  --text-kpi-compact: 1.0625rem; /* 17px */
   --text-agent-metric: 1rem;
   --text-rail-avatar: 0.71875rem;
   --text-ws-name: 0.8125rem;
@@ -214,8 +229,10 @@
      `body` (see `:root` baseline below). Used by tabs label and any UI
      row that needs to read against body type without optical drift. */
   --tracking-body: -0.006em;
+  /* Listing-row title optical tightening (one step, matches --text-card-title). */
+  --tracking-row-title: -0.01em;
 
-  /* Radii — base + ladder: 4 / 5 / 6 / 8 / 10 / 14 / pill. */
+  /* Radii — base + ladder: 3 / 4 / 5 / 6 / 8 / 10 / 14 / pill. */
   --radius: 6px;
   --radius-xxs: 3px;
   --radius-xs: 4px;
@@ -228,7 +245,8 @@
   --radius-mono-badge: 4px;
   --radius-icon-well: 10px;
 
-  /* Motion — single fast tier + slow tier; one ease curve. */
+  /* Motion — fast / base / slow tiers + shell tier (below); eases: out /
+     in-out / spring (shell). */
   --duration-fast: 100ms;
   --duration-base: 140ms;
   --duration-slow: 200ms;
@@ -254,21 +272,42 @@
   --shadow-hairline-inset: inset 0 0 0 1px var(--color-line-soft);
   --shadow-inset-strong: inset 0 0 0 1px var(--color-line-strong);
 
+  /* Z-index scale — the only sanctioned stacking values (never bare 999/9999).
+     Window-body tiers: menu 40 · scrim 60 · sheet 61. Shell chrome tiers are
+     higher and fixed: menubar 500 · dock 600 · popover 900 · overlay 1000 ·
+     toasts 1200. */
+  --z-menu: 40;
+  --z-scrim: 60;
+  --z-sheet: 61;
+
   /* Component geometry — keyed into the @theme `--height-*` / `--width-*` /
      `--size-*` namespaces so Tailwind generates bare utilities (`h-button-default`,
      `size-button-icon-xs`, `w-modal-md`, etc.). Per L-023 these scale tokens stay
      in `@theme`; only truly bespoke component-internal values (pill-group / modal
      widths used pre-L-024) live in `:root` with explicit lint allowlist entries. */
 
-  /* Button geometry — pair with text-button (12 px) / text-eyebrow (11 px). */
+  /* Button geometry — pair with text-button (12 px) / text-eyebrow (11 px).
+     xs ≡ sm at 22px by design: the distinction is padding in the variant, not
+     height (both tokens are consumed — button-variants + workspace). */
   --height-button-xs: 22px;
   --height-button-sm: 22px;
   --height-button-default: 26px;
   --height-button-lg: 30px;
+  /* CTA button heights — the larger accent primary action (dialogs, forms). */
+  --height-button-cta: 36px;
+  --height-button-cta-lg: 44px;
   --size-button-icon-xs: 22px;
   --size-button-icon-sm: 22px;
   --size-button-icon-default: 26px;
   --size-button-icon-lg: 30px;
+
+  /* Form control geometry — the field-control ladder. Input / Select /
+     NativeSelect / CommandSelect trigger = 36; compact (Select sm, NativeSelect
+     sm, Command input) = 32; search field = 28; textarea min body = 84. */
+  --height-input: 36px;
+  --height-control-compact: 32px;
+  --height-search: 28px;
+  --height-textarea-min: 84px;
 
   /* Switch geometry — default vs sm. */
   --height-switch-default: 18px;
@@ -298,10 +337,22 @@
   --size-empty-icon: 38px;
   --width-menu-sub-min: 96px;
 
+  /* Icon-well ladder + status vocabulary + avatar sizes. */
+  --size-icon-well-row: 34px; /* listing-row identity well */
+  --size-topbar-glyph: 22px; /* OS window-head glyph */
+  --size-status-dot: 7px;
+  --size-status-dot-sm: 6px;
+  --size-avatar-sm: 20px;
+  --size-avatar-default: 24px;
+  --size-avatar-lg: 32px;
+
   /* Forms / dialog body sizing. */
-  --height-form-textarea: 136px;
   --height-editor-footer: 52px;
   --width-detail-inspector-inline: 320px;
+  /* Key/value + form label gutters — ContextBox + MetadataList converge on 140;
+     FieldRow keeps the wider 180 form-label column. */
+  --width-kv-label: 140px;
+  --width-form-label-col: 180px;
 
   /* Table cell width ladder — recurring max-width cells across detail panels. */
   --width-table-cell-sm: 224px;
@@ -331,7 +382,9 @@
   --container-settings-save-bar: 560px;
   --size-settings-save-dot: 7px;
 
-  /* Modal height ceilings — wizard / editor / tall form sheets. */
+  /* Modal height ceilings — wizard / editor / tall form sheets.
+     NB: --height-modal-md (760) and --width-modal-md (720, in :root) share the
+     `modal-md` stem across different axes — do not reconcile one to the other. */
   --height-modal-md: 760px;
   --height-modal-tall: 900px;
   --height-modal-wizard: 960px;
@@ -339,7 +392,7 @@
 
   /* OS shell chrome — the sanctioned depth carve-out (DESIGN.md §5).
      Glass, backdrop blur, and window shadows apply to shell chrome only:
-     menubar, dock, sessions rail, shell popovers, and window frames.
+     menubar, dock, shell popovers, and window frames.
      Content inside window bodies stays on the flat ramp/hairline model.
      The canonical `--shell-glass` literals live in `:root`; these `--color-*`
      adapters reference them so production keeps resolving through `--color-*`. */
@@ -402,6 +455,13 @@
 
 :root {
   color-scheme: dark;
+
+  /* Numeric-display weight for KPI / metric values (approved dashboard scale, 620:
+     a soft step above semibold; requires Inter Variable wght axis). Kept out of
+     @theme so it never generates a `font-display` weight utility that collides
+     with the `--font-display` font-family utility. Consumed via
+     `style={{ fontWeight: "var(--font-weight-display)" }}`. */
+  --font-weight-display: 620;
 
   /* Canonical OS-shell glass literals — the exact `--shell-glass` names from the
      OpenDesign contract (os-v2.css). Referenced by the `@theme` `--color-shell-glass`

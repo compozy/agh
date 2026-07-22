@@ -138,7 +138,7 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep managed onboarding sessions out of user pages", func(t *testing.T) {
+	t.Run("Should treat onboarding as an ordinary user agent name", func(t *testing.T) {
 		t.Parallel()
 
 		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
@@ -149,14 +149,14 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			t.Fatalf("Resolve(workspace) error = %v", err)
 		}
 		resolved.Agents = append(resolved.Agents, aghconfig.AgentDef{
-			Name:     aghconfig.OnboardingAgentName,
+			Name:     "onboarding",
 			Provider: "claude",
 			Prompt:   "Internal onboarding.",
 		})
 		h.resolver.upsert(&resolved)
 
 		onboarding, err := h.manager.Create(ctx, CreateOpts{
-			AgentName: aghconfig.OnboardingAgentName,
+			AgentName: "onboarding",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeUser,
 		})
@@ -180,10 +180,10 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			})
 		}
 
-		if got, want := onboarding.Info().Type, SessionTypeSystem; got != want {
+		if got, want := onboarding.Info().Type, SessionTypeUser; got != want {
 			t.Errorf("onboarding session type = %q, want %q", got, want)
 		}
-		if got, want := readMeta(t, onboarding.MetaPath()).SessionType, string(SessionTypeSystem); got != want {
+		if got, want := readMeta(t, onboarding.MetaPath()).SessionType, string(SessionTypeUser); got != want {
 			t.Errorf("onboarding metadata session type = %q, want %q", got, want)
 		}
 		if got, want := user.Info().Type, SessionTypeUser; got != want {
@@ -198,8 +198,8 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListPage(user) error = %v", err)
 		}
-		if userPage.Total != 1 || len(userPage.Sessions) != 1 || userPage.Sessions[0].ID != user.ID {
-			t.Errorf("ListPage(user) = %#v, want only %q", userPage, user.ID)
+		if userPage.Total != 2 || len(userPage.Sessions) != 2 {
+			t.Errorf("ListPage(user) = %#v, want onboarding and coder sessions", userPage)
 		}
 
 		allPage, err := h.manager.ListPage(ctx, ListQuery{

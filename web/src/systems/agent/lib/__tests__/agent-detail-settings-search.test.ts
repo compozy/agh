@@ -122,6 +122,35 @@ describe("agent-absent-value", () => {
 });
 
 describe("agent-settings-draft", () => {
+  it("Should preserve blank authored runtime fields while project defaults remain effective", () => {
+    const agent = makeAgent({
+      provider: "",
+      model: undefined,
+      reasoning_effort: undefined,
+      effective_runtime: {
+        provider: "codex",
+        model: "gpt-5.4",
+        reasoning_effort: "high",
+        sources: {
+          provider: "project_default",
+          model: "provider_default",
+          reasoning_effort: "model_default",
+        },
+      },
+    });
+
+    const draft = buildSettingsDraftFromAgent(agent);
+    expect(draft.provider).toBe("");
+    expect(draft.model).toBe("");
+    expect(draft.reasoningEffort).toBe("");
+    expect(validateAgentSettingsDraft(draft).canSave).toBe(true);
+
+    const params = buildUpdateAgentParams({ ...draft, prompt: "Updated." }, "ws_alpha");
+    expect(params?.agent).not.toHaveProperty("provider");
+    expect(params?.agent).not.toHaveProperty("model");
+    expect(params?.agent).not.toHaveProperty("reasoning_effort");
+  });
+
   it("Should seed a draft and detect dirty fields", () => {
     const agent = makeAgent({ model: "claude-sonnet", command: undefined });
     const draft = buildSettingsDraftFromAgent(agent);

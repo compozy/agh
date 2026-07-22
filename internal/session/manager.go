@@ -53,6 +53,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		managedInputLeases:    make(map[string]managedInputLease),
 		interruptSalvages:     make(map[string]interruptedPromptSalvage),
 		compactions:           make(map[string]*sessionCompactionState),
+		startRuns:             make(map[string]*sessionStartRun),
 		syntheticQueues:       make(map[string][]queuedSyntheticPrompt),
 		syntheticDispatching:  make(map[string]bool),
 		soulLocks:             make(map[string]chan struct{}),
@@ -328,6 +329,13 @@ func (m *Manager) activate(session *Session) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if current, ok := m.sessions[session.ID]; ok {
+		if current == session {
+			return nil
+		}
+		return fmt.Errorf("session: session %q is already active", session.ID)
+	}
+
 	reservation, reserved := m.pending[session.ID]
 	if !reserved {
 		return fmt.Errorf("session: session %q has no start reservation", session.ID)
@@ -340,12 +348,19 @@ func (m *Manager) activate(session *Session) error {
 			reservation.workspaceID,
 		)
 	}
-	if _, ok := m.sessions[session.ID]; ok {
-		return fmt.Errorf("session: session %q is already active", session.ID)
-	}
 	delete(m.pending, session.ID)
 	m.sessions[session.ID] = session
 	return nil
+}
+
+func (m *Manager) registerStarting(session *Session) error {
+	if session == nil {
+		return errors.New("session: starting session is required")
+	}
+	if session.Info().State != StateStarting {
+		return fmt.Errorf("session: register starting %q: %w", session.ID, ErrInvalidStateTransition)
+	}
+	return m.activate(session)
 }
 
 func (m *Manager) pendingSessionForWorkspace(workspaceID string) (string, bool) {

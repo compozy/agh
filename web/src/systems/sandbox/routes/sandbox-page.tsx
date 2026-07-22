@@ -1,7 +1,6 @@
 import { AlertCircle, Boxes, Info, Plus, RefreshCw } from "lucide-react";
 
 import {
-  BlockLoading,
   Button,
   Empty,
   Eyebrow,
@@ -10,6 +9,7 @@ import {
   ListingToolbar,
   NativeSelect,
   NativeSelectOption,
+  SkeletonRows,
   useTopbarSlot,
 } from "@agh/ui";
 
@@ -22,7 +22,7 @@ import {
 import { SandboxListFilters, SandboxProfilesList, SandboxProfileSheet } from "../components";
 import {
   SettingsEditorDialog,
-  SettingsFieldRow,
+  ModalSettingsFieldRow,
   SettingsRestartNotice,
   SettingsSourceBadge,
 } from "@/systems/settings";
@@ -81,7 +81,16 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
   });
 
   if (page.isLoading) {
-    return <BlockLoading className="flex-1" data-testid="sandbox-page-loading" />;
+    return (
+      <SkeletonRows
+        aria-label="Loading sandbox profiles"
+        className="min-h-0 flex-1 p-5"
+        count={6}
+        data-testid="sandbox-page-loading"
+        role="status"
+        rowClassName="border-b border-line-soft py-3"
+      />
+    );
   }
 
   const banner = (
@@ -107,8 +116,9 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
       >
         <Info aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
         <span>
-          Profiles are global. When <span className="font-mono text-[11px]">defaults.sandbox</span>{" "}
-          is unset, sessions fall back to a synthetic local profile.
+          Profiles are global. When{" "}
+          <span className="font-mono text-inline-code">defaults.sandbox</span> is unset, sessions
+          fall back to a synthetic local profile.
         </span>
         <span aria-hidden="true" className="text-faint">
           ·
@@ -272,8 +282,7 @@ function SandboxEditor({
       }}
     >
       <div className="flex flex-col gap-3">
-        <SettingsFieldRow
-          variant="modal"
+        <ModalSettingsFieldRow
           data-testid="sandbox-editor-name"
           label="Name"
           description={
@@ -292,8 +301,7 @@ function SandboxEditor({
             />
           }
         />
-        <SettingsFieldRow
-          variant="modal"
+        <ModalSettingsFieldRow
           data-testid="sandbox-editor-backend"
           label="Backend"
           description="Which execution backend the sandbox uses."
@@ -309,8 +317,7 @@ function SandboxEditor({
             </NativeSelect>
           }
         />
-        <SettingsFieldRow
-          variant="modal"
+        <ModalSettingsFieldRow
           data-testid="sandbox-editor-sync-mode"
           label="Sync mode"
           description="How files move between host and sandbox."
@@ -326,8 +333,7 @@ function SandboxEditor({
             />
           }
         />
-        <SettingsFieldRow
-          variant="modal"
+        <ModalSettingsFieldRow
           data-testid="sandbox-editor-persistence"
           label="Persistence"
           description="Workspace lifecycle between sessions."
@@ -343,8 +349,7 @@ function SandboxEditor({
             />
           }
         />
-        <SettingsFieldRow
-          variant="modal"
+        <ModalSettingsFieldRow
           data-testid="sandbox-editor-runtime-root"
           label="Runtime root"
           description="Directory mounted as the working root."

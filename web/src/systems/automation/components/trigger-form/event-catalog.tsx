@@ -5,8 +5,9 @@ import { Eyebrow, Input } from "@agh/ui";
 
 import { listEventGroups, type EventDef, type EventFamily } from "../../lib/trigger-catalog";
 import type { EventSelection } from "../../lib/trigger-event-id";
+import type { SubConfigValues } from "../../lib/trigger-sub-config";
 import { EventCard } from "./event-card";
-import { EventSubConfig, type SubConfigValues } from "./event-sub-config";
+import { EventSubConfig } from "./event-sub-config";
 
 interface EventCatalogProps {
   disabledCatalogIds?: ReadonlySet<string>;

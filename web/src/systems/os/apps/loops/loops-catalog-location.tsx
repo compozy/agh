@@ -6,7 +6,7 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
-  Spinner,
+  SkeletonRows,
   buttonVariants,
   useTopbarSlot,
 } from "@agh/ui";
@@ -88,8 +88,8 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
   }
   if (page.loopsQuery.isLoading) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center" data-testid="loops-loading">
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
+      <div className="min-h-0 flex-1 overflow-hidden p-5" data-testid="loops-loading">
+        <SkeletonRows count={6} rowClassName="border-b border-line-soft py-3" />
       </div>
     );
   }

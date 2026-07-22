@@ -1,6 +1,6 @@
 import { useReducedMotionConfig } from "motion/react";
 
-const DIALOG_MOTION_EASE = [0.2, 0, 0, 1] as const;
+import { MOTION_DURATION_SLOW, MOTION_EASE_OUT } from "../../lib/motion";
 
 /**
  * Portaled popup/overlay nodes are not direct AnimatePresence children, so enter
@@ -9,5 +9,5 @@ const DIALOG_MOTION_EASE = [0.2, 0, 0, 1] as const;
  */
 export function useDialogMotionTransition() {
   const reduced = useReducedMotionConfig();
-  return { duration: reduced ? 0 : 0.2, ease: DIALOG_MOTION_EASE };
+  return { duration: reduced ? 0 : MOTION_DURATION_SLOW, ease: MOTION_EASE_OUT };
 }

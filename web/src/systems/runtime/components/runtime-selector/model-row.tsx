@@ -52,7 +52,7 @@ function buildChips(model: RuntimeModelOption): ReactElement[] {
   if (model.supports_tools) {
     chips.push(
       <span key="tools" className="inline-flex items-center gap-1 font-mono text-badge text-subtle">
-        <Wrench aria-hidden="true" className="size-[11px] text-faint" />
+        <Wrench aria-hidden="true" className="size-3 text-faint" />
         tools
       </span>
     );
@@ -63,14 +63,14 @@ function buildChips(model: RuntimeModelOption): ReactElement[] {
         key="rz"
         className="inline-flex items-center gap-1 font-mono text-badge text-accent-strong"
       >
-        <Brain aria-hidden="true" className="size-[11px] text-accent-strong" />
+        <Brain aria-hidden="true" className="size-3 text-accent-strong" />
         {model.efforts.length} levels
       </span>
     );
   } else if (model.supports_reasoning) {
     chips.push(
       <span key="rz" className="inline-flex items-center gap-1 font-mono text-badge text-subtle">
-        <Brain aria-hidden="true" className="size-[11px] text-faint" />
+        <Brain aria-hidden="true" className="size-3 text-faint" />
         reasoning
       </span>
     );
@@ -133,7 +133,7 @@ export function ModelRow({
       data-highlighted={highlighted ? "true" : "false"}
       data-favorite={favorite ? "true" : "false"}
       className={cn(
-        "group flex w-full items-center gap-[11px] rounded-md px-2.5 py-2 text-left transition-colors",
+        "group flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors",
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-row-hover",
         highlighted && !disabled && "bg-row-hover ring-1 ring-line-strong ring-inset",
         selected && "bg-accent-tint"
@@ -164,7 +164,7 @@ export function ModelRow({
           <span className="truncate text-small-body font-medium text-fg-strong">{model.name}</span>
           {favorite ? <span className="sr-only">, Favorited</span> : null}
         </span>
-        <span className="mt-0.5 flex flex-wrap items-center gap-[7px] text-badge text-faint">
+        <span className="mt-0.5 flex flex-wrap items-center gap-2 text-badge text-faint">
           <span className="text-subtle">{providerName}</span>
           {chips.length > 0 ? <DotSep /> : null}
           {chips.map((chip, index) => (
