@@ -327,8 +327,15 @@ func TestNativeAgentCreate(t *testing.T) {
 	})
 
 	homePaths := testHomePaths(t)
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.Defaults.Provider = "claude"
+	cfg.Providers["claude"] = aghconfig.ProviderConfig{
+		Command: "claude",
+		Models:  aghconfig.ProviderModelsConfig{Default: "claude-sonnet"},
+	}
 	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 		HomePaths:   homePaths,
+		Config:      cfg,
 		Workspaces:  nativeNetworkTestWorkspaceService(t),
 		AgentSkills: agentSkillPublisherFunc(func(context.Context) error { return nil }),
 	}, nativeApproveAllPolicyInputs())
@@ -367,28 +374,53 @@ func TestNativeAgentCreate(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolConflict, toolspkg.ReasonConflictedID)
 	})
 
-	t.Run("Should reject a request missing the provider", func(t *testing.T) {
-		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+	t.Run("Should inherit the configured runtime when the request omits overrides", func(t *testing.T) {
+		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
-			Input:  json.RawMessage(`{"scope":"global","name":"nope","prompt":"x"}`),
+			Input:  json.RawMessage(`{"scope":"global","name":"inherited","prompt":"Use project defaults."}`),
 		})
-		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		if err != nil {
+			t.Fatalf("Registry.Call(agent_create inherited) error = %v", err)
+		}
+		requireNativeStructuredContains(
+			t,
+			result,
+			[]byte(`"effective_runtime":{"provider":"claude","model":"claude-sonnet"`),
+		)
+		agent, loadErr := aghconfig.LoadAgentDefFile(filepath.Join(
+			homePaths.AgentsDir,
+			"inherited",
+			aghconfig.AgentDefinitionFileName,
+		))
+		if loadErr != nil {
+			t.Fatalf("LoadAgentDefFile(inherited) error = %v", loadErr)
+		}
+		if agent.Provider != "" || agent.Model != "" || agent.ReasoningEffort != "" {
+			t.Fatalf(
+				"authored runtime = (%q, %q, %q), want inherited fields omitted",
+				agent.Provider,
+				agent.Model,
+				agent.ReasoningEffort,
+			)
+		}
 	})
 
-	t.Run("Should reject reserved internal agent names", func(t *testing.T) {
+	t.Run("Should allow onboarding as an ordinary agent name", func(t *testing.T) {
 		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
-				"{\"scope\":\"global\",\"name\":\"onboarding\",\"provider\":\"claude\",\"prompt\":\"Reserved.\"}",
+				"{\"scope\":\"global\",\"name\":\"onboarding\",\"provider\":\"claude\",\"prompt\":\"Operator-authored.\"}",
 			),
 		})
-		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		if err != nil {
+			t.Fatalf("Registry.Call(agent_create onboarding) error = %v", err)
+		}
 	})
 
-	t.Run("Should deny global scope when the onboarding agent is the caller", func(t *testing.T) {
+	t.Run("Should apply ordinary scope policy when onboarding is the caller", func(t *testing.T) {
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{AgentName: aghconfig.OnboardingAgentName, Operator: true},
+			toolspkg.Scope{AgentName: "onboarding", Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAgentCreate,
 				Input: json.RawMessage(
@@ -396,11 +428,13 @@ func TestNativeAgentCreate(t *testing.T) {
 				),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		if err != nil {
+			t.Fatalf("Registry.Call(agent_create from onboarding) error = %v", err)
+		}
 	})
 }
 
-func TestNativeWorkspaceDescribeOmitsInternalManagedAgents(t *testing.T) {
+func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 	t.Parallel()
 
 	const workspaceID = "ws-native-network"
@@ -422,7 +456,7 @@ func TestNativeWorkspaceDescribeOmitsInternalManagedAgents(t *testing.T) {
 					WorkspaceID: workspaceID,
 					Agents: []aghconfig.AgentDef{
 						{Name: aghconfig.DefaultAgentName, Provider: "codex", Prompt: "General."},
-						{Name: aghconfig.OnboardingAgentName, Provider: "codex", Prompt: "Onboarding."},
+						{Name: "onboarding", Provider: "codex", Prompt: "Onboarding."},
 					},
 				}, nil
 			},
@@ -430,7 +464,7 @@ func TestNativeWorkspaceDescribeOmitsInternalManagedAgents(t *testing.T) {
 		Sessions: nativeNetworkTestSessionManager(workspaceID),
 		AgentCatalog: nativeAgentCatalogStub{agents: []aghconfig.AgentDef{
 			{Name: "catalog-visible", Provider: "codex", Prompt: "Catalog visible."},
-			{Name: aghconfig.OnboardingAgentName, Provider: "codex", Prompt: "Catalog onboarding."},
+			{Name: "onboarding", Provider: "codex", Prompt: "Catalog onboarding."},
 		}},
 	}, nativeApproveAllPolicyInputs())
 
@@ -443,7 +477,7 @@ func TestNativeWorkspaceDescribeOmitsInternalManagedAgents(t *testing.T) {
 	}
 	requireNativeStructuredContains(t, result, []byte("\"general\""))
 	requireNativeStructuredContains(t, result, []byte("\"catalog-visible\""))
-	requireNativeStructuredExcludes(t, result, []byte("\"onboarding\""))
+	requireNativeStructuredContains(t, result, []byte("\"onboarding\""))
 }
 
 type nativeAgentCatalogStub struct {

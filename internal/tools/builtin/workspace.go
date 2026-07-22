@@ -84,7 +84,7 @@ const workspaceRefInputSchema = `{
 
 const agentCreateInputSchema = `{
 	"type":"object",
-	"required":["scope","name","provider","prompt"],
+	"required":["scope","name","prompt"],
 	"properties":{
 		"scope":{"type":"string","enum":["global","workspace"]},
 		"workspace":{"type":"string"},

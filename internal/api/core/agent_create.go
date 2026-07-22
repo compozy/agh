@@ -20,18 +20,28 @@ func CreateAgentFromRequest(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
 	homePaths aghconfig.HomePaths,
+	globalConfig *aghconfig.Config,
 	workspaces WorkspaceService,
 	transportName string,
-) (aghconfig.AgentDef, error) {
+) (aghconfig.AgentDef, aghconfig.Config, error) {
 	draft, err := createAgentDraftFromRequest(req)
 	if err != nil {
-		return aghconfig.AgentDef{}, err
+		return aghconfig.AgentDef{}, aghconfig.Config{}, err
 	}
-	path, err := createAgentDefinitionPathFor(ctx, req, homePaths, workspaces, transportName)
+	target, err := createAgentDefinitionTargetFor(
+		ctx, req, homePaths, globalConfig, workspaces, transportName,
+	)
 	if err != nil {
-		return aghconfig.AgentDef{}, err
+		return aghconfig.AgentDef{}, aghconfig.Config{}, err
 	}
-	return aghconfig.CreateAgentDefFile(path, draft, false)
+	if err := validateAgentDraftRuntime(draft, &target.Config); err != nil {
+		return aghconfig.AgentDef{}, aghconfig.Config{}, err
+	}
+	agent, err := aghconfig.CreateAgentDefFile(target.Path, draft, false)
+	if err != nil {
+		return aghconfig.AgentDef{}, aghconfig.Config{}, err
+	}
+	return agent, target.Config, nil
 }
 
 func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.AgentDefinitionDraft, error) {
@@ -43,17 +53,11 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.Age
 			errors.New("agent.name is required"),
 		)
 	}
-	if err := aghconfig.ValidatePublicAgentName(agentName); err != nil {
+	if err := aghconfig.ValidateAgentName(agentName); err != nil {
 		return aghconfig.AgentDefinitionDraft{}, errors.Join(
 			errCreateAgentRequestInvalid,
 			aghconfig.ErrInvalidAgentDefinition,
 			err,
-		)
-	}
-	if strings.TrimSpace(agent.Provider) == "" {
-		return aghconfig.AgentDefinitionDraft{}, errors.Join(
-			errCreateAgentRequestInvalid,
-			errors.New("agent.provider is required"),
 		)
 	}
 	if strings.TrimSpace(agent.Prompt) == "" {
@@ -89,14 +93,31 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.Age
 	}, nil
 }
 
+func validateAgentDraftRuntime(draft aghconfig.AgentDefinitionDraft, cfg *aghconfig.Config) error {
+	_, agent, err := aghconfig.RenderAgentDefinition(draft)
+	if err != nil {
+		return err
+	}
+	if _, err := cfg.ResolveAgent(agent); err != nil {
+		return errors.Join(
+			errCreateAgentRequestInvalid,
+			fmt.Errorf("agent runtime cannot be resolved in the target scope: %w", err),
+		)
+	}
+	return nil
+}
+
 func createAgentDefinitionPathFor(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
 	homePaths aghconfig.HomePaths,
+	globalConfig *aghconfig.Config,
 	workspaces WorkspaceService,
 	transportName string,
 ) (string, error) {
-	target, err := createAgentDefinitionTargetFor(ctx, req, homePaths, workspaces, transportName)
+	target, err := createAgentDefinitionTargetFor(
+		ctx, req, homePaths, globalConfig, workspaces, transportName,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -106,20 +127,27 @@ func createAgentDefinitionPathFor(
 type createAgentDefinitionTarget struct {
 	Path        string
 	WorkspaceID string
+	Config      aghconfig.Config
 }
 
 func createAgentDefinitionTargetFor(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
 	homePaths aghconfig.HomePaths,
+	globalConfig *aghconfig.Config,
 	workspaces WorkspaceService,
 	transportName string,
 ) (createAgentDefinitionTarget, error) {
 	name := aghconfig.NormalizeAgentName(req.Agent.Name)
 	switch req.Scope {
 	case contract.AgentCreateScopeGlobal:
+		var config aghconfig.Config
+		if globalConfig != nil {
+			config = *globalConfig
+		}
 		return createAgentDefinitionTarget{
-			Path: filepath.Join(homePaths.AgentsDir, name, aghconfig.AgentDefinitionFileName),
+			Path:   filepath.Join(homePaths.AgentsDir, name, aghconfig.AgentDefinitionFileName),
+			Config: config,
 		}, nil
 	case contract.AgentCreateScopeWorkspace:
 		workspaceRef := strings.TrimSpace(req.Workspace)
@@ -157,6 +185,7 @@ func createAgentDefinitionTargetFor(
 				aghconfig.AgentDefinitionFileName,
 			),
 			WorkspaceID: strings.TrimSpace(resolved.ID),
+			Config:      resolved.Config,
 		}, nil
 	default:
 		return createAgentDefinitionTarget{}, errors.Join(

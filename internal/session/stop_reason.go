@@ -73,6 +73,9 @@ func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause Sto
 	if cause == CauseNone {
 		cause = CauseUserRequested
 	}
+	if handled, err := m.stopStartingSession(ctx, id, cause, detail); handled {
+		return err
+	}
 
 	session, proc, alreadyStopped, stopWasAlreadyRequested, observedProcessExit, err := m.prepareStopWithCause(
 		ctx,
@@ -127,6 +130,9 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 	}
 	if cause == CauseNone {
 		cause = CauseUserRequested
+	}
+	if handled, err := m.stopStartingSession(ctx, id, cause, detail); handled {
+		return err
 	}
 
 	session, proc, alreadyStopped, stopWasAlreadyRequested, observedProcessExit, err := m.prepareStopWithCause(

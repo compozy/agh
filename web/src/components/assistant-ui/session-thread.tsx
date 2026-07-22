@@ -16,6 +16,7 @@ import { SessionGoalHeaderContainer } from "@/systems/session/components/goal/se
 import { SessionGoalCommandErrorNotice } from "@/systems/session/components/goal/session-goal-command-error-notice";
 import { SessionLoadOlderButton } from "@/systems/session/components/session-load-older-button";
 import { useSessionTranscriptThreadState } from "@/systems/session";
+import type { SessionFailurePayload, SessionState } from "@/systems/session";
 import { isGoalCommandFailureGuidance } from "@/systems/session/lib/session-goal-chat-transport";
 import {
   recordSessionDebugEvent,
@@ -44,6 +45,9 @@ interface SessionThreadProps extends SessionComposerProps {
   sessionId: string;
   agentName: string;
   workspaceId?: string;
+  acpSessionId?: string;
+  sessionState?: SessionState;
+  failure?: SessionFailurePayload | null;
 }
 
 function SessionTextPart({ text, state }: { text: string; state?: { type: string } }) {
@@ -177,6 +181,9 @@ function ThreadViewport({
   sessionId,
   isSessionRunning,
   contentInset,
+  sessionState,
+  failure,
+  startupFailed,
   className,
   ...props
 }: ThreadViewportProps & {
@@ -184,6 +191,9 @@ function ThreadViewport({
   sessionId: string;
   isSessionRunning: boolean;
   contentInset: SessionThreadContentInset;
+  sessionState?: SessionState;
+  failure?: SessionFailurePayload | null;
+  startupFailed: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const {
@@ -254,6 +264,9 @@ function ThreadViewport({
             transcriptError={transcriptError}
             retryTranscript={retryTranscript}
             transcriptMessages={transcriptMessages}
+            sessionState={sessionState}
+            failure={failure}
+            startupFailed={startupFailed}
           />
         </ThreadContentRail>
       </ThreadPrimitive.Viewport>
@@ -303,6 +316,9 @@ export function ThreadMessages({
   transcriptError,
   retryTranscript,
   transcriptMessages,
+  sessionState,
+  failure,
+  startupFailed,
 }: {
   agentName: string;
   sessionId: string;
@@ -312,6 +328,9 @@ export function ThreadMessages({
   transcriptError: ReturnType<typeof useSessionTranscriptThreadState>["error"];
   retryTranscript: () => void;
   transcriptMessages: ReturnType<typeof useSessionTranscriptThreadState>["messages"];
+  sessionState?: SessionState;
+  failure?: SessionFailurePayload | null;
+  startupFailed: boolean;
 }) {
   const emptyWhileActive = messageCount === 0 && transcriptStatus === "success" && isSessionRunning;
   useEffect(() => {
@@ -335,6 +354,9 @@ export function ThreadMessages({
         agentName={agentName}
         error={transcriptError}
         onRetry={retryTranscript}
+        sessionState={sessionState}
+        failure={failure}
+        startupFailed={startupFailed}
       />
     );
   }
@@ -367,9 +389,15 @@ export function SessionThread({
   onRemoveQueuedPrompt,
   onSteerQueuedPrompt,
   contentInset = SESSION_THREAD_CONTENT_INSET_DEFAULT,
+  acpSessionId,
+  sessionState,
+  failure,
 }: SessionThreadProps) {
   const aui = useAui();
   const composerState = useSessionComposerState(sessionId);
+  const startupFailed =
+    sessionState === "stopped" && Boolean(failure) && !acpSessionId?.trim().length;
+  const lifecycleCanPrompt = canPrompt && sessionState !== "starting" && !startupFailed;
   const handleCancelPrompt = () => {
     aui.thread().cancelRun();
     onCancelPrompt();
@@ -377,7 +405,7 @@ export function SessionThread({
   return (
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <SessionComposerPrefillProvider setComposerText={composerState.prefillComposer}>
-        {workspaceId ? (
+        {workspaceId && sessionState !== "starting" ? (
           <SessionGoalHeaderContainer
             onPrefillComposer={composerState.prefillComposer}
             sessionId={sessionId}
@@ -389,6 +417,9 @@ export function SessionThread({
           sessionId={sessionId}
           isSessionRunning={isSessionRunning}
           contentInset={contentInset}
+          sessionState={sessionState}
+          failure={failure}
+          startupFailed={startupFailed}
         />
         <ThreadContentRail inset={contentInset} className="pt-2">
           <SessionGoalCommandErrorNotice sessionId={sessionId} />
@@ -396,7 +427,7 @@ export function SessionThread({
         <SessionComposer
           composerState={composerState}
           contentInset={contentInset}
-          canPrompt={canPrompt}
+          canPrompt={lifecycleCanPrompt}
           onCancelPrompt={handleCancelPrompt}
           onQueuePrompt={onQueuePrompt}
           onInterruptPrompt={onInterruptPrompt}
@@ -407,6 +438,13 @@ export function SessionThread({
           queuedPrompts={queuedPrompts}
           onRemoveQueuedPrompt={onRemoveQueuedPrompt}
           onSteerQueuedPrompt={onSteerQueuedPrompt}
+          inactivePlaceholder={
+            sessionState === "starting"
+              ? "Session is starting…"
+              : startupFailed
+                ? "Session failed to start"
+                : undefined
+          }
         />
       </SessionComposerPrefillProvider>
     </ThreadPrimitive.Root>

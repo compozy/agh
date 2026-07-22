@@ -10,6 +10,7 @@ import (
 
 func (s *sessionStartSpec) newStartingSession(
 	resolved aghconfig.ResolvedAgent,
+	agentDef aghconfig.AgentDef,
 	storage sessionStartStorage,
 	now time.Time,
 ) *Session {
@@ -34,6 +35,7 @@ func (s *sessionStartSpec) newStartingSession(
 		creationOptions:  cloneCreationOptions(s.creationOptions),
 		creationIdentity: cloneCreationIdentity(s.creationIdentity), sessionDir: storage.sessionDir,
 		metaPath: storage.metaPath, dbPath: storage.dbPath, recorder: storage.recorder,
+		agentDef:             aghconfig.CloneAgentDef(agentDef),
 		sandboxDestroyOnStop: !s.sandboxDisabled && s.workspace.Sandbox.DestroyOnStop,
 	}
 }

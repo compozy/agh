@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/listcursor"
 	"github.com/compozy/agh/internal/session"
 	"github.com/gin-gonic/gin"
@@ -53,7 +52,7 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	entries, workspaceID, diagnostics, err := h.workspaceAgentEntriesWithDiagnostics(
+	entries, workspaceID, cfg, diagnostics, err := h.workspaceAgentEntriesWithDiagnostics(
 		c.Request.Context(),
 		query.Workspace,
 	)
@@ -64,14 +63,10 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 
 	agents := make([]contract.AgentPayload, 0, len(entries)+len(diagnostics))
 	for _, entry := range entries {
-		if aghconfig.IsPublicAgentDef(entry.Def) {
-			agents = append(agents, AgentPayloadFromEntry(entry))
-		}
+		agents = append(agents, AgentPayloadFromEntryWithConfig(entry, &cfg))
 	}
 	for _, diagnostic := range diagnostics {
-		if !aghconfig.IsInternalManagedAgentName(diagnostic.Name) {
-			agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, workspaceID))
-		}
+		agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, workspaceID))
 	}
 	slices.SortFunc(agents, func(left, right contract.AgentPayload) int {
 		return compareAgentCatalogNames(left.Name, right.Name)

@@ -35,6 +35,24 @@ function baseDraft(reasoningEffort: string): AgentCreateDialogDraft {
 }
 
 describe("agent-create-draft reasoning effort validation", () => {
+  it("Should inherit project runtime when no provider override is authored", () => {
+    const draft = {
+      ...baseDraft(""),
+      provider: "",
+      model: "",
+    };
+
+    const validation = validateAgentCreateDraft(draft, context);
+    expect(validation.fields.provider).toBeUndefined();
+    expect(validation.stepValidity.runtime).toBe(true);
+
+    const params = buildCreateAgentParams(draft, null, context);
+    expect(params).not.toBeNull();
+    expect(params?.agent).not.toHaveProperty("provider");
+    expect(params?.agent).not.toHaveProperty("model");
+    expect(params?.agent).not.toHaveProperty("reasoning_effort");
+  });
+
   it("Should flag an off-contract reasoning effort as a runtime-step field error", () => {
     const validation = validateAgentCreateDraft(baseDraft("ultra"), context);
 

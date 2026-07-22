@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/session"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -112,9 +111,6 @@ func (h *BaseHandlers) workspaceDetailAgentEntries(
 
 	merged := make(map[string]AgentCatalogEntry, len(resolved.Agents))
 	for _, agent := range resolved.Agents {
-		if !aghconfig.IsPublicAgentDef(agent) {
-			continue
-		}
 		name := strings.TrimSpace(agent.Name)
 		if name == "" {
 			continue
@@ -131,9 +127,6 @@ func (h *BaseHandlers) workspaceDetailAgentEntries(
 		}
 		for _, entry := range catalogAgents {
 			agent := entry.Def
-			if !aghconfig.IsPublicAgentDef(agent) {
-				continue
-			}
 			name := strings.TrimSpace(agent.Name)
 			if name == "" {
 				continue

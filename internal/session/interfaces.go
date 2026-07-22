@@ -406,10 +406,10 @@ type AgentResolver interface {
 // SkillRegistry resolves the active skill set for a workspace during session start.
 type SkillRegistry interface {
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
-	ForAgent(
+	ForAgentDef(
 		ctx context.Context,
 		resolved *workspacepkg.ResolvedWorkspace,
-		agentName string,
+		agent aghconfig.AgentDef,
 	) ([]*skillspkg.Skill, error)
 }
 

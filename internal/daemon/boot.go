@@ -309,7 +309,10 @@ func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 			})
 		},
 		SkillRegistryFunc: func() situation.SkillRegistry {
-			return skillRegistryDependency(state.skillsRegistry)
+			if state.skillsRegistry == nil {
+				return nil
+			}
+			return state.skillsRegistry
 		},
 		TaskStoreFunc: func() situation.TaskStore {
 			if state.tasks == nil {

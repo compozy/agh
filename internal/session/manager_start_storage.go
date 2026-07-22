@@ -11,10 +11,7 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
-func (m *Manager) openSessionStartStorage(
-	ctx context.Context,
-	spec *sessionStartSpec,
-) (sessionStartStorage, error) {
+func (m *Manager) prepareSessionStartStorage(spec *sessionStartSpec) (sessionStartStorage, error) {
 	sessionDir := filepath.Join(m.homePaths.SessionsDir, spec.sessionID)
 	if spec.cleanupSessionDir {
 		if err := os.MkdirAll(sessionDir, 0o755); err != nil {
@@ -22,25 +19,32 @@ func (m *Manager) openSessionStartStorage(
 		}
 	}
 
-	dbPath := store.SessionDBFile(sessionDir)
-	recorder, err := m.openStore(ctx, spec.sessionID, dbPath)
-	if err != nil {
-		return sessionStartStorage{}, fmt.Errorf("session: open session store %q: %w", dbPath, err)
-	}
-	if spec.clearEventStoreOnOpen {
-		if err := clearSessionStartRecorder(ctx, recorder, dbPath); err != nil {
-			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-			defer cancel()
-			return sessionStartStorage{}, errors.Join(err, recorder.Close(closeCtx))
-		}
-	}
-
 	return sessionStartStorage{
 		sessionDir: sessionDir,
 		metaPath:   store.SessionMetaFile(sessionDir),
-		dbPath:     dbPath,
-		recorder:   recorder,
+		dbPath:     store.SessionDBFile(sessionDir),
 	}, nil
+}
+
+func (m *Manager) openSessionStartRecorder(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	storage sessionStartStorage,
+) (sessionStartStorage, error) {
+	recorder, err := m.openStore(ctx, spec.sessionID, storage.dbPath)
+	if err != nil {
+		return storage, fmt.Errorf("session: open session store %q: %w", storage.dbPath, err)
+	}
+	if spec.clearEventStoreOnOpen {
+		if err := clearSessionStartRecorder(ctx, recorder, storage.dbPath); err != nil {
+			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+			defer cancel()
+			return storage, errors.Join(err, recorder.Close(closeCtx))
+		}
+	}
+
+	storage.recorder = recorder
+	return storage, nil
 }
 
 type clearableEventRecorder interface {

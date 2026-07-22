@@ -82,7 +82,7 @@ func (cp *CatalogProvider) PromptAgentSection(
 		return "", nil
 	}
 
-	skills, err := cp.registry.ForAgent(ctx, workspace, strings.TrimSpace(agent.Name))
+	skills, err := cp.registry.ForAgentDef(ctx, workspace, agent)
 	if err != nil {
 		return "", fmt.Errorf("skills: build catalog for agent %q: %w", agent.Name, err)
 	}
@@ -100,7 +100,7 @@ func (cp *CatalogProvider) PromptAgentSessionSection(
 		return "", nil
 	}
 
-	skills, err := cp.registry.ForAgentSession(ctx, workspace, strings.TrimSpace(agent.Name), sessionID)
+	skills, err := cp.registry.ForAgentDefSession(ctx, workspace, agent, sessionID)
 	if err != nil {
 		return "", fmt.Errorf("skills: build catalog for agent %q session %q: %w", agent.Name, sessionID, err)
 	}

@@ -124,6 +124,38 @@ const agentsWithDefaultModel: AgentPayload[] = [
   },
 ];
 
+const agentsWithInheritedRuntime: AgentPayload[] = [
+  {
+    name: "inherited-agent",
+    provider: "",
+    prompt: "code",
+    origin: "workspace",
+    workspace_id: "ws_alpha",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+    effective_runtime: {
+      provider: "codex",
+      model: "gpt-5.4",
+      reasoning_effort: "high",
+      sources: {
+        provider: "project_default",
+        model: "provider_default",
+        reasoning_effort: "model_default",
+      },
+    },
+  },
+];
+
+const agentsWithUnavailableInheritedRuntime: AgentPayload[] = [
+  {
+    ...agentsWithInheritedRuntime[0],
+    name: "unavailable-agent",
+    effective_runtime: {
+      ...agentsWithInheritedRuntime[0].effective_runtime!,
+      provider: "missing-provider",
+    },
+  },
+];
+
 const agentsWithCursorAlias: AgentPayload[] = [
   ...agents,
   {
@@ -297,11 +329,92 @@ describe("useSessionCreateDialog", () => {
       agent_name: "codex-agent",
       workspace: "ws_alpha",
       network_participation: { mode: "local" },
-      provider: "codex",
     });
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/agents/$name/sessions/$id",
       params: { name: "codex-agent", id: "sess-new" },
+    });
+  });
+
+  it("Should keep an unavailable inherited provider unresolved instead of displaying an unsent fallback", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(
+      () =>
+        useSessionCreateDialog({
+          agents: agentsWithUnavailableInheritedRuntime,
+          activeWorkspace,
+        }),
+      { wrapper }
+    );
+
+    act(() => {
+      result.current.openForAgent("unavailable-agent");
+    });
+
+    await waitFor(() => {
+      expect(result.current.providersLoading).toBe(false);
+    });
+    expect(result.current.runtimeValue.provider).toBe("");
+    expect(result.current.providersError).toContain('Provider "missing-provider" is not available');
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(result.current.submitError).toBe("Choose a provider configured for this workspace.");
+
+    act(() => {
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "gpt-5.4",
+        reasoning_effort: "high",
+      });
+    });
+    expect(result.current.providersError).toBeNull();
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      agent_name: "unavailable-agent",
+      workspace: "ws_alpha",
+      network_participation: { mode: "local" },
+      provider: "codex",
+      model: "gpt-5.4",
+      reasoning_effort: "high",
+    });
+  });
+
+  it("Should display effective project runtime while preserving inheritance on create", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useSessionCreateDialog({ agents: agentsWithInheritedRuntime, activeWorkspace }),
+      { wrapper }
+    );
+
+    act(() => {
+      result.current.openForAgent("inherited-agent");
+    });
+
+    await waitFor(() => {
+      expect(result.current.runtimeModels).toHaveLength(2);
+    });
+    expect(result.current.runtimeValue).toEqual({
+      provider: "codex",
+      model: "gpt-5.4",
+      reasoning_effort: "high",
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      agent_name: "inherited-agent",
+      workspace: "ws_alpha",
+      network_participation: { mode: "local" },
     });
   });
 
@@ -675,7 +788,6 @@ describe("useSessionCreateDialog", () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
-      provider: "codex",
       network_participation: { mode: "local" },
     });
   });
@@ -804,7 +916,7 @@ describe("useSessionCreateDialog", () => {
     });
   });
 
-  it("Should submit reasoning for an agent default model without sending a model override", async () => {
+  it("Should submit a coherent runtime override when reasoning changes", async () => {
     mockListAllModels.mockResolvedValueOnce({
       models: [
         ...codexCatalog.models,
@@ -861,12 +973,14 @@ describe("useSessionCreateDialog", () => {
       await result.current.submit();
     });
 
-    // …but the POST omits `model` (still inherited) while sending reasoning_effort.
+    // A selector change becomes one coherent override so provider/model/reasoning
+    // cannot be interpreted against different defaults during session startup.
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
       network_participation: { mode: "local" },
       provider: "codex",
+      model: "gpt-5.5",
       reasoning_effort: "high",
     });
   });

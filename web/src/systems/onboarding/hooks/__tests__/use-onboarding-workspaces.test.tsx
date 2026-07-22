@@ -52,7 +52,7 @@ vi.mock("../use-directory-browser", () => ({
 }));
 
 const now = "2026-05-27T00:00:00Z";
-const onboardingDraftStorageKey = "agh:onboarding:draft:v2";
+const onboardingDraftStorageKey = "agh:onboarding:draft:v3";
 
 function workspace(overrides: Partial<WorkspacePayload> = {}): WorkspacePayload {
   return {

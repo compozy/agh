@@ -55,6 +55,38 @@ func (r *Registry) ForAgentSession(
 		}
 		return nil, err
 	}
+	return r.ForAgentDefSession(ctx, resolved, agent, sessionID)
+}
+
+// ForAgentDef returns the effective skill set for an already-resolved concrete
+// agent definition.
+func (r *Registry) ForAgentDef(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agent aghconfig.AgentDef,
+) ([]*Skill, error) {
+	return r.ForAgentDefSession(ctx, resolved, agent, "")
+}
+
+// ForAgentDefSession projects offer-time skill activation from the concrete
+// definition that owns the session, including extension and bundle agents that
+// are not authored on disk.
+func (r *Registry) ForAgentDefSession(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agent aghconfig.AgentDef,
+	sessionID string,
+) ([]*Skill, error) {
+	if err := checkRegistryContext(ctx); err != nil {
+		return nil, err
+	}
+
+	target := aghconfig.NormalizeAgentName(agent.Name)
+	if err := aghconfig.ValidateAgentName(target); err != nil {
+		return nil, err
+	}
+	agent = aghconfig.CloneAgentDef(agent)
+	agent.Name = target
 
 	baseSkills, err := r.baseSkillsForAgent(ctx, resolved)
 	if err != nil {

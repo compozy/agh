@@ -79,13 +79,38 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 	}
 }
 
+// AgentPayloadFromEntryWithConfig attaches a runtime projection resolved from
+// the requested workspace/global config without mutating authored fields.
+func AgentPayloadFromEntryWithConfig(
+	entry AgentCatalogEntry,
+	cfg *aghconfig.Config,
+) contract.AgentPayload {
+	payload := AgentPayloadFromEntry(entry)
+	if cfg == nil || len(payload.Diagnostics) > 0 {
+		return payload
+	}
+	resolved, err := cfg.ResolveAgent(entry.Def)
+	if err != nil {
+		return payload
+	}
+	payload.EffectiveRuntime = &contract.AgentEffectiveRuntimePayload{
+		Provider:        resolved.Provider,
+		Model:           resolved.Model,
+		ReasoningEffort: contract.ReasoningEffort(resolved.ReasoningEffort),
+		Sources: contract.AgentEffectiveRuntimeSources{
+			Provider:        contract.AgentRuntimeValueSource(resolved.RuntimeSources.Provider),
+			Model:           contract.AgentRuntimeValueSource(resolved.RuntimeSources.Model),
+			ReasoningEffort: contract.AgentRuntimeValueSource(resolved.RuntimeSources.ReasoningEffort),
+		},
+	}
+	return payload
+}
+
 // AgentPayloadsFromEntries converts origin-aware catalog entries into response payloads.
 func AgentPayloadsFromEntries(entries []AgentCatalogEntry) []contract.AgentPayload {
 	payloads := make([]contract.AgentPayload, 0, len(entries))
 	for _, entry := range entries {
-		if aghconfig.IsPublicAgentDef(entry.Def) {
-			payloads = append(payloads, AgentPayloadFromEntry(entry))
-		}
+		payloads = append(payloads, AgentPayloadFromEntry(entry))
 	}
 	return payloads
 }

@@ -181,7 +181,6 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		RuntimeRootDir:  "/runtime",
 		Direction:       "to_runtime",
 		Reason:          "start",
-		FileCount:       3,
 		ExcludePatterns: []string{"node_modules/**"},
 		Denied:          true,
 		DenyReason:      "blocked",

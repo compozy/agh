@@ -15,6 +15,7 @@ export type {
   PermissionRequest,
   NormalizedSessionTranscriptResponse,
   SessionEventPayload,
+  SessionFailurePayload,
   SessionApprovalResponse,
   SessionEventsResponse,
   SessionHistoryResponse,

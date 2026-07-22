@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import type { AgentPayload } from "@/systems/agent";
+import { resolveAgentRuntimeValue, type AgentPayload } from "@/systems/agent";
 import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
 import {
   deriveActiveSessionOptions,
@@ -94,10 +94,11 @@ function pickDefaultProvider(
   if (options.length === 0) {
     return "";
   }
-  if (agent && options.some(option => option.name === agent.provider)) {
-    return agent.provider;
+  const effectiveProvider = resolveAgentRuntimeValue(agent).provider;
+  if (options.some(option => option.name === effectiveProvider)) {
+    return effectiveProvider;
   }
-  return options[0]?.name ?? "";
+  return "";
 }
 
 function resolveSelectedProvider(
@@ -200,9 +201,12 @@ export function useSessionCreateDialog({
   const catalogModels: ProviderModelPayload[] = catalog.payloadsByProvider[selectedProvider] ?? [];
 
   const trimmedSelectedModel = draft.modelOverride.trim();
-  const trimmedAgentProvider = selectedAgent?.provider.trim() ?? "";
+  const agentRuntime = resolveAgentRuntimeValue(selectedAgent);
+  const trimmedAgentProvider = agentRuntime.provider.trim();
   const trimmedAgentModel =
-    trimmedAgentProvider === selectedProvider ? (selectedAgent?.model?.trim() ?? "") : "";
+    trimmedAgentProvider === selectedProvider ? agentRuntime.model.trim() : "";
+  const trimmedAgentReasoning =
+    trimmedAgentProvider === selectedProvider ? agentRuntime.reasoning_effort : "";
   const effectiveSelectedModel = trimmedSelectedModel || trimmedAgentModel;
 
   const reasoningSupported = deriveActiveSessionOptions({
@@ -210,7 +214,11 @@ export function useSessionCreateDialog({
     selectedModel: effectiveSelectedModel.length > 0 ? effectiveSelectedModel : null,
   }).reasoningSupported;
 
-  const selectedReasoning = reasoningSupported ? draft.reasoningEffort : "";
+  const selectedReasoning = reasoningSupported
+    ? draft.providerOverride.length > 0
+      ? draft.reasoningEffort
+      : trimmedAgentReasoning
+    : "";
 
   // Render the EFFECTIVE model (explicit override or the inherited agent default)
   // so the selector shows the inherited model and can offer its reasoning. The
@@ -307,7 +315,11 @@ export function useSessionCreateDialog({
     if (!activeWorkspace) return;
     const agentName = draft.agentName.trim();
     const provider = selectedProvider.trim();
-    if (agentName.length === 0 || provider.length === 0) return;
+    if (agentName.length === 0) return;
+    if (provider.length === 0) {
+      setSubmitError("Choose a provider configured for this workspace.");
+      return;
+    }
     if (!modelSelection.valid) {
       setSubmitError(modelSelection.error ?? MODEL_CATALOG_PENDING);
       return;
@@ -329,20 +341,21 @@ export function useSessionCreateDialog({
     setPendingAgentName(agentName);
     setPendingWorkspaceId(activeWorkspace.id);
 
-    // Send `model` only when the effective model diverges from the agent default
-    // for this provider; an inherited model stays omitted so the daemon resolves
-    // the agent default — while reasoning_effort can still ship on its own.
-    const modelDiffersFromDefault =
-      effectiveSelectedModel.length > 0 && effectiveSelectedModel !== trimmedAgentModel;
-    const reasoningEffort = selectedReasoning === "" ? undefined : selectedReasoning;
+    // The selector renders the effective agent runtime, but the draft stays empty
+    // until the operator changes it. That preserves project inheritance on the
+    // wire while any explicit selection ships as one coherent runtime override.
+    const hasRuntimeOverride = draft.providerOverride.trim().length > 0;
+    const modelOverride = hasRuntimeOverride ? draft.modelOverride.trim() : "";
+    const reasoningEffort =
+      hasRuntimeOverride && selectedReasoning !== "" ? selectedReasoning : undefined;
 
     let session: SessionPayload;
     try {
       session = await createSession.mutateAsync({
         agent_name: agentName,
         workspace: activeWorkspace.id,
-        provider,
-        ...(modelDiffersFromDefault ? { model: effectiveSelectedModel } : {}),
+        ...(hasRuntimeOverride ? { provider } : {}),
+        ...(modelOverride.length > 0 ? { model: modelOverride } : {}),
         ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
         network_participation: serializeNetworkParticipation(networkParticipation),
       });
@@ -364,7 +377,17 @@ export function useSessionCreateDialog({
     });
   };
 
-  const providersError = workspaceDetailError ? describeWorkspaceError(workspaceDetailError) : null;
+  const effectiveProvider = resolveAgentRuntimeValue(selectedAgent).provider.trim();
+  const providerUnavailable =
+    draft.agentName.trim().length > 0 &&
+    draft.providerOverride.trim().length === 0 &&
+    effectiveProvider.length > 0 &&
+    !providerOptions.some(option => option.name === effectiveProvider);
+  const providersError = workspaceDetailError
+    ? describeWorkspaceError(workspaceDetailError)
+    : providerUnavailable
+      ? `Provider "${effectiveProvider}" is not available in this workspace. Choose a configured provider.`
+      : null;
 
   return {
     open,

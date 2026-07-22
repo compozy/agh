@@ -1,7 +1,8 @@
 package globaldb
 
 const (
-	globalDBOutcomeKey          = "outcome"
-	globalDBSessionStateActive  = "active"
-	globalDBSessionStateStopped = "stopped"
+	globalDBOutcomeKey           = "outcome"
+	globalDBSessionStateStarting = "starting"
+	globalDBSessionStateActive   = "active"
+	globalDBSessionStateStopped  = "stopped"
 )

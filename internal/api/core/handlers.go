@@ -61,7 +61,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 
-	sess, err := h.Sessions.Create(c.Request.Context(), session.CreateOpts{
+	opts := session.CreateOpts{
 		AgentName:            req.AgentName,
 		Provider:             strings.TrimSpace(req.Provider),
 		Model:                strings.TrimSpace(req.Model),
@@ -71,13 +71,22 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		WorkspacePath:        strings.TrimSpace(req.WorkspacePath),
 		NetworkParticipation: req.NetworkParticipation,
 		Type:                 session.SessionTypeUser,
-	})
+	}
+	if h.SessionAcceptance == nil {
+		h.respondError(
+			c,
+			http.StatusServiceUnavailable,
+			errors.New("api: asynchronous session acceptance is unavailable"),
+		)
+		return
+	}
+	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), opts)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, contract.SessionResponse{Session: SessionPayloadFromInfo(sess.Info())})
+	c.JSON(http.StatusCreated, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
 }
 
 // GetSession returns one session snapshot.

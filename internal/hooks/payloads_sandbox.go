@@ -53,7 +53,6 @@ type SandboxSyncBeforePayload struct {
 	RuntimeRootDir  string   `json:"runtime_root,omitempty"`
 	Direction       string   `json:"direction,omitempty"`
 	Reason          string   `json:"reason,omitempty"`
-	FileCount       int      `json:"file_count,omitempty"`
 	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
 	Denied          bool     `json:"denied,omitempty"`
 	DenyReason      string   `json:"deny_reason,omitempty"`

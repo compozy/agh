@@ -170,18 +170,6 @@ func (h HookSet) sandbox() SandboxHooks {
 	return noopSandboxHooks{}
 }
 
-func (h HookSet) hasSandboxHooks() bool {
-	if h.Sandbox == nil {
-		return false
-	}
-	switch h.Sandbox.(type) {
-	case noopSandboxHooks, *noopSandboxHooks:
-		return false
-	default:
-		return true
-	}
-}
-
 func (h HookSet) prompt() PromptHooks {
 	if h.Prompt != nil {
 		return h.Prompt

@@ -66,10 +66,7 @@ func (m *Manager) persistResumeReplayMarker(
 			"fallback_reason":                 "session_load_unavailable",
 		},
 	); err != nil {
-		return m.failSessionStart(
-			ctx,
-			spec,
-			session,
+		return startupFailure(
 			"session replay marker persistence failed",
 			fmt.Errorf("session: persist context rebuilt marker for %q: %w", spec.sessionID, err),
 		)

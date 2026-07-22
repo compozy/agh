@@ -91,6 +91,35 @@ func TestRegistryLoadAllLoadsUserLevelSkills(t *testing.T) {
 	}
 }
 
+func TestRegistryForAgentDefUsesConcretePackageAgent(t *testing.T) {
+	t.Parallel()
+
+	registry := newTestRegistry(t, RegistryConfig{
+		BundledFS: bundledSkillFS(map[string]string{
+			"review": "Review code",
+		}),
+	})
+	if err := registry.LoadAll(context.Background()); err != nil {
+		t.Fatalf("LoadAll() error = %v", err)
+	}
+
+	resolved := &workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{ID: "ws-extension"},
+	}
+	skillList, err := registry.ForAgentDefSession(
+		context.Background(),
+		resolved,
+		aghconfig.AgentDef{Name: "code_implementer", Prompt: "Implement code."},
+		"sess-extension",
+	)
+	if err != nil {
+		t.Fatalf("ForAgentDefSession() error = %v", err)
+	}
+	if got := findSkill(t, skillList, "review"); got == nil {
+		t.Fatal("ForAgentDefSession() review skill = nil, want bundled skill")
+	}
+}
+
 func TestRegistryEventSummaries(t *testing.T) {
 	t.Parallel()
 

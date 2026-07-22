@@ -327,10 +327,8 @@ describe("SessionCreateDialog", () => {
     const onOpenChange = vi.fn();
     render(<SessionCreateDialog {...makeProps({ isSubmitting: true, onOpenChange })} />);
 
-    expect(screen.getByRole("status")).toHaveTextContent("Waiting for provider startup");
-    expect(screen.getByTestId("session-create-dialog-submit")).toHaveTextContent(
-      "Starting session"
-    );
+    expect(screen.getByRole("status")).toHaveTextContent("AGH durably accepts it");
+    expect(screen.getByTestId("session-create-dialog-submit")).toHaveTextContent("Saving session");
     fireEvent.click(getDialogBackdrop());
     expect(onOpenChange).not.toHaveBeenCalled();
   });

@@ -22,22 +22,22 @@ The parser is strict. Unknown frontmatter fields fail loading.
 
 ## Quick Reference
 
-| Field              | Type                        | Default                                     | Valid values                                                        | Description                                                               |
-| ------------------ | --------------------------- | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `name`             | string                      | required                                    | Non-empty. Must match the requested agent name when loaded by name. | Agent identity and discovery key.                                         |
-| `provider`         | string                      | `[defaults].provider`                       | Built-in provider key or custom provider key.                       | Provider used to resolve command, model, auth mode, and runtime metadata. |
-| `command`          | string                      | Provider `command`                          | Non-empty when overriding.                                          | Agent-specific ACP launch command.                                        |
-| `model`            | string                      | Provider `models.default`                   | Exact model ID accepted by the active adapter.                      | Agent-specific model preference applied before the first prompt.          |
-| `reasoning_effort` | string                      | provider/adapter default                    | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.         | Agent default used when session creation does not override it.            |
-| `tools`            | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Additional agent tool allowlist grammar.                                  |
-| `toolsets`         | string array                | empty                                       | Canonical ToolsetIDs.                                               | Additional named tool bundles allowed for the agent.                      |
-| `deny_tools`       | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.                          |
-| `permissions`      | string                      | `[permissions].mode`, default `approve-all` | `deny-all`, `approve-reads`, `approve-all`                          | Agent-specific permission mode.                                           |
-| `skills`           | object                      | empty                                       | Currently only `disabled` is accepted.                              | Agent-scoped logical skill tombstones and agent-local overlay policy.     |
-| `category_path`    | string array                | empty                                       | Non-empty path segments without `.`, `..`, `/`, or `\`.             | Display-only hierarchy used by CLI/API/Web views.                         |
-| `mcp_servers`      | array of MCP server objects | empty                                       | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                                  |
-| `hooks`            | array of hook declarations  | empty                                       | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                           |
-| Markdown body      | Markdown text               | required                                    | Non-empty after trimming.                                           | Agent-owned role prompt included in the assembled startup prompt.         |
+| Field              | Type                        | Default                                              | Valid values                                                        | Description                                                               |
+| ------------------ | --------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `name`             | string                      | required                                             | Non-empty. Must match the requested agent name when loaded by name. | Agent identity and discovery key.                                         |
+| `provider`         | string                      | `[defaults].provider`                                | Built-in provider key or custom provider key.                       | Provider used to resolve command, model, auth mode, and runtime metadata. |
+| `command`          | string                      | Provider `command`                                   | Non-empty when overriding.                                          | Agent-specific ACP launch command.                                        |
+| `model`            | string                      | Provider `models.default`                            | Exact model ID accepted by the active adapter.                      | Agent-specific model preference applied before the first prompt.          |
+| `reasoning_effort` | string                      | Curated model default, then provider/adapter default | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.         | Agent default used when session creation does not override it.            |
+| `tools`            | string array                | empty                                                | Exact canonical ToolIDs or namespace-prefix wildcards.              | Additional agent tool allowlist grammar.                                  |
+| `toolsets`         | string array                | empty                                                | Canonical ToolsetIDs.                                               | Additional named tool bundles allowed for the agent.                      |
+| `deny_tools`       | string array                | empty                                                | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.                          |
+| `permissions`      | string                      | `[permissions].mode`, default `approve-all`          | `deny-all`, `approve-reads`, `approve-all`                          | Agent-specific permission mode.                                           |
+| `skills`           | object                      | empty                                                | Currently only `disabled` is accepted.                              | Agent-scoped logical skill tombstones and agent-local overlay policy.     |
+| `category_path`    | string array                | empty                                                | Non-empty path segments without `.`, `..`, `/`, or `\`.             | Display-only hierarchy used by CLI/API/Web views.                         |
+| `mcp_servers`      | array of MCP server objects | empty                                                | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                                  |
+| `hooks`            | array of hook declarations  | empty                                                | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                           |
+| Markdown body      | Markdown text               | required                                             | Non-empty after trimming.                                           | Agent-owned role prompt included in the assembled startup prompt.         |
 
 When `tools` and `toolsets` are empty, the agent definition does not add an allowlist. For a bare
 managed session, hosted MCP projects the full availability-gated callable catalog. Populate
@@ -480,19 +480,20 @@ Sidecar behavior:
 
 ## Runtime Resolution
 
-| Runtime value | Resolution order                                     | Failure mode                                                              |
-| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
-| Agent name    | explicit CLI/API agent name, then `[defaults].agent` | Fails if empty.                                                           |
-| Provider      | `AGENT.md` `provider`, then `[defaults].provider`    | Fails if still empty.                                                     |
-| Command       | `AGENT.md` `command`, then provider `command`        | Fails if empty after provider resolution.                                 |
-| Model         | `AGENT.md` `model`, then provider `models.default`   | Empty is allowed.                                                         |
-| Tools         | `AGENT.md` `tools`                                   | Must be exact canonical ToolIDs or approved namespace-prefix wildcards.   |
-| Toolsets      | `AGENT.md` `toolsets`                                | Must be canonical ToolsetIDs.                                             |
-| Deny tools    | `AGENT.md` `deny_tools`                              | Same grammar as `tools`; denies narrow later policy evaluation.           |
-| Permissions   | `AGENT.md` `permissions`, then `[permissions].mode`  | Must be a supported permission mode.                                      |
-| Skills policy | `AGENT.md` `skills.disabled`                         | Disables logical skill names after precedence resolution for this agent.  |
-| Category path | `AGENT.md` `category_path`                           | Display-only metadata; surfaced as a flat string array.                   |
-| MCP servers   | Top-level config, provider, agent, active skills     | Same-name TOML entries merge fields; JSON sidecars replace whole objects. |
+| Runtime value | Resolution order                                                             | Failure mode                                                              |
+| ------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Agent name    | explicit CLI/API agent name, then `[defaults].agent`                         | Fails if empty.                                                           |
+| Provider      | `AGENT.md` `provider`, then `[defaults].provider`                            | Fails if still empty.                                                     |
+| Command       | `AGENT.md` `command`, then provider `command`                                | Fails if empty after provider resolution.                                 |
+| Model         | `AGENT.md` `model`, then provider `models.default`                           | Empty is allowed.                                                         |
+| Reasoning     | `AGENT.md` `reasoning_effort`, then curated model `default_reasoning_effort` | Empty keeps the provider/adapter default.                                 |
+| Tools         | `AGENT.md` `tools`                                                           | Must be exact canonical ToolIDs or approved namespace-prefix wildcards.   |
+| Toolsets      | `AGENT.md` `toolsets`                                                        | Must be canonical ToolsetIDs.                                             |
+| Deny tools    | `AGENT.md` `deny_tools`                                                      | Same grammar as `tools`; denies narrow later policy evaluation.           |
+| Permissions   | `AGENT.md` `permissions`, then `[permissions].mode`                          | Must be a supported permission mode.                                      |
+| Skills policy | `AGENT.md` `skills.disabled`                                                 | Disables logical skill names after precedence resolution for this agent.  |
+| Category path | `AGENT.md` `category_path`                                                   | Display-only metadata; surfaced as a flat string array.                   |
+| MCP servers   | Top-level config, provider, agent, active skills                             | Same-name TOML entries merge fields; JSON sidecars replace whole objects. |
 
 The `Tools` and `Toolsets` rows describe configured agent policy. Empty means no agent-local
 allowlist; hosted MCP projects the full availability-gated callable catalog unless another policy

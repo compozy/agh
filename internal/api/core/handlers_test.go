@@ -59,6 +59,20 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			created.Provider = opts.Provider
 			return created, nil
 		},
+		CreateAcceptedFn: func(_ context.Context, opts session.CreateOpts) (*session.Info, error) {
+			createCalled.Store(true)
+			if opts.AgentName != "coder" ||
+				opts.Provider != "fake" ||
+				opts.Workspace != "alpha" ||
+				opts.Type != session.SessionTypeUser {
+				t.Fatalf("CreateAccepted opts = %#v", opts)
+			}
+			created := testutil.NewSessionInfo("sess-created")
+			created.AgentName = opts.AgentName
+			created.Provider = opts.Provider
+			created.State = session.StateStarting
+			return created, nil
+		},
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			if id == "missing" {
 				return nil, session.ErrSessionNotFound
@@ -188,7 +202,37 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		if payload.Session.Provider != "fake" {
 			t.Fatalf("created session provider = %q, want %q", payload.Session.Provider, "fake")
 		}
+		if payload.Session.State != session.StateStarting {
+			t.Fatalf("created session state = %q, want %q", payload.Session.State, session.StateStarting)
+		}
 	})
+
+	t.Run(
+		"Should reject session creation without durable acceptance and never call synchronous create",
+		func(t *testing.T) {
+			fixture.Handlers.SessionAcceptance = nil
+			createCalled.Store(false)
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPost,
+				"/sessions",
+				[]byte(`{"agent_name":"coder","provider":"fake","workspace":"alpha"}`),
+			)
+			fixture.Handlers.SessionAcceptance = manager
+			if resp.Code != http.StatusServiceUnavailable {
+				t.Fatalf(
+					"create status = %d, want %d; body=%s",
+					resp.Code,
+					http.StatusServiceUnavailable,
+					resp.Body.String(),
+				)
+			}
+			if createCalled.Load() {
+				t.Fatal("synchronous Create() called when durable acceptance was unavailable")
+			}
+		},
+	)
 
 	t.Run("Should get session details", func(t *testing.T) {
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/sessions/sess-a", nil)
@@ -1736,9 +1780,7 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			nil,
 		)
 		testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
-		if _, _, err := aghconfig.EnsureOnboardingAgent(fixture.HomePaths); err != nil {
-			t.Fatalf("EnsureOnboardingAgent() error = %v", err)
-		}
+		testutil.WriteAgentDef(t, fixture.HomePaths, "onboarding")
 
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/coder", nil)
 		if getResp.Code != http.StatusOK {
@@ -1753,19 +1795,12 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 		if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
 			t.Fatalf("json.Unmarshal(list agents) error = %v", err)
 		}
-		if len(listed.Agents) != 1 || listed.Agents[0].Name != "coder" {
-			t.Fatalf("listed agents = %#v, want only coder", listed.Agents)
+		if len(listed.Agents) != 2 || listed.Agents[0].Name != "coder" || listed.Agents[1].Name != "onboarding" {
+			t.Fatalf("listed agents = %#v, want coder and onboarding", listed.Agents)
 		}
 		onboardingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/onboarding", nil)
-		if onboardingResp.Code != http.StatusNotFound {
-			t.Fatalf("get onboarding status = %d, want %d", onboardingResp.Code, http.StatusNotFound)
-		}
-		var onboardingPayload contract.ErrorPayload
-		if err := json.Unmarshal(onboardingResp.Body.Bytes(), &onboardingPayload); err != nil {
-			t.Fatalf("json.Unmarshal(onboarding error) error = %v; body=%s", err, onboardingResp.Body.String())
-		}
-		if !strings.Contains(onboardingPayload.Error, "not available") {
-			t.Fatalf("onboarding error = %q, want not-available message", onboardingPayload.Error)
+		if onboardingResp.Code != http.StatusOK {
+			t.Fatalf("get onboarding status = %d, want %d", onboardingResp.Code, http.StatusOK)
 		}
 
 		fixture.Handlers.AgentLoader = func(string, aghconfig.HomePaths) (aghconfig.AgentDef, error) {
@@ -1870,6 +1905,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 							RootDir: workspaceRoot,
 						},
 						WorkspaceID: "ws-alpha",
+						Config: aghconfig.Config{
+							Defaults: aghconfig.DefaultsConfig{Provider: "codex"},
+						},
 					}, nil
 				},
 			},
@@ -1880,9 +1918,8 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			Scope:     contract.AgentCreateScopeWorkspace,
 			Workspace: "alpha",
 			Agent: contract.CreateAgentPayload{
-				Name:     "qa_operator",
-				Provider: "codex",
-				Prompt:   "Stress test the workspace.",
+				Name:   "qa_operator",
+				Prompt: "Stress test the workspace.",
 			},
 		})
 
@@ -1906,8 +1943,109 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile(workspace AGENT.md) error = %v", err)
 		}
-		if loaded.Name != "qa_operator" || loaded.Provider != "codex" {
-			t.Fatalf("loaded workspace agent = %#v, want qa_operator", loaded)
+		if loaded.Name != "qa_operator" || loaded.Provider != "" {
+			t.Fatalf("loaded workspace agent = %#v, want inherited provider left unauthored", loaded)
+		}
+		var payload contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Agent.EffectiveRuntime == nil || payload.Agent.EffectiveRuntime.Provider != "codex" {
+			t.Fatalf("created agent effective runtime = %#v, want codex", payload.Agent.EffectiveRuntime)
+		}
+	})
+
+	t.Run("Should reject an inherited runtime when the target scope has no provider default", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config = aghconfig.Config{}
+		body := mustJSON(t, contract.CreateAgentRequest{
+			Scope: contract.AgentCreateScopeGlobal,
+			Agent: contract.CreateAgentPayload{
+				Name:   "missing_runtime",
+				Prompt: "Require a target default.",
+			},
+		})
+
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("create status = %d, want %d; body=%s", resp.Code, http.StatusBadRequest, resp.Body)
+		}
+		if responseBody := resp.Body.String(); !strings.Contains(responseBody, "agent runtime cannot be resolved") ||
+			!strings.Contains(responseBody, "provider is required") {
+			t.Fatalf("create body = %s, want inherited-runtime cause", responseBody)
+		}
+	})
+
+	t.Run("Should reject an update whose target runtime cannot resolve", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config = aghconfig.Config{}
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+		current, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Prompt: "Before.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile() error = %v", err)
+		}
+		digest, err := aghconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatalf("AgentDefinitionDigest() error = %v", err)
+		}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/coder",
+			mustJSON(t, contract.UpdateAgentRequest{
+				Agent:          contract.CreateAgentPayload{Name: "coder", Prompt: "After."},
+				ExpectedDigest: digest,
+			}),
+		)
+		if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "provider is required") {
+			t.Fatalf("update status = %d, body=%s; want unresolved runtime", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("Should reject a duplicate whose target runtime cannot resolve", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config = aghconfig.Config{}
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+		if _, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Prompt: "Source.",
+		}, false); err != nil {
+			t.Fatalf("CreateAgentDefFile() error = %v", err)
+		}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents/coder/duplicate",
+			mustJSON(t, contract.DuplicateAgentRequest{Name: "reviewer"}),
+		)
+		if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "provider is required") {
+			t.Fatalf("duplicate status = %d, body=%s; want unresolved runtime", resp.Code, resp.Body.String())
 		}
 	})
 
@@ -2002,24 +2140,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			name string
 			req  contract.CreateAgentRequest
 		}{
-			{
-				name: "missing provider",
-				req: contract.CreateAgentRequest{
-					Scope: contract.AgentCreateScopeGlobal,
-					Agent: contract.CreateAgentPayload{Name: "missing_provider", Prompt: "Prompt."},
-				},
-			},
-			{
-				name: "reserved internal name",
-				req: contract.CreateAgentRequest{
-					Scope: contract.AgentCreateScopeGlobal,
-					Agent: contract.CreateAgentPayload{
-						Name:     aghconfig.OnboardingAgentName,
-						Provider: "codex",
-						Prompt:   "Reserved.",
-					},
-				},
-			},
 			{
 				name: "invalid permission",
 				req: contract.CreateAgentRequest{
@@ -2176,6 +2296,11 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if payload.Agent.Prompt != "After." || payload.Agent.Model != "gpt-5" ||
 			payload.Agent.Origin != contract.AgentOriginGlobal || payload.Agent.DefinitionDigest == digest {
 			t.Fatalf("updated payload = %#v", payload.Agent)
+		}
+		if payload.Agent.EffectiveRuntime == nil ||
+			payload.Agent.EffectiveRuntime.Provider != "codex" ||
+			payload.Agent.EffectiveRuntime.Model != "gpt-5" {
+			t.Fatalf("updated effective runtime = %#v", payload.Agent.EffectiveRuntime)
 		}
 		if syncer.calls != 1 {
 			t.Fatalf("Sync() calls = %d, want 1", syncer.calls)
@@ -2615,6 +2740,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 				payload.Agent.Prompt != "Review." || payload.Agent.Origin != contract.AgentOriginGlobal {
 				t.Fatalf("duplicate payload = %#v", payload.Agent)
 			}
+			if payload.Agent.EffectiveRuntime == nil ||
+				payload.Agent.EffectiveRuntime.Provider != "claude" ||
+				payload.Agent.EffectiveRuntime.Model != "claude-opus" ||
+				payload.Agent.EffectiveRuntime.ReasoningEffort != contract.ReasoningEffort("high") {
+				t.Fatalf("duplicate effective runtime = %#v", payload.Agent.EffectiveRuntime)
+			}
 			targetDir := filepath.Join(fixture.HomePaths.AgentsDir, "reviewer")
 			soulBody, err := os.ReadFile(filepath.Join(targetDir, "SOUL.md"))
 			if err != nil {
@@ -2918,7 +3049,7 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 					Skills:   aghconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
 					Prompt:   "Alpha prompt",
 				},
-				{Name: aghconfig.OnboardingAgentName, Provider: "codex", Prompt: "Onboarding prompt"},
+				{Name: "onboarding", Provider: "codex", Prompt: "Onboarding prompt"},
 			},
 			get: map[string]aghconfig.AgentDef{
 				"alpha": {
@@ -2927,8 +3058,8 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 					Skills:   aghconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
 					Prompt:   "Alpha prompt",
 				},
-				aghconfig.OnboardingAgentName: {
-					Name:     aghconfig.OnboardingAgentName,
+				"onboarding": {
+					Name:     "onboarding",
 					Provider: "codex",
 					Prompt:   "Onboarding prompt",
 				},
@@ -2943,8 +3074,9 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 		if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
 			t.Fatalf("json.Unmarshal(list agents) error = %v", err)
 		}
-		if len(listed.Agents) != 2 || listed.Agents[0].Name != "alpha" || listed.Agents[1].Name != "zeta" {
-			t.Fatalf("listed agents = %#v, want alpha then zeta", listed.Agents)
+		if len(listed.Agents) != 3 || listed.Agents[0].Name != "alpha" ||
+			listed.Agents[1].Name != "onboarding" || listed.Agents[2].Name != "zeta" {
+			t.Fatalf("listed agents = %#v, want alpha, onboarding, zeta", listed.Agents)
 		}
 		if listed.Agents[0].Origin != contract.AgentOriginGlobal || listed.Agents[0].DefinitionDigest == "" ||
 			listed.Agents[0].Skills == nil || len(listed.Agents[0].Skills.Disabled) != 1 {
@@ -2956,15 +3088,8 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 			t.Fatalf("get agent catalog status = %d, want %d", getResp.Code, http.StatusOK)
 		}
 		onboardingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/onboarding", nil)
-		if onboardingResp.Code != http.StatusNotFound {
-			t.Fatalf("get onboarding catalog status = %d, want %d", onboardingResp.Code, http.StatusNotFound)
-		}
-		var onboardingPayload contract.ErrorPayload
-		if err := json.Unmarshal(onboardingResp.Body.Bytes(), &onboardingPayload); err != nil {
-			t.Fatalf("json.Unmarshal(onboarding catalog error) error = %v; body=%s", err, onboardingResp.Body.String())
-		}
-		if !strings.Contains(onboardingPayload.Error, "not available") {
-			t.Fatalf("onboarding catalog error = %q, want not-available message", onboardingPayload.Error)
+		if onboardingResp.Code != http.StatusOK {
+			t.Fatalf("get onboarding catalog status = %d, want %d", onboardingResp.Code, http.StatusOK)
 		}
 
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{getErr: os.ErrNotExist}
@@ -3021,17 +3146,12 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
 						Agents: []aghconfig.AgentDef{
 							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
-							{Name: aghconfig.OnboardingAgentName, Provider: "codex", Prompt: "Internal onboarding."},
+							{Name: "onboarding", Provider: "codex", Prompt: "Operator onboarding."},
 							{Name: "qa", Provider: "codex", Prompt: "Stress test the release."},
 						},
 						AgentDiagnostics: []workspacepkg.AgentDiagnostic{{
 							Name:      "broken",
 							Path:      "/workspace/.agh/agents/broken/AGENT.md",
-							ErrorKind: "frontmatter.missing",
-							Message:   "config: missing YAML frontmatter",
-						}, {
-							Name:      aghconfig.OnboardingAgentName,
-							Path:      "/workspace/.agh/agents/onboarding/AGENT.md",
 							ErrorKind: "frontmatter.missing",
 							Message:   "config: missing YAML frontmatter",
 						}},
@@ -3044,7 +3164,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
 			agents: []aghconfig.AgentDef{
 				{Name: "extension-agent", Provider: "codex", Prompt: "Projected by extension."},
-				{Name: aghconfig.OnboardingAgentName, Provider: "codex", Prompt: "Projected onboarding."},
+				{Name: "onboarding", Provider: "codex", Prompt: "Projected onboarding."},
 			},
 		}
 
@@ -3061,14 +3181,18 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
 			t.Fatalf("json.Unmarshal(list workspace agents) error = %v", err)
 		}
-		if got, want := len(listed.Agents), 4; got != want {
+		if got, want := len(listed.Agents), 5; got != want {
 			t.Fatalf("len(workspace agents) = %d, want %d: %#v", got, want, listed.Agents)
 		}
 		if listed.Agents[0].Name != "broken" ||
 			listed.Agents[1].Name != "extension-agent" ||
 			listed.Agents[2].Name != "founder" ||
-			listed.Agents[3].Name != "qa" {
-			t.Fatalf("workspace agent order = %#v, want broken, extension-agent, founder, qa", listed.Agents)
+			listed.Agents[3].Name != "onboarding" ||
+			listed.Agents[4].Name != "qa" {
+			t.Fatalf(
+				"workspace agent order = %#v, want broken, extension-agent, founder, onboarding, qa",
+				listed.Agents,
+			)
 		}
 		if len(listed.Agents[0].Diagnostics) != 1 ||
 			listed.Agents[0].Diagnostics[0].ErrorKind != "frontmatter.missing" {
@@ -3107,24 +3231,13 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			"/agents/onboarding?workspace="+workspaceRef,
 			nil,
 		)
-		if onboardingResp.Code != http.StatusNotFound {
+		if onboardingResp.Code != http.StatusOK {
 			t.Fatalf(
 				"get workspace onboarding status = %d, want %d; body = %s",
 				onboardingResp.Code,
-				http.StatusNotFound,
+				http.StatusOK,
 				onboardingResp.Body.String(),
 			)
-		}
-		var onboardingPayload contract.ErrorPayload
-		if err := json.Unmarshal(onboardingResp.Body.Bytes(), &onboardingPayload); err != nil {
-			t.Fatalf(
-				"json.Unmarshal(workspace onboarding error) error = %v; body=%s",
-				err,
-				onboardingResp.Body.String(),
-			)
-		}
-		if !strings.Contains(onboardingPayload.Error, "not available") {
-			t.Fatalf("workspace onboarding error = %q, want not-available message", onboardingPayload.Error)
 		}
 
 		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing?workspace="+workspaceRef, nil)

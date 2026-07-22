@@ -51,6 +51,7 @@ Use structured output when agents need to inspect or route results.
 
     agh session new --agent general --name review-run
     agh session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
+    agh session new --agent general --no-wait -o json
     agh session list --all -o json
     agh session list --type user --state active --sort last_activity -o json
     agh session list --resumable -o json
@@ -74,6 +75,11 @@ Use structured output when agents need to inspect or route results.
     agh session clarify answer <session-id> <request-id> --choice 1 -o json
     agh session clarify answer <session-id> <request-id> --text "Use staging" -o json
     agh session wait <session-id>
+
+`agh session new` waits for the accepted session to become `active` and returns a startup error if
+the durable session stops with a failure. Use `--no-wait` when a controller needs the accepted
+`starting` record immediately; then observe that session through status/list or the workspace detail
+API until it becomes `active` or durably `stopped` with `failure.kind=startup_failure`.
 
 If an AGH-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
 

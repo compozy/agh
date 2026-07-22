@@ -33,12 +33,12 @@ stopping --> stopped: finalization complete`}
   caption="AGH creates or resumes a session into `starting`, activates it once the ACP driver is ready, and finalizes it through `stopping` before it becomes durable `stopped` state."
 />
 
-| State      | Meaning                                                                                                                                     | Valid live transition |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `starting` | AGH has allocated the session ID, prepared the session directory, opened the event store, and is spawning or resuming the agent subprocess. | `starting -> active`  |
-| `active`   | The agent is ready to accept prompts and emit events. This is the only state that accepts live prompts and approvals.                       | `active -> stopping`  |
-| `stopping` | AGH has accepted a stop request and is draining the session toward a terminal state.                                                        | `stopping -> stopped` |
-| `stopped`  | Final metadata is written, the session recorder is closed, and the session can be listed, inspected, or resumed later.                      | none                  |
+| State      | Meaning                                                                                                                                              | Valid live transition |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `starting` | AGH has durably allocated the session ID, prepared its storage, and published the catalog record while provider startup continues in the background. | `starting -> active`  |
+| `active`   | The agent is ready to accept prompts and emit events. This is the only state that accepts live prompts and approvals.                                | `active -> stopping`  |
+| `stopping` | AGH has accepted a stop request and is draining the session toward a terminal state.                                                                 | `stopping -> stopped` |
+| `stopped`  | Final metadata is written, the session recorder is closed, and the session can be listed, inspected, or resumed later.                               | none                  |
 
 ## Creating a session
 
@@ -75,9 +75,17 @@ Behind that request, AGH:
 1. Resolves the workspace and agent definition.
 2. Creates `~/.agh/sessions/<session-id>/`.
 3. Opens `events.db` for the session.
-4. Spawns the ACP subprocess and initializes the JSON-RPC connection.
-5. Creates or loads the ACP session.
-6. Transitions the AGH session from `starting` to `active`.
+4. Persists `starting` metadata and the workspace catalog row.
+5. Returns HTTP/UDS `201 Created` with that durable session.
+6. Spawns the ACP subprocess and initializes the JSON-RPC connection in the background.
+7. Creates or loads the ACP session.
+8. Transitions the AGH session from `starting` to `active`.
+
+`agh session new` waits for step 8 by default so interactive callers receive an active session or a
+startup error. Add `--no-wait` to return the durable `starting` record immediately. HTTP/UDS callers
+always receive the accepted record and should read session detail until it becomes `active` or
+durably `stopped`. A failed background start persists `failure.kind=startup_failure`; it does not
+delete the accepted session or its diagnostic evidence.
 
 ## Running an active session
 

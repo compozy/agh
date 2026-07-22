@@ -29,6 +29,7 @@ type BaseHandlerConfig struct {
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
 	Sessions                     SessionManager
+	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
 	SessionCatalog               SessionCatalog
 	Network                      NetworkService
@@ -105,6 +106,7 @@ type BaseHandlers struct {
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
 	Sessions                     SessionManager
+	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
 	SessionCatalog               SessionCatalog
 	Network                      NetworkService
@@ -191,6 +193,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
 		Sessions:                     cfg.Sessions,
+		SessionAcceptance:            cfg.SessionAcceptance,
 		DrainController:              cfg.DrainController,
 		SessionCatalog:               cfg.SessionCatalog,
 		Network:                      cfg.Network,

@@ -96,8 +96,11 @@ export function validateAgentSettingsDraft(draft: AgentSettingsDraft): AgentSett
   const category = parseAgentCreateCategoryPath(draft.categoryPath);
   if (category.error) fields.categoryPath = category.error;
 
-  if (draft.provider.trim().length === 0) {
-    fields.provider = "Provider is required.";
+  if (
+    draft.provider.trim().length === 0 &&
+    (draft.model.trim().length > 0 || draft.reasoningEffort !== "")
+  ) {
+    fields.provider = "Choose a provider before setting model or reasoning overrides.";
   }
   if (draft.prompt.trim().length === 0) {
     fields.prompt = "Prompt is required.";
@@ -138,8 +141,8 @@ export function buildUpdateAgentParams(
     ...(draft.origin === "workspace" && workspace.length > 0 ? { workspace } : {}),
     agent: {
       name: draft.name,
-      provider,
       prompt,
+      ...(provider.length > 0 ? { provider } : {}),
       ...(model.length > 0 ? { model } : {}),
       ...(command.length > 0 ? { command } : {}),
       ...(reasoningEffort !== "" ? { reasoning_effort: reasoningEffort } : {}),

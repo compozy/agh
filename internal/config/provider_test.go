@@ -1041,9 +1041,12 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 		if got, want := resolved.ReasoningEffort, providerReasoningMaxKey; got != want {
 			t.Fatalf("ResolveAgent() ReasoningEffort = %q, want %q", got, want)
 		}
+		if got, want := resolved.RuntimeSources.ReasoningEffort, RuntimeValueSourceAgent; got != want {
+			t.Fatalf("ResolveAgent() ReasoningEffort source = %q, want %q", got, want)
+		}
 	})
 
-	t.Run("Should clear the agent reasoning default when the provider changes", func(t *testing.T) {
+	t.Run("Should resolve the selected model default when the provider changes", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -1060,8 +1063,69 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
 		}
-		if got := resolved.ReasoningEffort; got != "" {
-			t.Fatalf("ResolveSessionAgentWithRuntime() ReasoningEffort = %q, want empty", got)
+		if got, want := resolved.ReasoningEffort, providerMediumKey; got != want {
+			t.Fatalf("ResolveSessionAgentWithRuntime() ReasoningEffort = %q, want %q", got, want)
+		}
+		if got, want := resolved.RuntimeSources.ReasoningEffort, RuntimeValueSourceModelDefault; got != want {
+			t.Fatalf("ResolveSessionAgentWithRuntime() ReasoningEffort source = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should resolve the selected model default when the model changes within one provider", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(AgentDef{
+			Name:            "coder",
+			Provider:        "codex",
+			Model:           modelGPT56SolID,
+			ReasoningEffort: providerMediumKey,
+			Prompt:          "prompt",
+		}, "codex", "gpt-5.6-terra")
+		if err != nil {
+			t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
+		}
+		if got, want := resolved.ReasoningEffort, providerMediumKey; got != want {
+			t.Fatalf("ResolveSessionAgentWithRuntime() ReasoningEffort = %q, want %q", got, want)
+		}
+		if got, want := resolved.RuntimeSources.ReasoningEffort, RuntimeValueSourceModelDefault; got != want {
+			t.Fatalf("ResolveSessionAgentWithRuntime() ReasoningEffort source = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should inherit project provider and provider model defaults with provenance", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		cfg.Defaults.Provider = "codex"
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "coder", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if got, want := resolved.Provider, "codex"; got != want {
+			t.Fatalf("ResolveAgent() Provider = %q, want %q", got, want)
+		}
+		if got, want := resolved.Model, modelGPT56SolID; got != want {
+			t.Fatalf("ResolveAgent() Model = %q, want %q", got, want)
+		}
+		if got, want := resolved.ReasoningEffort, providerMediumKey; got != want {
+			t.Fatalf("ResolveAgent() ReasoningEffort = %q, want %q", got, want)
+		}
+		wantSources := ResolvedRuntimeSources{
+			Provider:        RuntimeValueSourceProjectDefault,
+			Model:           RuntimeValueSourceProviderDefault,
+			ReasoningEffort: RuntimeValueSourceModelDefault,
+		}
+		if got := resolved.RuntimeSources; got != wantSources {
+			t.Fatalf("ResolveAgent() RuntimeSources = %#v, want %#v", got, wantSources)
 		}
 	})
 }
@@ -1092,6 +1156,9 @@ func TestResolveAgentAllowsDirectACPProviderManagedModel(t *testing.T) {
 			}
 			if resolved.Model != "" {
 				t.Fatalf("ResolveAgent() Model = %q, want provider-managed empty model", resolved.Model)
+			}
+			if resolved.RuntimeSources.Model != "" {
+				t.Fatalf("ResolveAgent() model source = %q, want empty", resolved.RuntimeSources.Model)
 			}
 		})
 	}

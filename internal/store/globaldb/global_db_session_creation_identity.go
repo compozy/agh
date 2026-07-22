@@ -40,23 +40,35 @@ func (g *SessionRepo) RegisterSessionWithCreationIdentity(
 		Identity:  identity,
 	}
 	err := g.withImmediateTransaction(ctx, "register session creation identity", func(exec globalSQLExecutor) error {
-		storedWorkspace, storedIdentity, found, err := readSessionCreationIdentity(ctx, exec, normalized.ID)
+		storedWorkspace, storedState, storedIdentity, found, err := readSessionCreationIdentity(
+			ctx,
+			exec,
+			normalized.ID,
+		)
 		if err != nil {
 			return err
 		}
 		if found {
-			if strings.TrimSpace(storedWorkspace) != strings.TrimSpace(normalized.WorkspaceID) ||
-				storedIdentity != identity || !storedIdentityComplete(storedIdentity) {
+			if strings.TrimSpace(storedWorkspace) != strings.TrimSpace(normalized.WorkspaceID) {
 				return sessionCreationIdentityMismatch(normalized.ID)
 			}
-			if err := g.registerSession(ctx, exec, normalized); err != nil {
-				return fmt.Errorf("store: refresh identity-matched session %q: %w", normalized.ID, err)
+			if storedIdentityComplete(storedIdentity) {
+				if storedIdentity != identity {
+					return sessionCreationIdentityMismatch(normalized.ID)
+				}
+				if err := g.registerSession(ctx, exec, normalized); err != nil {
+					return fmt.Errorf("store: refresh identity-matched session %q: %w", normalized.ID, err)
+				}
+				return nil
 			}
-			return nil
+			if strings.TrimSpace(storedState) != globalDBSessionStateStarting ||
+				strings.TrimSpace(normalized.State) != globalDBSessionStateStarting {
+				return sessionCreationIdentityMismatch(normalized.ID)
+			}
 		}
 
 		if err := g.registerSession(ctx, exec, normalized); err != nil {
-			return fmt.Errorf("store: register identity-bound session %q: %w", normalized.ID, err)
+			return fmt.Errorf("store: register or bind identity-bound session %q: %w", normalized.ID, err)
 		}
 		affected, err := sqlcgen.New(exec).SetSessionCreationIdentity(
 			ctx,
@@ -72,7 +84,7 @@ func (g *SessionRepo) RegisterSessionWithCreationIdentity(
 		if affected != 1 {
 			return sessionCreationIdentityMismatch(normalized.ID)
 		}
-		registration.Created = true
+		registration.Created = !found
 		return nil
 	})
 	if err != nil {
@@ -89,7 +101,7 @@ func (g *SessionRepo) GetSessionCreationIdentity(
 	if err := g.checkReady(ctx, "get session creation identity"); err != nil {
 		return store.SessionCreationIdentity{}, err
 	}
-	_, identity, found, err := readSessionCreationIdentity(ctx, g.db, strings.TrimSpace(sessionID))
+	_, _, identity, found, err := readSessionCreationIdentity(ctx, g.db, strings.TrimSpace(sessionID))
 	if err != nil {
 		return store.SessionCreationIdentity{}, err
 	}
@@ -106,19 +118,19 @@ func readSessionCreationIdentity(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	sessionID string,
-) (string, store.SessionCreationIdentity, bool, error) {
+) (string, string, store.SessionCreationIdentity, bool, error) {
 	row, err := sqlcgen.New(exec).GetSessionCreationIdentity(ctx, sessionID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", store.SessionCreationIdentity{}, false, nil
+		return "", "", store.SessionCreationIdentity{}, false, nil
 	}
 	if err != nil {
-		return "", store.SessionCreationIdentity{}, false, fmt.Errorf(
+		return "", "", store.SessionCreationIdentity{}, false, fmt.Errorf(
 			"store: read session creation identity %q: %w",
 			sessionID,
 			err,
 		)
 	}
-	return row.WorkspaceID, store.SessionCreationIdentity{
+	return row.WorkspaceID, row.State, store.SessionCreationIdentity{
 		CreationProfileRef: strings.TrimSpace(row.CreationProfileRef.String),
 		PolicySpecDigest:   strings.TrimSpace(row.PolicySpecDigest.String),
 		CreationDigest:     strings.TrimSpace(row.CreationDigest.String),

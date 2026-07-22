@@ -246,7 +246,7 @@ func finalizeStartCreationIdentity(spec *sessionStartSpec, session *Session) err
 		return errors.New("session: creation identity is unavailable before start")
 	}
 	profile := store.NormalizeSessionCreationProfile(*spec.creationProfile)
-	effectivePermissions := strings.TrimSpace(session.EffectivePermissions)
+	effectivePermissions := session.effectivePermissions()
 	if spec.creationIdentityPinned && profile.Permissions != effectivePermissions {
 		return fmt.Errorf("%w: effective session permissions changed", store.ErrSessionCreationIdentityMismatch)
 	}

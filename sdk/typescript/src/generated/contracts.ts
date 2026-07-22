@@ -4067,7 +4067,6 @@ export interface SandboxSyncBeforePayload {
   runtime_root?: string;
   direction?: string;
   reason?: string;
-  file_count?: number;
   exclude_patterns?: string[];
   denied?: boolean;
   deny_reason?: string;

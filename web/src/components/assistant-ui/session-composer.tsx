@@ -30,6 +30,7 @@ export interface SessionComposerProps {
   onRemoveQueuedPrompt?: (id: string) => void;
   onSteerQueuedPrompt?: (prompt: QueuedPrompt) => void;
   contentInset?: SessionThreadContentInset;
+  inactivePlaceholder?: string;
 }
 
 function describeComposerActionError(error: unknown, fallback: string): string {
@@ -59,6 +60,7 @@ export function SessionComposer({
   queuedPrompts = EMPTY_QUEUED_PROMPTS,
   onRemoveQueuedPrompt,
   onSteerQueuedPrompt,
+  inactivePlaceholder = "Session is not active",
 }: SessionComposerProps & { composerState: SessionComposerState }) {
   const { clearComposer, setComposerInputElement, setComposerText, composerText, isRunning } =
     composerState;
@@ -149,7 +151,7 @@ export function SessionComposer({
             aria-label="Session prompt"
             data-testid="composer-textarea"
             disabled={!canPrompt}
-            placeholder={canPrompt ? "Send a message…" : "Session is not active"}
+            placeholder={canPrompt ? "Send a message…" : inactivePlaceholder}
             rows={1}
             maxRows={12}
             submitMode="enter"
@@ -238,6 +240,7 @@ export function SessionComposer({
               ) : (
                 <ComposerPrimitive.Send
                   aria-label="Send message"
+                  disabled={!canPrompt}
                   className={cn(
                     "inline-flex size-button-icon-lg items-center justify-center rounded-full",
                     "bg-accent text-accent-ink transition-colors",

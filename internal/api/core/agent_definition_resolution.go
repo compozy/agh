@@ -17,6 +17,14 @@ type resolvedAgentDefinition struct {
 	Entry              AgentCatalogEntry
 	OperationWorkspace string
 	WorkspaceRoot      string
+	Config             aghconfig.Config
+}
+
+type agentDefinitionMutationTarget struct {
+	Path        string
+	Origin      contract.AgentOrigin
+	WorkspaceID string
+	Config      aghconfig.Config
 }
 
 func (h *BaseHandlers) resolveAgentDefinition(
@@ -53,6 +61,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 				Entry:              entry,
 				OperationWorkspace: strings.TrimSpace(resolved.ID),
 				WorkspaceRoot:      strings.TrimSpace(resolved.RootDir),
+				Config:             resolved.Config,
 			}, nil
 		}
 		return resolvedAgentDefinition{}, fmt.Errorf(
@@ -68,15 +77,16 @@ func (h *BaseHandlers) resolveAgentDefinition(
 		return resolvedAgentDefinition{}, err
 	}
 	return resolvedAgentDefinition{
-		Entry: h.agentCatalogEntryFromDef(agent, ""),
+		Entry:  h.agentCatalogEntryFromDef(agent, ""),
+		Config: h.Config,
 	}, nil
 }
 
 func (h *BaseHandlers) duplicateAgentTarget(
 	ctx context.Context,
 	req contract.DuplicateAgentRequest,
-	source resolvedAgentDefinition,
-) (string, contract.AgentOrigin, string, error) {
+	source *resolvedAgentDefinition,
+) (agentDefinitionMutationTarget, error) {
 	scope := req.Scope
 	if scope == "" {
 		scope = contract.AgentCreateScope(source.Entry.Origin)
@@ -84,54 +94,68 @@ func (h *BaseHandlers) duplicateAgentTarget(
 	targetName := aghconfig.NormalizeAgentName(req.Name)
 	switch scope {
 	case contract.AgentCreateScopeGlobal:
-		return filepath.Join(h.HomePaths.AgentsDir, targetName), contract.AgentOriginGlobal, "", nil
+		return agentDefinitionMutationTarget{
+			Path:   filepath.Join(h.HomePaths.AgentsDir, targetName),
+			Origin: contract.AgentOriginGlobal,
+			Config: h.Config,
+		}, nil
 	case contract.AgentCreateScopeWorkspace:
 		workspaceRef := strings.TrimSpace(req.Workspace)
 		if workspaceRef == "" && source.Entry.Origin == contract.AgentOriginWorkspace {
 			if source.WorkspaceRoot == "" {
-				return "", "", "", errors.Join(
+				return agentDefinitionMutationTarget{}, errors.Join(
 					errAgentDefinitionInvalid,
 					errors.New("source workspace root is unavailable"),
 				)
 			}
-			return filepath.Join(
-				source.WorkspaceRoot,
-				aghconfig.DirName,
-				aghconfig.AgentsDirName,
-				targetName,
-			), contract.AgentOriginWorkspace, source.OperationWorkspace, nil
+			return agentDefinitionMutationTarget{
+				Path: filepath.Join(
+					source.WorkspaceRoot,
+					aghconfig.DirName,
+					aghconfig.AgentsDirName,
+					targetName,
+				),
+				Origin:      contract.AgentOriginWorkspace,
+				WorkspaceID: source.OperationWorkspace,
+				Config:      source.Config,
+			}, nil
 		}
 		if workspaceRef == "" {
-			return "", "", "", errors.Join(
+			return agentDefinitionMutationTarget{}, errors.Join(
 				errAgentDefinitionInvalid,
 				errors.New("workspace is required for workspace-scoped duplicate"),
 			)
 		}
 		if h.Workspaces == nil {
-			return "", "", "", fmt.Errorf(
+			return agentDefinitionMutationTarget{}, fmt.Errorf(
 				"api: %w",
 				workspacepkg.ErrWorkspaceResolverUnavailable,
 			)
 		}
 		resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
 		if err != nil {
-			return "", "", "", err
+			return agentDefinitionMutationTarget{}, err
 		}
-		return filepath.Join(
-			resolved.RootDir,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
-			targetName,
-		), contract.AgentOriginWorkspace, strings.TrimSpace(resolved.ID), nil
+		return agentDefinitionMutationTarget{
+			Path: filepath.Join(
+				resolved.RootDir,
+				aghconfig.DirName,
+				aghconfig.AgentsDirName,
+				targetName,
+			),
+			Origin:      contract.AgentOriginWorkspace,
+			WorkspaceID: strings.TrimSpace(resolved.ID),
+			Config:      resolved.Config,
+		}, nil
 	default:
-		return "", "", "", errors.Join(
+		return agentDefinitionMutationTarget{}, errors.Join(
 			errAgentDefinitionInvalid,
 			fmt.Errorf("scope must be %q or %q", contract.AgentCreateScopeGlobal, contract.AgentCreateScopeWorkspace),
 		)
 	}
 }
 
-func (h *BaseHandlers) agentDefinitionAgentsRoot(resolved resolvedAgentDefinition) (string, error) {
+func (h *BaseHandlers) agentDefinitionAgentsRoot(resolved *resolvedAgentDefinition) (string, error) {
 	switch resolved.Entry.Origin {
 	case contract.AgentOriginGlobal:
 		return h.HomePaths.AgentsDir, nil

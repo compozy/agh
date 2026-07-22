@@ -1,6 +1,7 @@
 import { Settings2 } from "lucide-react";
 
 import {
+  Button,
   Field,
   FieldDescription,
   FieldError,
@@ -53,6 +54,9 @@ export function AgentCreateRuntimeStep({
     model: draft.model,
     reasoning_effort: draft.reasoningEffort,
   };
+  const hasRuntimeOverride = Boolean(
+    draft.provider.trim() || draft.model.trim() || draft.reasoningEffort
+  );
   return (
     <FormSection
       data-testid="agent-create-runtime"
@@ -64,9 +68,14 @@ export function AgentCreateRuntimeStep({
       <Field data-invalid={Boolean(errors.provider || errors.reasoningEffort)}>
         <FieldTitle id="agent-create-runtime-label">Runtime</FieldTitle>
         <FieldDescription>
-          Provider, model, and reasoning effort inherited by new sessions. Options come from the
-          selected scope.
+          Leave this unchanged to inherit the project provider, model, and reasoning defaults.
+          Selecting a runtime creates agent-level overrides.
         </FieldDescription>
+        {draft.provider.trim().length === 0 ? (
+          <p className="text-form-hint text-info" data-testid="agent-create-runtime-inherited">
+            Project runtime defaults will be used.
+          </p>
+        ) : null}
         <RuntimeSelector
           value={runtimeValue}
           onChange={next =>
@@ -89,6 +98,25 @@ export function AgentCreateRuntimeStep({
           triggerId="agent-create-runtime-trigger"
           triggerTestId="agent-create-runtime-select"
         />
+        {hasRuntimeOverride ? (
+          <Button
+            className="mt-2"
+            data-testid="agent-create-runtime-use-project-defaults"
+            onClick={() =>
+              onDraftChange({
+                ...draft,
+                provider: "",
+                model: "",
+                reasoningEffort: "",
+              })
+            }
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Use project defaults
+          </Button>
+        ) : null}
         <FieldError data-testid="agent-create-provider-error">
           {errors.provider ?? errors.reasoningEffort}
         </FieldError>

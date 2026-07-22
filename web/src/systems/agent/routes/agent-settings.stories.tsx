@@ -68,6 +68,9 @@ export const Runtime: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.findByTestId("agent-settings-runtime")).resolves.toBeDefined();
+    const reset = await canvas.findByTestId("agent-settings-runtime-use-project-defaults");
+    reset.scrollIntoView({ block: "center" });
+    await waitFor(() => expect(reset).toBeVisible());
   },
 };
 

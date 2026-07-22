@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/session"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -22,6 +23,12 @@ type promptSkillsRegistry interface {
 		ctx context.Context,
 		resolved *workspacepkg.ResolvedWorkspace,
 		agentName string,
+		sessionID string,
+	) ([]*skillspkg.Skill, error)
+	ForAgentDefSession(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agent aghconfig.AgentDef,
 		sessionID string,
 	) ([]*skillspkg.Skill, error)
 }
@@ -77,9 +84,9 @@ func (a *skillsCatalogAugmenter) Augment(ctx context.Context, sess *session.Sess
 	}
 
 	var skills []*skillspkg.Skill
-	agentName := strings.TrimSpace(info.AgentName)
-	if agentName != "" {
-		skills, err = a.registry.ForAgentSession(ctx, workspace, agentName, info.ID)
+	agent := sess.AgentDefinition()
+	if strings.TrimSpace(agent.Name) != "" {
+		skills, err = a.skillsForSessionAgent(ctx, workspace, agent, info.ID)
 	} else {
 		skills, err = a.registry.ForWorkspace(ctx, workspace)
 	}
@@ -99,6 +106,18 @@ func (a *skillsCatalogAugmenter) Augment(ctx context.Context, sess *session.Sess
 		return catalog, nil
 	}
 	return catalog + "\n\n" + message, nil
+}
+
+func (a *skillsCatalogAugmenter) skillsForSessionAgent(
+	ctx context.Context,
+	workspace *workspacepkg.ResolvedWorkspace,
+	agent aghconfig.AgentDef,
+	sessionID string,
+) ([]*skillspkg.Skill, error) {
+	if strings.TrimSpace(agent.SourcePath) == "" {
+		return a.registry.ForAgentDefSession(ctx, workspace, agent, sessionID)
+	}
+	return a.registry.ForAgentSession(ctx, workspace, agent.Name, sessionID)
 }
 
 func (a *skillsCatalogAugmenter) catalogUnchanged(info *session.Info, catalog string) bool {

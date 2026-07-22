@@ -227,7 +227,9 @@ Stopping is cooperative first:
 6. Close managed terminals and suppress expected wait errors for requested stops.
 
 Failed startup uses the same cleanup path. If initialize, `session/new`, or `session/load` fails
-after the process was launched, AGH stops the process before returning the startup error.
+after the process was launched, AGH stops the process. Synchronous internal callers receive the
+startup error; an HTTP/UDS session that was already accepted becomes durably `stopped` with a
+`startup_failure` diagnostic.
 
 ## Agent-Initiated Safe Spawn
 

@@ -27,7 +27,7 @@ type CreateAgentRequest struct {
 // CreateAgentPayload captures the simple AGENT.md fields supported by v1 authoring.
 type CreateAgentPayload struct {
 	Name            string                   `json:"name"`
-	Provider        string                   `json:"provider"`
+	Provider        string                   `json:"provider,omitempty"`
 	Command         string                   `json:"command,omitempty"`
 	Model           string                   `json:"model,omitempty"`
 	ReasoningEffort ReasoningEffort          `json:"reasoning_effort,omitempty"`

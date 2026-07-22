@@ -4,12 +4,12 @@ area: RT
 title: Start a new session with immediate truthful feedback
 persona: Bruno
 journey: J-17
-expected: Clicking New session gives visible feedback within 100 ms and reaches the usable session thread within the power-user patience budget without a silent gap or duplicate creation.
+expected: Clicking New session gives visible feedback within 100 ms, navigates to one durable `starting` session within 250 ms, keeps the composer disabled until `active`, and surfaces a durable startup failure without duplicate creation; runtime-related failures link to runtime settings, while unrelated startup failures do not.
 entry_points: web agent detail New session; web Agents Start session
-qa_status: fail
+qa_status: untested
 bug_ids: BUG-20260713-cursor-model-startup-contract, BUG-20260713-new-session-modal-lingers, BUG-20260713-first-prompt-optimistic-stuck, BUG-20260713-stop-generation-local-stuck
-fix_status: open
-retest_status: fail
+fix_status: fixed
+retest_status: pending
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/new-session-modal-timing.json
 last_report: docs/qa/reports/2026-07-13-automation-features.md
@@ -39,3 +39,7 @@ recovered the local composer after one successful daemon cancel. The scenario
 remains failed only because its separate session-start latency budget was not
 retested or changed in this batch; both first-prompt and Stop bug rows are
 verified.
+
+QA impact 2026-07-22: session admission is now durable and asynchronous, the Web polls `starting`
+at 500 ms, and startup failure has an explicit recovery pane. Reset to untested for a fresh timing
+and failure-path replay.

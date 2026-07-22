@@ -18,7 +18,6 @@ import {
 
 import { useOnboardingWizard } from "../hooks/use-onboarding-wizard";
 import { StepDefaultModel } from "./step-default-model";
-import { StepOnboardingChat } from "./step-onboarding-chat";
 import { StepWorkspaces } from "./step-workspaces";
 
 const STEP_RAIL = [
@@ -28,7 +27,6 @@ const STEP_RAIL = [
     description: "Provider, model, reasoning & how you authenticate.",
   },
   { step: 2, title: "Workspaces", description: "Add the folders AGH should operate inside." },
-  { step: 3, title: "Onboarding agent", description: "Set up channels & agents in a quick chat." },
 ];
 
 interface OnboardingWizardProps {
@@ -107,23 +105,19 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           <p className="mt-2 text-small-body leading-6 text-muted">{wizard.meta.lead}</p>
         </header>
 
-        {wizard.step === 3 ? (
-          <StepOnboardingChat chat={wizard.chat} />
-        ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto px-8 py-7">
-            <div className="mx-auto max-w-2xl">
-              {wizard.step === 1 ? (
-                <StepDefaultModel model={wizard.defaultModel} />
-              ) : (
-                <StepWorkspaces workspaces={wizard.workspaces} />
-              )}
-            </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-8 py-7">
+          <div className="mx-auto max-w-2xl">
+            {wizard.step === 1 ? (
+              <StepDefaultModel model={wizard.defaultModel} />
+            ) : (
+              <StepWorkspaces workspaces={wizard.workspaces} />
+            )}
           </div>
-        )}
+        </div>
 
         <footer className="flex flex-none items-center justify-between gap-4 border-t border-line bg-canvas px-8 py-4">
           <p className="text-xs text-faint" data-testid="onboarding-footer-hint">
-            Step <span className="font-medium text-muted tabular-nums">{wizard.step}</span> / 3 ·{" "}
+            Step <span className="font-medium text-muted tabular-nums">{wizard.step}</span> / 2 ·{" "}
             {wizard.meta.hint}
           </p>
           <div className="flex items-center gap-2.5">

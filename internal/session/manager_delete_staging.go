@@ -70,7 +70,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		if info == nil || strings.TrimSpace(info.WorkspaceID) != targetWorkspace {
 			continue
 		}
-		if info.State == StateActive {
+		if info.State == StateStarting || info.State == StateActive || info.State == StateStopping {
 			rollbackErr := m.rollbackStagedSessionDeletes(staged)
 			m.lifecycleMu.Unlock()
 			activeErr := fmt.Errorf(

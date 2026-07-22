@@ -513,12 +513,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertEnumValues(t, propertySchema(t, requestSchema, "scope"), "workspace", "global")
 
 				agentSchema := propertySchema(t, requestSchema, "agent")
-				assertRequired(t, agentSchema, "name", "provider", "prompt")
+				assertRequired(t, agentSchema, "name", "prompt")
 				assertNotRequired(
 					t,
 					agentSchema,
 					"command",
+					"provider",
 					"model",
+					"reasoning_effort",
 					"tools",
 					"toolsets",
 					"deny_tools",

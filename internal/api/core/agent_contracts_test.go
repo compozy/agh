@@ -45,6 +45,71 @@ func TestAgentPayloadDoesNotExposeMCPSecretBindings(t *testing.T) {
 	})
 }
 
+func TestAgentPayloadEffectiveRuntimeUsesRequestedWorkspaceConfig(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should project every effective runtime field and provenance from the requested workspace",
+		testAgentPayloadEffectiveRuntime,
+	)
+}
+
+func testAgentPayloadEffectiveRuntime(t *testing.T) {
+	t.Helper()
+	agent := aghconfig.AgentDef{Name: "reviewer", Prompt: "Review changes."}
+	entry := core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}
+	codexConfig := aghconfig.Config{Defaults: aghconfig.DefaultsConfig{Provider: "codex"}}
+	claudeConfig := aghconfig.Config{Defaults: aghconfig.DefaultsConfig{Provider: "claude"}}
+
+	codexPayload := core.AgentPayloadFromEntryWithConfig(entry, &codexConfig)
+	claudePayload := core.AgentPayloadFromEntryWithConfig(entry, &claudeConfig)
+	if codexPayload.EffectiveRuntime == nil || claudePayload.EffectiveRuntime == nil {
+		t.Fatal("EffectiveRuntime = nil, want projections for both workspaces")
+	}
+	if got, want := codexPayload.EffectiveRuntime.Provider, "codex"; got != want {
+		t.Fatalf("codex EffectiveRuntime.Provider = %q, want %q", got, want)
+	}
+	if got, want := claudePayload.EffectiveRuntime.Provider, "claude"; got != want {
+		t.Fatalf("claude EffectiveRuntime.Provider = %q, want %q", got, want)
+	}
+	if codexPayload.Provider != "" || claudePayload.Provider != "" {
+		t.Fatalf("authored Provider = %q/%q, want empty", codexPayload.Provider, claudePayload.Provider)
+	}
+	if got, want := codexPayload.EffectiveRuntime.Sources.Provider,
+		contract.AgentRuntimeValueSourceProjectDefault; got != want {
+		t.Fatalf("codex provider source = %q, want %q", got, want)
+	}
+	for name, projection := range map[string]struct {
+		payload *contract.AgentEffectiveRuntimePayload
+		config  *aghconfig.Config
+	}{
+		"codex":  {payload: codexPayload.EffectiveRuntime, config: &codexConfig},
+		"claude": {payload: claudePayload.EffectiveRuntime, config: &claudeConfig},
+	} {
+		resolved, err := projection.config.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("%s ResolveAgent() error = %v", name, err)
+		}
+		if got, want := projection.payload.Model, resolved.Model; got != want {
+			t.Fatalf("%s model = %q, want %q", name, got, want)
+		}
+		if got, want := string(projection.payload.ReasoningEffort), resolved.ReasoningEffort; got != want {
+			t.Fatalf("%s reasoning = %q, want %q", name, got, want)
+		}
+		if got, want := string(projection.payload.Sources.Provider),
+			string(resolved.RuntimeSources.Provider); got != want {
+			t.Fatalf("%s provider source = %q, want %q", name, got, want)
+		}
+		if got, want := string(projection.payload.Sources.Model),
+			string(resolved.RuntimeSources.Model); got != want {
+			t.Fatalf("%s model source = %q, want %q", name, got, want)
+		}
+		if got, want := string(projection.payload.Sources.ReasoningEffort),
+			string(resolved.RuntimeSources.ReasoningEffort); got != want {
+			t.Fatalf("%s reasoning source = %q, want %q", name, got, want)
+		}
+	}
+}
+
 func TestCoordinatorConfigPayloadFromConfig(t *testing.T) {
 	t.Parallel()
 

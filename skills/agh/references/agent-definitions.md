@@ -37,7 +37,7 @@ The prompt body is required. AGH rejects an agent definition with no prompt.
 
 - name is required and must match the directory name for filesystem-loaded agents.
 - provider, model, reasoning_effort, and command can be omitted when defaults supply them.
-- reasoning_effort is `none|minimal|low|medium|high|xhigh|max`; session override wins over AGENT.md, and empty keeps the provider/adapter default.
+- reasoning_effort is `none|minimal|low|medium|high|xhigh|max`; a session override wins over AGENT.md, which wins over the selected curated model's default effort. Empty after that cascade keeps the provider/adapter default.
 - tools grants exact ToolIDs or namespace-prefix wildcard patterns.
 - toolsets grants named ToolsetIDs such as agh\_\_catalog.
 - deny_tools narrows grants.
@@ -57,15 +57,13 @@ approval gates.
 Keep frontmatter grants narrow and intentional. Add `tools` or `toolsets` only when the agent should
 be limited to that explicit runtime surface.
 
-## Managed Bundled Agents
+## Managed Bundled Agent
 
-AGH ensures two managed agent definitions exist on first boot and during `agh install`:
+AGH ensures one managed agent definition exists on first boot and during `agh install`:
 
 - `general` — the default public general-purpose agent (`defaults.agent`). It is the agent operators see in public agent lists and the workspace sidebar unless a workspace-local `general` overrides it.
-- `onboarding` — a reserved internal first-run setup agent. It stays hidden from public agent lists, workspace detail payloads, and `agh agent list/info`, but the onboarding wizard can still start sessions with `agent_name: "onboarding"`. It interviews the operator in the web onboarding wizard and provisions channels and agents through exact tool grants: `agh__workspace_list`, `agh__workspace_describe`, `agh__network_channels`, `agh__network_channel_create`, and `agh__agent_create`. Fresh daemon boot registers the operator `$HOME` as the default workspace before the wizard starts, so onboarding can use that workspace without a manual `agh workspace add`. It runs with `approve-all` over only those tools.
 
-Both are recreated only when missing; operator edits are preserved.
-Public authoring surfaces reject attempts to create an agent named `onboarding`.
+It is recreated only when missing; operator edits are preserved.
 
 ## Providers And MCP
 

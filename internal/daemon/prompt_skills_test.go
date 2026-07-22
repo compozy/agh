@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/session"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -240,6 +242,38 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			t.Fatalf("prompt bytes inactive=%d active=%d, want measured catalog growth", len(first), len(second))
 		}
 	})
+
+	t.Run("Should refresh authored agents by name while preserving package-owned snapshots", func(t *testing.T) {
+		t.Parallel()
+
+		registry, _ := newPromptSkillsAugmenterForTest(t, nil)
+		augmenter := &skillsCatalogAugmenter{registry: registry}
+		workspace := &workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/tmp/ws-1"},
+		}
+		if _, err := augmenter.skillsForSessionAgent(
+			t.Context(),
+			workspace,
+			aghconfig.AgentDef{Name: "authored", SourcePath: "/tmp/ws-1/.agh/agents/authored/AGENT.md"},
+			"sess-authored",
+		); err != nil {
+			t.Fatalf("skillsForSessionAgent(authored) error = %v", err)
+		}
+		if _, err := augmenter.skillsForSessionAgent(
+			t.Context(),
+			workspace,
+			aghconfig.AgentDef{Name: "packaged"},
+			"sess-packaged",
+		); err != nil {
+			t.Fatalf("skillsForSessionAgent(packaged) error = %v", err)
+		}
+		if got, want := registry.resolvedNames, []string{"authored"}; !slices.Equal(got, want) {
+			t.Fatalf("resolved agent names = %#v, want %#v", got, want)
+		}
+		if got, want := registry.concreteNames, []string{"packaged"}; !slices.Equal(got, want) {
+			t.Fatalf("concrete agent names = %#v, want %#v", got, want)
+		}
+	})
 }
 
 func BenchmarkSkillsCatalogAugmenterCatalogReplayModes(b *testing.B) {
@@ -320,6 +354,8 @@ func newPromptSkillsSession(sessionID string) *session.Session {
 
 type stubPromptSkillsRegistry struct {
 	skillsByAgent map[string][]*skillspkg.Skill
+	resolvedNames []string
+	concreteNames []string
 }
 
 func (s *stubPromptSkillsRegistry) ForWorkspace(
@@ -327,6 +363,19 @@ func (s *stubPromptSkillsRegistry) ForWorkspace(
 	_ *workspacepkg.ResolvedWorkspace,
 ) ([]*skillspkg.Skill, error) {
 	return nil, nil
+}
+
+func (s *stubPromptSkillsRegistry) ForAgentDefSession(
+	_ context.Context,
+	_ *workspacepkg.ResolvedWorkspace,
+	agent aghconfig.AgentDef,
+	_ string,
+) ([]*skillspkg.Skill, error) {
+	if s == nil {
+		return nil, nil
+	}
+	s.concreteNames = append(s.concreteNames, agent.Name)
+	return append([]*skillspkg.Skill(nil), s.skillsByAgent[agent.Name]...), nil
 }
 
 func (s *stubPromptSkillsRegistry) ForAgentSession(
@@ -338,6 +387,7 @@ func (s *stubPromptSkillsRegistry) ForAgentSession(
 	if s == nil {
 		return nil, nil
 	}
+	s.resolvedNames = append(s.resolvedNames, agentName)
 	return append([]*skillspkg.Skill(nil), s.skillsByAgent[agentName]...), nil
 }
 

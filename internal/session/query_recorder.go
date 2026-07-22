@@ -76,6 +76,16 @@ func (m *Manager) resolveRecorderOpenTarget(
 
 	if session, ok := m.Get(target); ok {
 		recorder := session.recorderHandle()
+		if recorder == nil && session.Info().State == StateStarting {
+			if err := waitForSessionStartRecorder(ctx, m.sessionStartRun(target)); err != nil {
+				return recorderOpenTarget{}, fmt.Errorf(
+					"session: wait for recorder for %q: %w",
+					target,
+					err,
+				)
+			}
+			recorder = session.recorderHandle()
+		}
 		if recorder != nil {
 			return recorderOpenTarget{sessionID: target, active: recorder}, nil
 		}

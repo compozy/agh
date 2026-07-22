@@ -11,13 +11,14 @@ import (
 )
 
 const getSessionCreationIdentity = `-- name: GetSessionCreationIdentity :one
-SELECT workspace_id, creation_profile_ref, policy_spec_digest, creation_digest
+SELECT workspace_id, state, creation_profile_ref, policy_spec_digest, creation_digest
 FROM sessions
 WHERE id = ?1
 `
 
 type GetSessionCreationIdentityRow struct {
 	WorkspaceID        string         `json:"workspace_id"`
+	State              string         `json:"state"`
 	CreationProfileRef sql.NullString `json:"creation_profile_ref"`
 	PolicySpecDigest   sql.NullString `json:"policy_spec_digest"`
 	CreationDigest     sql.NullString `json:"creation_digest"`
@@ -28,6 +29,7 @@ func (q *Queries) GetSessionCreationIdentity(ctx context.Context, id string) (Ge
 	var i GetSessionCreationIdentityRow
 	err := row.Scan(
 		&i.WorkspaceID,
+		&i.State,
 		&i.CreationProfileRef,
 		&i.PolicySpecDigest,
 		&i.CreationDigest,

@@ -28,6 +28,7 @@ import {
 } from "./session-transcript-query";
 
 const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
+const SESSION_STARTING_REFETCH_INTERVAL_MS = 500;
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
 const SESSION_TRANSCRIPT_STALE_TIME_MS = 10_000;
 const SESSION_WARM_CACHE_GC_TIME_MS = 30 * 60 * 1_000;
@@ -67,8 +68,11 @@ export function sessionDetailOptions(workspace: string, id: string) {
   return queryOptions({
     queryKey: sessionKeys.detail(workspace, id),
     queryFn: ({ signal }) => fetchSession(workspace, id, signal),
-    refetchInterval: query =>
-      isLiveSessionState(query.state.data?.state) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false,
+    refetchInterval: query => {
+      const state = query.state.data?.state;
+      if (state === "starting") return SESSION_STARTING_REFETCH_INTERVAL_MS;
+      return isLiveSessionState(state) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false;
+    },
     staleTime: SESSION_DETAIL_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,

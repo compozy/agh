@@ -86,13 +86,12 @@ func (m *Manager) activateAndWatch(
 	preserveStopReason bool,
 ) error {
 	now := m.now()
-	if err := session.activate(now, preserveStopReason); err != nil {
-		return err
-	}
 	if err := m.activate(session); err != nil {
 		return err
 	}
-	session.updateFromProcess(proc, now, adoptCurrentModel)
+	if err := session.activateWithProcess(proc, now, adoptCurrentModel, preserveStopReason); err != nil {
+		return err
+	}
 	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(err, rollbackErr)

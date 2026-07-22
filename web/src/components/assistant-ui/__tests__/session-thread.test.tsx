@@ -17,7 +17,7 @@ import {
   SESSION_DEBUG_EVENTS,
 } from "@/systems/session/lib/session-observability";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
-import type { SessionMessage } from "@/systems/session/types";
+import type { SessionFailurePayload, SessionMessage, SessionState } from "@/systems/session/types";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
 
 import { SessionThread } from "../session-thread";
@@ -144,12 +144,18 @@ function renderThreadState({
   error = null,
   retry = vi.fn(),
   isSessionRunning = false,
+  acpSessionId,
+  sessionState,
+  failure = null,
 }: {
   messages?: readonly ThreadMessage[];
   status: SessionTranscriptThreadStatus;
   error?: Error | null;
   retry?: () => void;
   isSessionRunning?: boolean;
+  acpSessionId?: string;
+  sessionState?: SessionState;
+  failure?: SessionFailurePayload | null;
 }) {
   const queryClient = createQueryClient();
 
@@ -171,6 +177,9 @@ function renderThreadState({
             canPrompt
             onCancelPrompt={() => {}}
             isSessionRunning={isSessionRunning}
+            acpSessionId={acpSessionId}
+            sessionState={sessionState}
+            failure={failure}
           />
         </SessionTranscriptThreadProvider>
       </SessionChatRuntimeProvider>
@@ -235,6 +244,78 @@ describe("SessionThread transcript states", () => {
     expect(await screen.findByText(/Start a conversation/i)).toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
+  });
+
+  it("Should prioritize durable starting state and keep the composer disabled", async () => {
+    renderThreadState({ status: "pending", sessionState: "starting" });
+
+    const pane = await screen.findByTestId("thread-session-starting");
+    expect(pane).toHaveAttribute("role", "status");
+    expect(pane).toHaveTextContent("The session is saved");
+    expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-textarea")).toBeDisabled();
+    expect(screen.getByTestId("composer-send-button")).toBeDisabled();
+    expect(screen.getByTestId("composer-textarea")).toHaveAttribute(
+      "placeholder",
+      "Session is starting…"
+    );
+  });
+
+  it("Should surface durable startup failure and link to the agent runtime settings", async () => {
+    renderThreadState({
+      status: "error",
+      error: new Error("transcript unavailable"),
+      sessionState: "stopped",
+      failure: {
+        kind: "provider_auth_failure",
+        summary: "The configured model is unavailable.",
+      },
+    });
+
+    const pane = await screen.findByTestId("thread-session-startup-failure");
+    expect(pane).toHaveAttribute("role", "alert");
+    expect(pane).toHaveTextContent("The configured model is unavailable.");
+    expect(within(pane).getByRole("button", { name: "Review agent runtime" })).toBeInTheDocument();
+    expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-textarea")).toBeDisabled();
+    expect(screen.getByTestId("composer-send-button")).toBeDisabled();
+    expect(screen.getByTestId("composer-textarea")).toHaveAttribute(
+      "placeholder",
+      "Session failed to start"
+    );
+  });
+
+  it("Should surface a preactivation process failure without an unrelated runtime action", async () => {
+    renderThreadState({
+      status: "error",
+      error: new Error("transcript unavailable"),
+      sessionState: "stopped",
+      failure: {
+        kind: "process_exit",
+        summary: "The provider process exited before activation.",
+      },
+    });
+
+    const pane = await screen.findByTestId("thread-session-startup-failure");
+    expect(pane).toHaveTextContent("The provider process exited before activation.");
+    expect(within(pane).queryByRole("button", { name: "Review agent runtime" })).toBeNull();
+    expect(screen.getByTestId("composer-textarea")).toBeDisabled();
+  });
+
+  it("Should keep post-activation failures in the transcript lifecycle", async () => {
+    renderThreadState({
+      status: "error",
+      error: new Error("transcript unavailable"),
+      acpSessionId: "acp-existing",
+      sessionState: "stopped",
+      failure: {
+        kind: "process_exit",
+        summary: "The active provider process exited.",
+      },
+    });
+
+    expect(await screen.findByTestId("thread-transcript-error")).toBeInTheDocument();
+    expect(screen.queryByTestId("thread-session-startup-failure")).not.toBeInTheDocument();
   });
 
   it("Should record a debug event when ThreadEmpty renders while the session is active", async () => {

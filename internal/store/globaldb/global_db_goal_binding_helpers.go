@@ -138,7 +138,7 @@ func validateBindingSessionIdentity(
 	policyDigest string,
 	creationDigest string,
 ) error {
-	storedWorkspace, identity, found, err := readSessionCreationIdentity(ctx, exec, sessionID)
+	storedWorkspace, _, identity, found, err := readSessionCreationIdentity(ctx, exec, sessionID)
 	if err != nil {
 		return err
 	}

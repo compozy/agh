@@ -152,7 +152,7 @@ func normalizeSessionType(sessionType Type) Type {
 func canTransition(current State, next State) bool {
 	switch current {
 	case StateStarting:
-		return next == StateActive
+		return next == StateActive || next == StateStopping
 	case StateActive:
 		return next == StateStopping
 	case StateStopping:
