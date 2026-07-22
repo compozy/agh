@@ -64,6 +64,9 @@ func TestGlobalDBTransactionCleanupHelpers(t *testing.T) {
 		t.Fatalf("rollbackTx(committed) error = %v", err)
 	}
 
+	if err := restoreForeignKeys(ctx, nil); err != nil {
+		t.Fatalf("restoreForeignKeys(nil) error = %v", err)
+	}
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		t.Fatalf("Conn() error = %v", err)
@@ -73,18 +76,6 @@ func TestGlobalDBTransactionCleanupHelpers(t *testing.T) {
 			t.Errorf("conn.Close() error = %v", closeErr)
 		}
 	})
-	if err := rollbackImmediate(ctx, nil, "nil"); err != nil {
-		t.Fatalf("rollbackImmediate(nil) error = %v", err)
-	}
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		t.Fatalf("BEGIN IMMEDIATE error = %v", err)
-	}
-	if err := rollbackImmediate(ctx, conn, "cleanup"); err != nil {
-		t.Fatalf("rollbackImmediate(active) error = %v", err)
-	}
-	if err := restoreForeignKeys(ctx, nil); err != nil {
-		t.Fatalf("restoreForeignKeys(nil) error = %v", err)
-	}
 	if err := restoreForeignKeys(ctx, conn); err != nil {
 		t.Fatalf("restoreForeignKeys(conn) error = %v", err)
 	}
@@ -105,18 +96,6 @@ func TestGlobalDBTransactionCleanupHelpers(t *testing.T) {
 	joinCleanupError(&target, cleanupErr)
 	if !errors.Is(target, primaryErr) || !errors.Is(target, cleanupErr) {
 		t.Fatalf("joinCleanupError(joined) = %v, want primary and cleanup", target)
-	}
-}
-
-func TestSessionsDirForDatabasePath(t *testing.T) {
-	t.Parallel()
-
-	if got := sessionsDirForDatabasePath("   "); got != "" {
-		t.Fatalf("sessionsDirForDatabasePath(blank) = %q, want empty", got)
-	}
-	dbPath := filepath.Join(t.TempDir(), "agh.db")
-	if got, want := sessionsDirForDatabasePath(dbPath), filepath.Join(filepath.Dir(dbPath), "sessions"); got != want {
-		t.Fatalf("sessionsDirForDatabasePath(%q) = %q, want %q", dbPath, got, want)
 	}
 }
 

@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	globalschema "github.com/compozy/agh/internal/store/globaldb/schema"
+	"github.com/compozy/agh/internal/store/sessiondb"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 	aghworkspace "github.com/compozy/agh/internal/workspace"
@@ -3006,45 +3007,6 @@ func TestGlobalDBReconcileSessionsSkipsDuplicateIDsAndDefaultsTimestamps(t *test
 	}
 }
 
-func TestGlobalDBRecoversFromCorruption(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, GlobalDatabaseName)
-	if err := os.WriteFile(path, []byte("bad sqlite"), 0o644); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
-
-	globalDB, err := OpenGlobalDB(testutil.Context(t), path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-			t.Fatalf("Close() error = %v", closeErr)
-		}
-	})
-
-	assertTablesPresent(
-		t,
-		globalDB.db,
-		globalMigrationVersionTable,
-		"workspaces",
-		"sessions",
-		"event_summaries",
-		"token_stats",
-		"permission_log",
-	)
-
-	matches, err := filepath.Glob(path + ".corrupt.*")
-	if err != nil {
-		t.Fatalf("Glob() error = %v", err)
-	}
-	if got, want := len(matches), 1; got != want {
-		t.Fatalf("len(corrupt files) = %d, want %d (%v)", got, want, matches)
-	}
-}
-
 func openTestGlobalDB(t *testing.T) *GlobalDB {
 	t.Helper()
 
@@ -3062,7 +3024,12 @@ func openFreshTestGlobalDB(t *testing.T) *GlobalDB {
 func openGlobalDBForTest(t *testing.T, path string) *GlobalDB {
 	t.Helper()
 
-	globalDB, err := OpenGlobalDB(testutil.Context(t), path)
+	sessionsDir := filepath.Join(filepath.Dir(path), "sessions")
+	globalDB, err := OpenGlobalDB(
+		testutil.Context(t),
+		path,
+		WithSessionEventMetadataOpener(sessiondb.NewEventMetadataOpener(sessionsDir)),
+	)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -3305,7 +3272,11 @@ func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {
 	if err != nil {
 		t.Fatalf("QueryContext(sqlite_master) error = %v", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			t.Errorf("rows.Close() error = %v", closeErr)
+		}
+	}()
 
 	got := make(map[string]struct{})
 	for rows.Next() {

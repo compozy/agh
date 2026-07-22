@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -59,7 +58,6 @@ func TestExecuteWrite(t *testing.T) {
 		cfg.maxAttempts = 80
 		cfg.minRetryDelay = time.Millisecond
 		cfg.maxRetryDelay = time.Millisecond
-		cfg.checkpointEvery = 0
 		err = executeWrite(ctx, contender, cfg, func(ctx context.Context, tx *WriteTx) error {
 			_, execErr := tx.ExecContext(ctx, `INSERT INTO items (id) VALUES ('ok')`)
 			return execErr
@@ -104,35 +102,6 @@ func TestExecuteWrite(t *testing.T) {
 		}
 		if count != 0 {
 			t.Fatalf("items count = %d, want rollback to 0", count)
-		}
-	})
-
-	t.Run("Should checkpoint on the configured successful write interval", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "checkpoint.db"))
-		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
-			t.Fatalf("Create table error = %v", err)
-		}
-
-		var checkpoints atomic.Int32
-		cfg := defaultExecuteWriteConfig()
-		cfg.checkpointEvery = 1
-		cfg.checkpoint = func(context.Context, *sql.DB) error {
-			checkpoints.Add(1)
-			return nil
-		}
-
-		if err := executeWrite(ctx, db, cfg, func(ctx context.Context, tx *WriteTx) error {
-			_, execErr := tx.ExecContext(ctx, `INSERT INTO items (id) VALUES ('checkpointed')`)
-			return execErr
-		}); err != nil {
-			t.Fatalf("executeWrite() error = %v", err)
-		}
-
-		if got := checkpoints.Load(); got != 1 {
-			t.Fatalf("checkpoint count = %d, want 1", got)
 		}
 	})
 

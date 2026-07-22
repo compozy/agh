@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
@@ -192,6 +191,5 @@ func marketplaceCatalogEntryFromRow(row sqlcgen.MarketplaceCatalogEntry) store.M
 }
 
 func marketplaceCatalogNullString(value string) sql.NullString {
-	trimmed := strings.TrimSpace(value)
-	return sql.NullString{String: trimmed, Valid: trimmed != ""}
+	return store.SQLNullString(value)
 }

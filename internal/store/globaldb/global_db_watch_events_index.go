@@ -10,6 +10,7 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
@@ -185,8 +186,7 @@ func parkedWatchEventSubscriptionFromFields(
 }
 
 func nullableWatchEventsString(value string) sql.NullString {
-	value = strings.TrimSpace(value)
-	return sql.NullString{String: value, Valid: value != ""}
+	return store.SQLNullString(value)
 }
 
 func decodeParkedWatchEventsInputs(raw string) (map[string]any, error) {

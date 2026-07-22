@@ -178,6 +178,45 @@ func TestMigrationStreamStatus(t *testing.T) {
 	})
 }
 
+func TestRequireCurrentMigrationStream(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept the embedded head without writing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openEngineTestDB(t, "require-current.db")
+		stream := fixtureMigrationStream("goose_db_version_require_current", "testdata/migrations/happy")
+		if err := Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		before := pragmaDataVersion(t, db)
+		if err := RequireCurrent(ctx, db, stream); err != nil {
+			t.Fatalf("RequireCurrent() error = %v", err)
+		}
+		if after := pragmaDataVersion(t, db); after != before {
+			t.Fatalf("PRAGMA data_version after RequireCurrent = %d, want %d", after, before)
+		}
+	})
+
+	t.Run("Should reject a behind stream without writing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openEngineTestDB(t, "require-current-behind.db")
+		stream := fixtureMigrationStream("goose_db_version_require_current_behind", "testdata/migrations/happy")
+		seedGooseVersion(t, db, stream.VersionTable, 1)
+		before := pragmaDataVersion(t, db)
+		err := RequireCurrent(ctx, db, stream)
+		if !errors.Is(err, ErrSchemaBehind) {
+			t.Fatalf("RequireCurrent(behind) error = %v, want ErrSchemaBehind", err)
+		}
+		if after := pragmaDataVersion(t, db); after != before {
+			t.Fatalf("PRAGMA data_version after RequireCurrent = %d, want %d", after, before)
+		}
+	})
+}
+
 func pragmaDataVersion(t *testing.T, db interface {
 	QueryRow(query string, args ...any) *sql.Row
 }) int64 {

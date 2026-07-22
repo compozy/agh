@@ -2,6 +2,9 @@ package config
 
 import (
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -80,28 +83,69 @@ func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
 }
 
 func TestReplaceDotEnvFileUsesDurableWriteProtocol(t *testing.T) {
-	t.Parallel()
+	t.Run("Should sync the temporary file and persisted directory", func(t *testing.T) {
+		t.Parallel()
 
-	source, err := os.ReadFile("dotenv.go")
+		function := packageFunctionDeclaration(t, "replaceDotEnvFile")
+		if !functionCalls(function, "Sync") {
+			t.Fatal("replaceDotEnvFile does not sync the temporary file before rename")
+		}
+		if !functionCalls(function, "syncPersistedDir") {
+			t.Fatal("replaceDotEnvFile does not sync the persisted directory after rename")
+		}
+	})
+}
+
+func packageFunctionDeclaration(t *testing.T, name string) *ast.FuncDecl {
+	t.Helper()
+
+	entries, err := os.ReadDir(".")
 	if err != nil {
-		t.Fatalf("os.ReadFile(dotenv.go) error = %v", err)
+		t.Fatalf("os.ReadDir(config package) error = %v", err)
 	}
-	body := string(source)
-	start := strings.Index(body, "func replaceDotEnvFile(")
-	if start < 0 {
-		t.Fatal("replaceDotEnvFile function not found")
+	fileSet := token.NewFileSet()
+	var found *ast.FuncDecl
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		parsed, err := parser.ParseFile(fileSet, entry.Name(), nil, 0)
+		if err != nil {
+			t.Fatalf("parser.ParseFile(%q) error = %v", entry.Name(), err)
+		}
+		for _, declaration := range parsed.Decls {
+			function, ok := declaration.(*ast.FuncDecl)
+			if !ok || function.Name.Name != name {
+				continue
+			}
+			if found != nil {
+				t.Fatalf("package function %q is declared more than once", name)
+			}
+			found = function
+		}
 	}
-	end := strings.Index(body[start:], "\nfunc dotEnvUnsupportedError(")
-	if end < 0 {
-		t.Fatal("replaceDotEnvFile function end not found")
+	if found == nil {
+		t.Fatalf("package function %q not found", name)
 	}
-	fn := body[start : start+end]
-	if !strings.Contains(fn, ".Sync()") {
-		t.Fatalf("replaceDotEnvFile missing temp file Sync before rename:\n%s", fn)
-	}
-	if !strings.Contains(fn, "syncPersistedDir(dir)") {
-		t.Fatalf("replaceDotEnvFile missing parent directory sync after rename:\n%s", fn)
-	}
+	return found
+}
+
+func functionCalls(function *ast.FuncDecl, name string) bool {
+	found := false
+	ast.Inspect(function.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		switch callee := call.Fun.(type) {
+		case *ast.Ident:
+			found = found || callee.Name == name
+		case *ast.SelectorExpr:
+			found = found || callee.Sel.Name == name
+		}
+		return !found
+	})
+	return found
 }
 
 func TestRepairDotEnvFileRejectsUnsupportedContentWithoutWriting(t *testing.T) {

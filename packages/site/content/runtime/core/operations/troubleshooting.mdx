@@ -216,21 +216,22 @@ If resume still fails, check that the workspace directory, agent definition, and
 
 ## Database is locked or corrupted
 
-| Field      | What to check                                                                                                                                        |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | SQLite reports `database is locked`, `database disk image is malformed`, or the daemon cannot open `agh.db` or `events.db`.                          |
-| Diagnosis  | A live daemon may still hold the database, a filesystem copy may have missed WAL sidecars, or SQLite detected a recoverable corruption marker.       |
-| Resolution | Stop the daemon before manual inspection. Restore from a backup if the database is corrupt. Preserve any `.corrupt.<timestamp>` files for diagnosis. |
+| Field      | What to check                                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | SQLite reports `database is locked`, `database disk image is malformed`, or the daemon cannot open `agh.db` or `events.db`.                            |
+| Diagnosis  | A live daemon may still hold the database, a filesystem copy may have missed WAL sidecars, or SQLite classified the database as corrupt.               |
+| Resolution | Stop the daemon. Preserve the complete database family byte-for-byte, diagnose a cold copy, and restore a complete known-good family if it is corrupt. |
 
 Commands:
 
 ```bash
 export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
 agh daemon stop
-sqlite3 "$AGH_HOME/agh.db" "pragma integrity_check;"
+sqlite3 -readonly "/path/to/cold-backup/agh.db" "pragma integrity_check;"
 ```
 
-For backup and restore details, see [Database Operations](/runtime/core/operations/database).
+AGH does not rename or recreate a database after classifying corruption. For cold backup, family
+preservation, and restore details, see [Database Operations](/runtime/core/operations/database).
 
 ## Permission errors in AGH_HOME
 

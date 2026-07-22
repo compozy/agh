@@ -5305,7 +5305,7 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		}),
-		WithQueryStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
+		WithQueryStore(func(ctx context.Context, sessionID string, path string) (EventReadCloser, error) {
 			return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
 		}),
 		func(manager *Manager) {
@@ -5333,7 +5333,7 @@ func TestManagerOptionsPreserveExplicitQueryStore(t *testing.T) {
 		t.Parallel()
 
 		called := ""
-		queryOpener := func(context.Context, string, string) (EventRecorder, error) {
+		queryOpener := func(context.Context, string, string) (EventReadCloser, error) {
 			called = "query"
 			return &stubRecorder{}, nil
 		}

@@ -62,7 +62,6 @@ CREATE TABLE automation_suggestions (
 		payload      TEXT NOT NULL CHECK (json_valid(payload) AND json_type(payload) = 'object'),
 		created_at   TEXT NOT NULL,
 		resolved_at  TEXT,
-		UNIQUE (workspace_id, dedup_key),
 		CHECK (
 			(status = 'pending' AND resolved_at IS NULL) OR
 			(status IN ('accepted', 'dismissed') AND resolved_at IS NOT NULL)
@@ -215,6 +214,9 @@ CREATE INDEX idx_automation_scheduler_next_run
 
 CREATE INDEX idx_automation_suggestions_workspace_status
 			ON automation_suggestions(workspace_id, status, created_at, id);
+
+CREATE UNIQUE INDEX automation_suggestions_workspace_id_dedup_key
+			ON automation_suggestions(workspace_id, dedup_key);
 
 CREATE INDEX idx_automation_trigger_catalog_order
 			ON automation_trigger_catalog_entries(source_rank, name, trigger_id);

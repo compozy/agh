@@ -383,7 +383,7 @@ func TestMaterializer(t *testing.T) {
 		closeErr := errors.New("close failed")
 		materializer, err := NewMaterializer(Config{
 			RootDir: t.TempDir(),
-			OpenEventStore: func(context.Context, string, string) (store.EventRecorder, error) {
+			OpenEventStore: func(context.Context, string, string) (store.EventReadCloser, error) {
 				return &ledgerFailureRecorder{queryErr: queryErr, closeErr: closeErr}, nil
 			},
 		})
@@ -402,13 +402,18 @@ func TestMaterializer(t *testing.T) {
 }
 
 type ledgerFailureRecorder struct {
-	store.EventRecorder
 	queryErr error
 	closeErr error
 }
 
+var _ store.EventReadCloser = (*ledgerFailureRecorder)(nil)
+
 func (r *ledgerFailureRecorder) Query(context.Context, store.EventQuery) ([]store.SessionEvent, error) {
 	return nil, r.queryErr
+}
+
+func (r *ledgerFailureRecorder) History(context.Context, store.EventQuery) ([]store.TurnHistory, error) {
+	return nil, nil
 }
 
 func (r *ledgerFailureRecorder) Close(context.Context) error {

@@ -221,18 +221,22 @@ session row.
 
 ## Handle corrupt database files
 
-When AGH opens a SQLite database and sees a recoverable corruption marker, it moves the database and
-its `-wal` and `-shm` sidecars to files ending in `.corrupt.<timestamp>`, then retries opening a
-fresh database once.
+When AGH classifies a SQLite database as corrupt, it stops the open and reports the database path.
+AGH leaves the database and its `-wal` and `-shm` sidecars unchanged. It does not rename, remove,
+repair, or replace any member of the database family automatically.
 
 If this happens:
 
-1. Preserve the `.corrupt.<timestamp>` files.
-2. Stop the daemon.
-3. Restore the affected database from the latest known-good backup.
-4. Start the daemon and run `agh doctor`.
+1. Stop the daemon and keep it stopped during recovery.
+2. Make a cold copy of the complete containing `AGH_HOME` or workspace `.agh` family, including every
+   database and SQLite sidecar.
+3. Diagnose the copy. Do not run repair or migration writes against the original files.
+4. Restore a complete known-good family, or select a separate fresh `AGH_HOME` when discarding the
+   retained state is acceptable.
+5. Start the daemon and run `agh doctor`.
 
-The `.corrupt.<timestamp>` files are evidence for diagnosis. They are not a backup strategy.
+Do not restore only the `.db` file while retaining sidecars from another point in time. The original
+family is recovery evidence, not a backup strategy.
 
 ## Related pages
 

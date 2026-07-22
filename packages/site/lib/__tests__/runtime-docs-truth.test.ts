@@ -16,6 +16,15 @@ function readRepoFile(...parts: string[]): string {
   return readFileSync(resolve(repoRoot, ...parts), "utf8");
 }
 
+function readRepoGoPackage(...parts: string[]): string {
+  const packageRoot = resolve(repoRoot, ...parts);
+  return readdirSync(packageRoot)
+    .filter(file => file.endsWith(".go") && !file.endsWith("_test.go"))
+    .sort()
+    .map(file => readFileSync(resolve(packageRoot, file), "utf8"))
+    .join("\n");
+}
+
 function listManualDocs(dir: string): ManualDoc[] {
   const docs: ManualDoc[] = [];
   for (const entry of readdirSync(dir)) {
@@ -260,7 +269,7 @@ describe("runtime docs truth", () => {
     const configDoc = readRepoFile(
       "packages/site/content/runtime/core/configuration/config-toml.mdx"
     );
-    const configSource = readRepoFile("internal/config/config.go");
+    const configSource = readRepoGoPackage("internal/config");
 
     expect(configSource).toContain("MemoryWorkspaceConfig");
     expect(configSource).toContain("MemoryDreamScoringWeightsConfig");

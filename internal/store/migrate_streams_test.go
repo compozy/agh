@@ -190,8 +190,10 @@ func TestMigrationSchemaEquivalence(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t)
+			replayStream := item.stream
+			replayStream.Bootstrap = nil
 			migrationDB := openStreamTestDB(t, item.name+"-migration.db")
-			if err := store.Apply(ctx, migrationDB, item.stream); err != nil {
+			if err := store.Apply(ctx, migrationDB, replayStream); err != nil {
 				t.Fatalf("Apply(%s) error = %v", item.name, err)
 			}
 			if _, err := migrationDB.ExecContext(ctx, "DROP TABLE "+item.stream.VersionTable); err != nil {
@@ -200,6 +202,23 @@ func TestMigrationSchemaEquivalence(t *testing.T) {
 			schemaDB := openStreamTestDB(t, item.name+"-schema.db")
 			executeDeclarativeSchema(t, schemaDB, item.schemaFS, item.declarativeSource)
 			assertMigrationSchemaEquivalent(t, item.name, migrationDB, schemaDB, item.stream.VersionTable)
+
+			bootstrapDB := openStreamTestDB(t, item.name+"-bootstrap.db")
+			ctx = testutil.Context(t)
+			if err := store.Apply(ctx, bootstrapDB, item.stream); err != nil {
+				t.Fatalf("Apply(%s bootstrap) error = %v", item.name, err)
+			}
+			assertMigrationSchemaEquivalent(
+				t,
+				item.name+" bootstrap",
+				bootstrapDB,
+				migrationDB,
+				item.stream.VersionTable,
+			)
+			if got, want := normalizedSQLiteTableCounts(t, bootstrapDB, item.stream.VersionTable),
+				normalizedSQLiteTableCounts(t, migrationDB, item.stream.VersionTable); got != want {
+				t.Fatalf("%s bootstrap row counts = %q, want replay counts %q", item.name, got, want)
+			}
 		})
 	}
 }
@@ -420,6 +439,39 @@ func normalizedSQLiteSchema(t *testing.T, db *sql.DB, excludedVersionTable strin
 		t.Fatalf("iterate sqlite_master: %v", err)
 	}
 	return strings.Join(objects, "\n")
+}
+
+func normalizedSQLiteTableCounts(t *testing.T, db *sql.DB, excludedVersionTable string) string {
+	t.Helper()
+	rows, err := db.QueryContext(testutil.Context(t), `SELECT name FROM sqlite_master
+		WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> ? ORDER BY name`, excludedVersionTable)
+	if err != nil {
+		t.Fatalf("query sqlite table names: %v", err)
+	}
+	tableNames := make([]string, 0)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scan sqlite table name: %v", err)
+		}
+		tableNames = append(tableNames, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate sqlite table names: %v", err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatalf("close sqlite table names: %v", err)
+	}
+	counts := make([]string, 0, len(tableNames))
+	for _, name := range tableNames {
+		var count int
+		quotedName := `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+		if err := db.QueryRowContext(testutil.Context(t), "SELECT COUNT(*) FROM "+quotedName).Scan(&count); err != nil {
+			t.Fatalf("count rows in %s: %v", name, err)
+		}
+		counts = append(counts, fmt.Sprintf("%s=%d", name, count))
+	}
+	return strings.Join(counts, ",")
 }
 
 func normalizedSQLiteObjects(t *testing.T, db *sql.DB, objectTypes ...string) string {

@@ -14,8 +14,6 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-var _ store.NetworkTaskStatusProjectionStore = (*NetworkRepo)(nil)
-
 const (
 	networkTaskConversationAvailable       = "available"
 	networkTaskConversationNetworkDisabled = "network_disabled"

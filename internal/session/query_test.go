@@ -1367,7 +1367,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 	})
 
 	t.Run("Should hide query pool quiescence behind session absence", func(t *testing.T) {
-		h := newHarness(t, WithQueryStore(func(context.Context, string, string) (EventRecorder, error) {
+		h := newHarness(t, WithQueryStore(func(context.Context, string, string) (EventReadCloser, error) {
 			return nil, sessiondb.ErrReadOnlyPoolQuiescing
 		}))
 		writeStoppedSessionArtifacts(t, h, "stored-quiescing", true)

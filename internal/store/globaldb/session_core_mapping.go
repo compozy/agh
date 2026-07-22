@@ -82,15 +82,11 @@ func upsertSessionParams(record sessionCatalogRecord) (sqlcgen.UpsertSessionPara
 }
 
 func nullableSessionString(value string) sql.NullString {
-	value = strings.TrimSpace(value)
-	return sql.NullString{String: value, Valid: value != ""}
+	return store.SQLNullString(value)
 }
 
 func nullableSessionStringPointer(value *string) sql.NullString {
-	if value == nil {
-		return sql.NullString{}
-	}
-	return nullableSessionString(*value)
+	return store.SQLNullStringPointer(value)
 }
 
 func nullableSessionTime(value time.Time) sql.NullString {

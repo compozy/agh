@@ -438,7 +438,7 @@ func openBridgeCloseErrorGlobalDB(t *testing.T) *GlobalDB {
 		}
 	})
 	globalDB := &GlobalDB{db: db, now: func() time.Time { return time.Now().UTC() }}
-	globalDB.initializeRepositories()
+	globalDB.initializeRepositories(openConfig{})
 	return globalDB
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
@@ -56,8 +57,7 @@ func goalNullablePositiveInt64(value int64) sql.NullInt64 {
 }
 
 func goalNullableString(value string) sql.NullString {
-	value = strings.TrimSpace(value)
-	return sql.NullString{String: value, Valid: value != ""}
+	return store.SQLNullString(value)
 }
 
 func goalRequiredSQLString(value string) sql.NullString {

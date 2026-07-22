@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/compozy/agh/internal/store"
 )
 
 type networkSQLExecutor interface {
@@ -26,17 +28,6 @@ func rollbackTx(tx *sql.Tx, action string) error {
 		return nil
 	}
 	if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-		return fmt.Errorf("store: rollback %s transaction: %w", action, err)
-	}
-	return nil
-}
-
-func rollbackImmediate(ctx context.Context, conn *sql.Conn, action string) error {
-	if conn == nil {
-		return nil
-	}
-	// dynamic-sql: SQLite transaction control must run directly on the pinned connection.
-	if _, err := conn.ExecContext(ctx, "ROLLBACK"); err != nil {
 		return fmt.Errorf("store: rollback %s transaction: %w", action, err)
 	}
 	return nil
@@ -113,7 +104,12 @@ func (r *repoBase) withImmediateTransaction(
 	if r == nil || r.db == nil {
 		return errors.New("store: repository is required")
 	}
-	return runImmediateTransaction(ctx, r.db, action, run)
+	if err := store.ExecuteWrite(ctx, r.db, func(_ context.Context, tx *store.WriteTx) error {
+		return run(tx)
+	}); err != nil {
+		return fmt.Errorf("store: %s transaction: %w", action, err)
+	}
+	return nil
 }
 
 func (r *repoBase) withTaskImmediateTransaction(
@@ -125,45 +121,4 @@ func (r *repoBase) withTaskImmediateTransaction(
 		return errors.New("store: task repository is required")
 	}
 	return r.tasks.withTaskImmediateTransaction(ctx, action, run)
-}
-
-func runImmediateTransaction(
-	ctx context.Context,
-	db *sql.DB,
-	action string,
-	run func(exec globalSQLExecutor) error,
-) (err error) {
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("store: open connection for %s: %w", action, err)
-	}
-	defer func() {
-		if closeErr := conn.Close(); closeErr != nil {
-			joinCleanupError(&err, fmt.Errorf("store: close %s transaction connection: %w", action, closeErr))
-		}
-	}()
-
-	rollbackCtx := context.WithoutCancel(ctx)
-	// dynamic-sql: SQLite transaction control must run directly on the pinned connection.
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("store: begin immediate %s transaction: %w", action, err)
-	}
-
-	finished := false
-	defer func() {
-		if !finished {
-			joinCleanupError(&err, rollbackImmediate(rollbackCtx, conn, action))
-		}
-	}()
-
-	if err := run(conn); err != nil {
-		return err
-	}
-	// dynamic-sql: SQLite transaction control must run directly on the pinned connection.
-	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return fmt.Errorf("store: commit %s transaction: %w", action, err)
-	}
-
-	finished = true
-	return nil
 }

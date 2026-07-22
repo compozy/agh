@@ -125,38 +125,12 @@ func (g *ModelCatalogRepo) withModelCatalogImmediateTransaction(
 	ctx context.Context,
 	action string,
 	run func(exec modelCatalogSQLExecutor) error,
-) (err error) {
-	conn, err := g.db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("store: open connection for %s: %w", action, err)
+) error {
+	if err := store.ExecuteWrite(ctx, g.db, func(_ context.Context, tx *store.WriteTx) error {
+		return run(tx)
+	}); err != nil {
+		return fmt.Errorf("store: %s transaction: %w", action, err)
 	}
-	defer func() {
-		if closeErr := conn.Close(); closeErr != nil {
-			joinCleanupError(&err, fmt.Errorf("store: close %s transaction connection: %w", action, closeErr))
-		}
-	}()
-
-	rollbackCtx := context.WithoutCancel(ctx)
-	// dynamic-sql: BEGIN IMMEDIATE is explicit SQLite transaction control, not a schema query.
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("store: begin immediate %s transaction: %w", action, err)
-	}
-
-	finished := false
-	defer func() {
-		if !finished {
-			joinCleanupError(&err, rollbackImmediate(rollbackCtx, conn, action))
-		}
-	}()
-
-	if err := run(conn); err != nil {
-		return err
-	}
-	// dynamic-sql: COMMIT closes the explicit SQLite transaction and is outside sqlc's schema query model.
-	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return fmt.Errorf("store: commit %s transaction: %w", action, err)
-	}
-	finished = true
 	return nil
 }
 

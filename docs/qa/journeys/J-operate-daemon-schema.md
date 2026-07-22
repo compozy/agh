@@ -10,7 +10,9 @@ flowchart TD
     DB -->|fresh or current| BOOT[Daemon applies global + memory streams]
     DB -->|pre-Goose table found| REFUSE[Startup refuses before readiness and names remediation]
     DB -->|recorded version ahead| AHEAD[Startup refuses and requests a newer binary or isolated fresh home]
-    REFUSE --> CHOICE{Preserve old alpha state?}
+    DB -->|SQLite corruption| CORRUPT[Startup refuses and leaves DB, WAL, and SHM unchanged]
+    REFUSE --> CHOICE{Preserve refused state?}
+    CORRUPT --> CHOICE
     CHOICE -->|yes| BACKUP[Stop AGH and move the complete AGH_HOME or workspace .agh family]
     CHOICE -.->|not ready to discard| ABANDON[Abandon: keep old home stopped for later inspection]
     REFUSE --> DIRECT[Confirm stopped-daemon extension/MCP/provider-auth direct opens return the same typed refusal]
@@ -33,7 +35,7 @@ flowchart TD
 journey:
   id: J-operate-daemon-schema
   name: "Start and inspect the daemon schema safely"
-  value_statement: "An operator can start AGH without silently rewriting incompatible alpha state and can inspect the exact daemon-global schema versions through agent-manageable surfaces."
+  value_statement: "An operator can start AGH without silently rewriting incompatible or corrupt state and can inspect the exact daemon-global schema versions through agent-manageable surfaces."
   personas: [Bruno, Ada]
   entry_points:
     - url: "CLI: agh daemon start"
@@ -53,13 +55,13 @@ journey:
   actions:
     - step: 1
       verb: "Start the daemon against the selected AGH_HOME"
-      expected_observable: "A current database reaches readiness; a pre-Goose database is refused before mutation with its path and remediation."
+      expected_observable: "A current database reaches readiness; a pre-Goose or corrupt database is refused before mutation with its path."
     - step: 2
       verb: "Stop AGH, preserve or move the complete incompatible AGH_HOME or workspace .agh family, and select a separate fresh home"
       expected_observable: "Every sibling database remains together for investigation and the separately selected fresh daemon home reaches readiness."
     - step: 3
       verb: "Read preserved session events or materialize a terminal ledger"
-      expected_observable: "Legacy and ahead events.db files are refused before domain queries while a current session database remains readable."
+      expected_observable: "Legacy, ahead, and corrupt events.db files are refused before domain queries while a current session database remains readable."
     - step: 4
       verb: "Exercise global and memory read paths after migration and restart"
       expected_observable: "Workspace and memory catalog reads succeed while the two version streams remain independently visible."
@@ -82,7 +84,7 @@ journey:
   crosses: [daemon-boot, session-readers, ledger-materialization, SQLite, Goose, HTTP, UDS, CLI]
 ```
 
-Taxonomy note: this journey covers the functional happy path, global and per-session legacy/ahead error and
+Taxonomy note: this journey covers the functional happy path, global and per-session legacy/ahead/corruption error and
 recovery paths, shared-file domain smoke, structured-surface consistency, and operational recoverability. UI
 responsiveness, mobile continuity, and screen-reader coverage are deliberately skipped because the program adds
 no rendered UI.

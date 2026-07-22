@@ -3,9 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"net/url"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -72,6 +70,15 @@ func TestStoreSQLHelpers(t *testing.T) {
 	if gotQuery, gotArgs := AppendLimit("SELECT 1", nil, 0); gotQuery != "SELECT 1" || gotArgs != nil {
 		t.Fatalf("AppendLimit(no limit) = (%q, %#v), want (%q, nil)", gotQuery, gotArgs, "SELECT 1")
 	}
+	if got := SQLNullString("   "); got.Valid {
+		t.Fatalf("SQLNullString(blank) = %#v, want invalid", got)
+	}
+	if got := SQLNullString(" value "); !got.Valid || got.String != "value" {
+		t.Fatalf("SQLNullString(value) = %#v, want trimmed valid value", got)
+	}
+	if got := SQLNullStringPointer(nil); got.Valid {
+		t.Fatalf("SQLNullStringPointer(nil) = %#v, want invalid", got)
+	}
 }
 
 func TestStoreSQLiteHelpers(t *testing.T) {
@@ -135,7 +142,11 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openSQLiteDatabaseOnce() error = %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("db.Close() error = %v", closeErr)
+		}
+	})
 
 	if err := configureSQLite(testutil.Context(t), db); err != nil {
 		t.Fatalf("configureSQLite() error = %v", err)
@@ -176,14 +187,22 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("db.Conn(first) error = %v", err)
 	}
-	t.Cleanup(func() { _ = firstConn.Close() })
+	t.Cleanup(func() {
+		if closeErr := firstConn.Close(); closeErr != nil {
+			t.Errorf("firstConn.Close() error = %v", closeErr)
+		}
+	})
 	verifyConnPragmas(t, firstConn)
 
 	secondConn, err := db.Conn(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("db.Conn(second) error = %v", err)
 	}
-	t.Cleanup(func() { _ = secondConn.Close() })
+	t.Cleanup(func() {
+		if closeErr := secondConn.Close(); closeErr != nil {
+			t.Errorf("secondConn.Close() error = %v", closeErr)
+		}
+	})
 	verifyConnPragmas(t, secondConn)
 
 	var count int
@@ -220,65 +239,4 @@ func TestSQLiteDSNAppendsExtraPragmas(t *testing.T) {
 			t.Fatalf("sqliteDSN() pragmas = %#v, want no blank pragma", pragmas)
 		}
 	})
-}
-
-func TestStoreSQLiteRecoveryAndFailures(t *testing.T) {
-	t.Parallel()
-
-	dbPath := filepath.Join(t.TempDir(), "recover.db")
-	if err := os.WriteFile(dbPath, []byte("not a sqlite database"), 0o644); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
-
-	db, err := OpenSQLiteDatabase(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
-		return executeTestSchema(ctx, db, []string{`CREATE TABLE IF NOT EXISTS recovered (id TEXT PRIMARY KEY);`})
-	})
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-
-	matches, err := filepath.Glob(dbPath + ".corrupt.*")
-	if err != nil {
-		t.Fatalf("Glob() error = %v", err)
-	}
-	if got, want := len(matches), 1; got != want {
-		t.Fatalf("len(corrupt files) = %d, want %d (%v)", got, want, matches)
-	}
-
-	if _, err := openSQLiteDatabaseOnce(
-		testutil.Context(t),
-		filepath.Join(t.TempDir(), "init-fail.db"),
-		func(_ context.Context, _ *sql.DB) error {
-			return errors.New("boom")
-		},
-	); err == nil ||
-		!strings.Contains(err.Error(), "initialize sqlite database") {
-		t.Fatalf("openSQLiteDatabaseOnce(init fail) error = %v, want initialize failure", err)
-	}
-
-	renamePath := filepath.Join(t.TempDir(), "rename.db")
-	if err := os.WriteFile(renamePath, []byte("rename-me"), 0o644); err != nil {
-		t.Fatalf("WriteFile(rename) error = %v", err)
-	}
-	for _, suffix := range []string{"-wal", "-shm"} {
-		if err := os.WriteFile(renamePath+suffix, []byte("sidecar"), 0o644); err != nil {
-			t.Fatalf("WriteFile(%s) error = %v", suffix, err)
-		}
-	}
-	corruptPath, err := recoverSQLiteDatabase(renamePath)
-	if err != nil {
-		t.Fatalf("recoverSQLiteDatabase() error = %v", err)
-	}
-	if !strings.Contains(corruptPath, ".corrupt.") {
-		t.Fatalf("recoverSQLiteDatabase() = %q, want .corrupt. suffix", corruptPath)
-	}
-	if _, err := os.Stat(corruptPath); err != nil {
-		t.Fatalf("Stat(corruptPath) error = %v", err)
-	}
-	for _, suffix := range []string{"-wal", "-shm"} {
-		if _, err := os.Stat(corruptPath + suffix); err != nil {
-			t.Fatalf("Stat(%s) error = %v", corruptPath+suffix, err)
-		}
-	}
 }

@@ -55,6 +55,9 @@ type CreateOpts struct {
 // StoreOpener opens the per-session events store for a session directory.
 type StoreOpener func(ctx context.Context, sessionID string, path string) (EventRecorder, error)
 
+// QueryStoreOpener opens a read-only per-session events store for query paths.
+type QueryStoreOpener func(ctx context.Context, sessionID string, path string) (EventReadCloser, error)
+
 type sessionMetaReader func(path string) (store.SessionMeta, error)
 
 // IDGenerator returns unique identifiers for sessions and prompt turns.
@@ -156,7 +159,8 @@ type Manager struct {
 	homePaths                    aghconfig.HomePaths
 	workspace                    workspacepkg.RuntimeResolver
 	readSessionMeta              sessionMetaReader
-	openStore, openQueryStore    StoreOpener
+	openStore                    StoreOpener
+	openQueryStore               QueryStoreOpener
 	queryStoreExplicit           bool
 	queryStoreRuntime            *queryStoreRuntime
 	assembler                    PromptAssembler

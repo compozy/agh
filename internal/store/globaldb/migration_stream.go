@@ -15,5 +15,11 @@ func MigrationStream() store.MigrationStream {
 		Dir:          "migrations",
 		VersionTable: globalMigrationVersionTable,
 		LegacyTables: []string{"schema_migrations", "memory_schema_migrations"},
+		Bootstrap: &store.MigrationBootstrap{
+			FS:           globalschema.Files,
+			MigrationDir: "migrations",
+			SchemaSource: "definitions",
+			SeedSource:   "bootstrap.sql",
+		},
 	}
 }

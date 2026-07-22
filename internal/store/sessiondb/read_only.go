@@ -73,13 +73,6 @@ func (c readOnlyOpenConfig) normalize() readOnlyOpenConfig {
 	return c
 }
 
-var (
-	// ErrReadOnlyRecordEvents reports a rejected event write against a read-only session database.
-	ErrReadOnlyRecordEvents = errors.New("store: read-only session database cannot record events")
-	// ErrReadOnlyRecordTokenUsage reports a rejected token-usage write against a read-only session database.
-	ErrReadOnlyRecordTokenUsage = errors.New("store: read-only session database cannot record token usage")
-)
-
 // ReadOnlySessionDB opens an existing per-session events database for queries
 // without creating, migrating, checkpointing, or otherwise mutating it.
 type ReadOnlySessionDB struct {
@@ -87,18 +80,8 @@ type ReadOnlySessionDB struct {
 	sessionID string
 }
 
-var _ store.EventRecorder = (*ReadOnlySessionDB)(nil)
-
-// EventMetadata is the content-excluded projection of a session event row.
-type EventMetadata struct {
-	ID        string
-	SessionID string
-	Sequence  int64
-	TurnID    string
-	Type      string
-	AgentName string
-	Timestamp time.Time
-}
+var _ store.EventReadCloser = (*ReadOnlySessionDB)(nil)
+var _ store.EventMetadataReadCloser = (*ReadOnlySessionDB)(nil)
 
 // OpenSessionDBReadOnly opens an existing per-session events database in
 // SQLite read-only mode. It intentionally fails for missing paths instead of
@@ -180,7 +163,7 @@ func openSessionDBReadOnlyOnce(ctx context.Context, sessionID string, path strin
 			fmt.Errorf("store: ping read-only session database %q: %w", cleanPath, err),
 		)
 	}
-	if _, err := store.Status(ctx, db, MigrationStream()); err != nil {
+	if err := store.RequireCurrent(ctx, db, MigrationStream()); err != nil {
 		return nil, closeReadOnlySessionDBAfterOpenError(
 			db,
 			fmt.Errorf("store: validate read-only session database %q: %w", cleanPath, err),
@@ -248,14 +231,6 @@ func closeReadOnlySessionDBAfterOpenError(db *sql.DB, openErr error) error {
 	return openErr
 }
 
-func (s *ReadOnlySessionDB) Record(context.Context, store.SessionEvent) error {
-	return ErrReadOnlyRecordEvents
-}
-
-func (s *ReadOnlySessionDB) RecordTokenUsage(context.Context, store.TokenUsage) error {
-	return ErrReadOnlyRecordTokenUsage
-}
-
 // Query returns events filtered by the supplied options.
 func (s *ReadOnlySessionDB) Query(
 	ctx context.Context,
@@ -317,7 +292,7 @@ func (s *ReadOnlySessionDB) MaxEventSequence(ctx context.Context) (int64, error)
 func (s *ReadOnlySessionDB) QueryEventMetadata(
 	ctx context.Context,
 	query store.EventQuery,
-) (events []EventMetadata, err error) {
+) (events []store.EventMetadata, err error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("store: read-only session database is required")
 	}
@@ -343,7 +318,7 @@ func (s *ReadOnlySessionDB) QueryEventMetadata(
 		}
 	}()
 
-	events = make([]EventMetadata, 0)
+	events = make([]store.EventMetadata, 0)
 	for rows.Next() {
 		event, scanErr := s.scanEventMetadata(rows)
 		if scanErr != nil {
@@ -357,8 +332,8 @@ func (s *ReadOnlySessionDB) QueryEventMetadata(
 	return events, nil
 }
 
-func (s *ReadOnlySessionDB) scanEventMetadata(row rowScanner) (EventMetadata, error) {
-	var event EventMetadata
+func (s *ReadOnlySessionDB) scanEventMetadata(row rowScanner) (store.EventMetadata, error) {
+	var event store.EventMetadata
 	var timestampRaw string
 	if err := row.Scan(
 		&event.ID,
@@ -368,11 +343,11 @@ func (s *ReadOnlySessionDB) scanEventMetadata(row rowScanner) (EventMetadata, er
 		&event.AgentName,
 		&timestampRaw,
 	); err != nil {
-		return EventMetadata{}, fmt.Errorf("store: scan session event metadata: %w", err)
+		return store.EventMetadata{}, fmt.Errorf("store: scan session event metadata: %w", err)
 	}
 	timestamp, err := store.ParseTimestamp(timestampRaw)
 	if err != nil {
-		return EventMetadata{}, err
+		return store.EventMetadata{}, err
 	}
 	event.SessionID = s.sessionID
 	event.Timestamp = timestamp

@@ -21,8 +21,8 @@ var errReadOnlyPoolClosed = errors.New("store: read-only pool is closed")
 // new read-only leases while existing leases drain.
 var ErrReadOnlyPoolQuiescing = errors.New("store: read-only pool session is quiescing")
 
-// ReadOnlyPoolOpener opens the recorder stored behind a pooled read-only lease.
-type ReadOnlyPoolOpener func(ctx context.Context, sessionID string, path string) (store.EventRecorder, error)
+// ReadOnlyPoolOpener opens the reader stored behind a pooled read-only lease.
+type ReadOnlyPoolOpener func(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error)
 
 // ReadOnlyPoolConfig customizes read-only recorder pooling.
 type ReadOnlyPoolConfig struct {
@@ -48,7 +48,7 @@ type readOnlyPoolKey struct {
 }
 
 type readOnlyPoolEntry struct {
-	recorder  store.EventRecorder
+	recorder  store.EventReadCloser
 	refs      int
 	expiresAt time.Time
 	idle      chan struct{}
@@ -75,7 +75,7 @@ func NewReadOnlyPool(config ReadOnlyPoolConfig) *ReadOnlyPool {
 	}
 	open := config.Open
 	if open == nil {
-		open = func(ctx context.Context, sessionID string, path string) (store.EventRecorder, error) {
+		open = func(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error) {
 			return OpenSessionDBReadOnly(ctx, sessionID, path)
 		}
 	}
@@ -89,7 +89,7 @@ func NewReadOnlyPool(config ReadOnlyPoolConfig) *ReadOnlyPool {
 }
 
 // Open returns a lease for a session-keyed read-only recorder.
-func (p *ReadOnlyPool) Open(ctx context.Context, sessionID string, path string) (store.EventRecorder, error) {
+func (p *ReadOnlyPool) Open(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error) {
 	if p == nil {
 		return nil, errors.New("store: read-only pool is required")
 	}
@@ -188,7 +188,7 @@ func (p *ReadOnlyPool) Quiesce(
 		}
 	}
 
-	var recorder store.EventRecorder
+	var recorder store.EventReadCloser
 	p.mu.Lock()
 	if current := p.entries[key]; current != nil && current == entry && current.refs == 0 {
 		delete(p.entries, key)
@@ -376,7 +376,7 @@ type readOnlyPoolLease struct {
 	err   error
 }
 
-var _ store.EventRecorder = (*readOnlyPoolLease)(nil)
+var _ store.EventReadCloser = (*readOnlyPoolLease)(nil)
 var _ transcript.Reader = (*readOnlyPoolLease)(nil)
 
 func newReadOnlyPoolLease(
@@ -389,14 +389,6 @@ func newReadOnlyPoolLease(
 		key:   key,
 		entry: entry,
 	}
-}
-
-func (l *readOnlyPoolLease) Record(context.Context, store.SessionEvent) error {
-	return ErrReadOnlyRecordEvents
-}
-
-func (l *readOnlyPoolLease) RecordTokenUsage(context.Context, store.TokenUsage) error {
-	return ErrReadOnlyRecordTokenUsage
 }
 
 func (l *readOnlyPoolLease) Query(

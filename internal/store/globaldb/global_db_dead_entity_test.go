@@ -1,8 +1,6 @@
 package globaldb
 
 import (
-	"context"
-	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -144,66 +142,68 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 }
 
 func TestGlobalDBDeadEntityMigration(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve workspace ownership through the dead-entity upgrade", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := testutil.Context(t)
-	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	prefixDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		return store.Apply(ctx, db, previousDeadEntityMigrationStream(t))
-	})
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase(v15 prefix) error = %v", err)
-	}
-	prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: deadEntityTestTime}
-	prefixGlobalDB.initializeRepositories()
-	workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "dead-entity-upgrade", t.TempDir())
-	if err := prefixDB.Close(); err != nil {
-		t.Fatalf("prefixDB.Close() error = %v", err)
-	}
-
-	globalDB, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(v16 upgrade) error = %v", err)
-	}
-	markDeadEntityForTest(t, globalDB, store.DeadEntity{
-		DeadEntityKey: store.DeadEntityKey{
-			WorkspaceID: workspaceID,
-			Kind:        store.DeadEntityKindMCPSidecar,
-			EntityID:    "upgrade-sidecar",
-		},
-		Reason:   "post-upgrade mark",
-		MarkedAt: deadEntityTestTime(),
-	})
-	if err := globalDB.Close(ctx); err != nil {
-		t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
-	}
-
-	reopened, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := reopened.Close(ctx); err != nil {
-			t.Errorf("reopened.Close() error = %v", err)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, previousDeadEntityMigrationStream(t))
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v15 prefix) error = %v", err)
 		}
+		ctx := testutil.Context(t)
+		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: deadEntityTestTime}
+		prefixGlobalDB.initializeRepositories(openConfig{})
+		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "dead-entity-upgrade", t.TempDir())
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+
+		globalDB, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v16 upgrade) error = %v", err)
+		}
+		ctx = testutil.Context(t)
+		markDeadEntityForTest(t, globalDB, store.DeadEntity{
+			DeadEntityKey: store.DeadEntityKey{
+				WorkspaceID: workspaceID,
+				Kind:        store.DeadEntityKindMCPSidecar,
+				EntityID:    "upgrade-sidecar",
+			},
+			Reason:   "post-upgrade mark",
+			MarkedAt: deadEntityTestTime(),
+		})
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
+		}
+
+		reopened, err := OpenGlobalDB(testutil.Context(t), path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		ctx = testutil.Context(t)
+		t.Cleanup(func() {
+			if err := reopened.Close(ctx); err != nil {
+				t.Errorf("reopened.Close() error = %v", err)
+			}
+		})
+		entity, found, err := reopened.FindDeadEntity(
+			ctx,
+			workspaceID,
+			store.DeadEntityKindMCPSidecar,
+			"upgrade-sidecar",
+		)
+		if err != nil {
+			t.Fatalf("FindDeadEntity(reopen) error = %v", err)
+		}
+		if !found || entity.Reason != "post-upgrade mark" {
+			t.Fatalf("FindDeadEntity(reopen) = %#v, %t, want durable mark", entity, found)
+		}
+		status, err := store.Status(ctx, reopened.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(latest) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
 	})
-	entity, found, err := reopened.FindDeadEntity(
-		ctx,
-		workspaceID,
-		store.DeadEntityKindMCPSidecar,
-		"upgrade-sidecar",
-	)
-	if err != nil {
-		t.Fatalf("FindDeadEntity(reopen) error = %v", err)
-	}
-	if !found || entity.Reason != "post-upgrade mark" {
-		t.Fatalf("FindDeadEntity(reopen) = %#v, %t, want durable mark", entity, found)
-	}
-	status, err := store.Status(ctx, reopened.db, MigrationStream())
-	if err != nil {
-		t.Fatalf("Status(latest) error = %v", err)
-	}
-	assertCompleteMigrationStream(t, status, MigrationStream())
 }
 
 func previousDeadEntityMigrationStream(t *testing.T) store.MigrationStream {

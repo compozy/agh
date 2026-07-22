@@ -3,8 +3,8 @@ package globaldb
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -33,46 +33,19 @@ func (g *TaskRepo) withTaskImmediateTransaction(
 	ctx context.Context,
 	action string,
 	run func(exec taskSQLExecutor) error,
-) (err error) {
-	conn, err := g.db.Conn(ctx)
+) error {
+	var committedEvents []taskpkg.EventRecord
+	err := store.ExecuteWrite(ctx, g.db, func(_ context.Context, tx *store.WriteTx) error {
+		transaction := &taskTransactionExecutor{taskSQLExecutor: tx}
+		if err := run(transaction); err != nil {
+			return err
+		}
+		committedEvents = append(committedEvents[:0], transaction.committedEvents...)
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("store: open connection for %s: %w", action, err)
+		return fmt.Errorf("store: %s transaction: %w", action, err)
 	}
-
-	transaction := &taskTransactionExecutor{taskSQLExecutor: conn}
-	committed := false
-	defer func() {
-		if closeErr := conn.Close(); closeErr != nil {
-			slog.Warn("store: close task transaction connection", "action", action, "error", closeErr)
-		}
-		if committed && err == nil {
-			g.notifyCommittedTaskEvents(context.WithoutCancel(ctx), transaction.committedEvents)
-		}
-	}()
-
-	rollbackCtx := context.WithoutCancel(ctx)
-	// dynamic-sql: SQLite transaction control must run directly on the pinned connection.
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("store: begin immediate %s transaction: %w", action, err)
-	}
-
-	finished := false
-	defer func() {
-		if !finished {
-			joinCleanupError(&err, rollbackImmediate(rollbackCtx, conn, action))
-		}
-	}()
-
-	if err := run(transaction); err != nil {
-		return err
-	}
-
-	// dynamic-sql: SQLite transaction control must run directly on the pinned connection.
-	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return fmt.Errorf("store: commit %s transaction: %w", action, err)
-	}
-
-	finished = true
-	committed = true
+	g.notifyCommittedTaskEvents(context.WithoutCancel(ctx), committedEvents)
 	return nil
 }

@@ -21,7 +21,7 @@ func TestNetworkParticipationHardeningMigration(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		seedNetworkParticipationV9Fixture(t, path, false)
 
-		globalDB, err := OpenGlobalDB(testutil.Context(t), path)
+		globalDB, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(v9 fixture) error = %v", err)
 		}
@@ -90,7 +90,7 @@ func TestNetworkParticipationHardeningMigration(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		seedNetworkParticipationV9Fixture(t, path, true)
 
-		if globalDB, err := OpenGlobalDB(testutil.Context(t), path); err == nil {
+		if globalDB, err := openGlobalMigrationUpgrade(t, path); err == nil {
 			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
 				t.Errorf("Close(unexpected upgraded fixture) error = %v", closeErr)
 			}
@@ -122,33 +122,34 @@ func TestNetworkParticipationHardeningMigration(t *testing.T) {
 }
 
 func TestNetworkSubscriptionHardCutMigration(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve supported subscriptions while removing legacy digest state", func(t *testing.T) {
+		t.Parallel()
 
-	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	db, err := sql.Open(sqliteDriverName, path)
-	if err != nil {
-		t.Fatalf("sql.Open(v12 subscription fixture) error = %v", err)
-	}
-	if err := store.Apply(testutil.Context(t), db, networkSubscriptionV12MigrationStream(t)); err != nil {
-		t.Fatalf("Apply(frozen v12 prefix) error = %v", err)
-	}
-	statements := []string{
-		`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := sql.Open(sqliteDriverName, path)
+		if err != nil {
+			t.Fatalf("sql.Open(v12 subscription fixture) error = %v", err)
+		}
+		if err := applyGlobalMigrationPrefix(t, db, networkSubscriptionV12MigrationStream(t)); err != nil {
+			t.Fatalf("Apply(frozen v12 prefix) error = %v", err)
+		}
+		statements := []string{
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
 		 VALUES ('ws-v8', '/tmp/agh-network-v8', 'network-v8',
 		 '2026-07-17T10:00:00Z', '2026-07-17T10:00:00Z')`,
-		`INSERT INTO sessions (
+			`INSERT INTO sessions (
 		 id, agent_name, provider, workspace_id, state, created_at, updated_at
 		 ) VALUES (
 		 'sess-v8', 'reviewer', 'claude', 'ws-v8', 'active',
 		 '2026-07-17T10:01:00Z', '2026-07-17T10:01:00Z'
 		 )`,
-		`INSERT INTO network_channels (
+			`INSERT INTO network_channels (
 		 workspace_id, channel, purpose, created_by, created_at, updated_at
 		 ) VALUES (
 		 'ws-v8', 'builders', 'Coordinate review.', 'operator',
 		 '2026-07-17T10:02:00Z', '2026-07-17T10:02:00Z'
 		 )`,
-		`INSERT INTO network_subscriptions (
+			`INSERT INTO network_subscriptions (
 		 workspace_id, channel, thread_id, session_id, mode, keyword_filters_json,
 		 created_at, updated_at
 		 ) VALUES
@@ -158,70 +159,71 @@ func TestNetworkSubscriptionHardCutMigration(t *testing.T) {
 		  '2026-07-17T10:04:00Z', '2026-07-17T10:04:00Z'),
 		 ('ws-v8', 'builders', 'thread-digest', 'sess-v8', 'digest', '["summary"]',
 		  '2026-07-17T10:05:00Z', '2026-07-17T10:05:00Z')`,
-	}
-	for index, statement := range statements {
-		if _, err := db.ExecContext(testutil.Context(t), statement); err != nil {
-			t.Fatalf("seed v8 subscription statement %d error = %v", index+1, err)
 		}
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("Close(v8 subscription fixture) error = %v", err)
-	}
+		for index, statement := range statements {
+			if _, err := db.ExecContext(testutil.Context(t), statement); err != nil {
+				t.Fatalf("seed v8 subscription statement %d error = %v", index+1, err)
+			}
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(v8 subscription fixture) error = %v", err)
+		}
 
-	globalDB, err := OpenGlobalDB(testutil.Context(t), path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(v8 subscription fixture) error = %v", err)
-	}
-	closed := false
-	t.Cleanup(func() {
-		if closed {
-			return
+		globalDB, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v8 subscription fixture) error = %v", err)
 		}
-		if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-			t.Errorf("Close(upgraded subscription fixture cleanup) error = %v", closeErr)
-		}
-	})
+		closed := false
+		t.Cleanup(func() {
+			if closed {
+				return
+			}
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(upgraded subscription fixture cleanup) error = %v", closeErr)
+			}
+		})
 
-	entries, err := globalDB.ListNetworkSubscriptions(
-		testutil.Context(t),
-		store.NetworkSubscriptionQuery{WorkspaceID: "ws-v8", Channel: "builders", Limit: 10},
-	)
-	if err != nil {
-		t.Fatalf("ListNetworkSubscriptions(upgraded fixture) error = %v", err)
-	}
-	if len(entries) != 2 || entries[0].Mode != store.NetworkSubscriptionModeMute ||
-		entries[1].Mode != store.NetworkSubscriptionModeFull {
-		t.Fatalf("upgraded subscriptions = %#v, want preserved mute/full rows only", entries)
-	}
-	assertTableExcludesColumns(t, globalDB.db, "network_subscriptions", []string{"keyword_filters_json"})
-	if _, err := globalDB.db.ExecContext(testutil.Context(t), `INSERT INTO network_subscriptions (
+		entries, err := globalDB.ListNetworkSubscriptions(
+			testutil.Context(t),
+			store.NetworkSubscriptionQuery{WorkspaceID: "ws-v8", Channel: "builders", Limit: 10},
+		)
+		if err != nil {
+			t.Fatalf("ListNetworkSubscriptions(upgraded fixture) error = %v", err)
+		}
+		if len(entries) != 2 || entries[0].Mode != store.NetworkSubscriptionModeMute ||
+			entries[1].Mode != store.NetworkSubscriptionModeFull {
+			t.Fatalf("upgraded subscriptions = %#v, want preserved mute/full rows only", entries)
+		}
+		assertTableExcludesColumns(t, globalDB.db, "network_subscriptions", []string{"keyword_filters_json"})
+		if _, err := globalDB.db.ExecContext(testutil.Context(t), `INSERT INTO network_subscriptions (
 		workspace_id, channel, thread_id, session_id, mode, created_at, updated_at
 		) VALUES (
 		'ws-v8', 'builders', 'thread-invalid', 'sess-v8', 'digest',
 		'2026-07-17T10:06:00Z', '2026-07-17T10:06:00Z'
 		)`); err == nil {
-		t.Fatal("insert digest subscription error = nil, want v9 CHECK rejection")
-	}
-	status, err := store.Status(testutil.Context(t), globalDB.db, MigrationStream())
-	if err != nil {
-		t.Fatalf("Status(upgraded subscription fixture) error = %v", err)
-	}
-	assertCompleteMigrationStream(t, status, MigrationStream())
-
-	if err := globalDB.Close(testutil.Context(t)); err != nil {
-		t.Fatalf("Close(upgraded subscription fixture) error = %v", err)
-	}
-	closed = true
-	reopened, err := OpenGlobalDB(testutil.Context(t), path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(reopen upgraded subscription fixture) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
-			t.Errorf("Close(reopened subscription fixture) error = %v", closeErr)
+			t.Fatal("insert digest subscription error = nil, want v9 CHECK rejection")
 		}
+		status, err := store.Status(testutil.Context(t), globalDB.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(upgraded subscription fixture) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+
+		if err := globalDB.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(upgraded subscription fixture) error = %v", err)
+		}
+		closed = true
+		reopened, err := OpenGlobalDB(testutil.Context(t), path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen upgraded subscription fixture) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(reopened subscription fixture) error = %v", closeErr)
+			}
+		})
+		assertTableExcludesColumns(t, reopened.db, "network_subscriptions", []string{"keyword_filters_json"})
 	})
-	assertTableExcludesColumns(t, reopened.db, "network_subscriptions", []string{"keyword_filters_json"})
 }
 
 func seedNetworkParticipationV9Fixture(t *testing.T, path string, unresolved bool) {
@@ -239,7 +241,7 @@ func seedNetworkParticipationV9Fixture(t *testing.T, path string, unresolved boo
 			t.Errorf("Close(v5 fixture cleanup) error = %v", closeErr)
 		}
 	})
-	if err := store.Apply(testutil.Context(t), db, networkParticipationV9MigrationStream(t)); err != nil {
+	if err := applyGlobalMigrationPrefix(t, db, networkParticipationV9MigrationStream(t)); err != nil {
 		t.Fatalf("Apply(frozen v9 prefix) error = %v", err)
 	}
 

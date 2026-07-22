@@ -371,6 +371,9 @@ type ScopedInterrupter interface {
 // EventRecorder is the per-session storage surface consumed by session/.
 type EventRecorder = store.EventRecorder
 
+// EventReadCloser is the read-only per-session storage surface consumed by query paths.
+type EventReadCloser = store.EventReadCloser
+
 // Notifier fans out session lifecycle and prompt events to downstream observers.
 type Notifier interface {
 	OnSessionCreated(ctx context.Context, session *Session)

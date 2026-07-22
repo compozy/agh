@@ -261,8 +261,7 @@ func workspaceFromGenerated(row sqlcgen.Workspace, queryErr error) (aghworkspace
 }
 
 func nullableWorkspaceString(value string) sql.NullString {
-	value = strings.TrimSpace(value)
-	return sql.NullString{String: value, Valid: value != ""}
+	return store.SQLNullString(value)
 }
 
 func normalizeWorkspaceRecord(ws aghworkspace.Workspace) (aghworkspace.Workspace, string, error) {

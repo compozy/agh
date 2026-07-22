@@ -3,7 +3,7 @@ package schema
 
 import "embed"
 
-// Files contains declarative schema fragments, SQL migrations, and atlas.sum.
+// Files contains the declarative schema, fresh seed, SQL migrations, and atlas.sum.
 //
-//go:embed definitions/*.sql migrations/*.sql migrations/atlas.sum
+//go:embed bootstrap.sql definitions/*.sql migrations/*.sql migrations/atlas.sum
 var Files embed.FS

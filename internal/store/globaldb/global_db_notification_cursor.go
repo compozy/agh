@@ -91,52 +91,29 @@ func (n *NotificationRepo) AdvanceCursor(
 		return notifications.Cursor{}, err
 	}
 
-	conn, err := n.db.Conn(ctx)
-	if err != nil {
-		return notifications.Cursor{}, fmt.Errorf("store: open notification cursor transaction: %w", err)
-	}
-	defer func() {
-		if closeErr := conn.Close(); closeErr != nil {
-			joinCleanupError(&err, fmt.Errorf("store: close notification cursor transaction connection: %w", closeErr))
+	err = store.ExecuteWrite(ctx, n.db, func(writeCtx context.Context, tx *store.WriteTx) error {
+		queries := sqlcgen.New(tx)
+		current, found, loadErr := loadNotificationCursor(writeCtx, queries, normalized.Key)
+		if loadErr != nil {
+			return loadErr
 		}
-	}()
-
-	// dynamic-sql: BEGIN IMMEDIATE is explicit SQLite transaction control on the pinned notification connection.
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return notifications.Cursor{}, fmt.Errorf("store: begin notification cursor advance: %w", err)
-	}
-	finished := false
-	defer func() {
-		if !finished {
-			rollbackNotificationImmediate(ctx, &err, conn, "notification cursor advance")
-		}
-	}()
-
-	queries := sqlcgen.New(conn)
-	current, found, err := loadNotificationCursor(ctx, queries, normalized.Key)
-	if err != nil {
-		return notifications.Cursor{}, err
-	}
-	if found {
-		if err := validateNotificationCursorAdvance(current, normalized); err != nil {
-			return notifications.Cursor{}, err
-		}
-		if current.LastSequence == normalized.LastSequence && current.LastDeliveryID == normalized.DeliveryID {
-			cursor, err = refreshNotificationCursor(ctx, queries, current, normalized)
+		if found {
+			if validateErr := validateNotificationCursorAdvance(current, normalized); validateErr != nil {
+				return validateErr
+			}
+			if current.LastSequence == normalized.LastSequence && current.LastDeliveryID == normalized.DeliveryID {
+				cursor, loadErr = refreshNotificationCursor(writeCtx, queries, current, normalized)
+			} else {
+				cursor, loadErr = updateNotificationCursor(writeCtx, queries, normalized)
+			}
 		} else {
-			cursor, err = updateNotificationCursor(ctx, queries, normalized)
+			cursor, loadErr = insertNotificationCursor(writeCtx, queries, normalized)
 		}
-	} else {
-		cursor, err = insertNotificationCursor(ctx, queries, normalized)
-	}
+		return loadErr
+	})
 	if err != nil {
-		return notifications.Cursor{}, err
+		return notifications.Cursor{}, fmt.Errorf("store: advance notification cursor: %w", err)
 	}
-	// dynamic-sql: COMMIT closes the explicit SQLite transaction and is outside sqlc's query model.
-	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return notifications.Cursor{}, fmt.Errorf("store: commit notification cursor advance: %w", err)
-	}
-	finished = true
 	return cursor, nil
 }
 
@@ -152,35 +129,15 @@ func (n *NotificationRepo) ResetCursor(
 	if err != nil {
 		return notifications.Cursor{}, err
 	}
-	conn, err := n.db.Conn(ctx)
+	err = store.ExecuteWrite(ctx, n.db, func(writeCtx context.Context, tx *store.WriteTx) error {
+		queries := sqlcgen.New(tx)
+		var resetErr error
+		cursor, resetErr = upsertNotificationCursorReset(writeCtx, queries, normalized)
+		return resetErr
+	})
 	if err != nil {
-		return notifications.Cursor{}, fmt.Errorf("store: open notification cursor reset transaction: %w", err)
+		return notifications.Cursor{}, fmt.Errorf("store: reset notification cursor: %w", err)
 	}
-	defer func() {
-		if closeErr := conn.Close(); closeErr != nil {
-			joinCleanupError(&err, fmt.Errorf("store: close notification cursor reset connection: %w", closeErr))
-		}
-	}()
-	// dynamic-sql: BEGIN IMMEDIATE is explicit SQLite transaction control on the pinned notification connection.
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return notifications.Cursor{}, fmt.Errorf("store: begin notification cursor reset: %w", err)
-	}
-	finished := false
-	defer func() {
-		if !finished {
-			rollbackNotificationImmediate(ctx, &err, conn, "notification cursor reset")
-		}
-	}()
-	queries := sqlcgen.New(conn)
-	cursor, err = upsertNotificationCursorReset(ctx, queries, normalized)
-	if err != nil {
-		return notifications.Cursor{}, err
-	}
-	// dynamic-sql: COMMIT closes the explicit SQLite transaction and is outside sqlc's query model.
-	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return notifications.Cursor{}, fmt.Errorf("store: commit notification cursor reset: %w", err)
-	}
-	finished = true
 	return cursor, nil
 }
 
@@ -196,56 +153,37 @@ func (n *NotificationRepo) RecordCursorError(
 	if err != nil {
 		return notifications.Cursor{}, err
 	}
-	conn, err := n.db.Conn(ctx)
-	if err != nil {
-		return notifications.Cursor{}, fmt.Errorf("store: open notification cursor error transaction: %w", err)
-	}
-	defer func() {
-		if closeErr := conn.Close(); closeErr != nil {
-			joinCleanupError(
-				&err,
-				fmt.Errorf("store: close notification cursor error transaction connection: %w", closeErr),
+	err = store.ExecuteWrite(ctx, n.db, func(writeCtx context.Context, tx *store.WriteTx) error {
+		queries := sqlcgen.New(tx)
+		if recordErr := queries.RecordNotificationCursorError(writeCtx, sqlcgen.RecordNotificationCursorErrorParams{
+			ConsumerID: normalized.Key.ConsumerID,
+			StreamName: normalized.Key.StreamName,
+			SubjectID:  normalized.Key.SubjectID,
+			LastError:  normalized.LastError,
+			UpdatedAt:  store.FormatTimestamp(normalized.Now),
+		}); recordErr != nil {
+			return fmt.Errorf(
+				"store: record notification cursor error %q/%q/%q: %w",
+				normalized.Key.ConsumerID,
+				normalized.Key.StreamName,
+				normalized.Key.SubjectID,
+				recordErr,
 			)
 		}
-	}()
-	// dynamic-sql: BEGIN IMMEDIATE is explicit SQLite transaction control on the pinned notification connection.
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return notifications.Cursor{}, fmt.Errorf("store: begin notification cursor error record: %w", err)
-	}
-	finished := false
-	defer func() {
-		if !finished {
-			rollbackNotificationImmediate(ctx, &err, conn, "notification cursor error record")
+		var found bool
+		var loadErr error
+		cursor, found, loadErr = loadNotificationCursor(writeCtx, queries, normalized.Key)
+		if loadErr != nil {
+			return loadErr
 		}
-	}()
-	queries := sqlcgen.New(conn)
-	if err := queries.RecordNotificationCursorError(ctx, sqlcgen.RecordNotificationCursorErrorParams{
-		ConsumerID: normalized.Key.ConsumerID,
-		StreamName: normalized.Key.StreamName,
-		SubjectID:  normalized.Key.SubjectID,
-		LastError:  normalized.LastError,
-		UpdatedAt:  store.FormatTimestamp(normalized.Now),
-	}); err != nil {
-		return notifications.Cursor{}, fmt.Errorf(
-			"store: record notification cursor error %q/%q/%q: %w",
-			normalized.Key.ConsumerID,
-			normalized.Key.StreamName,
-			normalized.Key.SubjectID,
-			err,
-		)
-	}
-	cursor, found, err := loadNotificationCursor(ctx, queries, normalized.Key)
+		if !found {
+			return notifications.ErrCursorNotFound
+		}
+		return nil
+	})
 	if err != nil {
-		return notifications.Cursor{}, err
+		return notifications.Cursor{}, fmt.Errorf("store: record notification cursor error: %w", err)
 	}
-	if !found {
-		return notifications.Cursor{}, notifications.ErrCursorNotFound
-	}
-	// dynamic-sql: COMMIT closes the explicit SQLite transaction and is outside sqlc's query model.
-	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return notifications.Cursor{}, fmt.Errorf("store: commit notification cursor error record: %w", err)
-	}
-	finished = true
 	return cursor, nil
 }
 
