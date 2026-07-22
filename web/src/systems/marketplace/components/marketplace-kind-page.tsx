@@ -199,21 +199,23 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
   return (
     <ListingPage data-testid={`marketplace-kind-${kind}`}>
       <p className="mb-3 text-xs text-subtle" data-testid={`marketplace-kind-meta-${kind}`}>
-        <span className="font-mono text-[11px] tabular-nums text-muted">
+        <span className="font-mono text-mono-id tabular-nums text-muted">
           {page.marketplaceTotal}
         </span>{" "}
         {page.marketplaceTotalExact ? "in the marketplace" : "loaded from the marketplace"}
         <span aria-hidden="true" className="mx-1.5 text-faint">
           ·
         </span>
-        <span className="font-mono text-[11px] tabular-nums text-muted">{page.installedCount}</span>{" "}
+        <span className="font-mono text-mono-id tabular-nums text-muted">
+          {page.installedCount}
+        </span>{" "}
         {config.installedNoun}
         {!page.isLoading && page.updatesAvailable > 0 ? (
           <>
             <span aria-hidden="true" className="mx-1.5 text-faint">
               ·
             </span>
-            <span className="font-mono text-[11px] tabular-nums text-muted">
+            <span className="font-mono text-mono-id tabular-nums text-muted">
               {page.updatesAvailable}
             </span>{" "}
             {updatesLabel.replace(/^\d+\s/, "")}

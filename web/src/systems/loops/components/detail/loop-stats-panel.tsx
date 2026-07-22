@@ -34,7 +34,7 @@ export function LoopStatsPanel({ successRate, aggregate }: LoopStatsPanelProps) 
             <div className="text-lg font-medium tabular-nums tracking-detail-h1 text-fg-strong">
               {stat.value}
             </div>
-            <div className="mt-0.5 text-[10.5px] text-faint">{stat.label}</div>
+            <div className="mt-0.5 text-badge text-faint">{stat.label}</div>
           </div>
         ))}
       </div>

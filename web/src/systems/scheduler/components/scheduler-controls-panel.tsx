@@ -11,13 +11,14 @@ import {
   DialogTitle,
   Empty,
   Eyebrow,
-  MonoId,
   Pill,
+  Skeleton,
   Textarea,
   Time,
 } from "@agh/ui";
 
 import type { SchedulerBacklog, SchedulerStatus } from "../types";
+import { SchedulerBacklogPanel } from "./scheduler-backlog-panel";
 
 export interface SchedulerControlsPanelProps {
   status: SchedulerStatus | null;
@@ -35,8 +36,6 @@ export interface SchedulerControlsPanelProps {
   onResume?: () => void | Promise<void>;
   onDrain?: () => void | Promise<void>;
 }
-
-const BACKLOG_PREVIEW_LIMIT = 5;
 
 export function SchedulerControlsPanel({
   status,
@@ -57,7 +56,7 @@ export function SchedulerControlsPanel({
   const isResumePending = pending?.resume ?? false;
   const isDrainPending = pending?.drain ?? false;
   const isActionPending = isPausePending || isResumePending || isDrainPending;
-  const rows = backlog?.runs?.slice(0, BACKLOG_PREVIEW_LIMIT) ?? [];
+  const isInitialStatusLoading = isLoading && !status;
 
   const handlePauseOpenChange = (next: boolean) => {
     setPauseOpen(next);
@@ -114,58 +113,73 @@ export function SchedulerControlsPanel({
             <h2 className="text-item-title font-medium text-fg-strong">Dispatch controls</h2>
             <Pill
               data-testid="scheduler-controls-state"
-              tone={status?.paused ? "warning" : "success"}
+              tone={isInitialStatusLoading ? "neutral" : status?.paused ? "warning" : "success"}
             >
-              {status?.paused ? "Paused" : "Running"}
+              {isInitialStatusLoading ? "Loading" : status?.paused ? "Paused" : "Running"}
             </Pill>
-            {isLoading ? (
+            {isLoading && status ? (
               <Pill data-testid="scheduler-controls-loading" tone="neutral">
                 Loading
               </Pill>
             ) : null}
           </div>
-          <div
-            className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-form-label text-muted"
-            data-testid="scheduler-controls-meta"
-          >
-            <span>{status?.active_claim_count ?? 0} active claims</span>
-            <span aria-hidden="true" className="text-faint">
-              ·
-            </span>
-            <span>{status?.queued_run_count ?? 0} queued runs</span>
-            <span aria-hidden="true" className="text-faint">
-              ·
-            </span>
-            <span>{status?.paused_task_count ?? 0} paused tasks</span>
-            <span aria-hidden="true" className="text-faint">
-              ·
-            </span>
-            <span
-              className={(status?.starved_run_count ?? 0) > 0 ? "text-warning" : undefined}
-              data-testid="scheduler-controls-starved-count"
+          {isInitialStatusLoading ? (
+            <div
+              aria-label="Loading scheduler status"
+              className="mt-2 flex items-center gap-3"
+              data-testid="scheduler-controls-meta-loading"
+              role="status"
             >
-              {status?.starved_run_count ?? 0} starved runs
-            </span>
-            <span aria-hidden="true" className="text-faint">
-              ·
-            </span>
-            <span
-              className={(status?.needs_attention_run_count ?? 0) > 0 ? "text-warning" : undefined}
-              data-testid="scheduler-controls-needs-attention-count"
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+          ) : (
+            <div
+              className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-form-label text-muted"
+              data-testid="scheduler-controls-meta"
             >
-              {status?.needs_attention_run_count ?? 0} needs attention
-            </span>
-            {status?.paused_at ? (
-              <>
-                <span aria-hidden="true" className="text-faint">
-                  ·
-                </span>
-                <span>
-                  Paused <Time iso={status.paused_at} mode="relative" />
-                </span>
-              </>
-            ) : null}
-          </div>
+              <span>{status?.active_claim_count ?? 0} active claims</span>
+              <span aria-hidden="true" className="text-faint">
+                ·
+              </span>
+              <span>{status?.queued_run_count ?? 0} queued runs</span>
+              <span aria-hidden="true" className="text-faint">
+                ·
+              </span>
+              <span>{status?.paused_task_count ?? 0} paused tasks</span>
+              <span aria-hidden="true" className="text-faint">
+                ·
+              </span>
+              <span
+                className={(status?.starved_run_count ?? 0) > 0 ? "text-warning" : undefined}
+                data-testid="scheduler-controls-starved-count"
+              >
+                {status?.starved_run_count ?? 0} starved runs
+              </span>
+              <span aria-hidden="true" className="text-faint">
+                ·
+              </span>
+              <span
+                className={
+                  (status?.needs_attention_run_count ?? 0) > 0 ? "text-warning" : undefined
+                }
+                data-testid="scheduler-controls-needs-attention-count"
+              >
+                {status?.needs_attention_run_count ?? 0} needs attention
+              </span>
+              {status?.paused_at ? (
+                <>
+                  <span aria-hidden="true" className="text-faint">
+                    ·
+                  </span>
+                  <span>
+                    Paused <Time iso={status.paused_at} mode="relative" />
+                  </span>
+                </>
+              ) : null}
+            </div>
+          )}
           {status?.paused_reason ? (
             <p
               className="mt-2 max-w-3xl text-form-label text-muted"
@@ -180,7 +194,7 @@ export function SchedulerControlsPanel({
           {status?.paused ? (
             <Button
               data-testid="scheduler-controls-resume"
-              disabled={isActionPending || !onResume}
+              disabled={isInitialStatusLoading || isActionPending || !onResume}
               onClick={() => void onResume?.()}
               size="sm"
               type="button"
@@ -192,7 +206,7 @@ export function SchedulerControlsPanel({
           ) : (
             <Button
               data-testid="scheduler-controls-pause"
-              disabled={isActionPending || !onPause}
+              disabled={isInitialStatusLoading || isActionPending || !onPause}
               onClick={() => setPauseOpen(true)}
               size="sm"
               type="button"
@@ -204,7 +218,7 @@ export function SchedulerControlsPanel({
           )}
           <Button
             data-testid="scheduler-controls-drain"
-            disabled={isActionPending || !onDrain}
+            disabled={isInitialStatusLoading || isActionPending || !onDrain}
             onClick={() => void onDrain?.()}
             size="sm"
             title="Pause dispatch and wait for active claims to finish."
@@ -216,56 +230,11 @@ export function SchedulerControlsPanel({
         </div>
       </div>
 
-      <div className="mt-4 border-t border-line-soft pt-3" data-testid="scheduler-backlog-panel">
-        <div className="flex items-center justify-between gap-3">
-          <Eyebrow className="text-muted">Backlog</Eyebrow>
-          <Pill data-testid="scheduler-backlog-total" tone={backlog?.total ? "warning" : "neutral"}>
-            {backlog?.total ?? 0}
-          </Pill>
-        </div>
-        {backlogErrorMessage ? (
-          <p className="mt-2 text-form-label text-danger" data-testid="scheduler-backlog-error">
-            {backlogErrorMessage}
-          </p>
-        ) : isBacklogLoading && rows.length === 0 ? (
-          <p className="mt-2 text-form-label text-muted" data-testid="scheduler-backlog-loading">
-            Loading backlog
-          </p>
-        ) : rows.length === 0 ? (
-          <p className="mt-2 text-form-label text-muted" data-testid="scheduler-backlog-empty">
-            No queued runs.
-          </p>
-        ) : (
-          <div className="mt-2 divide-y divide-line-soft" data-testid="scheduler-backlog-rows">
-            {rows.map(item => (
-              <div
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2 text-form-label"
-                data-testid={`scheduler-backlog-row-${item.run.id}`}
-                key={item.run.id}
-              >
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <MonoId value={item.task.identifier ?? item.task.id} />
-                    <span className="truncate text-fg">{item.task.title}</span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-muted">
-                    <span>Run {item.run.id}</span>
-                    <span aria-hidden="true" className="text-faint">
-                      ·
-                    </span>
-                    <span>{item.run.status}</span>
-                  </div>
-                </div>
-                {item.task.effective_paused ? (
-                  <Pill tone="warning">Paused</Pill>
-                ) : (
-                  <Pill tone="neutral">Queued</Pill>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <SchedulerBacklogPanel
+        backlog={backlog}
+        errorMessage={backlogErrorMessage}
+        isLoading={isBacklogLoading}
+      />
 
       <Dialog open={pauseOpen} onOpenChange={handlePauseOpenChange}>
         <DialogContent
@@ -282,6 +251,7 @@ export function SchedulerControlsPanel({
               Reason
             </label>
             <Textarea
+              aria-describedby={pauseError ? "scheduler-controls-pause-error" : undefined}
               aria-invalid={Boolean(pauseError)}
               data-testid="scheduler-controls-pause-reason"
               disabled={isPausePending}
@@ -297,6 +267,8 @@ export function SchedulerControlsPanel({
               <p
                 className="text-form-hint text-danger"
                 data-testid="scheduler-controls-pause-error"
+                id="scheduler-controls-pause-error"
+                role="alert"
               >
                 {pauseError}
               </p>

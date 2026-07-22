@@ -76,14 +76,14 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
                 data-testid={`onboarding-auth-${option.mode}`}
                 className={cn(
                   "flex gap-3 rounded-md bg-canvas-soft p-3.5 text-left ring-1 ring-inset ring-line transition-colors hover:bg-elevated",
-                  selected && "bg-surface-glaze ring-[1.5px] ring-accent"
+                  selected && "bg-surface-glaze ring-2 ring-accent"
                 )}
               >
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "mt-0.5 size-4 flex-none rounded-full ring-[1.5px] ring-inset ring-line-strong",
-                    selected && "ring-[5px] ring-accent"
+                    "mt-0.5 size-4 flex-none rounded-full ring-2 ring-inset ring-line-strong",
+                    selected && "ring-4 ring-accent"
                   )}
                 />
                 <span>

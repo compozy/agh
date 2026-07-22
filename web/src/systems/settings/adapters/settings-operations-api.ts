@@ -1,10 +1,3 @@
-import type {
-  ConfigApplyRecordsResponse,
-  SettingsApplyRecordsFilter,
-  SettingsApplyResponse,
-  SettingsRestartResponse,
-  SettingsRestartStatus,
-} from "../types";
 import {
   apiClient,
   apiRequestFailed,
@@ -12,7 +5,22 @@ import {
   requireResponseData,
 } from "@/lib/api-client";
 
-import { SettingsApiError, normalizeApplyRecordsFilter } from "./settings-api-shared";
+import type {
+  ConfigApplyRecordsResponse,
+  SettingsApplyRecordsFilter,
+  SettingsApplyResponse,
+  SettingsRestartResponse,
+  SettingsRestartStatus,
+} from "../types";
+import { normalizeOptionalText, SettingsApiError } from "./settings-api-error";
+
+function normalizeApplyRecordsFilter(filter: SettingsApplyRecordsFilter = {}) {
+  return {
+    status: filter.status,
+    actor: normalizeOptionalText(filter.actor),
+    limit: filter.limit,
+  };
+}
 
 export async function triggerSettingsRestart(
   signal?: AbortSignal
@@ -20,29 +28,23 @@ export async function triggerSettingsRestart(
   const { data, error, response } = await apiClient.POST("/api/settings/actions/restart", {
     signal,
   });
-
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to trigger daemon restart", response, error),
       response.status
     );
   }
-
   return requireResponseData(data, response, "Failed to trigger daemon restart");
 }
 
 export async function reloadSettings(signal?: AbortSignal): Promise<SettingsApplyResponse> {
-  const { data, error, response } = await apiClient.POST("/api/settings/reload", {
-    signal,
-  });
-
+  const { data, error, response } = await apiClient.POST("/api/settings/reload", { signal });
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to reload settings", response, error),
       response.status
     );
   }
-
   return requireResponseData(data, response, "Failed to reload settings");
 }
 
@@ -54,14 +56,12 @@ export async function listSettingsApplyRecords(
     params: { query: normalizeApplyRecordsFilter(filter) },
     signal,
   });
-
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to load config apply records", response, error),
       response.status
     );
   }
-
   return requireResponseData(data, response, "Failed to load config apply records");
 }
 
@@ -71,23 +71,17 @@ export async function getSettingsRestartStatus(
 ): Promise<SettingsRestartStatus> {
   const { data, error, response } = await apiClient.GET(
     "/api/settings/actions/restart/{operation_id}",
-    {
-      params: { path: { operation_id: operationId } },
-      signal,
-    }
+    { params: { path: { operation_id: operationId } }, signal }
   );
-
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
       throw new SettingsApiError(`Restart operation not found: ${operationId}`, 404);
     }
-
     throw new SettingsApiError(
       defaultApiErrorMessage(`Failed to load restart status for "${operationId}"`, response, error),
       response.status
     );
   }
-
   return requireResponseData(data, response, `Failed to load restart status for "${operationId}"`);
 }
 

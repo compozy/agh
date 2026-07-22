@@ -32,6 +32,12 @@ const customPreset: NotificationPresetEntry = {
   enabled: true,
 };
 
+const secondCustomPreset: NotificationPresetEntry = {
+  ...customPreset,
+  name: "custom_warning",
+  enabled: false,
+};
+
 describe("NotificationPresetsPanel", () => {
   it("renders seeded built-ins and prevents deleting them", () => {
     render(
@@ -153,5 +159,83 @@ describe("NotificationPresetsPanel", () => {
     expect(screen.getByTestId("settings-page-hooks-notification-presets-error")).toHaveTextContent(
       "bridge_id:canonical_route"
     );
+    expect(screen.getByRole("alert")).toHaveAttribute("id", "notification-preset-create-error");
+    expect(screen.getByTestId("settings-page-hooks-notification-preset-target")).toHaveAttribute(
+      "aria-describedby",
+      "notification-preset-create-error"
+    );
+    expect(screen.getByTestId("settings-page-hooks-notification-preset-target")).toHaveAttribute(
+      "aria-invalid",
+      "true"
+    );
+  });
+
+  it("prevents another create while a notification mutation is pending", () => {
+    const onCreate = vi.fn();
+    render(
+      <NotificationPresetsPanel
+        presets={[]}
+        isLoading={false}
+        error={null}
+        pendingName="first_request"
+        canMutate
+        onCreate={onCreate}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("settings-page-hooks-notification-preset-new")).toBeDisabled();
+    expect(
+      screen.queryByTestId("settings-page-hooks-notification-preset-createform")
+    ).not.toBeInTheDocument();
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("disables every mutation control while one preset mutation is pending", () => {
+    render(
+      <NotificationPresetsPanel
+        presets={[customPreset, secondCustomPreset]}
+        isLoading={false}
+        error={null}
+        pendingName={customPreset.name}
+        canMutate
+        onCreate={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("settings-page-hooks-notification-preset-new")).toBeDisabled();
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-row-custom_warning-toggle")
+    ).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-row-custom_warning-delete")
+    ).toBeDisabled();
+  });
+
+  it("announces operational errors without invalidating the create fields", () => {
+    render(
+      <NotificationPresetsPanel
+        presets={[]}
+        isLoading={false}
+        error="Failed to load notification presets."
+        pendingName={null}
+        canMutate
+        onCreate={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId("settings-page-hooks-notification-preset-new"));
+
+    const nameInput = screen.getByTestId("settings-page-hooks-notification-preset-name");
+    expect(nameInput).toHaveAttribute("aria-invalid", "false");
+    expect(nameInput).not.toHaveAttribute("aria-describedby");
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-presets-operational-error")
+    ).toHaveTextContent("Failed to load notification presets.");
   });
 });

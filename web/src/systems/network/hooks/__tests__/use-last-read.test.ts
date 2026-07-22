@@ -89,6 +89,28 @@ describe("useLastRead", () => {
     ).toBeNull();
   });
 
+  it("preserves rapid marks written before React commits a render", () => {
+    const { result } = renderHook(() => useLastRead());
+    act(() => {
+      result.current.markRead(
+        { channel: "builders", surface: "thread", containerId: "thread_one" },
+        "2026-04-13T10:00:00Z"
+      );
+      result.current.markRead(
+        { channel: "builders", surface: "thread", containerId: "thread_two" },
+        "2026-04-13T10:01:00Z"
+      );
+    });
+
+    const stored = JSON.parse(
+      window.localStorage.getItem(LAST_READ_STORAGE_KEY_FOR_TESTS) ?? "{}"
+    ) as Record<string, string>;
+    expect(stored).toMatchObject({
+      "ws_alpha:builders:thread:thread_one": "2026-04-13T10:00:00Z",
+      "ws_alpha:builders:thread:thread_two": "2026-04-13T10:01:00Z",
+    });
+  });
+
   it("ignores empty-or-undefined timestamps", () => {
     const { result } = renderHook(() => useLastRead());
     act(() => {

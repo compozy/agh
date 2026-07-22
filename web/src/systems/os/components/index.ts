@@ -1,10 +1,4 @@
-export {
-  OsDock,
-  OsDockNewSession,
-  OsDockZone,
-  type OsDockProps,
-  type OsDockNewSessionProps,
-} from "./os-dock";
+export { OsDock, OsDockZone, type OsDockProps } from "./os-dock";
 export {
   isOsDockSeparator,
   type OsDockItemData,

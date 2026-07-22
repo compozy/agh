@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
-  addTaskDependency,
   approveTask,
   cancelTask,
   clearTaskBlock,
@@ -14,14 +13,12 @@ import {
   publishTask,
   recoverTask,
   rejectTask,
-  removeTaskDependency,
   resumeTask,
   updateTask,
 } from "../adapters/tasks-api";
 import { invalidateAggregateQueries, invalidateTaskQueries } from "./task-query-invalidation";
 import { tasksKeys } from "../lib/query-keys";
 import type {
-  AddTaskDependencyRequest,
   CancelTaskRequest,
   CreateChildTaskRequest,
   CreateTaskRequest,
@@ -65,14 +62,6 @@ interface ClearTaskBlockParams extends TaskIdParams {
 interface CreateChildTaskParams {
   parentId: string;
   data: CreateChildTaskRequest;
-}
-
-interface AddTaskDependencyParams extends TaskIdParams {
-  data: AddTaskDependencyRequest;
-}
-
-interface RemoveTaskDependencyParams extends TaskIdParams {
-  dependsOnId: string;
 }
 
 interface EnqueueTaskRunParams extends TaskIdParams {
@@ -260,37 +249,6 @@ export function useCreateChildTask() {
       acknowledgeMutationSettlement(error);
       return Promise.all([
         invalidateTaskQueries(queryClient, parentId),
-        invalidateAggregateQueries(queryClient),
-      ]);
-    },
-  });
-}
-
-export function useAddTaskDependency() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, data }: AddTaskDependencyParams) => addTaskDependency(id, data),
-    onSettled: (_result, error, { id }) => {
-      acknowledgeMutationSettlement(error);
-      return Promise.all([
-        invalidateTaskQueries(queryClient, id),
-        invalidateAggregateQueries(queryClient),
-      ]);
-    },
-  });
-}
-
-export function useRemoveTaskDependency() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, dependsOnId }: RemoveTaskDependencyParams) =>
-      removeTaskDependency(id, dependsOnId),
-    onSettled: (_result, error, { id }) => {
-      acknowledgeMutationSettlement(error);
-      return Promise.all([
-        invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
       ]);
     },

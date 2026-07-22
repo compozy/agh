@@ -128,7 +128,7 @@ export function RuntimeSelector({
           data-testid="runtime-selector-popup"
         >
           <div className="flex h-11 shrink-0 items-center gap-2.5 border-b border-line-soft px-3">
-            <Search aria-hidden="true" className="size-[15px] shrink-0 text-subtle" />
+            <Search aria-hidden="true" className="size-4 shrink-0 text-subtle" />
             <input
               ref={searchRef}
               type="text"
@@ -155,7 +155,7 @@ export function RuntimeSelector({
                 data-testid="runtime-selector-refresh"
                 disabled={refreshing}
                 onClick={() => onRefreshCatalog()}
-                className="grid size-[26px] shrink-0 place-items-center rounded text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed"
+                className="grid size-button-icon-default shrink-0 place-items-center rounded text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed"
               >
                 <RefreshCw
                   aria-hidden="true"

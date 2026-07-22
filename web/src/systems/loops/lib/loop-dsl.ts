@@ -102,7 +102,7 @@ function rawString(value: unknown): string {
  * `CODE_FIELD`) is additionally marked.
  */
 export function buildDslView(
-  definition: Record<string, unknown>,
+  definition: object,
   byNode: ReadonlyMap<string, LoopValidationIssue[]>
 ): DslLine[] {
   const lines: DslLine[] = [];

@@ -21,15 +21,15 @@ function LoopRunMeterCard({ meter }: { meter: LoopRunMeter }) {
     >
       <div className="mb-2 flex items-baseline justify-between gap-1.5">
         <span className="eyebrow text-faint">{meter.label}</span>
-        <span className="font-mono text-[13px] font-semibold tabular-nums text-fg-strong">
+        <span className="font-mono text-ws-name font-semibold tabular-nums text-fg-strong">
           {meter.value}
           {meter.max ? (
-            <span className="text-[11px] font-medium text-faint"> {meter.max}</span>
+            <span className="text-form-hint font-medium text-faint"> {meter.max}</span>
           ) : null}
         </span>
       </div>
       {meter.percent !== null ? (
-        <div className="h-[3px] overflow-hidden rounded-full bg-fg-strong/10">
+        <div className="h-0.75 overflow-hidden rounded-full bg-fg-strong/10">
           <div
             className={`h-full rounded-full transition-[width] duration-700 ${BAR_FILL_CLASS[meter.tone]}`}
             style={{ width: `${meter.percent}%` }}
@@ -41,7 +41,7 @@ function LoopRunMeterCard({ meter }: { meter: LoopRunMeter }) {
         {meter.tags.map(tag => (
           <span
             key={tag}
-            className="rounded-xs bg-badge-fill px-1.5 py-0.5 font-mono text-[9px] text-subtle"
+            className="rounded-xs bg-badge-fill px-1.5 py-0.5 font-mono text-pill-group-badge text-subtle"
           >
             {tag}
           </span>

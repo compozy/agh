@@ -81,7 +81,7 @@ export function LoopInputControl({
         />
       )}
       {field.description ? (
-        <p className="text-[11px] leading-snug text-subtle">{field.description}</p>
+        <p className="text-form-hint leading-snug text-subtle">{field.description}</p>
       ) : null}
     </div>
   );

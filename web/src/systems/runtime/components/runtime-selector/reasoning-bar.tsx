@@ -18,14 +18,14 @@ export interface ReasoningBarProps {
 function Note({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-2.5 px-px py-0.5 text-small-body text-subtle">
-      <Brain aria-hidden="true" className="size-[15px] shrink-0 text-faint" />
+      <Brain aria-hidden="true" className="size-4 shrink-0 text-faint" />
       <span>{children}</span>
     </div>
   );
 }
 
 const SEG_BUTTON_CLASS =
-  "inline-flex flex-col items-center gap-[3px] rounded-sm px-1 py-1.5 text-muted outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:text-fg-strong focus-visible:ring-2 focus-visible:ring-accent data-[on=true]:bg-accent-tint-strong data-[on=true]:text-accent-strong";
+  "inline-flex flex-col items-center gap-1 rounded-sm px-1 py-1.5 text-muted outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:text-fg-strong focus-visible:ring-2 focus-visible:ring-accent data-[on=true]:bg-accent-tint-strong data-[on=true]:text-accent-strong";
 
 export function ReasoningBar({
   reasoning,
@@ -117,7 +117,7 @@ export function ReasoningBar({
           <span
             aria-hidden="true"
             className={cn(
-              "size-[11px] rounded-full ring-[1.5px] ring-inset",
+              "size-3 rounded-full ring-2 ring-inset",
               isDefault ? "ring-accent-strong" : "ring-faint"
             )}
           />

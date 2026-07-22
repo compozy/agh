@@ -42,7 +42,7 @@ describe("SettingsFieldRow", () => {
     render(
       <SettingsFieldRow label="Session timeout" control={<input />} data-testid="field-row" />
     );
-    expect(screen.getByTestId("field-row")).toHaveAttribute("data-slot", "settings-field-row");
+    expect(screen.getByTestId("field-row")).toHaveAttribute("data-slot", "setting-row");
 
     render(
       <SettingsFieldRow
@@ -119,6 +119,6 @@ describe("SettingsFieldRow", () => {
     const group = screen.getByRole("group", { name: "Session timeout" });
     expect(group).toHaveAttribute("aria-describedby", expect.stringContaining("description"));
     expect(group).toHaveAttribute("aria-describedby", expect.stringContaining("error"));
-    expect(group).toHaveAttribute("aria-invalid", "true");
+    expect(group).not.toHaveAttribute("aria-invalid");
   });
 });

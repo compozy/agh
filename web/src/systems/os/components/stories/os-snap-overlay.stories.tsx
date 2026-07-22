@@ -17,7 +17,7 @@ const meta: Meta<typeof OsSnapOverlaySheet> = {
     docs: {
       description: {
         component:
-          "FancyZones-class drop overlay (ADR-009 constants contract): 80ms linear fade-in, 150ms ease-out target morph on insets/background/border/opacity only, backdrop blur on the active target only, dashed tokenized accent outline, full collapse under reduced motion. States: idle (no zone captured — nothing renders), eligible (quiet outline), active (release target).",
+          "FancyZones-class drop overlay (ADR-009 constants contract): 80ms linear fade-in, 150ms composited target morph plus background/border/opacity, backdrop blur on the active target only, dashed tokenized accent outline, full collapse under reduced motion. States: idle (no zone captured — nothing renders), eligible (quiet outline), active (release target).",
       },
     },
   },

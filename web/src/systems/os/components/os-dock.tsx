@@ -30,7 +30,7 @@ export interface OsDockProps extends Omit<React.ComponentProps<"nav">, "onSelect
   magnify?: boolean;
 }
 
-export interface OsDockNewSessionProps extends Omit<
+interface OsDockNewSessionProps extends Omit<
   React.ComponentProps<"button">,
   "onClick" | "children"
 > {
@@ -175,7 +175,7 @@ export function OsDock({ items, onSelect, magnify = true, className, ...props }:
  * Detached New Session control — its own glass segment beside the dock strip
  * (OpenDesign `dock-actions` / `dock-new`).
  */
-export function OsDockNewSession({ onNewSession, className, ...props }: OsDockNewSessionProps) {
+function OsDockNewSession({ onNewSession, className, ...props }: OsDockNewSessionProps) {
   const innerClass = cn(
     "grid size-dock-item place-items-center rounded-dock-item bg-accent text-accent-ink shadow-highlight",
     onNewSession &&

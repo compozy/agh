@@ -21,7 +21,7 @@ export function LoopDeclaredInputs({ inputs }: LoopDeclaredInputsProps) {
     <Section label="Declared inputs" data-testid="loop-declared-inputs">
       <div className="flex flex-col rounded-lg border border-line bg-canvas-soft">
         {names.length === 0 ? (
-          <p className="px-3.5 py-3 text-[11.5px] text-subtle">This Loop declares no inputs.</p>
+          <p className="px-3.5 py-3 text-form-hint text-subtle">This Loop declares no inputs.</p>
         ) : (
           names.map(name => {
             const field = inputs?.[name];
@@ -40,10 +40,12 @@ export function LoopDeclaredInputs({ inputs }: LoopDeclaredInputsProps) {
                   </MonoTag>
                 </div>
                 {field?.description ? (
-                  <p className="mt-1 text-[11.5px] leading-snug text-subtle">{field.description}</p>
+                  <p className="mt-1 text-form-hint leading-snug text-subtle">
+                    {field.description}
+                  </p>
                 ) : null}
                 {defaultLabel ? (
-                  <p className="mt-1 font-mono text-[10.5px] text-faint">default: {defaultLabel}</p>
+                  <p className="mt-1 font-mono text-mono-id text-faint">default: {defaultLabel}</p>
                 ) : null}
               </div>
             );

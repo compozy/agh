@@ -1,20 +1,20 @@
 import { useNavigate } from "@tanstack/react-router";
 
-import { useAgent } from "@/systems/agent/hooks/use-agents";
-import { useAgentCatalogMetrics } from "@/systems/agent/hooks/use-agent-catalog-metrics";
-import { useAgentSessions } from "@/systems/agent/hooks/use-agent-sessions";
-import { useAgentCreateHost } from "@/systems/agent/hooks/use-agent-create-host";
-import { useAgentDeleteFlow } from "@/systems/agent/hooks/use-agent-delete-flow";
-import type {
-  AgentDetailSearch,
-  AgentDetailTab,
-  AgentInstructionFile,
-  AgentSessionFilter,
-  ResolvedAgentDetailSearch,
-} from "@/systems/agent/lib/agent-detail-search";
-import { resolveAgentDetailSearch } from "@/systems/agent/lib/agent-detail-search";
-import type { AgentSettingsSection } from "@/systems/agent/lib/agent-settings-search";
-import type { AgentPayload } from "@/systems/agent/types";
+import {
+  resolveAgentDetailSearch,
+  useAgent,
+  useAgentCatalogMetrics,
+  useAgentCreateHost,
+  useAgentDeleteFlow,
+  useAgentSessions,
+  type AgentPayload,
+  type AgentDetailSearch,
+  type AgentDetailTab,
+  type AgentInstructionFile,
+  type AgentSessionFilter,
+  type AgentSettingsSection,
+  type ResolvedAgentDetailSearch,
+} from "@/systems/agent";
 import { useSessionCreate, type SessionPayload } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 

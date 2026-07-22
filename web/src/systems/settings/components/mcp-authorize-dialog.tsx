@@ -310,7 +310,7 @@ function AuthorizationUrlBlock({ url }: { url: string }) {
           Open browser
         </Button>
       </div>
-      <code className="block break-words font-mono text-[10.5px] leading-relaxed text-fg">
+      <code className="block break-words font-mono text-mono-id leading-relaxed text-fg">
         {url}
       </code>
     </div>
@@ -361,9 +361,7 @@ function SnapshotCell({
   return (
     <div className="min-w-0 bg-canvas p-2.5">
       <dt className="eyebrow text-subtle">{term}</dt>
-      <dd
-        className={mono ? "mt-1 font-mono text-[10.5px] text-fg" : "mt-1 text-form-label text-fg"}
-      >
+      <dd className={mono ? "mt-1 font-mono text-mono-id text-fg" : "mt-1 text-form-label text-fg"}>
         {children}
       </dd>
     </div>

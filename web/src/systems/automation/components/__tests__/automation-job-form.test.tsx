@@ -2,10 +2,10 @@
 // Invariant: The live preview and displayed request preserve the selected Job execution target.
 // Boundary IN: controlled Job form, pure preview projection, and rendered preview cards.
 // Boundary OUT: HTTP submission and persisted reads, owned by route and detail suites.
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/systems/loops/hooks/use-loops", async () => {
   const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
@@ -32,6 +32,10 @@ const WORKSPACES = [
   { id: WORKSPACE_ID, name: "alpha" },
   { id: "ws_beta", name: "beta" },
 ];
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 interface RenderJobFormOptions {
   activeWorkspaceId?: string | null;
@@ -80,9 +84,9 @@ function renderJobForm({
     );
   }
 
-  render(<Harness />);
+  const view = render(<Harness />);
 
-  return { onCancel, onChange, onSubmit };
+  return { onCancel, onChange, onSubmit, ...view };
 }
 
 describe("AutomationJobForm", () => {
@@ -409,6 +413,45 @@ describe("AutomationJobForm", () => {
     );
   });
 
+  it("Should refresh cron-relative labels at the next minute boundary", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-21T12:00:59.000Z"));
+    const { unmount } = renderJobForm({
+      draft: {
+        ...createAutomationJobDraft(WORKSPACE_ID),
+        schedule: { mode: "cron", expr: "* * * * *" },
+      },
+    });
+
+    expect(screen.getByTestId("job-preview")).toHaveTextContent("in 1s");
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(screen.getByTestId("job-preview")).toHaveTextContent("in 1 min");
+
+    unmount();
+  });
+
+  it("Should align the preview boundary after an invalid cron becomes valid", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-21T12:00:10.000Z"));
+    const { unmount } = renderJobForm({
+      draft: {
+        ...createAutomationJobDraft(WORKSPACE_ID),
+        schedule: { mode: "cron", expr: "invalid" },
+      },
+    });
+
+    act(() => vi.advanceTimersByTime(30_000));
+    fireEvent.change(screen.getByLabelText("Cron expression"), {
+      target: { value: "* * * * *" },
+    });
+
+    expect(screen.getByTestId("job-preview")).toHaveTextContent("in 20s");
+    act(() => vi.advanceTimersByTime(20_000));
+    expect(screen.getByTestId("job-preview")).toHaveTextContent("in 1 min");
+
+    unmount();
+  });
+
   it("Should switch the schedule mode to every and then to at", () => {
     const { onChange } = renderJobForm();
 
@@ -433,6 +476,10 @@ describe("AutomationJobForm", () => {
   it("Should preserve recurring catch-up and grace across schedule-mode switches but omit them for one-shot at", () => {
     renderJobForm();
     fireEvent.click(screen.getByTestId("job-governance-toggle"));
+
+    expect(screen.getByRole("switch", { name: "Enabled on create" })).toBe(
+      screen.getByTestId("job-enabled-toggle")
+    );
 
     // Recurring (cron) exposes catch-up + grace; entering values serializes them.
     expect(screen.getByTestId("job-catch-up-field")).toBeInTheDocument();

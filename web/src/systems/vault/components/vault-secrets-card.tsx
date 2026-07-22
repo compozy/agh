@@ -57,7 +57,7 @@ export function VaultSecretsCard({
           </Pill>
         ) : (
           <span
-            className="font-mono text-[11px] text-faint"
+            className="font-mono text-mono-id text-faint"
             data-testid={`vault-secrets-kind-empty-${secret.ref}`}
           >
             --
@@ -65,7 +65,7 @@ export function VaultSecretsCard({
         )}
         <div className="flex items-center gap-1">
           <Time
-            className="font-mono text-[11px] text-faint"
+            className="font-mono text-mono-id text-faint"
             data-testid={`vault-secrets-updated-${secret.ref}`}
             iso={secret.updated_at}
           />

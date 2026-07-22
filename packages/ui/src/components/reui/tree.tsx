@@ -3,19 +3,11 @@
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import type { ItemInstance, TreeInstance } from "@headless-tree/core";
+import * as React from "react";
 
 import { cn } from "@agh/ui/lib/utils";
 import { ChevronDownIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { TreeContext, type ToggleIconType, useTreeContext } from "./hooks/use-tree-context";
-
-function optionalFeatureCall<T, K extends keyof ItemInstance<T>>(
-  item: ItemInstance<T>,
-  method: K
-): boolean | undefined {
-  const candidate = (item as unknown as Record<string, unknown>)[method as string];
-  if (typeof candidate !== "function") return undefined;
-  return Boolean((candidate as () => boolean).call(item));
-}
 
 interface TreeProps<T> extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
   indent?: number;
@@ -76,10 +68,10 @@ function TreeItem<T>({ item, className, render, children, ...props }: TreeItemPr
   // feature is registered with useTree. Guard the optional features so trees
   // without them (e.g. selection-only) don't crash at render time.
   const isFolder = item.isFolder();
-  const focused = optionalFeatureCall(item, "isFocused") ?? false;
-  const selected = optionalFeatureCall(item, "isSelected") ?? false;
-  const dragTarget = optionalFeatureCall(item, "isDragTarget");
-  const searchMatch = optionalFeatureCall(item, "isMatchingSearch");
+  const focused = item.isFocused?.() ?? false;
+  const selected = item.isSelected?.() ?? false;
+  const dragTarget = item.isDragTarget?.();
+  const searchMatch = item.isMatchingSearch?.();
   const defaultProps = {
     "data-slot": "tree-item",
     type: "button" as const,
@@ -162,15 +154,11 @@ function TreeDragLine<T>({ className, tree: propTree, ...props }: TreeDragLinePr
   const context = useTreeContext<T>();
   const tree = propTree ?? context.tree;
 
-  if (!tree || typeof (tree as { getDragLineStyle?: unknown }).getDragLineStyle !== "function") {
+  if (!tree?.getDragLineStyle) {
     return null;
   }
 
-  const dragLine = (
-    tree as TreeInstance<T> & {
-      getDragLineStyle: (topOffset?: number, leftOffset?: number) => React.CSSProperties;
-    }
-  ).getDragLineStyle();
+  const dragLine = tree.getDragLineStyle();
   return (
     <div
       style={dragLine}

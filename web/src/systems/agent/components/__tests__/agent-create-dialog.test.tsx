@@ -119,6 +119,7 @@ describe("AgentCreateDialog", () => {
     renderStatefulDialog();
 
     expect(screen.getByTestId("agent-create-progress")).toHaveTextContent("Step 1 of 4");
+    expect(screen.getByTestId("agent-create-step-basics")).toHaveAttribute("aria-current", "step");
     expect(screen.getByTestId("agent-create-next")).toBeDisabled();
 
     await user.type(screen.getByTestId("agent-create-name"), "../bad");

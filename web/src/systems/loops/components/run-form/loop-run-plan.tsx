@@ -22,7 +22,7 @@ export function LoopRunPlan({ plan }: LoopRunPlanProps) {
       <div className="flex items-center gap-2">
         <Eyebrow className="text-success">Dry run · generation {plan.generation} plan</Eyebrow>
       </div>
-      <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
+      <p className="mt-1.5 text-form-label leading-relaxed text-muted">
         Inputs validated. This is what generation {plan.generation} would run — no run was created
         and no budget was spent.
       </p>
@@ -31,7 +31,7 @@ export function LoopRunPlan({ plan }: LoopRunPlanProps) {
           <Eyebrow className="text-faint">Resolved inputs</Eyebrow>
           <dl className="mt-1.5 flex flex-col gap-1">
             {inputEntries.map(([key, value]) => (
-              <div key={key} className="flex items-baseline justify-between gap-3 text-[12px]">
+              <div key={key} className="flex items-baseline justify-between gap-3 text-form-label">
                 <dt className="font-mono text-subtle">{key}</dt>
                 <dd className="truncate font-mono text-fg" title={String(value)}>
                   {typeof value === "string" ? value : JSON.stringify(value)}
@@ -47,13 +47,13 @@ export function LoopRunPlan({ plan }: LoopRunPlanProps) {
           {plan.nodes.map((node, index) => (
             <li
               key={node.id}
-              className="flex items-center gap-2.5 text-[12px]"
+              className="flex items-center gap-2.5 text-form-label"
               data-testid="loop-run-plan-node"
             >
-              <span className="w-4 shrink-0 font-mono text-[10px] text-faint">{index + 1}</span>
+              <span className="w-4 shrink-0 font-mono text-mono-id text-faint">{index + 1}</span>
               <span className="font-mono text-fg-strong">{node.id}</span>
               <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5">{node.class}</MonoTag>
-              <span className="truncate font-mono text-[11px] text-subtle">{node.kind}</span>
+              <span className="truncate font-mono text-mono-id text-subtle">{node.kind}</span>
             </li>
           ))}
         </ol>

@@ -21,8 +21,7 @@ export interface ListingRowTitleProps extends React.ComponentProps<"b"> {
   mono?: boolean;
 }
 
-type ListingRowNameContextValue = { mono: boolean };
-const ListingRowNameContext = React.createContext<ListingRowNameContextValue>({ mono: false });
+const ListingRowNameContext = React.createContext(false);
 
 function ListingRowLink({ className, render, ...props }: ListingRowLinkProps) {
   const element = useRender({
@@ -62,9 +61,8 @@ function ListingRowMain({ className, ...props }: ListingRowMainProps) {
 }
 
 function ListingRowName({ mono = false, className, ...props }: ListingRowNameProps) {
-  const contextValue: ListingRowNameContextValue = { mono };
   return (
-    <ListingRowNameContext.Provider value={contextValue}>
+    <ListingRowNameContext.Provider value={mono}>
       <div
         data-slot="listing-row-name"
         data-mono={mono ? "true" : undefined}
@@ -76,8 +74,8 @@ function ListingRowName({ mono = false, className, ...props }: ListingRowNamePro
 }
 
 function ListingRowTitle({ mono, className, ...props }: ListingRowTitleProps) {
-  const nameContext = React.use(ListingRowNameContext);
-  const useMono = mono ?? nameContext.mono;
+  const nameMono = React.use(ListingRowNameContext);
+  const useMono = mono ?? nameMono;
   return (
     <b
       data-slot="listing-row-title"
@@ -106,7 +104,7 @@ function ListingRowDescription({ className, ...props }: ListingRowDescriptionPro
   return (
     <p
       data-slot="listing-row-description"
-      className={cn("mt-1 truncate text-[12.5px] leading-[1.45] text-muted", className)}
+      className={cn("mt-1 truncate text-small-body text-muted", className)}
       {...props}
     />
   );

@@ -272,6 +272,10 @@ describe("AutomationTriggerForm", () => {
 
     fireEvent.click(screen.getByTestId("trigger-governance-toggle"));
 
+    expect(screen.getByRole("switch", { name: "Trigger enabled" })).toBe(
+      screen.getByTestId("trigger-enabled-toggle")
+    );
+
     expect(screen.getByTestId("trigger-retry-max")).toBeDisabled();
     expect(screen.getByTestId("trigger-retry-max")).toHaveValue(0);
     expect(screen.getByTestId("trigger-retry-delay")).toHaveValue("");

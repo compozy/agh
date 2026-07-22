@@ -17,6 +17,7 @@ interface LoopEditorState {
   publishError: string | null;
   selectedNodeId: string | null;
   selectionSeq: number;
+  structuralRevision: number;
   validateFailed: boolean;
   view: LoopEditorView;
 }
@@ -36,6 +37,7 @@ function createLoopEditorState(): LoopEditorState {
     publishError: null,
     selectedNodeId: null,
     selectionSeq: 0,
+    structuralRevision: 0,
     validateFailed: false,
     view: "graph",
   };
@@ -78,12 +80,13 @@ export function useLoopEditorState() {
 
   const initialize = (definition: LoopDefinition, edges: EditorEdge[], nodes: EditorNode[]) => {
     dispatch({
-      update: () => ({
+      update: current => ({
         ...createLoopEditorState(),
         baseDefinition: definition,
         edges,
         nodes,
         selectedNodeId: nodes[0]?.id ?? null,
+        structuralRevision: current.structuralRevision + 1,
       }),
     });
   };
@@ -106,6 +109,7 @@ export function useLoopEditorState() {
           nodes: [...current.nodes, node],
           selectedNodeId: id,
           selectionSeq: current.selectionSeq + 1,
+          structuralRevision: current.structuralRevision + 1,
         };
       },
     });
@@ -125,6 +129,8 @@ export function useLoopEditorState() {
     setPublishError: (value: SetStateAction<string | null>) => setField("publishError", value),
     setSelectedNodeId: (value: SetStateAction<string | null>) => setField("selectedNodeId", value),
     setSelectionSeq: (value: SetStateAction<number>) => setField("selectionSeq", value),
+    markStructureChanged: () =>
+      setField("structuralRevision", currentRevision => currentRevision + 1),
     setValidateFailed: (value: SetStateAction<boolean>) => setField("validateFailed", value),
     setView: (value: SetStateAction<LoopEditorView>) => setField("view", value),
   };

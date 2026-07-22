@@ -8,9 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { Pill } from "@agh/ui";
-
-import { ChoiceCard } from "@/components/choice-card";
+import { Pill, RadioCard } from "@agh/ui";
 
 import {
   SIMPLE_TASK_TEMPLATE_IDS,
@@ -41,7 +39,7 @@ const TEMPLATE_ICONS: Record<TaskTemplateId, LucideIcon> = {
  * templates with their plain-language labels and no badge; Advanced mode lays
  * out every template with its precise label, description, and the first badge
  * rendered as a tone-matched Pill. Both lean on the shared accent-tint
- * `ChoiceCard` affordance.
+ * canonical `RadioCard` affordance.
  */
 export function TemplateCards({ mode, templateId, onSelect }: TemplateCardsProps) {
   if (mode === "simple") {
@@ -50,7 +48,7 @@ export function TemplateCards({ mode, templateId, onSelect }: TemplateCardsProps
         {SIMPLE_TASK_TEMPLATE_IDS.map(id => {
           const template = getTaskTemplate(id);
           return (
-            <ChoiceCard
+            <RadioCard
               data-testid={`task-template-${id}`}
               description={template.simpleDescription}
               icon={TEMPLATE_ICONS[id]}
@@ -58,6 +56,7 @@ export function TemplateCards({ mode, templateId, onSelect }: TemplateCardsProps
               onSelect={() => onSelect(id)}
               selected={id === templateId}
               title={template.simpleLabel}
+              titleClassName="whitespace-normal"
             />
           );
         })}
@@ -70,7 +69,7 @@ export function TemplateCards({ mode, templateId, onSelect }: TemplateCardsProps
       {TASK_TEMPLATES.map(template => {
         const badge = template.badges[0];
         return (
-          <ChoiceCard
+          <RadioCard
             badge={
               badge ? (
                 <Pill size="sm" tone={badge.tone}>
@@ -85,6 +84,7 @@ export function TemplateCards({ mode, templateId, onSelect }: TemplateCardsProps
             onSelect={() => onSelect(template.id)}
             selected={template.id === templateId}
             title={template.label}
+            titleClassName="whitespace-normal"
           />
         );
       })}

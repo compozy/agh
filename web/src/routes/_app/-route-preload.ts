@@ -7,12 +7,14 @@ import {
 } from "@/systems/workspace";
 
 /**
- * Route preloads are opportunistic because their pages already own loading and
- * error presentation through TanStack Query. Rejections stay recorded in that
- * query cache instead of being promoted to the route error boundary.
+ * Route preloads are opportunistic because their pages own loading and error
+ * presentation through TanStack Query. The queries start before the route
+ * mounts, but their settlement must not delay the page's loading UI. Rejections
+ * remain recorded in the query cache instead of reaching the route boundary.
  */
-export async function settleRouteQueries(queries: readonly Promise<unknown>[]): Promise<void> {
-  await Promise.allSettled(queries);
+export function settleRouteQueries(queries: readonly Promise<unknown>[]): Promise<void> {
+  void Promise.allSettled(queries);
+  return Promise.resolve();
 }
 
 export async function resolveActiveWorkspaceId(queryClient: QueryClient): Promise<string | null> {

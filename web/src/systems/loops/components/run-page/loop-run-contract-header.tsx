@@ -55,18 +55,18 @@ export function LoopRunContractHeader({ run, contract, meters }: LoopRunContract
     >
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2.5 text-[12.5px] text-subtle">
+          <div className="flex flex-wrap items-center gap-2.5 text-small-body text-subtle">
             <span>
               Generation <b className="font-medium text-fg-strong">{run.generation}</b>
               {run.iteration_cap > 0 ? ` of ${run.iteration_cap}` : " · unbounded"} ·{" "}
               {reattemptLabel(run.reattempt_strategy)}
             </span>
             {startOrigin ? (
-              <span className="font-mono text-[11.5px] text-muted">{startOrigin}</span>
+              <span className="font-mono text-mono-id text-muted">{startOrigin}</span>
             ) : null}
           </div>
           <h2
-            className="mt-2.5 max-w-[78ch] text-[16px] leading-snug font-medium tracking-[-0.016em] text-fg-strong"
+            className="mt-2.5 max-w-[78ch] text-item-title leading-snug font-medium tracking-[-0.016em] text-fg-strong"
             data-testid="loop-run-goal"
           >
             {contract?.goal ?? `Run ${run.loop_name}`}
@@ -79,7 +79,7 @@ export function LoopRunContractHeader({ run, contract, meters }: LoopRunContract
           <div>
             <Eyebrow className="text-faint">Definition of done</Eyebrow>
             <p
-              className="mt-1 max-w-[78ch] text-[12.5px] leading-relaxed text-muted"
+              className="mt-1 max-w-[78ch] text-small-body leading-relaxed text-muted"
               data-testid="loop-run-dod"
             >
               {contract.definition_of_done}
@@ -99,8 +99,8 @@ export function LoopRunContractHeader({ run, contract, meters }: LoopRunContract
                       {criterion.type}
                     </MonoTag>
                     <div className="min-w-0">
-                      <b className="text-[12px] font-medium text-fg-strong">{criterion.id}</b>
-                      <span className="ml-2 font-mono text-[10.5px] text-subtle">
+                      <b className="text-form-label font-medium text-fg-strong">{criterion.id}</b>
+                      <span className="ml-2 font-mono text-mono-id text-subtle">
                         {verificationMethod(criterion) || "—"}
                       </span>
                     </div>
@@ -114,7 +114,7 @@ export function LoopRunContractHeader({ run, contract, meters }: LoopRunContract
               {terminalStates.map(state => (
                 <span
                   key={state}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-line-soft bg-canvas-tint px-2.5 py-1 text-[11px] text-muted"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-line-soft bg-canvas-tint px-2.5 py-1 text-form-hint text-muted"
                   data-testid="loop-run-terminal-chip"
                 >
                   <span

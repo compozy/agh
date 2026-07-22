@@ -13,37 +13,10 @@ const REVIEW_OUTCOME_TONE: Record<TaskRunReviewOutcome, PillTone> = {
   invalid_output: "danger",
 };
 
-const currencyFormatters = new Map<string, Intl.NumberFormat>();
-
-function currencyFormatter(currency: string, digits: number): Intl.NumberFormat {
-  const key = `${currency}:${digits}`;
-  const cached = currencyFormatters.get(key);
-  if (cached) return cached;
-  const formatter = Intl.NumberFormat(undefined, {
-    currency,
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-    style: "currency",
-  });
-  currencyFormatters.set(key, formatter);
-  return formatter;
-}
-
-function normalizedCurrencyCode(currency?: string | null): string {
-  const code = currency?.trim().toUpperCase();
-  return code && /^[A-Z]{3}$/.test(code) ? code : "USD";
-}
-
 export function formatTaskRunMetric(value?: number | null): string {
   return typeof value === "number" && Number.isFinite(value)
     ? value.toLocaleString()
     : METRIC_PLACEHOLDER;
-}
-
-export function formatTaskRunCost(value?: number | null, currency?: string | null): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return METRIC_PLACEHOLDER;
-  const digits = Math.abs(value) < 1 ? 3 : 2;
-  return currencyFormatter(normalizedCurrencyCode(currency), digits).format(value);
 }
 
 export function latestTaskRun(

@@ -72,8 +72,8 @@ export function LoopNodeRow({ node, gateVerdict, children }: LoopNodeRowProps) {
       />
       <div className="flex flex-wrap items-center gap-2.5">
         <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5">{node.classLabel}</MonoTag>
-        <span className="text-[13px] font-medium text-fg-strong">{node.nodeId}</span>
-        {node.kind ? <span className="font-mono text-[11px] text-subtle">{node.kind}</span> : null}
+        <span className="text-ws-name font-medium text-fg-strong">{node.nodeId}</span>
+        {node.kind ? <span className="font-mono text-mono-id text-subtle">{node.kind}</span> : null}
         {node.isCarriedForward ? (
           <MonoTag
             className="rounded-xs border border-line-soft px-1.5 py-0.5 text-subtle"
@@ -82,7 +82,7 @@ export function LoopNodeRow({ node, gateVerdict, children }: LoopNodeRowProps) {
             carried forward · read-only
           </MonoTag>
         ) : null}
-        <span className="ml-auto flex items-center gap-1.5 text-[11.5px] font-medium text-muted">
+        <span className="ml-auto flex items-center gap-1.5 text-form-hint font-medium text-muted">
           <span
             aria-hidden="true"
             className={`size-1.5 rounded-full ${DOT_CLASS[node.tone]} ${node.pulse ? "animate-pulse motion-reduce:animate-none" : ""}`}
@@ -94,7 +94,7 @@ export function LoopNodeRow({ node, gateVerdict, children }: LoopNodeRowProps) {
         <Link
           to="/loop-runs/$runId"
           params={{ runId: node.childLoopRunId }}
-          className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-[11px] text-info hover:text-accent-strong"
+          className="mt-1.5 inline-flex items-center gap-1.5 font-mono text-mono-id text-info hover:text-accent-strong"
           data-testid={`loop-node-child-link-${key}`}
         >
           child run {node.childLoopRunId}

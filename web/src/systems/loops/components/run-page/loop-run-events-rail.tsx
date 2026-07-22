@@ -31,14 +31,14 @@ export function LoopRunEventsRail({ events, isLive }: LoopRunEventsRailProps) {
       <div className="mb-3 flex items-center gap-2">
         <Eyebrow className="text-faint">Live events</Eyebrow>
         {isLive ? (
-          <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] font-medium text-accent-strong">
+          <span className="ml-auto inline-flex items-center gap-1.5 text-badge font-medium text-accent-strong">
             <PillDot tone="accent" pulse size="sm" />
             streaming
           </span>
         ) : null}
       </div>
       {events.length === 0 ? (
-        <p className="text-[11.5px] text-subtle" data-testid="loop-run-events-empty">
+        <p className="text-form-hint text-subtle" data-testid="loop-run-events-empty">
           No events streamed yet.
         </p>
       ) : (
@@ -46,7 +46,7 @@ export function LoopRunEventsRail({ events, isLive }: LoopRunEventsRailProps) {
           {events.map(event => (
             <div
               key={event.seq}
-              className="grid grid-cols-[38px_96px_1fr] gap-2 py-0.5 font-mono text-[11px] leading-relaxed"
+              className="grid grid-cols-[38px_96px_1fr] gap-2 py-0.5 font-mono text-mono-id leading-relaxed"
               data-testid="loop-run-event"
             >
               <span className="text-faint">{clock(event.at)}</span>

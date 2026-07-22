@@ -53,7 +53,7 @@ export function SandboxProfileCard({
             <CatalogCard.Title className="font-mono text-xs font-medium">
               {entry.name}
             </CatalogCard.Title>
-            <span className="text-[11px] text-subtle">
+            <span className="text-micro text-subtle">
               {profile.backend}
               {" · "}
               <span className="font-mono">{sandboxOrDash(profile.persistence)}</span>
@@ -62,7 +62,7 @@ export function SandboxProfileCard({
             </span>
           </div>
         </div>
-        <p className="text-[12px] leading-snug text-muted">
+        <p className="text-small-body leading-snug text-muted">
           {sandboxBackendLabel(profile.backend)}
         </p>
       </button>

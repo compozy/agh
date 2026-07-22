@@ -34,18 +34,18 @@ export function LoopRunChannel({ messages, channelLabel, isLive }: LoopRunChanne
       className="mt-2 overflow-hidden rounded-md border border-line bg-rail"
       data-testid="loop-run-channel"
     >
-      <div className="flex items-center gap-2 border-b border-line-soft px-3 py-2 text-[11.5px] text-subtle">
+      <div className="flex items-center gap-2 border-b border-line-soft px-3 py-2 text-form-hint text-subtle">
         <MessagesSquare className="size-3.5" aria-hidden="true" />
-        <span className="font-mono text-[11px] text-muted">{channelLabel ?? "channel"}</span>
+        <span className="font-mono text-mono-id text-muted">{channelLabel ?? "channel"}</span>
         {isLive ? (
-          <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] font-medium text-accent-strong">
+          <span className="ml-auto inline-flex items-center gap-1.5 text-badge font-medium text-accent-strong">
             <PillDot tone="accent" pulse size="sm" />
             streaming
           </span>
         ) : null}
       </div>
       {messages.length === 0 ? (
-        <p className="px-3 py-3 text-[11.5px] text-subtle" data-testid="loop-run-channel-empty">
+        <p className="px-3 py-3 text-form-hint text-subtle" data-testid="loop-run-channel-empty">
           No channel messages yet. Converse-and-decide messages appear here as the loop posts them.
         </p>
       ) : (
@@ -59,24 +59,22 @@ export function LoopRunChannel({ messages, channelLabel, isLive }: LoopRunChanne
             >
               <span
                 aria-hidden="true"
-                className="grid size-5 shrink-0 place-items-center rounded-xs bg-badge-fill font-mono text-[9px] font-semibold text-muted"
+                className="grid size-5 shrink-0 place-items-center rounded-xs bg-badge-fill font-mono text-pill-group-badge font-semibold text-muted"
               >
                 {avatarSeed(message.author)}
               </span>
               <div className="min-w-0">
-                <div className="text-[11.5px] font-semibold text-fg">
+                <div className="text-form-hint font-semibold text-fg">
                   {message.author}
                   {message.role ? (
-                    <span className="ml-1.5 text-[10.5px] font-normal text-faint">
-                      {message.role}
-                    </span>
+                    <span className="ml-1.5 text-badge font-normal text-faint">{message.role}</span>
                   ) : null}
                 </div>
                 <div
                   className={
                     message.isResult
-                      ? "mt-1 rounded-sm border border-success/25 bg-success-tint px-2.5 py-1.5 text-[12px] leading-relaxed text-fg"
-                      : "text-[12px] leading-relaxed text-muted"
+                      ? "mt-1 rounded-sm border border-success/25 bg-success-tint px-2.5 py-1.5 text-form-label leading-relaxed text-fg"
+                      : "text-form-label leading-relaxed text-muted"
                   }
                 >
                   {message.isResult ? (

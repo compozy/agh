@@ -94,7 +94,7 @@ export function LoopRunForm({
           onChange={form.setOverridesDraft}
         />
 
-        <p className="flex items-start gap-2 text-[11.5px] leading-relaxed text-subtle">
+        <p className="flex items-start gap-2 text-form-hint leading-relaxed text-subtle">
           <Info className="mt-0.5 size-3 shrink-0 text-faint" aria-hidden="true" />
           <span>
             Dry run validates inputs and renders the first-generation plan without starting a run.
@@ -118,12 +118,12 @@ export function LoopRunForm({
         </div>
         <div className="flex items-center gap-2 border-t border-line-soft px-5 py-3.5">
           {form.plan ? (
-            <span className="flex flex-1 items-center gap-1.5 text-[11.5px] text-success">
+            <span className="flex flex-1 items-center gap-1.5 text-form-hint text-success">
               <CheckCircle2 className="size-3.5" aria-hidden="true" />
               Plan rendered
             </span>
           ) : (
-            <span className="flex-1 text-[11.5px] text-subtle">
+            <span className="flex-1 text-form-hint text-subtle">
               {form.valid ? "Ready to run." : "Fill the required inputs, then run."}
             </span>
           )}

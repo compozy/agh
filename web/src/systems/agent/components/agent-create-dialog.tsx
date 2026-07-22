@@ -150,6 +150,7 @@ function AgentCreateDialog({
             const status = stepStatus(index, currentIndex);
             return (
               <span
+                aria-current={status === "current" ? "step" : undefined}
                 key={item.id}
                 className="flex items-center gap-2"
                 data-status={status}

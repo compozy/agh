@@ -1,7 +1,6 @@
 import { AlertCircle, ListFilter, Search } from "lucide-react";
 
 import {
-  BlockLoading,
   Button,
   Empty,
   Eyebrow,
@@ -21,6 +20,7 @@ import {
 import { useTasksInboxView } from "../hooks/use-tasks-inbox-view";
 import type { TaskInboxItem, TaskInboxView, TaskPriority, TaskStatus } from "../types";
 import { TasksInboxItem, type TasksInboxItemProps } from "./tasks-inbox-item";
+import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
 
 export interface TasksInboxViewProps {
   inbox: TaskInboxView | null;
@@ -162,13 +162,7 @@ export function TasksInboxView({
 
       <div className="mt-4 flex min-h-0 flex-1 flex-col gap-6" data-testid="tasks-inbox-body">
         {isLoading && !inbox ? (
-          <BlockLoading
-            className="flex-1"
-            label="Loading inbox"
-            size="md"
-            surface="bare"
-            data-testid="tasks-inbox-loading"
-          />
+          <TaskRowsLoadingSkeleton label="Loading inbox" testId="tasks-inbox-loading" />
         ) : errorMessage && !inbox ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
             <Empty

@@ -34,7 +34,7 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun }: TaskNowActiveR
       data-testid="tasks-detail-now-run"
     >
       <div className="min-w-0">
-        <div className="flex items-center gap-2.5 text-[13.5px] font-medium text-fg-strong">
+        <div className="flex items-center gap-2.5 text-card-title font-medium text-fg-strong">
           <span
             aria-hidden="true"
             className="size-[7px] shrink-0 rounded-full bg-accent motion-safe:animate-pulse"

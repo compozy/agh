@@ -28,8 +28,8 @@
   --color-fg: #ececef;
   --color-fg-strong: #f6f6f8;
   --color-muted: #9a9a9f;
-  --color-subtle: #76767c;
-  --color-faint: #545458;
+  --color-subtle: oklch(0.663 0.009 286.106);
+  --color-faint: oklch(0.638 0.006 286.136);
 
   /* Accent — warm operator orange (the only non-neutral hue). */
   --color-accent: #e8572a;

@@ -15,7 +15,7 @@ export function LoopEditorContract({ contract, disabled, onChange }: LoopEditorC
     <section className="flex-none border-b border-line bg-canvas px-4 py-3.5">
       <div className="mb-3">
         <h2 className="text-item-title font-medium text-fg-strong">Contract</h2>
-        <p className="mt-1 text-[11px] leading-relaxed text-subtle">
+        <p className="mt-1 text-form-hint leading-relaxed text-subtle">
           Define the outcome this Loop should reach.
         </p>
       </div>

@@ -3,9 +3,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 import { parseEventSelection } from "@/systems/automation/lib/trigger-event-id";
+import type { SubConfigValues } from "@/systems/automation/lib/trigger-sub-config";
 
 import { EventCatalog } from "../../trigger-form/event-catalog";
-import type { SubConfigValues } from "../../trigger-form/event-sub-config";
 
 const meta: Meta<typeof EventCatalog> = {
   title: "systems/automation/components/trigger-form/EventCatalog",

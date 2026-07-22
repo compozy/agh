@@ -24,8 +24,8 @@ tokens:
       fg: "#ececef"
       fg-strong: "#f6f6f8"
       muted: "#9a9a9f"
-      subtle: "#76767c"
-      faint: "#545458"
+      subtle: "oklch(0.663 0.009 286.106)"
+      faint: "oklch(0.638 0.006 286.136)"
       accent: "#e8572a"
       accent-hover: "#d14e25"
       accent-strong: "#f6874f"
@@ -405,13 +405,13 @@ token or component at the source; do not locally override one callsite.
 
 <!-- BEGIN:tokens:text-ladder -->
 
-| Token               | Value     |
-| ------------------- | --------- |
-| `--color-fg`        | `#ececef` |
-| `--color-fg-strong` | `#f6f6f8` |
-| `--color-muted`     | `#9a9a9f` |
-| `--color-subtle`    | `#76767c` |
-| `--color-faint`     | `#545458` |
+| Token               | Value                        |
+| ------------------- | ---------------------------- |
+| `--color-fg`        | `#ececef`                    |
+| `--color-fg-strong` | `#f6f6f8`                    |
+| `--color-muted`     | `#9a9a9f`                    |
+| `--color-subtle`    | `oklch(0.663 0.009 286.106)` |
+| `--color-faint`     | `oklch(0.638 0.006 286.136)` |
 
 <!-- END:tokens:text-ladder -->
 

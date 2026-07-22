@@ -135,8 +135,18 @@ function resolveField(env: TriggerEnvelope, key: string): string | undefined {
   if (key.startsWith("data.")) {
     return env.data[key.slice(5)];
   }
-  const value = (env as unknown as Record<string, unknown>)[key];
-  return typeof value === "string" ? value : undefined;
+  switch (key) {
+    case "kind":
+      return env.kind;
+    case "scope":
+      return env.scope;
+    case "source":
+      return env.source;
+    case "workspace_id":
+      return env.workspace_id;
+    default:
+      return undefined;
+  }
 }
 
 function matchesFilter(env: TriggerEnvelope, filter: Filter): boolean {
@@ -179,7 +189,19 @@ function appendObject(
 
 function buildJsonRows(env: TriggerEnvelope, filteredKeys: ReadonlySet<string>): JsonRow[] {
   const rows: JsonRow[] = [{ id: "open:$", kind: "open", indent: 0 }];
-  appendObject(env as unknown as Record<string, unknown>, 1, "", filteredKeys, rows);
+  appendObject(
+    {
+      kind: env.kind,
+      scope: env.scope,
+      workspace_id: env.workspace_id,
+      source: env.source,
+      data: env.data,
+    },
+    1,
+    "",
+    filteredKeys,
+    rows
+  );
   rows.push({ id: "close:$", kind: "close", indent: 0, comma: false });
   return rows;
 }

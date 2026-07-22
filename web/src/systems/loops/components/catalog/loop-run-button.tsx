@@ -1,27 +1,26 @@
 import { Play } from "lucide-react";
 import type { ComponentProps } from "react";
 
-import { cn } from "@/lib/utils";
+import { Button, cn } from "@agh/ui";
 
-interface LoopRunButtonProps extends ComponentProps<"button"> {
+interface LoopRunButtonProps extends ComponentProps<typeof Button> {
   loopName: string;
   onRun: () => void;
 }
 
 export function LoopRunButton({ loopName, onRun, className, ...props }: LoopRunButtonProps) {
   return (
-    <button
-      className={cn(
-        "inline-flex h-button-default shrink-0 items-center gap-1.5 rounded-md border border-line bg-btn-default-fill px-2.5 text-xs font-medium text-fg outline-none transition-colors hover:border-transparent hover:bg-accent hover:text-accent-ink focus-visible:shadow-focus-ring",
-        className
-      )}
+    <Button
+      className={cn("shrink-0", className)}
       data-testid={`loop-catalog-run-${loopName}`}
       onClick={onRun}
+      size="sm"
       type="button"
+      variant="outline"
       {...props}
     >
       <Play aria-hidden="true" className="size-3" />
       Run
-    </button>
+    </Button>
   );
 }

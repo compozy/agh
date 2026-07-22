@@ -124,8 +124,8 @@ export function ProviderRail({
           searching && "opacity-45"
         )}
       >
-        {railRadio("all", "All models", <LayoutGrid aria-hidden="true" className="size-[15px]" />)}
-        {railRadio("fav", "Favorites", <Star aria-hidden="true" className="size-[15px]" />)}
+        {railRadio("all", "All models", <LayoutGrid aria-hidden="true" className="size-4" />)}
+        {railRadio("fav", "Favorites", <Star aria-hidden="true" className="size-4" />)}
         <span aria-hidden="true" className="mx-2.5 my-1 h-px shrink-0 bg-line-soft" />
         {providers.map(provider =>
           railRadio(
@@ -152,7 +152,7 @@ export function ProviderRail({
             className={RAIL_ITEM_CLASS}
             onClick={() => onOpenSettings()}
           >
-            <Settings aria-hidden="true" className="size-[15px]" />
+            <Settings aria-hidden="true" className="size-4" />
           </button>
         </div>
       ) : null}

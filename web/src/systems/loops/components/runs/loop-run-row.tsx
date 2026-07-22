@@ -40,13 +40,15 @@ export function LoopRunRow({ run }: LoopRunRowProps) {
     >
       <LoopStatusPill status={run.status} />
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-[13px] font-medium text-fg-strong">{run.loop_name}</span>
-        <span className="font-mono text-[10.5px] text-faint">
+        <span className="truncate text-ws-name font-medium text-fg-strong">{run.loop_name}</span>
+        <span className="font-mono text-mono-id text-faint">
           {run.id} · {triggerLabel(run)}
         </span>
       </span>
-      <span className="truncate text-[12.5px] text-muted max-[1140px]:hidden">{inputs || "—"}</span>
-      <span className="font-mono text-[11.5px] tabular-nums text-muted max-[1140px]:hidden">
+      <span className="truncate text-small-body text-muted max-[1140px]:hidden">
+        {inputs || "—"}
+      </span>
+      <span className="font-mono text-mono-id tabular-nums text-muted max-[1140px]:hidden">
         {runGenerationLabel(run)}
       </span>
       <span className="text-xs tabular-nums text-muted max-[1140px]:text-right">

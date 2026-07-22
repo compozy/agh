@@ -5,6 +5,7 @@ import { XIcon } from "lucide-react";
 import { AnimatePresence, m, type Variants } from "motion/react";
 import * as React from "react";
 
+import { MOTION_DURATION_SLOW, MOTION_EASE_IN_OUT, MOTION_EASE_OUT } from "../lib/motion";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 import {
@@ -88,7 +89,7 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+          transition={{ duration: MOTION_DURATION_SLOW, ease: MOTION_EASE_OUT }}
         />
       }
       className={cn("fixed inset-0 z-50 bg-overlay-scrim", className)}
@@ -155,7 +156,7 @@ function SheetContent({
                 initial="hidden"
                 animate="visible"
                 exit="hidden"
-                transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                transition={{ duration: MOTION_DURATION_SLOW, ease: MOTION_EASE_IN_OUT }}
               />
             }
             className={cn(

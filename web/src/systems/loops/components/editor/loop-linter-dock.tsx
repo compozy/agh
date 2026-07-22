@@ -61,7 +61,7 @@ export function LoopLinterDock({ lint, validateFailed, onReveal }: LoopLinterDoc
       >
         <Eyebrow className="text-subtle">Validation</Eyebrow>
         <span
-          className={cn("rounded-xs px-1.5 py-0.5 font-mono text-[10px]", badgeTone)}
+          className={cn("rounded-xs px-1.5 py-0.5 font-mono text-badge", badgeTone)}
           data-testid="loop-linter-count"
         >
           {badgeText}
@@ -78,19 +78,19 @@ export function LoopLinterDock({ lint, validateFailed, onReveal }: LoopLinterDoc
         <div className="min-h-0 overflow-y-auto pb-2">
           {failed ? (
             <p
-              className="flex items-center gap-2.5 px-3.5 py-3 text-[12.5px] text-danger"
+              className="flex items-center gap-2.5 px-3.5 py-3 text-small-body text-danger"
               data-testid="loop-linter-unavailable"
             >
               <AlertCircle aria-hidden="true" className="size-4" />
               Couldn&apos;t reach the shared linter. Use Validate to retry.
             </p>
           ) : pending ? (
-            <p className="flex items-center gap-2.5 px-3.5 py-3 text-[12.5px] text-subtle">
+            <p className="flex items-center gap-2.5 px-3.5 py-3 text-small-body text-subtle">
               <Spinner aria-hidden="true" className="size-4" />
               Validating against the shared linter…
             </p>
           ) : clean ? (
-            <p className="flex items-center gap-2.5 px-3.5 py-3 text-[12.5px] text-success">
+            <p className="flex items-center gap-2.5 px-3.5 py-3 text-small-body text-success">
               <Check aria-hidden="true" className="size-4" />
               All invariants pass. Publish compiles the resolved form and saves with an
               expected_version compare-and-swap.
@@ -130,13 +130,13 @@ function IssueRow({
         <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-[12.5px] leading-snug text-fg">
-          <span className="font-mono text-[11.5px] font-medium text-fg-strong">
+        <p className="text-small-body leading-snug text-fg">
+          <span className="font-mono text-mono-id font-medium text-fg-strong">
             {issue.node_id || "graph"}
           </span>{" "}
           · {issue.message}
         </p>
-        <p className="mt-0.5 font-mono text-[10.5px] text-subtle">
+        <p className="mt-0.5 font-mono text-mono-id text-subtle">
           code: {issue.code} ·{" "}
           {blocking ? "publish returns 422 until resolved" : "warning · does not block Publish"}
         </p>
@@ -145,7 +145,7 @@ function IssueRow({
         <button
           type="button"
           onClick={() => onReveal(issue.node_id!)}
-          className="flex shrink-0 items-center gap-1.5 rounded-md border border-line-soft bg-btn-fill px-2.5 py-1 text-[11.5px] text-muted hover:border-line-strong hover:text-fg-strong"
+          className="flex shrink-0 items-center gap-1.5 rounded-md border border-line-soft bg-btn-fill px-2.5 py-1 text-form-hint text-muted hover:border-line-strong hover:text-fg-strong"
           data-testid="loop-linter-reveal"
         >
           <Search aria-hidden="true" className="size-3" />

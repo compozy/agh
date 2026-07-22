@@ -100,4 +100,24 @@ describe("useNetworkChannels", () => {
       expect(result.current.isPinned("ops")).toBe(false);
     });
   });
+
+  it("preserves rapid pin updates before React commits a render", async () => {
+    const { result } = renderHook(() => useNetworkChannels({ enabled: true }), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.channels.length).toBe(3);
+    });
+
+    act(() => {
+      result.current.togglePinned("ops");
+      result.current.togglePinned("design");
+    });
+
+    expect(result.current.pinnedIds).toEqual(["design", "ops"]);
+    expect(
+      JSON.parse(window.localStorage.getItem(PINNED_CHANNELS_STORAGE_KEY_FOR_TESTS) ?? "{}")
+    ).toEqual({ w1: ["design", "ops"] });
+  });
 });

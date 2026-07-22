@@ -61,8 +61,8 @@ export function LoopConfigureSheet({
             <h2 className="mt-1 text-item-title font-medium text-fg-strong">
               Configure {loop.name}
             </h2>
-            <p className="mt-0.5 flex items-center gap-2 text-[11.5px] text-subtle">
-              <span className="truncate font-mono text-[11px] text-muted">{loop.name}</span>
+            <p className="mt-0.5 flex items-center gap-2 text-form-hint text-subtle">
+              <span className="truncate font-mono text-mono-id text-muted">{loop.name}</span>
               <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
               no-fork tweaks
             </p>
@@ -82,7 +82,7 @@ export function LoopConfigureSheet({
 
         <div className="min-h-0 overflow-y-auto px-5 py-4">
           <p
-            className="mb-5 rounded-md border border-line-soft bg-canvas-tint px-3 py-2.5 text-[11.5px] leading-relaxed text-subtle"
+            className="mb-5 rounded-md border border-line-soft bg-canvas-tint px-3 py-2.5 text-form-hint leading-relaxed text-subtle"
             data-testid="loop-configure-structural-note"
           >
             Adjust how this loop runs without changing its structure. Steps, inputs, node kinds and
@@ -195,7 +195,7 @@ function ConfigureGroup({ label, lock, last = false, children }: ConfigureGroupP
       <div className="mb-3 flex items-center gap-2">
         <Eyebrow className="text-subtle">{label}</Eyebrow>
         {lock ? (
-          <span className="ml-auto rounded-xs bg-badge-fill px-1.5 py-0.5 font-mono text-[9px] text-faint">
+          <span className="ml-auto rounded-xs bg-badge-fill px-1.5 py-0.5 font-mono text-pill-group-badge text-faint">
             {lock}
           </span>
         ) : null}

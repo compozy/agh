@@ -119,21 +119,21 @@ function MCPServerRow({
               aria-current={selected ? "true" : undefined}
               onClick={() => onSelect(server.name)}
               data-testid={`${rowTestId}-name`}
-              className="min-w-0 truncate text-left font-mono text-[12.5px] font-medium text-fg-strong hover:underline"
+              className="min-w-0 truncate text-left font-mono text-small-body font-medium text-fg-strong hover:underline"
             >
               {server.name}
             </button>
             <Pill tone="neutral">{server.transport}</Pill>
           </div>
           <div
-            className="mt-0.5 truncate font-mono text-[10.5px] text-muted"
+            className="mt-0.5 truncate font-mono text-mono-id text-muted"
             title={endpoint ?? undefined}
             data-testid={`${rowTestId}-endpoint`}
           >
             {endpoint || "-"}
           </div>
           <div
-            className="mt-0.5 truncate text-[10.5px] text-subtle"
+            className="mt-0.5 truncate text-micro text-subtle"
             title={sourceLine}
             data-testid={`${rowTestId}-source`}
           >

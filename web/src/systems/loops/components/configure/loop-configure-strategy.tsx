@@ -1,4 +1,4 @@
-import { ChoiceCard } from "@/components/choice-card";
+import { RadioCard } from "@agh/ui";
 
 import type { LoopReattemptStrategy } from "../../lib/loop-config-draft";
 import { MonoTag } from "../mono-tag";
@@ -39,7 +39,7 @@ const STRATEGY_CARDS: StrategyCard[] = [
 
 /**
  * The re-attempt strategy cards (§4.7.3): two selectable cards writing the `reattempt_strategy`
- * config key, built on the shared `ChoiceCard` affordance. Configure-time only — the common
+ * config key, built on the shared `RadioCard` affordance. Configure-time only — the common
  * run flow never sees it (ADR-009).
  */
 export function LoopConfigureStrategy({ value, disabled, onChange }: LoopConfigureStrategyProps) {
@@ -51,7 +51,7 @@ export function LoopConfigureStrategy({ value, disabled, onChange }: LoopConfigu
       aria-label="Re-attempt strategy"
     >
       {STRATEGY_CARDS.map(card => (
-        <ChoiceCard
+        <RadioCard
           key={card.value}
           data-testid={`loop-configure-strategy-${card.testIdSuffix}`}
           aria-label={card.label}
@@ -62,12 +62,13 @@ export function LoopConfigureStrategy({ value, disabled, onChange }: LoopConfigu
             <span className="flex items-center gap-2">
               <span className="font-mono">{card.label}</span>
               {card.isDefault ? (
-                <MonoTag className="rounded-xs bg-success-tint px-1.5 py-0.5 text-[8.5px] text-success">
+                <MonoTag className="rounded-xs bg-success-tint px-1.5 py-0.5 text-pill-group-badge text-success">
                   default
                 </MonoTag>
               ) : null}
             </span>
           }
+          titleClassName="whitespace-normal"
           description={card.description}
         />
       ))}

@@ -1,6 +1,6 @@
 import { cva } from "class-variance-authority";
 
-const progressIndicatorVariants = cva("h-full transition-all", {
+const progressIndicatorVariants = cva("h-full transition-[width] duration-slow ease-out", {
   variants: {
     tone: {
       accent: "bg-accent",

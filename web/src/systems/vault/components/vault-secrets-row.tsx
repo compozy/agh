@@ -51,7 +51,7 @@ export function VaultSecretsRow({
           </Pill>
         ) : (
           <span
-            className="font-mono text-[11px] text-faint"
+            className="font-mono text-mono-id text-faint"
             data-testid={`vault-secrets-kind-empty-${secret.ref}`}
           >
             --
@@ -93,7 +93,7 @@ function VaultSecretsRowBody({ secret }: { secret: VaultSecret }) {
         <ListingRow.Meta>
           <span>updated</span>
           <Time
-            className="font-mono text-[11px] text-faint"
+            className="font-mono text-mono-id text-faint"
             data-testid={`vault-secrets-updated-${secret.ref}`}
             iso={secret.updated_at}
           />

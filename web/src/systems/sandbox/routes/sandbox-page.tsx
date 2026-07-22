@@ -1,7 +1,6 @@
 import { AlertCircle, Boxes, Info, Plus, RefreshCw } from "lucide-react";
 
 import {
-  BlockLoading,
   Button,
   Empty,
   Eyebrow,
@@ -10,6 +9,7 @@ import {
   ListingToolbar,
   NativeSelect,
   NativeSelectOption,
+  SkeletonRows,
   useTopbarSlot,
 } from "@agh/ui";
 
@@ -81,7 +81,16 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
   });
 
   if (page.isLoading) {
-    return <BlockLoading className="flex-1" data-testid="sandbox-page-loading" />;
+    return (
+      <SkeletonRows
+        aria-label="Loading sandbox profiles"
+        className="min-h-0 flex-1 p-5"
+        count={6}
+        data-testid="sandbox-page-loading"
+        role="status"
+        rowClassName="border-b border-line-soft py-3"
+      />
+    );
   }
 
   const banner = (
@@ -107,8 +116,9 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
       >
         <Info aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
         <span>
-          Profiles are global. When <span className="font-mono text-[11px]">defaults.sandbox</span>{" "}
-          is unset, sessions fall back to a synthetic local profile.
+          Profiles are global. When{" "}
+          <span className="font-mono text-inline-code">defaults.sandbox</span> is unset, sessions
+          fall back to a synthetic local profile.
         </span>
         <span aria-hidden="true" className="text-faint">
           ·

@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight, CornerUpLeft, Play } from "lucide-react";
 
 import {
-  BlockLoading,
   Button,
   cn,
   Empty,
@@ -21,6 +20,7 @@ import {
 import { ownerAvatarKindFor, taskRunStatusLabel, taskRunStatusTone } from "../lib/task-formatters";
 import { taskRunReviewPresentation } from "../lib/task-run-presentation";
 import type { TaskRun, TaskRunReview } from "../types";
+import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
 
 export interface TaskRunsPanelProps {
   taskId: string;
@@ -176,14 +176,7 @@ export function TaskRunsPanel({
   runDurations,
 }: TaskRunsPanelProps) {
   if (isLoading && runs.length === 0) {
-    return (
-      <BlockLoading
-        label="Loading runs"
-        size="md"
-        surface="bare"
-        data-testid="tasks-runs-loading"
-      />
-    );
+    return <TaskRowsLoadingSkeleton label="Loading runs" testId="tasks-runs-loading" />;
   }
 
   if (errorMessage && runs.length === 0) {

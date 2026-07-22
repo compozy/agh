@@ -1,5 +1,5 @@
 // Suite: route data preloading
-// Invariant: a successful route preload makes the mounted query consumer reuse the fresh cache entry.
+// Invariant: route preloads release navigation immediately and mounted consumers reuse the same cache entry.
 // Boundary IN: TanStack route loader, QueryClient, query-options factory, and query hook.
 // Boundary OUT: HTTP adapters, which have their own contract suites.
 import type { PropsWithChildren } from "react";
@@ -293,6 +293,14 @@ function invokeLoader<TArgs>(
 
 function context(queryClient: QueryClient) {
   return { context: { queryClient } };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(next => {
+    resolve = next;
+  });
+  return { promise, resolve };
 }
 
 const cases: PreloadCase[] = [
@@ -920,6 +928,38 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
+  it("Should release navigation while a catalog preload remains in flight", async () => {
+    const queryClient = createQueryClient();
+    const jobsRequest = createDeferred<{
+      jobs: [];
+      page: { has_more: false; limit: 50; total: 0 };
+    }>();
+    adapterMocks.listAutomationJobs.mockReturnValueOnce(jobsRequest.promise);
+
+    await expect(
+      invokeLoader(JobsRoute, {
+        ...context(queryClient),
+        deps: { scope: "global" as const },
+      })
+    ).resolves.toBeUndefined();
+
+    expect(queryClient.isFetching()).toBe(1);
+    const unmount = mountQueries(queryClient, () => {
+      useAutomationJobs({ limit: 50, scope: "global" });
+    });
+    expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
+
+    jobsRequest.resolve({
+      jobs: [],
+      page: { has_more: false, limit: 50, total: 0 },
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
+
+    unmount();
+    queryClient.clear();
+  });
+
   it("Should preserve failed preloads in query state without rejecting degradable navigation", async () => {
     const queryClient = createQueryClient();
     adapterMocks.listVaultSecrets.mockRejectedValueOnce(new Error("vault unavailable"));
@@ -928,23 +968,27 @@ describe("route query preloading", () => {
       invokeLoader(VaultRoute, { ...context(queryClient), deps: {} })
     ).resolves.toBeUndefined();
 
-    const state = queryClient.getQueryState(vaultSecretsListOptions({}).queryKey);
-    expect(state?.status).toBe("error");
-    expect(state?.error).toEqual(new Error("vault unavailable"));
+    await waitFor(() => {
+      const state = queryClient.getQueryState(vaultSecretsListOptions({}).queryKey);
+      expect(state?.status).toBe("error");
+      expect(state?.error).toEqual(new Error("vault unavailable"));
+    });
 
     adapterMocks.listMemories.mockRejectedValueOnce(new Error("knowledge unavailable"));
     await expect(invokeLoader(KnowledgeRoute, context(queryClient))).resolves.toBeUndefined();
 
-    const knowledgeState = queryClient.getQueryState(
-      memoriesListOptions({
-        scope: "global",
-        includeSystem: false,
-        limit: DEFAULT_MEMORY_LIST_LIMIT,
-        sort: "recent",
-      }).queryKey
-    );
-    expect(knowledgeState?.status).toBe("error");
-    expect(knowledgeState?.error).toEqual(new Error("knowledge unavailable"));
+    await waitFor(() => {
+      const knowledgeState = queryClient.getQueryState(
+        memoriesListOptions({
+          scope: "global",
+          includeSystem: false,
+          limit: DEFAULT_MEMORY_LIST_LIMIT,
+          sort: "recent",
+        }).queryKey
+      );
+      expect(knowledgeState?.status).toBe("error");
+      expect(knowledgeState?.error).toEqual(new Error("knowledge unavailable"));
+    });
     queryClient.clear();
   });
 

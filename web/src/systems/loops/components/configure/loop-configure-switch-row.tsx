@@ -43,17 +43,17 @@ export function LoopConfigureSwitchRow({
     >
       <div className="flex items-center gap-3">
         {typeLabel ? (
-          <MonoTag className="min-w-[84px] shrink-0 justify-center rounded-xs bg-badge-fill px-1.5 py-1 text-[8.5px]">
+          <MonoTag className="min-w-[84px] shrink-0 justify-center rounded-xs bg-badge-fill px-1.5 py-1 text-pill-group-badge">
             {typeLabel}
           </MonoTag>
         ) : null}
         <div className="min-w-0 flex-1">
-          <p className="text-[12.5px] font-medium text-fg-strong">{title}</p>
+          <p className="text-small-body font-medium text-fg-strong">{title}</p>
           {description ? (
-            <p className="mt-0.5 text-[11px] leading-snug text-subtle">{description}</p>
+            <p className="mt-0.5 text-form-hint leading-snug text-subtle">{description}</p>
           ) : null}
           {disabled && lockedHint ? (
-            <p className="mt-0.5 text-[11px] text-faint">{lockedHint}</p>
+            <p className="mt-0.5 text-form-hint text-faint">{lockedHint}</p>
           ) : null}
         </div>
         <Switch

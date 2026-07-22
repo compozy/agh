@@ -1,3 +1,5 @@
+import { m } from "motion/react";
+
 import { cn } from "@/lib/utils";
 
 import { useDesktop } from "../hooks/use-desktop";
@@ -9,8 +11,8 @@ import type { OsDesktopBounds, OsRect } from "../lib/os-types";
 /**
  * FancyZones-class drop overlay (ADR-009 motion contract, Hermes provenance):
  * the container fades in at 80ms linear; ONE dashed accent sheet morphs
- * between targets at 150ms ease-out transitioning only insets/background/
- * border/opacity (never `transition-all` — blur interpolation is the most
+ * between targets at 150ms ease-out using Motion's FLIP transform plus
+ * background/border/opacity (never a broad property transition — blur interpolation is the most
  * expensive drag paint); backdrop blur applies to the active target only;
  * reduced motion (system preference or in-product toggle) collapses fade and
  * morph while the affordance itself stays visible (US-021.EC-4).
@@ -47,6 +49,10 @@ export function OsSnapOverlaySheet({
   zIndex = OVERLAY_Z,
 }: OsSnapOverlaySheetProps) {
   const active = state === "active";
+  const left = rect.x + SHEET_PAD;
+  const top = rect.y + SHEET_PAD;
+  const width = Math.max(0, Math.min(rect.w - SHEET_PAD * 2, bounds.width - left));
+  const height = Math.max(0, Math.min(rect.h - SHEET_PAD * 2, bounds.height - top));
   return (
     <div
       data-slot="os-snap-overlay"
@@ -59,20 +65,21 @@ export function OsSnapOverlaySheet({
         animation: reducedMotion ? undefined : "os-snap-fade 80ms linear both",
       }}
     >
-      <div
+      <m.div
         data-slot="os-snap-overlay-sheet"
+        layout={!reducedMotion}
         className={cn(
           "absolute rounded-window border-2 border-dashed",
           !reducedMotion &&
-            "transition-[top,right,bottom,left,background-color,border-color,opacity] duration-150 ease-out",
+            "transition-[background-color,border-color,opacity] duration-150 ease-out",
           // Blur is a static treatment, not motion — it survives reduced motion.
           active && "backdrop-blur-[2px]"
         )}
         style={{
-          top: rect.y + SHEET_PAD,
-          left: rect.x + SHEET_PAD,
-          right: bounds.width - rect.x - rect.w + SHEET_PAD,
-          bottom: bounds.height - rect.y - rect.h + SHEET_PAD,
+          top,
+          left,
+          width,
+          height,
           // Accent over an elevated wash so the fill dims content on the dark
           // canvas (a bare accent alpha disappears there) — Hermes formula on
           // our tokens.
@@ -81,6 +88,7 @@ export function OsSnapOverlaySheet({
             : "color-mix(in srgb, var(--color-accent) 5%, color-mix(in srgb, var(--color-elevated) 25%, transparent))",
           borderColor: `color-mix(in srgb, var(--color-accent) ${active ? 75 : 28}%, transparent)`,
         }}
+        transition={{ layout: { duration: 0.15, ease: "easeOut" } }}
       />
     </div>
   );

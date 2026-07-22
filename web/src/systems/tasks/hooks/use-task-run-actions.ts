@@ -1,25 +1,19 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
-  attachTaskRunSession,
   cancelTaskRun,
-  completeTaskRun,
   failTaskRun,
   forceFailTaskRun,
   forceReleaseTaskRun,
   retryTaskRun,
-  startTaskRun,
 } from "../adapters/tasks-api";
 import { tasksKeys } from "../lib/query-keys";
 import type {
-  AttachTaskRunSessionRequest,
   CancelTaskRunRequest,
-  CompleteTaskRunRequest,
   FailTaskRunRequest,
   ForceFailTaskRunRequest,
   ForceReleaseTaskRunRequest,
   RetryTaskRunRequest,
-  StartTaskRunRequest,
 } from "../types";
 import { invalidateAggregateQueries, invalidateTaskQueries } from "./task-query-invalidation";
 
@@ -27,20 +21,8 @@ interface TaskRunIdParams {
   runId: string;
 }
 
-interface AttachTaskRunSessionParams extends TaskRunIdParams {
-  data: AttachTaskRunSessionRequest;
-}
-
 interface CancelTaskRunParams extends TaskRunIdParams {
   data?: CancelTaskRunRequest;
-}
-
-interface StartTaskRunParams extends TaskRunIdParams {
-  data?: StartTaskRunRequest;
-}
-
-interface CompleteTaskRunParams extends TaskRunIdParams {
-  data?: CompleteTaskRunRequest;
 }
 
 interface FailTaskRunParams extends TaskRunIdParams {
@@ -65,53 +47,10 @@ function invalidateAfterRunSettlement<T>(error: unknown, invalidate: () => T): T
   return invalidate();
 }
 
-export function useAttachTaskRunSession() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ runId, data }: AttachTaskRunSessionParams) => attachTaskRunSession(runId, data),
-    onSettled: (_result, error, { runId }) =>
-      invalidateAfterRunSettlement(error, () =>
-        Promise.all([
-          queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-          invalidateTaskQueries(queryClient),
-        ])
-      ),
-  });
-}
-
 export function useCancelTaskRun() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ runId, data }: CancelTaskRunParams) => cancelTaskRun(runId, data ?? {}),
-    onSettled: (_result, error, { runId }) =>
-      invalidateAfterRunSettlement(error, () =>
-        Promise.all([
-          queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-          invalidateTaskQueries(queryClient),
-          invalidateAggregateQueries(queryClient),
-        ])
-      ),
-  });
-}
-
-export function useStartTaskRun() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ runId, data }: StartTaskRunParams) => startTaskRun(runId, data ?? {}),
-    onSettled: (_result, error, { runId }) =>
-      invalidateAfterRunSettlement(error, () =>
-        Promise.all([
-          queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-          invalidateTaskQueries(queryClient),
-        ])
-      ),
-  });
-}
-
-export function useCompleteTaskRun() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ runId, data }: CompleteTaskRunParams) => completeTaskRun(runId, data ?? {}),
     onSettled: (_result, error, { runId }) =>
       invalidateAfterRunSettlement(error, () =>
         Promise.all([

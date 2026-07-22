@@ -71,7 +71,7 @@ export function LoopRunInputField({
               {name}
             </label>
             {field.description ? (
-              <p className="text-[11px] leading-snug text-subtle">{field.description}</p>
+              <p className="text-form-hint leading-snug text-subtle">{field.description}</p>
             ) : null}
           </div>
           <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5">{field.type}</MonoTag>
@@ -81,7 +81,7 @@ export function LoopRunInputField({
           <label htmlFor={controlId} className="flex items-center gap-1.5">
             <span className="text-xs font-medium text-fg-strong">{name}</span>
             {field.required ? (
-              <span className="text-[11px] font-semibold text-accent" aria-label="required">
+              <span className="text-form-required font-semibold text-accent" aria-label="required">
                 *
               </span>
             ) : null}
@@ -93,7 +93,7 @@ export function LoopRunInputField({
             {isAgent ? (
               <span
                 aria-hidden="true"
-                className="absolute top-1/2 left-2 grid size-5 -translate-y-1/2 place-items-center rounded-xs bg-accent-strong font-mono text-[9.5px] font-semibold text-accent-ink"
+                className="absolute top-1/2 left-2 grid size-5 -translate-y-1/2 place-items-center rounded-xs bg-accent-strong font-mono text-pill-group-badge font-semibold text-accent-ink"
               >
                 {agentAvatar(value, field)}
               </span>
@@ -133,11 +133,11 @@ export function LoopRunInputField({
         </>
       )}
       {!isBoolean && field.description ? (
-        <p className="text-[11px] leading-snug text-subtle">{field.description}</p>
+        <p className="text-form-hint leading-snug text-subtle">{field.description}</p>
       ) : null}
       {error ? (
         <p
-          className="flex items-center gap-1.5 text-[11.5px] text-danger"
+          className="flex items-center gap-1.5 text-form-hint text-danger"
           data-testid={`loop-run-field-error-${name}`}
         >
           <AlertCircle className="size-3" aria-hidden="true" />

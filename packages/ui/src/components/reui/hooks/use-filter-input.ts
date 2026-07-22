@@ -1,7 +1,7 @@
 import type React from "react";
 import { useState } from "react";
 
-import type { FilterFieldConfig } from "../filters";
+import type { FilterFieldConfig } from "../filter-types";
 import { scheduleFilterDomSync, useFilterContext } from "./use-filter-context";
 
 const VALIDATION_RESET_KEYS = new Set([

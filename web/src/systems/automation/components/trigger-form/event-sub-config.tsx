@@ -1,15 +1,7 @@
 import { Field, FieldLabel, Input } from "@agh/ui";
 
 import type { EventFamily } from "../../lib/trigger-catalog";
-
-export interface SubConfigValues {
-  hookName: string;
-  extExt: string;
-  extEvent: string;
-  endpointSlug: string;
-  webhookId: string;
-  webhookSecret: string;
-}
+import type { SubConfigValues } from "../../lib/trigger-sub-config";
 
 interface EventSubConfigProps {
   family: EventFamily;

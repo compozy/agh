@@ -282,7 +282,6 @@ export {
   INBOX_GROUPS,
   INBOX_UI_LANES,
   backendLaneToUiLane,
-  inboxGroupDotProps,
   resolveInboxGroupId,
 } from "./lib/inbox-grouping";
 export type {
@@ -334,7 +333,30 @@ export { useTaskPauseDialog } from "./hooks/use-task-pause-dialog";
 export { useForceFailDialog } from "./hooks/use-force-fail-dialog";
 export { useTaskFanOutDialog } from "./hooks/use-task-fan-out-dialog";
 
-export * from "./hooks/task-actions-public-api";
+export {
+  useApproveTask,
+  useArchiveTask,
+  useCancelTask,
+  useCancelTaskRun,
+  useClearTaskBlock,
+  useCreateChildTask,
+  useCreateTask,
+  useDeleteTask,
+  useDismissTask,
+  useEnqueueTaskRun,
+  useFailTaskRun,
+  useFanOutTaskRuns,
+  useForceFailTaskRun,
+  useForceReleaseTaskRun,
+  useMarkTaskRead,
+  usePauseTask,
+  usePublishTask,
+  useRecoverTask,
+  useRejectTask,
+  useResumeTask,
+  useRetryTaskRun,
+  useUpdateTask,
+} from "./hooks/task-actions-public-api";
 export { useRecoverTaskRun } from "./hooks/use-task-run-recovery";
 export {
   useDeleteTaskExecutionProfile,

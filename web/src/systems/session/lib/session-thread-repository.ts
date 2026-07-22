@@ -13,6 +13,18 @@ type ExportedThreadMessageItem = { message: ThreadMessage };
 type JSONValue = null | string | number | boolean | readonly JSONValue[] | JSONObject;
 type JSONObject = { readonly [key: string]: JSONValue };
 
+const threadMessageBySource = new WeakMap<SessionMessage, ThreadMessage>();
+
+interface ThreadMessageSequenceCacheNode {
+  children: WeakMap<SessionMessage, ThreadMessageSequenceCacheNode>;
+  result?: ThreadMessage[];
+}
+
+const emptyThreadMessages: ThreadMessage[] = [];
+const threadMessageSequenceRoot: ThreadMessageSequenceCacheNode = {
+  children: new WeakMap(),
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -174,54 +186,34 @@ export function toThreadMessageLikes(messages: SessionMessage[]): ThreadMessageL
   });
 }
 
-export function toReadonlyThreadMessages(messages: SessionMessage[]): ThreadMessage[] {
+function toReadonlyThreadMessage(message: SessionMessage): ThreadMessage {
+  const cached = threadMessageBySource.get(message);
+  if (cached) return cached;
+
   const repository: { messages: ExportedThreadMessageItem[] } = ExportedMessageRepository.fromArray(
-    toThreadMessageLikes(messages)
+    toThreadMessageLikes([message])
   );
-  return repository.messages.map(item => item.message);
+  const converted = repository.messages[0]?.message;
+  if (!converted) {
+    throw new Error(`Failed to convert transcript message "${message.id}"`);
+  }
+  threadMessageBySource.set(message, converted);
+  return converted;
 }
 
-export interface StableThreadMessagesState {
-  bySource: WeakMap<SessionMessage, ThreadMessage>;
-  result: readonly ThreadMessage[];
-}
+export function toReadonlyThreadMessages(messages: SessionMessage[]): ThreadMessage[] {
+  if (messages.length === 0) return emptyThreadMessages;
 
-export const EMPTY_STABLE_THREAD_MESSAGES: StableThreadMessagesState = {
-  bySource: new WeakMap(),
-  result: [],
-};
-
-/**
- * Structural sharing for the read-model, mirroring `computeStableSessionRows` at
- * the message layer. `toReadonlyThreadMessages` reallocates every `ThreadMessage`
- * on each pass, so a single-message streaming delta would churn the identity of
- * every settled message and force the whole thread to reconcile. This reuses the
- * prior `ThreadMessage` whenever its source `SessionMessage` reference is unchanged
- * (TanStack Query's structural sharing keeps that reference stable for messages a
- * delta or no-op refetch did not touch), so only the mutated message gets a fresh
- * object. Reuse is position-independent: an exported `ThreadMessage` carries no
- * parent linkage, so a reordered-but-unchanged message keeps its identity safely.
- */
-export function computeStableThreadMessages(
-  messages: SessionMessage[],
-  previous: StableThreadMessagesState
-): StableThreadMessagesState {
-  const converted = toReadonlyThreadMessages(messages);
-  const bySource = new WeakMap<SessionMessage, ThreadMessage>();
-  let anyChanged = converted.length !== previous.result.length;
-
-  const result = converted.map((thread, index) => {
-    const source = messages[index];
-    const reused = source ? previous.bySource.get(source) : undefined;
-    const stable = reused ?? thread;
-    if (source) {
-      bySource.set(source, stable);
+  let node = threadMessageSequenceRoot;
+  for (const message of messages) {
+    let child = node.children.get(message);
+    if (!child) {
+      child = { children: new WeakMap() };
+      node.children.set(message, child);
     }
-    if (!anyChanged && previous.result[index] !== stable) {
-      anyChanged = true;
-    }
-    return stable;
-  });
+    node = child;
+  }
 
-  return anyChanged ? { bySource, result } : previous;
+  node.result ??= messages.map(toReadonlyThreadMessage);
+  return node.result;
 }

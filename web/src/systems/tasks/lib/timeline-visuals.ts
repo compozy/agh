@@ -16,8 +16,6 @@ import {
 
 import type { PillTone } from "@agh/ui";
 
-import type { TaskTimelineItem } from "../types";
-
 export interface EventVisualMeta {
   tone: PillTone;
   icon: LucideIcon;
@@ -77,60 +75,6 @@ export function isLiveEvent(eventType: string): boolean {
 
 export function isSuccessEvent(eventType: string): boolean {
   return SUCCESS_EVENT_TYPES.has(eventType);
-}
-
-export function describeEvent(item: TaskTimelineItem): string {
-  const payload = item.payload as Record<string, unknown> | undefined;
-  const message = payload && typeof payload === "object" ? (payload.message as string) : undefined;
-  if (typeof message === "string" && message.trim().length > 0) return message;
-  const diagnostic =
-    payload && typeof payload === "object" ? (payload.diagnostic as string) : undefined;
-  if (typeof diagnostic === "string" && diagnostic.trim().length > 0) return diagnostic;
-  const reason = payload && typeof payload === "object" ? (payload.reason as string) : undefined;
-  if (typeof reason === "string" && reason.trim().length > 0) return reason;
-
-  switch (item.event_type) {
-    case "task.created":
-      return `Task ${item.task.identifier ?? item.task.id} created`;
-    case "task.run_enqueued":
-      return item.run ? `Run ${item.run.id} queued` : "Run queued";
-    case "task.run_claimed":
-      return item.run ? `Run ${item.run.id} claimed` : "Run claimed";
-    case "task.run_started":
-      return item.run ? `Run ${item.run.id} started` : "Run started";
-    case "task.run_progress":
-      return item.run ? `Run ${item.run.id} in progress` : "Run in progress";
-    case "task.run_completed":
-      return item.run ? `Run ${item.run.id} completed` : "Run completed";
-    case "task.run_failed":
-      return item.run?.error
-        ? item.run.error
-        : item.run
-          ? `Run ${item.run.id} failed`
-          : "Run failed";
-    case "task.run_canceled":
-      return item.run ? `Run ${item.run.id} canceled` : "Run canceled";
-    case "task.run_operator_forced_fail":
-      return item.run ? `Run ${item.run.id} force failed` : "Run force failed";
-    case "task.run_operator_retry":
-      return item.run ? `Run ${item.run.id} retry queued` : "Run retry queued";
-    case "task.run_recovered_from_attention":
-      return item.run ? `Run ${item.run.id} recovered` : "Run recovered";
-    case "task.run_starved":
-      return item.run ? `Run ${item.run.id} is waiting for a claim` : "Run waiting for claim";
-    case "task.run_needs_attention":
-      return item.run?.error
-        ? item.run.error
-        : item.run
-          ? `Run ${item.run.id} needs attention`
-          : "Run needs attention";
-    case "task.dependency_added":
-      return "Dependency added";
-    case "task.dependency_resolved":
-      return "Dependency resolved";
-    default:
-      return item.event_type;
-  }
 }
 
 /**

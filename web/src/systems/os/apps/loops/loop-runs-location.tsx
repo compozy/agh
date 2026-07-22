@@ -6,7 +6,7 @@ import {
   ListingToolbar,
   NativeSelect,
   NativeSelectOption,
-  Spinner,
+  SkeletonRows,
   useTopbarSlot,
 } from "@agh/ui";
 import { useLoopRunsRoute, type LoopRunsRouteSearch } from "./use-loop-runs-route";
@@ -68,11 +68,8 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
 
   if (runsQuery.isLoading) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center"
-        data-testid="loop-runs-loading"
-      >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
+      <div className="min-h-0 flex-1 overflow-hidden p-5" data-testid="loop-runs-loading">
+        <SkeletonRows count={6} rowClassName="border-b border-line-soft py-3" />
       </div>
     );
   }

@@ -205,7 +205,7 @@ function MarketplaceInstalledCard({
                 <DropdownMenuSeparator />
                 {item.viaBundle ? (
                   <>
-                    <div className="max-w-55 px-2 py-1.5 text-[11px] leading-snug text-subtle">
+                    <div className="max-w-55 px-2 py-1.5 text-form-hint leading-snug text-subtle">
                       Managed by the <span className="font-medium text-fg">{item.viaBundle}</span>{" "}
                       bundle activation.
                     </div>

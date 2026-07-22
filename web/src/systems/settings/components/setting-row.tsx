@@ -2,8 +2,10 @@ import { ChevronRight } from "lucide-react";
 import { useId, type ComponentProps, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 
-import { cn } from "@agh/ui";
+import { cn, Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@agh/ui";
 import { associateSettingsControl } from "../lib/control-association";
+
+export type SettingRowVariant = "default" | "modal";
 
 export interface SettingRowProps {
   /** Plain-language decision name (13px/500). */
@@ -14,6 +16,7 @@ export interface SettingRowProps {
   /** Single control, right-aligned. Labelled via aria association automatically. */
   control?: ReactNode;
   className?: string;
+  variant?: SettingRowVariant;
   "data-testid"?: string;
 }
 
@@ -28,6 +31,7 @@ export function SettingRow({
   error,
   control,
   className,
+  variant = "default",
   "data-testid": testId,
 }: SettingRowProps) {
   const fallbackId = useId().replace(/:/g, "");
@@ -43,6 +47,44 @@ export function SettingRow({
     descriptionId,
     errorId,
   });
+
+  if (variant === "modal") {
+    return (
+      <Field
+        className={cn(
+          "grid gap-3 border-t border-line pt-5 pb-5 first:border-t-0 first:pt-0",
+          className
+        )}
+        data-testid={testId}
+        data-variant={variant}
+        orientation="vertical"
+      >
+        <FieldContent className="min-w-0 gap-1.5">
+          <FieldLabel
+            className="text-sm font-medium text-fg"
+            data-testid={testId ? `${testId}-label` : undefined}
+            htmlFor={labelHtmlFor}
+            id={labelId}
+          >
+            {label}
+          </FieldLabel>
+          {description ? (
+            <FieldDescription className="max-w-136 text-xs leading-5 text-muted" id={descriptionId}>
+              {description}
+            </FieldDescription>
+          ) : null}
+          {error ? (
+            <FieldError className="text-xs text-danger" id={errorId}>
+              {error}
+            </FieldError>
+          ) : null}
+        </FieldContent>
+        <div className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-3 [&_input]:max-w-full [&_select]:max-w-full">
+          {renderedControl}
+        </div>
+      </Field>
+    );
+  }
 
   const LabelTag = labelHtmlFor ? "label" : "span";
 

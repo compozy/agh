@@ -36,19 +36,9 @@ function mergeAttributeTokens(...values: Array<string | undefined>): string | un
   return tokens.length > 0 ? Array.from(new Set(tokens)).join(" ") : undefined;
 }
 
-function groupedControl(
-  control: ReactNode,
-  labelId: string,
-  describedBy: string | undefined,
-  invalid: boolean
-) {
+function groupedControl(control: ReactNode, labelId: string, describedBy: string | undefined) {
   return (
-    <div
-      aria-describedby={describedBy}
-      aria-invalid={invalid || undefined}
-      aria-labelledby={labelId}
-      role="group"
-    >
+    <div aria-describedby={describedBy} aria-labelledby={labelId} role="group">
       {control}
     </div>
   );
@@ -74,7 +64,7 @@ export function associateSettingsControl({
   const invalid = Boolean(errorId);
 
   if (control.type === Fragment) {
-    return { control: groupedControl(control, labelId, describedBy, invalid) };
+    return { control: groupedControl(control, labelId, describedBy) };
   }
 
   const isNativeRoot = typeof control.type === "string";
@@ -84,7 +74,6 @@ export function associateSettingsControl({
         role: control.props.role ?? "group",
         "aria-labelledby": labelledBy,
         "aria-describedby": describedBy,
-        "aria-invalid": invalid || control.props["aria-invalid"],
       }),
     };
   }

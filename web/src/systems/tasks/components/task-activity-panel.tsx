@@ -2,7 +2,6 @@ import { Activity, AlertCircle } from "lucide-react";
 import { useState } from "react";
 
 import {
-  BlockLoading,
   Button,
   Empty,
   LiveBadge,
@@ -20,6 +19,7 @@ import {
 } from "../lib/task-activity-copy";
 import type { TaskTimelineItem } from "../types";
 import { TaskActivityItem } from "./task-activity-item";
+import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
 
 export interface TaskActivityPanelProps {
   items: readonly TaskTimelineItem[];
@@ -76,14 +76,7 @@ export function TaskActivityPanel({
   const [filter, setFilter] = useState<TaskActivityFilter>("all");
 
   if (isLoading && items.length === 0) {
-    return (
-      <BlockLoading
-        label="Loading activity"
-        size="md"
-        surface="bare"
-        data-testid="tasks-activity-loading"
-      />
-    );
+    return <TaskRowsLoadingSkeleton label="Loading activity" testId="tasks-activity-loading" />;
   }
 
   if (errorMessage && items.length === 0) {

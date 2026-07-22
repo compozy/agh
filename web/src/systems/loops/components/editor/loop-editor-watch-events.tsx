@@ -69,10 +69,10 @@ export function LoopEditorWatchEvents({
           className="rounded-md border border-line-soft bg-canvas-soft p-2.5"
         >
           <div className="mb-2 flex items-center gap-2">
-            <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5 text-[8.5px] text-subtle">
+            <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5 text-pill-group-badge text-subtle">
               event
             </MonoTag>
-            <span className="font-mono text-[11.5px] text-fg-strong">#{index + 1}</span>
+            <span className="font-mono text-mono-id text-fg-strong">#{index + 1}</span>
             <Button
               type="button"
               variant="ghost"
@@ -86,7 +86,7 @@ export function LoopEditorWatchEvents({
             </Button>
           </div>
           <div className="flex flex-col gap-2">
-            <Label className="text-[10.5px] text-faint">
+            <Label className="text-badge text-faint">
               kind
               <NativeSelect
                 className="mt-1"
@@ -103,7 +103,7 @@ export function LoopEditorWatchEvents({
                 ))}
               </NativeSelect>
             </Label>
-            <Label className="text-[10.5px] text-faint">
+            <Label className="text-badge text-faint">
               filter
               <div className="mt-1">
                 <LoopReferenceInput

@@ -208,6 +208,7 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-publish-error")).toHaveTextContent(
       /1 issue to resolve/i
     );
+    expect(screen.getByTestId("loop-editor-publish-error")).toHaveAttribute("role", "alert");
     expect(screen.getByTestId("loop-linter-issue")).toHaveTextContent(/needs a judge/i);
     // The publish verdict now gates further publishes (an unattributed code fails safe).
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
@@ -260,6 +261,7 @@ describe("LoopEditor", () => {
     });
     await waitFor(() => expect(screen.getByTestId("loop-linter-issue")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: /DSL/i }));
+    expect(screen.getByRole("tab", { name: /DSL/i })).toHaveAttribute("aria-selected", "true");
     const dsl = await screen.findByTestId("loop-editor-dsl");
     expect(dsl).toHaveTextContent("agh.loop/v1");
     const offending = dsl.querySelector('[data-offending="true"]');

@@ -36,15 +36,15 @@ const STATUS_HINT: Record<LoopRunStatus, string> = {
 function LegendRow({ status }: { status: LoopRunStatus }) {
   return (
     <div
-      className="flex items-center gap-2.5 text-[11.5px] text-muted"
+      className="flex items-center gap-2.5 text-form-hint text-muted"
       data-testid={`loop-legend-${status}`}
     >
       <span
         aria-hidden="true"
         className={`size-1.5 rounded-full ${DOT_CLASS[loopStatusTone(status)]}`}
       />
-      <b className="text-[12px] font-medium text-fg">{LOOP_STATUS_LABELS[status]}</b>
-      <span className="ml-auto text-[10.5px] text-faint">{STATUS_HINT[status]}</span>
+      <b className="text-form-label font-medium text-fg">{LOOP_STATUS_LABELS[status]}</b>
+      <span className="ml-auto text-badge text-faint">{STATUS_HINT[status]}</span>
     </div>
   );
 }

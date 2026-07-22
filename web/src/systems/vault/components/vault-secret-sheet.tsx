@@ -112,7 +112,7 @@ export function VaultSecretSheet({
               className="flex items-center gap-2.5 border-t border-line-soft px-5 py-3"
               data-testid="vault-secret-sheet-foot"
             >
-              <span className="min-w-0 truncate font-mono text-[10px] text-faint">
+              <span className="min-w-0 truncate font-mono text-mono-id text-faint">
                 agh vault put {secret.ref} --value-stdin
               </span>
             </footer>
@@ -147,19 +147,19 @@ function SheetHead({
       <div className="min-w-0 flex-1">
         <Eyebrow className="text-subtle">Vault secret</Eyebrow>
         <h2
-          className="mt-0.5 break-all text-[15px] font-medium tracking-[-0.014em] text-fg-strong"
+          className="mt-0.5 break-all text-item-title font-medium tracking-tight text-fg-strong"
           data-testid="vault-secret-sheet-title"
           id="vault-secret-sheet-title"
         >
           {vaultSecretTitle(secret.ref)}
         </h2>
-        <div className="mt-1.5 flex min-w-0 items-center gap-1.5 font-mono text-[11px] text-muted">
+        <div className="mt-1.5 flex min-w-0 items-center gap-1.5 font-mono text-mono-id text-muted">
           <span className="min-w-0 truncate" data-testid="vault-secret-sheet-ref">
             {secret.ref}
           </span>
           <button
             aria-label={copied ? "Copied vault reference" : "Copy vault reference"}
-            className="inline-grid size-[18px] shrink-0 place-items-center rounded-xxs text-faint transition-colors hover:bg-row-hover hover:text-fg"
+            className="inline-grid size-6 shrink-0 place-items-center rounded-xxs text-faint transition-colors hover:bg-row-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
             data-testid="vault-secret-sheet-copy"
             onClick={onCopy}
             type="button"
@@ -204,13 +204,13 @@ function SheetTiles({ secret }: { secret: VaultSecret }) {
         </Pill>
       </Tile>
       <Tile label="Kind">
-        <span className="font-mono text-[11px] text-muted">{trimmedKind || "--"}</span>
+        <span className="font-mono text-mono-id text-muted">{trimmedKind || "--"}</span>
       </Tile>
       <Tile label="Created">
-        <Time className="text-[12.5px] font-medium text-fg" iso={secret.created_at} />
+        <Time className="text-small-body font-medium text-fg" iso={secret.created_at} />
       </Tile>
       <Tile label="Updated">
-        <Time className="text-[12.5px] font-medium text-fg" iso={secret.updated_at} />
+        <Time className="text-small-body font-medium text-fg" iso={secret.updated_at} />
       </Tile>
     </div>
   );
@@ -230,7 +230,7 @@ function SheetValueSection({ present }: { present: boolean }) {
     <section className="mb-4.5" data-testid="vault-secret-sheet-value">
       <Eyebrow className="mb-2.5 text-subtle">Value</Eyebrow>
       <div className="flex items-center gap-2.5 rounded-md border border-line-soft bg-input-fill px-3.5 py-2.5">
-        <span aria-hidden="true" className="flex-1 font-mono text-[13px] text-faint">
+        <span aria-hidden="true" className="flex-1 font-mono text-form-input text-faint">
           • • • • • • • •
         </span>
         {present ? (
@@ -246,7 +246,7 @@ function SheetValueSection({ present }: { present: boolean }) {
           write-only
         </Pill>
       </div>
-      <p className="mt-1.5 text-[11.5px] leading-normal text-subtle">
+      <p className="mt-1.5 text-form-hint leading-normal text-subtle">
         The daemon never returns secret values. Reads expose redacted metadata only.
       </p>
     </section>
@@ -296,13 +296,13 @@ function SheetReplaceSection({
       </div>
       {error ? (
         <p
-          className="mt-1.5 text-[11.5px] text-danger"
+          className="mt-1.5 text-form-hint text-danger"
           data-testid="vault-secret-sheet-replace-error"
         >
           {error}
         </p>
       ) : (
-        <p className="mt-1.5 text-[11.5px] leading-normal text-subtle">
+        <p className="mt-1.5 text-form-hint leading-normal text-subtle">
           Re-storing overwrites the value in place — the rotate path. Kind metadata is preserved.
         </p>
       )}
@@ -321,8 +321,8 @@ function SheetDangerZone({
     <section data-testid="vault-secret-sheet-danger">
       <div className="flex items-center justify-between gap-3 rounded-md border border-danger/20 bg-danger-tint px-3.5 py-3">
         <div className="min-w-0">
-          <b className="block text-[12.5px] font-medium text-danger">Delete secret</b>
-          <p className="mt-0.5 text-[11.5px] leading-snug text-muted">
+          <b className="block text-small-body font-medium text-danger">Delete secret</b>
+          <p className="mt-0.5 text-form-hint leading-snug text-muted">
             Configs that reference this ref will fail to resolve it at spawn time.
           </p>
         </div>

@@ -1,6 +1,6 @@
 import { Plus, Star } from "lucide-react";
 
-import { cn, Kbd } from "@agh/ui";
+import { cn, Kbd, SkeletonRows } from "@agh/ui";
 
 import { ModelRow } from "./model-row";
 import type {
@@ -38,11 +38,11 @@ function GroupHead({
       {availability ? (
         <span
           className={cn(
-            "ml-auto inline-flex items-center gap-[5px] text-badge font-medium",
+            "ml-auto inline-flex items-center gap-1.5 text-badge font-medium",
             AVAILABILITY_TONE[availability.tone]
           )}
         >
-          <span aria-hidden="true" className="size-[5px] rounded-full bg-current" />
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
           {availability.label}
         </span>
       ) : null}
@@ -113,6 +113,7 @@ export function ModelList({
     ? `Favorite ${highlightedFavorite.name} from ${highlightedFavorite.providerName}`
     : "Favorite the active model";
   const hasOptions = listModel.flatRows.length > 0;
+  const showsOptions = !loading && hasOptions;
 
   return (
     // Outer scroller owns the overflow so sticky group heads stick to its top,
@@ -120,19 +121,20 @@ export function ModelList({
     // action, not a selectable option, so it sits OUTSIDE the listbox.
     <div className="flex min-w-0 flex-1 flex-col overflow-y-auto px-1.5 pt-1.5 pb-2">
       <div
-        role={hasOptions ? "listbox" : "status"}
+        role={showsOptions ? "listbox" : "status"}
         id={listId}
-        aria-label={hasOptions ? "Models" : undefined}
-        aria-live={hasOptions ? undefined : "polite"}
+        aria-label={showsOptions ? "Models" : undefined}
+        aria-live={showsOptions ? undefined : "polite"}
         data-testid="runtime-selector-list"
       >
         {loading ? (
-          <div
-            className="px-5 py-10 text-center text-small-body text-subtle"
+          <SkeletonRows
+            aria-label="Loading models"
+            className="px-2 py-2"
+            count={5}
             data-testid="runtime-selector-loading"
-          >
-            Loading models…
-          </div>
+            rowClassName="border-b border-line-soft px-2 py-3"
+          />
         ) : !hasOptions ? (
           <div
             className="px-5 py-10 text-center text-small-body text-subtle"

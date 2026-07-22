@@ -56,7 +56,7 @@ export function LoopConfigureLimits({
             data-testid={`loop-configure-limit-${field.key}`}
           >
             <label
-              className="text-[11.5px] font-medium text-fg-strong"
+              className="text-form-label font-medium text-fg-strong"
               htmlFor={`loop-configure-limit-input-${field.key}`}
             >
               {field.label}
@@ -68,7 +68,7 @@ export function LoopConfigureLimits({
                 type="number"
                 min={0}
                 max={field.ceiling}
-                className="h-8 font-mono text-[12.5px]"
+                className="h-8 font-mono text-form-input"
                 disabled={disabled}
                 placeholder={
                   field.defaultValue !== null ? String(field.defaultValue) : field.placeholder
@@ -76,7 +76,7 @@ export function LoopConfigureLimits({
                 value={draft.values[field.key] !== undefined ? String(draft.values[field.key]) : ""}
                 onChange={event => onChange(setOverrideValue(draft, field, event.target.value))}
               />
-              <span className="shrink-0 font-mono text-[10px] whitespace-nowrap text-faint">
+              <span className="shrink-0 font-mono text-mono-id whitespace-nowrap text-faint">
                 {field.ceilingLabel}
               </span>
             </div>
@@ -87,7 +87,7 @@ export function LoopConfigureLimits({
           data-testid="loop-configure-limit-budget_on_exceeded"
         >
           <label
-            className="text-[11.5px] font-medium text-fg-strong"
+            className="text-form-label font-medium text-fg-strong"
             htmlFor="loop-configure-limit-policy"
           >
             Budget on exceeded
@@ -95,7 +95,7 @@ export function LoopConfigureLimits({
           <NativeSelect
             id="loop-configure-limit-policy"
             data-testid="loop-configure-limit-policy"
-            className="h-8 font-mono text-[12.5px]"
+            className="h-8 font-mono text-form-input"
             disabled={disabled}
             value={draft.budgetOnExceeded}
             onChange={event =>
@@ -107,7 +107,7 @@ export function LoopConfigureLimits({
           </NativeSelect>
         </div>
       </div>
-      <p className="mt-3.5 border-t border-line-soft pt-3 text-[11px] leading-relaxed text-faint">
+      <p className="mt-3.5 border-t border-line-soft pt-3 text-form-hint leading-relaxed text-faint">
         These are this loop's saved defaults, applied to every future run and bounded by the hard
         daemon ceilings, which can't be raised here. Token and wall-clock budgets are opt-in (0 =
         unlimited); a set budget is enforced. On exceeded, halt ends the run as exhausted and

@@ -19,8 +19,8 @@ export interface TaskLinkedRowProps {
 
 const DOT_CLASS: Record<TaskLinkedRowState, string> = {
   done: "bg-success",
-  active: "border-[1.5px] border-accent bg-transparent",
-  todo: "border-[1.5px] border-faint bg-transparent",
+  active: "border border-accent bg-transparent",
+  todo: "border border-faint bg-transparent",
 };
 
 const STATE_LABEL: Record<TaskLinkedRowState, string> = {

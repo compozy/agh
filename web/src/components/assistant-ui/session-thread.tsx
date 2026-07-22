@@ -146,7 +146,7 @@ export function ScrollToBottomPill({
     <div
       className={cn(
         "pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center",
-        "transition-all duration-base ease-out motion-reduce:transition-none",
+        "transition-[transform,opacity] duration-base ease-out motion-reduce:transition-none",
         visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
       )}
       aria-hidden={!visible}
@@ -378,7 +378,11 @@ export function SessionThread({
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <SessionComposerPrefillProvider setComposerText={composerState.prefillComposer}>
         {workspaceId ? (
-          <SessionGoalHeaderContainer sessionId={sessionId} workspaceId={workspaceId} />
+          <SessionGoalHeaderContainer
+            onPrefillComposer={composerState.prefillComposer}
+            sessionId={sessionId}
+            workspaceId={workspaceId}
+          />
         ) : null}
         <ThreadViewport
           agentName={agentName}

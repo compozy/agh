@@ -1,6 +1,6 @@
 import { AlertCircle, Waypoints } from "lucide-react";
 
-import { cn, DataSurface, PAGE_CONTENT_GUTTER } from "@agh/ui";
+import { cn, DataSurface, PAGE_CONTENT_GUTTER, Skeleton } from "@agh/ui";
 
 import { formatBridgeProviderConfig } from "../lib/bridge-formatters";
 import type { BridgeSetupProjection } from "../lib/bridge-setup";
@@ -106,18 +106,17 @@ export function BridgeDetailPanel({
   const isLifecyclePending =
     setup.isLifecyclePending || stateLifecyclePending || setup.isRegistering || setup.isVerifying;
 
-  if (isLoading || error || !bridge) {
-    const surfaceState = isLoading ? "loading" : error ? "error" : "empty";
+  if (isLoading) {
+    return <BridgeDetailSkeleton />;
+  }
+
+  if (error || !bridge) {
+    const surfaceState = error ? "error" : "empty";
     return (
       <DataSurface
         className="flex min-h-0 flex-1 items-center justify-center py-10"
         state={surfaceState}
       >
-        <DataSurface.Loading
-          data-testid="bridge-detail-loading"
-          label="Loading bridge"
-          surface="bare"
-        />
         <DataSurface.Error
           className="max-w-md"
           data-testid="bridge-detail-error"
@@ -205,5 +204,36 @@ export function BridgeDetailPanel({
         />
       </div>
     </section>
+  );
+}
+
+function BridgeDetailSkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden")}
+      data-testid="bridge-detail-loading"
+      role="status"
+    >
+      <div className="flex flex-col gap-2 border-b border-line py-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="size-9" />
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="ml-auto h-7 w-24" />
+        </div>
+        <Skeleton className="h-3 w-64" />
+      </div>
+      <div className="min-h-0 flex-1 space-y-6 overflow-hidden py-5">
+        <Skeleton className="h-28 w-full" />
+        <div className="grid grid-cols-3 gap-3">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
+        </div>
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+      <span className="sr-only">Loading bridge details</span>
+    </div>
   );
 }

@@ -7,7 +7,8 @@ import {
   Empty,
   ListingRow,
   Pill,
-  Spinner,
+  Skeleton,
+  SkeletonRows,
   type ListingViewMode,
 } from "@agh/ui";
 
@@ -159,14 +160,7 @@ function BridgeListPanel({
   const isEmpty = bridges.length === 0;
 
   if (status === "loading" && isEmpty) {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-        data-testid="bridge-list-loading"
-      >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </div>
-    );
+    return <BridgeListSkeleton view={view} />;
   }
 
   if (errorMessage && isEmpty) {
@@ -262,6 +256,41 @@ function BridgeListPanel({
           </Button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function BridgeListSkeleton({ view }: { view: ListingViewMode }) {
+  return (
+    <div
+      aria-busy="true"
+      aria-label={`Loading bridges as ${view}`}
+      data-testid="bridge-list-loading"
+      role="status"
+    >
+      {view === "cards" ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map(index => (
+            <Skeleton className="h-32 w-full rounded-lg" key={index} />
+          ))}
+        </div>
+      ) : (
+        <SkeletonRows
+          className="overflow-hidden rounded-lg border border-line"
+          count={5}
+          rowClassName="border-b border-line-soft p-3 last:border-b-0"
+        >
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-8 shrink-0" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <Skeleton className="h-3.5 w-2/5" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+            <Skeleton className="h-5 w-16" />
+            <Skeleton className="h-5 w-20" />
+          </div>
+        </SkeletonRows>
+      )}
     </div>
   );
 }

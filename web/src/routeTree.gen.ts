@@ -9,69 +9,69 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AppRouteImport } from './routes/_app'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AppAgentsRouteImport } from './routes/_app/agents'
-import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
-import { Route as AppJobsRouteImport } from './routes/_app/jobs'
-import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
-import { Route as AppLoopRunsRouteImport } from './routes/_app/loop-runs'
-import { Route as AppLoopsRouteImport } from './routes/_app/loops'
-import { Route as AppMarketplaceRouteImport } from './routes/_app/marketplace'
-import { Route as AppNetworkRouteImport } from './routes/_app/network'
-import { Route as AppSandboxRouteImport } from './routes/_app/sandbox'
-import { Route as AppSettingsRouteImport } from './routes/_app/settings'
-import { Route as AppTasksRouteImport } from './routes/_app/tasks'
-import { Route as AppTriggersRouteImport } from './routes/_app/triggers'
 import { Route as AppVaultRouteImport } from './routes/_app/vault'
-import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
-import { Route as AppBridgesIdRouteImport } from './routes/_app/bridges.$id'
-import { Route as AppJobsJobIdRouteImport } from './routes/_app/jobs.$jobId'
-import { Route as AppLoopRunsRunIdRouteImport } from './routes/_app/loop-runs.$runId'
-import { Route as AppLoopsNameRouteImport } from './routes/_app/loops.$name'
-import { Route as AppMarketplaceIndexRouteImport } from './routes/_app/marketplace.index'
-import { Route as AppMarketplaceBundlesRouteImport } from './routes/_app/marketplace.bundles'
-import { Route as AppMarketplaceExtensionsRouteImport } from './routes/_app/marketplace.extensions'
-import { Route as AppMarketplaceMcpsRouteImport } from './routes/_app/marketplace.mcps'
-import { Route as AppMarketplaceSkillsRouteImport } from './routes/_app/marketplace.skills'
-import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
+import { Route as AppTriggersRouteImport } from './routes/_app/triggers'
+import { Route as AppTasksRouteImport } from './routes/_app/tasks'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSandboxRouteImport } from './routes/_app/sandbox'
+import { Route as AppNetworkRouteImport } from './routes/_app/network'
+import { Route as AppMarketplaceRouteImport } from './routes/_app/marketplace'
+import { Route as AppLoopsRouteImport } from './routes/_app/loops'
+import { Route as AppLoopRunsRouteImport } from './routes/_app/loop-runs'
+import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
+import { Route as AppJobsRouteImport } from './routes/_app/jobs'
+import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
+import { Route as AppAgentsRouteImport } from './routes/_app/agents'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
-import { Route as AppSettingsAppearanceRouteImport } from './routes/_app/settings/appearance'
-import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
-import { Route as AppSettingsExtensionsRouteImport } from './routes/_app/settings/extensions'
-import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
-import { Route as AppSettingsHooksRouteImport } from './routes/_app/settings/hooks'
-import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
-import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
-import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
-import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
-import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
-import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
-import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
+import { Route as AppMarketplaceIndexRouteImport } from './routes/_app/marketplace.index'
 import { Route as AppTriggersTriggerIdRouteImport } from './routes/_app/triggers.$triggerId'
-import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
-import { Route as AppLoopsNameConfigureRouteImport } from './routes/_app/loops.$name.configure'
-import { Route as AppLoopsNameEditorRouteImport } from './routes/_app/loops.$name.editor'
-import { Route as AppLoopsNameRunRouteImport } from './routes/_app/loops.$name.run'
-import { Route as AppMarketplaceKindEntryIdRouteImport } from './routes/_app/marketplace.$kind.$entryId'
+import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
+import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
+import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
+import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
+import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
+import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
+import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
+import { Route as AppSettingsHooksRouteImport } from './routes/_app/settings/hooks'
+import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
+import { Route as AppSettingsExtensionsRouteImport } from './routes/_app/settings/extensions'
+import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
+import { Route as AppSettingsAppearanceRouteImport } from './routes/_app/settings/appearance'
+import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
+import { Route as AppMarketplaceSkillsRouteImport } from './routes/_app/marketplace.skills'
+import { Route as AppMarketplaceMcpsRouteImport } from './routes/_app/marketplace.mcps'
+import { Route as AppMarketplaceExtensionsRouteImport } from './routes/_app/marketplace.extensions'
+import { Route as AppMarketplaceBundlesRouteImport } from './routes/_app/marketplace.bundles'
+import { Route as AppLoopsNameRouteImport } from './routes/_app/loops.$name'
+import { Route as AppLoopRunsRunIdRouteImport } from './routes/_app/loop-runs.$runId'
+import { Route as AppJobsJobIdRouteImport } from './routes/_app/jobs.$jobId'
+import { Route as AppBridgesIdRouteImport } from './routes/_app/bridges.$id'
+import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
 import { Route as AppTasksIdEditRouteImport } from './routes/_app/tasks.$id.edit'
-import { Route as AppAgentsNameSessionsIdRouteImport } from './routes/_app/agents.$name.sessions.$id'
-import { Route as AppMarketplaceBundlesActivationsIdRouteImport } from './routes/_app/marketplace.bundles.activations.$id'
-import { Route as AppNetworkWorkspaceIdChannelActivityRouteImport } from './routes/_app/network.$workspaceId.$channel.activity'
-import { Route as AppNetworkWorkspaceIdChannelDirectsRouteImport } from './routes/_app/network.$workspaceId.$channel.directs'
-import { Route as AppNetworkWorkspaceIdChannelThreadsRouteImport } from './routes/_app/network.$workspaceId.$channel.threads'
+import { Route as AppMarketplaceKindEntryIdRouteImport } from './routes/_app/marketplace.$kind.$entryId'
+import { Route as AppLoopsNameRunRouteImport } from './routes/_app/loops.$name.run'
+import { Route as AppLoopsNameEditorRouteImport } from './routes/_app/loops.$name.editor'
+import { Route as AppLoopsNameConfigureRouteImport } from './routes/_app/loops.$name.configure'
+import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
 import { Route as AppTasksIdRunsRunIdRouteImport } from './routes/_app/tasks.$id.runs.$runId'
-import { Route as AppNetworkWorkspaceIdChannelDirectsDirectIdRouteImport } from './routes/_app/network.$workspaceId.$channel.directs.$directId'
+import { Route as AppNetworkWorkspaceIdChannelThreadsRouteImport } from './routes/_app/network.$workspaceId.$channel.threads'
+import { Route as AppNetworkWorkspaceIdChannelDirectsRouteImport } from './routes/_app/network.$workspaceId.$channel.directs'
+import { Route as AppNetworkWorkspaceIdChannelActivityRouteImport } from './routes/_app/network.$workspaceId.$channel.activity'
+import { Route as AppMarketplaceBundlesActivationsIdRouteImport } from './routes/_app/marketplace.bundles.activations.$id'
+import { Route as AppAgentsNameSessionsIdRouteImport } from './routes/_app/agents.$name.sessions.$id'
 import { Route as AppNetworkWorkspaceIdChannelThreadsThreadIdRouteImport } from './routes/_app/network.$workspaceId.$channel.threads.$threadId'
+import { Route as AppNetworkWorkspaceIdChannelDirectsDirectIdRouteImport } from './routes/_app/network.$workspaceId.$channel.directs.$directId'
 
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DesignSystemRoute = DesignSystemRouteImport.update({
   id: '/design-system',
   path: '/design-system',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -79,59 +79,9 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAgentsRoute = AppAgentsRouteImport.update({
-  id: '/agents',
-  path: '/agents',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppBridgesRoute = AppBridgesRouteImport.update({
-  id: '/bridges',
-  path: '/bridges',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppJobsRoute = AppJobsRouteImport.update({
-  id: '/jobs',
-  path: '/jobs',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
-  id: '/knowledge',
-  path: '/knowledge',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppLoopRunsRoute = AppLoopRunsRouteImport.update({
-  id: '/loop-runs',
-  path: '/loop-runs',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppLoopsRoute = AppLoopsRouteImport.update({
-  id: '/loops',
-  path: '/loops',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppMarketplaceRoute = AppMarketplaceRouteImport.update({
-  id: '/marketplace',
-  path: '/marketplace',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppNetworkRoute = AppNetworkRouteImport.update({
-  id: '/network',
-  path: '/network',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSandboxRoute = AppSandboxRouteImport.update({
-  id: '/sandbox',
-  path: '/sandbox',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSettingsRoute = AppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppTasksRoute = AppTasksRouteImport.update({
-  id: '/tasks',
-  path: '/tasks',
+const AppVaultRoute = AppVaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTriggersRoute = AppTriggersRouteImport.update({
@@ -139,65 +89,59 @@ const AppTriggersRoute = AppTriggersRouteImport.update({
   path: '/triggers',
   getParentRoute: () => AppRoute,
 } as any)
-const AppVaultRoute = AppVaultRouteImport.update({
-  id: '/vault',
-  path: '/vault',
+const AppTasksRoute = AppTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAgentsNameRoute = AppAgentsNameRouteImport.update({
-  id: '/$name',
-  path: '/$name',
-  getParentRoute: () => AppAgentsRoute,
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppBridgesIdRoute = AppBridgesIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AppBridgesRoute,
+const AppSandboxRoute = AppSandboxRouteImport.update({
+  id: '/sandbox',
+  path: '/sandbox',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppJobsJobIdRoute = AppJobsJobIdRouteImport.update({
-  id: '/$jobId',
-  path: '/$jobId',
-  getParentRoute: () => AppJobsRoute,
+const AppNetworkRoute = AppNetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppLoopRunsRunIdRoute = AppLoopRunsRunIdRouteImport.update({
-  id: '/$runId',
-  path: '/$runId',
-  getParentRoute: () => AppLoopRunsRoute,
+const AppMarketplaceRoute = AppMarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppLoopsNameRoute = AppLoopsNameRouteImport.update({
-  id: '/$name',
-  path: '/$name',
-  getParentRoute: () => AppLoopsRoute,
+const AppLoopsRoute = AppLoopsRouteImport.update({
+  id: '/loops',
+  path: '/loops',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppMarketplaceIndexRoute = AppMarketplaceIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppMarketplaceRoute,
+const AppLoopRunsRoute = AppLoopRunsRouteImport.update({
+  id: '/loop-runs',
+  path: '/loop-runs',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppMarketplaceBundlesRoute = AppMarketplaceBundlesRouteImport.update({
-  id: '/bundles',
-  path: '/bundles',
-  getParentRoute: () => AppMarketplaceRoute,
+const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppMarketplaceExtensionsRoute =
-  AppMarketplaceExtensionsRouteImport.update({
-    id: '/extensions',
-    path: '/extensions',
-    getParentRoute: () => AppMarketplaceRoute,
-  } as any)
-const AppMarketplaceMcpsRoute = AppMarketplaceMcpsRouteImport.update({
-  id: '/mcps',
-  path: '/mcps',
-  getParentRoute: () => AppMarketplaceRoute,
+const AppJobsRoute = AppJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppMarketplaceSkillsRoute = AppMarketplaceSkillsRouteImport.update({
-  id: '/skills',
-  path: '/skills',
-  getParentRoute: () => AppMarketplaceRoute,
+const AppBridgesRoute = AppBridgesRouteImport.update({
+  id: '/bridges',
+  path: '/bridges',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppSessionIdRoute = AppSessionIdRouteImport.update({
-  id: '/session/$id',
-  path: '/session/$id',
+const AppAgentsRoute = AppAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
@@ -205,39 +149,34 @@ const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppSettingsRoute,
 } as any)
-const AppSettingsAppearanceRoute = AppSettingsAppearanceRouteImport.update({
-  id: '/appearance',
-  path: '/appearance',
+const AppMarketplaceIndexRoute = AppMarketplaceIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppMarketplaceRoute,
+} as any)
+const AppTriggersTriggerIdRoute = AppTriggersTriggerIdRouteImport.update({
+  id: '/$triggerId',
+  path: '/$triggerId',
+  getParentRoute: () => AppTriggersRoute,
+} as any)
+const AppTasksNewRoute = AppTasksNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AppTasksRoute,
+} as any)
+const AppTasksIdRoute = AppTasksIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppTasksRoute,
+} as any)
+const AppSettingsSkillsRoute = AppSettingsSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
   getParentRoute: () => AppSettingsRoute,
 } as any)
-const AppSettingsAutomationRoute = AppSettingsAutomationRouteImport.update({
-  id: '/automation',
-  path: '/automation',
-  getParentRoute: () => AppSettingsRoute,
-} as any)
-const AppSettingsExtensionsRoute = AppSettingsExtensionsRouteImport.update({
-  id: '/extensions',
-  path: '/extensions',
-  getParentRoute: () => AppSettingsRoute,
-} as any)
-const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
-  id: '/general',
-  path: '/general',
-  getParentRoute: () => AppSettingsRoute,
-} as any)
-const AppSettingsHooksRoute = AppSettingsHooksRouteImport.update({
-  id: '/hooks',
-  path: '/hooks',
-  getParentRoute: () => AppSettingsRoute,
-} as any)
-const AppSettingsMemoryRoute = AppSettingsMemoryRouteImport.update({
-  id: '/memory',
-  path: '/memory',
-  getParentRoute: () => AppSettingsRoute,
-} as any)
-const AppSettingsNetworkRoute = AppSettingsNetworkRouteImport.update({
-  id: '/network',
-  path: '/network',
+const AppSettingsProvidersRoute = AppSettingsProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
   getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppSettingsObservabilityRoute =
@@ -246,50 +185,96 @@ const AppSettingsObservabilityRoute =
     path: '/observability',
     getParentRoute: () => AppSettingsRoute,
   } as any)
-const AppSettingsProvidersRoute = AppSettingsProvidersRouteImport.update({
-  id: '/providers',
-  path: '/providers',
+const AppSettingsNetworkRoute = AppSettingsNetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
   getParentRoute: () => AppSettingsRoute,
 } as any)
-const AppSettingsSkillsRoute = AppSettingsSkillsRouteImport.update({
+const AppSettingsMemoryRoute = AppSettingsMemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsHooksRoute = AppSettingsHooksRouteImport.update({
+  id: '/hooks',
+  path: '/hooks',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsExtensionsRoute = AppSettingsExtensionsRouteImport.update({
+  id: '/extensions',
+  path: '/extensions',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsAutomationRoute = AppSettingsAutomationRouteImport.update({
+  id: '/automation',
+  path: '/automation',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsAppearanceRoute = AppSettingsAppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSessionIdRoute = AppSessionIdRouteImport.update({
+  id: '/session/$id',
+  path: '/session/$id',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMarketplaceSkillsRoute = AppMarketplaceSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
-  getParentRoute: () => AppSettingsRoute,
+  getParentRoute: () => AppMarketplaceRoute,
 } as any)
-const AppTasksIdRoute = AppTasksIdRouteImport.update({
+const AppMarketplaceMcpsRoute = AppMarketplaceMcpsRouteImport.update({
+  id: '/mcps',
+  path: '/mcps',
+  getParentRoute: () => AppMarketplaceRoute,
+} as any)
+const AppMarketplaceExtensionsRoute =
+  AppMarketplaceExtensionsRouteImport.update({
+    id: '/extensions',
+    path: '/extensions',
+    getParentRoute: () => AppMarketplaceRoute,
+  } as any)
+const AppMarketplaceBundlesRoute = AppMarketplaceBundlesRouteImport.update({
+  id: '/bundles',
+  path: '/bundles',
+  getParentRoute: () => AppMarketplaceRoute,
+} as any)
+const AppLoopsNameRoute = AppLoopsNameRouteImport.update({
+  id: '/$name',
+  path: '/$name',
+  getParentRoute: () => AppLoopsRoute,
+} as any)
+const AppLoopRunsRunIdRoute = AppLoopRunsRunIdRouteImport.update({
+  id: '/$runId',
+  path: '/$runId',
+  getParentRoute: () => AppLoopRunsRoute,
+} as any)
+const AppJobsJobIdRoute = AppJobsJobIdRouteImport.update({
+  id: '/$jobId',
+  path: '/$jobId',
+  getParentRoute: () => AppJobsRoute,
+} as any)
+const AppBridgesIdRoute = AppBridgesIdRouteImport.update({
   id: '/$id',
   path: '/$id',
-  getParentRoute: () => AppTasksRoute,
+  getParentRoute: () => AppBridgesRoute,
 } as any)
-const AppTasksNewRoute = AppTasksNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => AppTasksRoute,
+const AppAgentsNameRoute = AppAgentsNameRouteImport.update({
+  id: '/$name',
+  path: '/$name',
+  getParentRoute: () => AppAgentsRoute,
 } as any)
-const AppTriggersTriggerIdRoute = AppTriggersTriggerIdRouteImport.update({
-  id: '/$triggerId',
-  path: '/$triggerId',
-  getParentRoute: () => AppTriggersRoute,
-} as any)
-const AppAgentsNameSettingsRoute = AppAgentsNameSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AppAgentsNameRoute,
-} as any)
-const AppLoopsNameConfigureRoute = AppLoopsNameConfigureRouteImport.update({
-  id: '/configure',
-  path: '/configure',
-  getParentRoute: () => AppLoopsNameRoute,
-} as any)
-const AppLoopsNameEditorRoute = AppLoopsNameEditorRouteImport.update({
-  id: '/editor',
-  path: '/editor',
-  getParentRoute: () => AppLoopsNameRoute,
-} as any)
-const AppLoopsNameRunRoute = AppLoopsNameRunRouteImport.update({
-  id: '/run',
-  path: '/run',
-  getParentRoute: () => AppLoopsNameRoute,
+const AppTasksIdEditRoute = AppTasksIdEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
+  getParentRoute: () => AppTasksIdRoute,
 } as any)
 const AppMarketplaceKindEntryIdRoute =
   AppMarketplaceKindEntryIdRouteImport.update({
@@ -297,26 +282,35 @@ const AppMarketplaceKindEntryIdRoute =
     path: '/$kind/$entryId',
     getParentRoute: () => AppMarketplaceRoute,
   } as any)
-const AppTasksIdEditRoute = AppTasksIdEditRouteImport.update({
-  id: '/edit',
-  path: '/edit',
-  getParentRoute: () => AppTasksIdRoute,
+const AppLoopsNameRunRoute = AppLoopsNameRunRouteImport.update({
+  id: '/run',
+  path: '/run',
+  getParentRoute: () => AppLoopsNameRoute,
 } as any)
-const AppAgentsNameSessionsIdRoute = AppAgentsNameSessionsIdRouteImport.update({
-  id: '/sessions/$id',
-  path: '/sessions/$id',
+const AppLoopsNameEditorRoute = AppLoopsNameEditorRouteImport.update({
+  id: '/editor',
+  path: '/editor',
+  getParentRoute: () => AppLoopsNameRoute,
+} as any)
+const AppLoopsNameConfigureRoute = AppLoopsNameConfigureRouteImport.update({
+  id: '/configure',
+  path: '/configure',
+  getParentRoute: () => AppLoopsNameRoute,
+} as any)
+const AppAgentsNameSettingsRoute = AppAgentsNameSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AppAgentsNameRoute,
 } as any)
-const AppMarketplaceBundlesActivationsIdRoute =
-  AppMarketplaceBundlesActivationsIdRouteImport.update({
-    id: '/activations/$id',
-    path: '/activations/$id',
-    getParentRoute: () => AppMarketplaceBundlesRoute,
-  } as any)
-const AppNetworkWorkspaceIdChannelActivityRoute =
-  AppNetworkWorkspaceIdChannelActivityRouteImport.update({
-    id: '/$workspaceId/$channel/activity',
-    path: '/$workspaceId/$channel/activity',
+const AppTasksIdRunsRunIdRoute = AppTasksIdRunsRunIdRouteImport.update({
+  id: '/runs/$runId',
+  path: '/runs/$runId',
+  getParentRoute: () => AppTasksIdRoute,
+} as any)
+const AppNetworkWorkspaceIdChannelThreadsRoute =
+  AppNetworkWorkspaceIdChannelThreadsRouteImport.update({
+    id: '/$workspaceId/$channel/threads',
+    path: '/$workspaceId/$channel/threads',
     getParentRoute: () => AppNetworkRoute,
   } as any)
 const AppNetworkWorkspaceIdChannelDirectsRoute =
@@ -325,28 +319,34 @@ const AppNetworkWorkspaceIdChannelDirectsRoute =
     path: '/$workspaceId/$channel/directs',
     getParentRoute: () => AppNetworkRoute,
   } as any)
-const AppNetworkWorkspaceIdChannelThreadsRoute =
-  AppNetworkWorkspaceIdChannelThreadsRouteImport.update({
-    id: '/$workspaceId/$channel/threads',
-    path: '/$workspaceId/$channel/threads',
+const AppNetworkWorkspaceIdChannelActivityRoute =
+  AppNetworkWorkspaceIdChannelActivityRouteImport.update({
+    id: '/$workspaceId/$channel/activity',
+    path: '/$workspaceId/$channel/activity',
     getParentRoute: () => AppNetworkRoute,
   } as any)
-const AppTasksIdRunsRunIdRoute = AppTasksIdRunsRunIdRouteImport.update({
-  id: '/runs/$runId',
-  path: '/runs/$runId',
-  getParentRoute: () => AppTasksIdRoute,
-} as any)
-const AppNetworkWorkspaceIdChannelDirectsDirectIdRoute =
-  AppNetworkWorkspaceIdChannelDirectsDirectIdRouteImport.update({
-    id: '/$directId',
-    path: '/$directId',
-    getParentRoute: () => AppNetworkWorkspaceIdChannelDirectsRoute,
+const AppMarketplaceBundlesActivationsIdRoute =
+  AppMarketplaceBundlesActivationsIdRouteImport.update({
+    id: '/activations/$id',
+    path: '/activations/$id',
+    getParentRoute: () => AppMarketplaceBundlesRoute,
   } as any)
+const AppAgentsNameSessionsIdRoute = AppAgentsNameSessionsIdRouteImport.update({
+  id: '/sessions/$id',
+  path: '/sessions/$id',
+  getParentRoute: () => AppAgentsNameRoute,
+} as any)
 const AppNetworkWorkspaceIdChannelThreadsThreadIdRoute =
   AppNetworkWorkspaceIdChannelThreadsThreadIdRouteImport.update({
     id: '/$threadId',
     path: '/$threadId',
     getParentRoute: () => AppNetworkWorkspaceIdChannelThreadsRoute,
+  } as any)
+const AppNetworkWorkspaceIdChannelDirectsDirectIdRoute =
+  AppNetworkWorkspaceIdChannelDirectsDirectIdRouteImport.update({
+    id: '/$directId',
+    path: '/$directId',
+    getParentRoute: () => AppNetworkWorkspaceIdChannelDirectsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -694,18 +694,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_app': {
-      id: '/_app'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/design-system': {
       id: '/design-system'
       path: '/design-system'
       fullPath: '/design-system'
       preLoaderRoute: typeof DesignSystemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -715,81 +715,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/agents': {
-      id: '/_app/agents'
-      path: '/agents'
-      fullPath: '/agents'
-      preLoaderRoute: typeof AppAgentsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/bridges': {
-      id: '/_app/bridges'
-      path: '/bridges'
-      fullPath: '/bridges'
-      preLoaderRoute: typeof AppBridgesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/jobs': {
-      id: '/_app/jobs'
-      path: '/jobs'
-      fullPath: '/jobs'
-      preLoaderRoute: typeof AppJobsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/knowledge': {
-      id: '/_app/knowledge'
-      path: '/knowledge'
-      fullPath: '/knowledge'
-      preLoaderRoute: typeof AppKnowledgeRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/loop-runs': {
-      id: '/_app/loop-runs'
-      path: '/loop-runs'
-      fullPath: '/loop-runs'
-      preLoaderRoute: typeof AppLoopRunsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/loops': {
-      id: '/_app/loops'
-      path: '/loops'
-      fullPath: '/loops'
-      preLoaderRoute: typeof AppLoopsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/marketplace': {
-      id: '/_app/marketplace'
-      path: '/marketplace'
-      fullPath: '/marketplace'
-      preLoaderRoute: typeof AppMarketplaceRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/network': {
-      id: '/_app/network'
-      path: '/network'
-      fullPath: '/network'
-      preLoaderRoute: typeof AppNetworkRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/sandbox': {
-      id: '/_app/sandbox'
-      path: '/sandbox'
-      fullPath: '/sandbox'
-      preLoaderRoute: typeof AppSandboxRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/settings': {
-      id: '/_app/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AppSettingsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/tasks': {
-      id: '/_app/tasks'
-      path: '/tasks'
-      fullPath: '/tasks'
-      preLoaderRoute: typeof AppTasksRouteImport
+    '/_app/vault': {
+      id: '/_app/vault'
+      path: '/vault'
+      fullPath: '/vault'
+      preLoaderRoute: typeof AppVaultRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/triggers': {
@@ -799,88 +729,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTriggersRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/vault': {
-      id: '/_app/vault'
-      path: '/vault'
-      fullPath: '/vault'
-      preLoaderRoute: typeof AppVaultRouteImport
+    '/_app/tasks': {
+      id: '/_app/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof AppTasksRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/agents/$name': {
-      id: '/_app/agents/$name'
-      path: '/$name'
-      fullPath: '/agents/$name'
-      preLoaderRoute: typeof AppAgentsNameRouteImport
-      parentRoute: typeof AppAgentsRoute
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/bridges/$id': {
-      id: '/_app/bridges/$id'
-      path: '/$id'
-      fullPath: '/bridges/$id'
-      preLoaderRoute: typeof AppBridgesIdRouteImport
-      parentRoute: typeof AppBridgesRoute
+    '/_app/sandbox': {
+      id: '/_app/sandbox'
+      path: '/sandbox'
+      fullPath: '/sandbox'
+      preLoaderRoute: typeof AppSandboxRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/jobs/$jobId': {
-      id: '/_app/jobs/$jobId'
-      path: '/$jobId'
-      fullPath: '/jobs/$jobId'
-      preLoaderRoute: typeof AppJobsJobIdRouteImport
-      parentRoute: typeof AppJobsRoute
+    '/_app/network': {
+      id: '/_app/network'
+      path: '/network'
+      fullPath: '/network'
+      preLoaderRoute: typeof AppNetworkRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/loop-runs/$runId': {
-      id: '/_app/loop-runs/$runId'
-      path: '/$runId'
-      fullPath: '/loop-runs/$runId'
-      preLoaderRoute: typeof AppLoopRunsRunIdRouteImport
-      parentRoute: typeof AppLoopRunsRoute
+    '/_app/marketplace': {
+      id: '/_app/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof AppMarketplaceRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/loops/$name': {
-      id: '/_app/loops/$name'
-      path: '/$name'
-      fullPath: '/loops/$name'
-      preLoaderRoute: typeof AppLoopsNameRouteImport
-      parentRoute: typeof AppLoopsRoute
+    '/_app/loops': {
+      id: '/_app/loops'
+      path: '/loops'
+      fullPath: '/loops'
+      preLoaderRoute: typeof AppLoopsRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/marketplace/': {
-      id: '/_app/marketplace/'
-      path: '/'
-      fullPath: '/marketplace/'
-      preLoaderRoute: typeof AppMarketplaceIndexRouteImport
-      parentRoute: typeof AppMarketplaceRoute
+    '/_app/loop-runs': {
+      id: '/_app/loop-runs'
+      path: '/loop-runs'
+      fullPath: '/loop-runs'
+      preLoaderRoute: typeof AppLoopRunsRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/marketplace/bundles': {
-      id: '/_app/marketplace/bundles'
-      path: '/bundles'
-      fullPath: '/marketplace/bundles'
-      preLoaderRoute: typeof AppMarketplaceBundlesRouteImport
-      parentRoute: typeof AppMarketplaceRoute
+    '/_app/knowledge': {
+      id: '/_app/knowledge'
+      path: '/knowledge'
+      fullPath: '/knowledge'
+      preLoaderRoute: typeof AppKnowledgeRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/marketplace/extensions': {
-      id: '/_app/marketplace/extensions'
-      path: '/extensions'
-      fullPath: '/marketplace/extensions'
-      preLoaderRoute: typeof AppMarketplaceExtensionsRouteImport
-      parentRoute: typeof AppMarketplaceRoute
+    '/_app/jobs': {
+      id: '/_app/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof AppJobsRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/marketplace/mcps': {
-      id: '/_app/marketplace/mcps'
-      path: '/mcps'
-      fullPath: '/marketplace/mcps'
-      preLoaderRoute: typeof AppMarketplaceMcpsRouteImport
-      parentRoute: typeof AppMarketplaceRoute
+    '/_app/bridges': {
+      id: '/_app/bridges'
+      path: '/bridges'
+      fullPath: '/bridges'
+      preLoaderRoute: typeof AppBridgesRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/marketplace/skills': {
-      id: '/_app/marketplace/skills'
-      path: '/skills'
-      fullPath: '/marketplace/skills'
-      preLoaderRoute: typeof AppMarketplaceSkillsRouteImport
-      parentRoute: typeof AppMarketplaceRoute
-    }
-    '/_app/session/$id': {
-      id: '/_app/session/$id'
-      path: '/session/$id'
-      fullPath: '/session/$id'
-      preLoaderRoute: typeof AppSessionIdRouteImport
+    '/_app/agents': {
+      id: '/_app/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AppAgentsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/': {
@@ -890,60 +813,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsIndexRouteImport
       parentRoute: typeof AppSettingsRoute
     }
-    '/_app/settings/appearance': {
-      id: '/_app/settings/appearance'
-      path: '/appearance'
-      fullPath: '/settings/appearance'
-      preLoaderRoute: typeof AppSettingsAppearanceRouteImport
-      parentRoute: typeof AppSettingsRoute
+    '/_app/marketplace/': {
+      id: '/_app/marketplace/'
+      path: '/'
+      fullPath: '/marketplace/'
+      preLoaderRoute: typeof AppMarketplaceIndexRouteImport
+      parentRoute: typeof AppMarketplaceRoute
     }
-    '/_app/settings/automation': {
-      id: '/_app/settings/automation'
-      path: '/automation'
-      fullPath: '/settings/automation'
-      preLoaderRoute: typeof AppSettingsAutomationRouteImport
-      parentRoute: typeof AppSettingsRoute
+    '/_app/triggers/$triggerId': {
+      id: '/_app/triggers/$triggerId'
+      path: '/$triggerId'
+      fullPath: '/triggers/$triggerId'
+      preLoaderRoute: typeof AppTriggersTriggerIdRouteImport
+      parentRoute: typeof AppTriggersRoute
     }
-    '/_app/settings/extensions': {
-      id: '/_app/settings/extensions'
-      path: '/extensions'
-      fullPath: '/settings/extensions'
-      preLoaderRoute: typeof AppSettingsExtensionsRouteImport
-      parentRoute: typeof AppSettingsRoute
+    '/_app/tasks/new': {
+      id: '/_app/tasks/new'
+      path: '/new'
+      fullPath: '/tasks/new'
+      preLoaderRoute: typeof AppTasksNewRouteImport
+      parentRoute: typeof AppTasksRoute
     }
-    '/_app/settings/general': {
-      id: '/_app/settings/general'
-      path: '/general'
-      fullPath: '/settings/general'
-      preLoaderRoute: typeof AppSettingsGeneralRouteImport
-      parentRoute: typeof AppSettingsRoute
+    '/_app/tasks/$id': {
+      id: '/_app/tasks/$id'
+      path: '/$id'
+      fullPath: '/tasks/$id'
+      preLoaderRoute: typeof AppTasksIdRouteImport
+      parentRoute: typeof AppTasksRoute
     }
-    '/_app/settings/hooks': {
-      id: '/_app/settings/hooks'
-      path: '/hooks'
-      fullPath: '/settings/hooks'
-      preLoaderRoute: typeof AppSettingsHooksRouteImport
-      parentRoute: typeof AppSettingsRoute
-    }
-    '/_app/settings/memory': {
-      id: '/_app/settings/memory'
-      path: '/memory'
-      fullPath: '/settings/memory'
-      preLoaderRoute: typeof AppSettingsMemoryRouteImport
-      parentRoute: typeof AppSettingsRoute
-    }
-    '/_app/settings/network': {
-      id: '/_app/settings/network'
-      path: '/network'
-      fullPath: '/settings/network'
-      preLoaderRoute: typeof AppSettingsNetworkRouteImport
-      parentRoute: typeof AppSettingsRoute
-    }
-    '/_app/settings/observability': {
-      id: '/_app/settings/observability'
-      path: '/observability'
-      fullPath: '/settings/observability'
-      preLoaderRoute: typeof AppSettingsObservabilityRouteImport
+    '/_app/settings/skills': {
+      id: '/_app/settings/skills'
+      path: '/skills'
+      fullPath: '/settings/skills'
+      preLoaderRoute: typeof AppSettingsSkillsRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/providers': {
@@ -953,46 +855,151 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsProvidersRouteImport
       parentRoute: typeof AppSettingsRoute
     }
-    '/_app/settings/skills': {
-      id: '/_app/settings/skills'
-      path: '/skills'
-      fullPath: '/settings/skills'
-      preLoaderRoute: typeof AppSettingsSkillsRouteImport
+    '/_app/settings/observability': {
+      id: '/_app/settings/observability'
+      path: '/observability'
+      fullPath: '/settings/observability'
+      preLoaderRoute: typeof AppSettingsObservabilityRouteImport
       parentRoute: typeof AppSettingsRoute
     }
-    '/_app/tasks/$id': {
-      id: '/_app/tasks/$id'
+    '/_app/settings/network': {
+      id: '/_app/settings/network'
+      path: '/network'
+      fullPath: '/settings/network'
+      preLoaderRoute: typeof AppSettingsNetworkRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/memory': {
+      id: '/_app/settings/memory'
+      path: '/memory'
+      fullPath: '/settings/memory'
+      preLoaderRoute: typeof AppSettingsMemoryRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/hooks': {
+      id: '/_app/settings/hooks'
+      path: '/hooks'
+      fullPath: '/settings/hooks'
+      preLoaderRoute: typeof AppSettingsHooksRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/general': {
+      id: '/_app/settings/general'
+      path: '/general'
+      fullPath: '/settings/general'
+      preLoaderRoute: typeof AppSettingsGeneralRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/extensions': {
+      id: '/_app/settings/extensions'
+      path: '/extensions'
+      fullPath: '/settings/extensions'
+      preLoaderRoute: typeof AppSettingsExtensionsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/automation': {
+      id: '/_app/settings/automation'
+      path: '/automation'
+      fullPath: '/settings/automation'
+      preLoaderRoute: typeof AppSettingsAutomationRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/appearance': {
+      id: '/_app/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof AppSettingsAppearanceRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/session/$id': {
+      id: '/_app/session/$id'
+      path: '/session/$id'
+      fullPath: '/session/$id'
+      preLoaderRoute: typeof AppSessionIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/marketplace/skills': {
+      id: '/_app/marketplace/skills'
+      path: '/skills'
+      fullPath: '/marketplace/skills'
+      preLoaderRoute: typeof AppMarketplaceSkillsRouteImport
+      parentRoute: typeof AppMarketplaceRoute
+    }
+    '/_app/marketplace/mcps': {
+      id: '/_app/marketplace/mcps'
+      path: '/mcps'
+      fullPath: '/marketplace/mcps'
+      preLoaderRoute: typeof AppMarketplaceMcpsRouteImport
+      parentRoute: typeof AppMarketplaceRoute
+    }
+    '/_app/marketplace/extensions': {
+      id: '/_app/marketplace/extensions'
+      path: '/extensions'
+      fullPath: '/marketplace/extensions'
+      preLoaderRoute: typeof AppMarketplaceExtensionsRouteImport
+      parentRoute: typeof AppMarketplaceRoute
+    }
+    '/_app/marketplace/bundles': {
+      id: '/_app/marketplace/bundles'
+      path: '/bundles'
+      fullPath: '/marketplace/bundles'
+      preLoaderRoute: typeof AppMarketplaceBundlesRouteImport
+      parentRoute: typeof AppMarketplaceRoute
+    }
+    '/_app/loops/$name': {
+      id: '/_app/loops/$name'
+      path: '/$name'
+      fullPath: '/loops/$name'
+      preLoaderRoute: typeof AppLoopsNameRouteImport
+      parentRoute: typeof AppLoopsRoute
+    }
+    '/_app/loop-runs/$runId': {
+      id: '/_app/loop-runs/$runId'
+      path: '/$runId'
+      fullPath: '/loop-runs/$runId'
+      preLoaderRoute: typeof AppLoopRunsRunIdRouteImport
+      parentRoute: typeof AppLoopRunsRoute
+    }
+    '/_app/jobs/$jobId': {
+      id: '/_app/jobs/$jobId'
+      path: '/$jobId'
+      fullPath: '/jobs/$jobId'
+      preLoaderRoute: typeof AppJobsJobIdRouteImport
+      parentRoute: typeof AppJobsRoute
+    }
+    '/_app/bridges/$id': {
+      id: '/_app/bridges/$id'
       path: '/$id'
-      fullPath: '/tasks/$id'
-      preLoaderRoute: typeof AppTasksIdRouteImport
-      parentRoute: typeof AppTasksRoute
+      fullPath: '/bridges/$id'
+      preLoaderRoute: typeof AppBridgesIdRouteImport
+      parentRoute: typeof AppBridgesRoute
     }
-    '/_app/tasks/new': {
-      id: '/_app/tasks/new'
-      path: '/new'
-      fullPath: '/tasks/new'
-      preLoaderRoute: typeof AppTasksNewRouteImport
-      parentRoute: typeof AppTasksRoute
+    '/_app/agents/$name': {
+      id: '/_app/agents/$name'
+      path: '/$name'
+      fullPath: '/agents/$name'
+      preLoaderRoute: typeof AppAgentsNameRouteImport
+      parentRoute: typeof AppAgentsRoute
     }
-    '/_app/triggers/$triggerId': {
-      id: '/_app/triggers/$triggerId'
-      path: '/$triggerId'
-      fullPath: '/triggers/$triggerId'
-      preLoaderRoute: typeof AppTriggersTriggerIdRouteImport
-      parentRoute: typeof AppTriggersRoute
+    '/_app/tasks/$id/edit': {
+      id: '/_app/tasks/$id/edit'
+      path: '/edit'
+      fullPath: '/tasks/$id/edit'
+      preLoaderRoute: typeof AppTasksIdEditRouteImport
+      parentRoute: typeof AppTasksIdRoute
     }
-    '/_app/agents/$name/settings': {
-      id: '/_app/agents/$name/settings'
-      path: '/settings'
-      fullPath: '/agents/$name/settings'
-      preLoaderRoute: typeof AppAgentsNameSettingsRouteImport
-      parentRoute: typeof AppAgentsNameRoute
+    '/_app/marketplace/$kind/$entryId': {
+      id: '/_app/marketplace/$kind/$entryId'
+      path: '/$kind/$entryId'
+      fullPath: '/marketplace/$kind/$entryId'
+      preLoaderRoute: typeof AppMarketplaceKindEntryIdRouteImport
+      parentRoute: typeof AppMarketplaceRoute
     }
-    '/_app/loops/$name/configure': {
-      id: '/_app/loops/$name/configure'
-      path: '/configure'
-      fullPath: '/loops/$name/configure'
-      preLoaderRoute: typeof AppLoopsNameConfigureRouteImport
+    '/_app/loops/$name/run': {
+      id: '/_app/loops/$name/run'
+      path: '/run'
+      fullPath: '/loops/$name/run'
+      preLoaderRoute: typeof AppLoopsNameRunRouteImport
       parentRoute: typeof AppLoopsNameRoute
     }
     '/_app/loops/$name/editor': {
@@ -1002,46 +1009,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLoopsNameEditorRouteImport
       parentRoute: typeof AppLoopsNameRoute
     }
-    '/_app/loops/$name/run': {
-      id: '/_app/loops/$name/run'
-      path: '/run'
-      fullPath: '/loops/$name/run'
-      preLoaderRoute: typeof AppLoopsNameRunRouteImport
+    '/_app/loops/$name/configure': {
+      id: '/_app/loops/$name/configure'
+      path: '/configure'
+      fullPath: '/loops/$name/configure'
+      preLoaderRoute: typeof AppLoopsNameConfigureRouteImport
       parentRoute: typeof AppLoopsNameRoute
     }
-    '/_app/marketplace/$kind/$entryId': {
-      id: '/_app/marketplace/$kind/$entryId'
-      path: '/$kind/$entryId'
-      fullPath: '/marketplace/$kind/$entryId'
-      preLoaderRoute: typeof AppMarketplaceKindEntryIdRouteImport
-      parentRoute: typeof AppMarketplaceRoute
-    }
-    '/_app/tasks/$id/edit': {
-      id: '/_app/tasks/$id/edit'
-      path: '/edit'
-      fullPath: '/tasks/$id/edit'
-      preLoaderRoute: typeof AppTasksIdEditRouteImport
-      parentRoute: typeof AppTasksIdRoute
-    }
-    '/_app/agents/$name/sessions/$id': {
-      id: '/_app/agents/$name/sessions/$id'
-      path: '/sessions/$id'
-      fullPath: '/agents/$name/sessions/$id'
-      preLoaderRoute: typeof AppAgentsNameSessionsIdRouteImport
+    '/_app/agents/$name/settings': {
+      id: '/_app/agents/$name/settings'
+      path: '/settings'
+      fullPath: '/agents/$name/settings'
+      preLoaderRoute: typeof AppAgentsNameSettingsRouteImport
       parentRoute: typeof AppAgentsNameRoute
     }
-    '/_app/marketplace/bundles/activations/$id': {
-      id: '/_app/marketplace/bundles/activations/$id'
-      path: '/activations/$id'
-      fullPath: '/marketplace/bundles/activations/$id'
-      preLoaderRoute: typeof AppMarketplaceBundlesActivationsIdRouteImport
-      parentRoute: typeof AppMarketplaceBundlesRoute
+    '/_app/tasks/$id/runs/$runId': {
+      id: '/_app/tasks/$id/runs/$runId'
+      path: '/runs/$runId'
+      fullPath: '/tasks/$id/runs/$runId'
+      preLoaderRoute: typeof AppTasksIdRunsRunIdRouteImport
+      parentRoute: typeof AppTasksIdRoute
     }
-    '/_app/network/$workspaceId/$channel/activity': {
-      id: '/_app/network/$workspaceId/$channel/activity'
-      path: '/$workspaceId/$channel/activity'
-      fullPath: '/network/$workspaceId/$channel/activity'
-      preLoaderRoute: typeof AppNetworkWorkspaceIdChannelActivityRouteImport
+    '/_app/network/$workspaceId/$channel/threads': {
+      id: '/_app/network/$workspaceId/$channel/threads'
+      path: '/$workspaceId/$channel/threads'
+      fullPath: '/network/$workspaceId/$channel/threads'
+      preLoaderRoute: typeof AppNetworkWorkspaceIdChannelThreadsRouteImport
       parentRoute: typeof AppNetworkRoute
     }
     '/_app/network/$workspaceId/$channel/directs': {
@@ -1051,26 +1044,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNetworkWorkspaceIdChannelDirectsRouteImport
       parentRoute: typeof AppNetworkRoute
     }
-    '/_app/network/$workspaceId/$channel/threads': {
-      id: '/_app/network/$workspaceId/$channel/threads'
-      path: '/$workspaceId/$channel/threads'
-      fullPath: '/network/$workspaceId/$channel/threads'
-      preLoaderRoute: typeof AppNetworkWorkspaceIdChannelThreadsRouteImport
+    '/_app/network/$workspaceId/$channel/activity': {
+      id: '/_app/network/$workspaceId/$channel/activity'
+      path: '/$workspaceId/$channel/activity'
+      fullPath: '/network/$workspaceId/$channel/activity'
+      preLoaderRoute: typeof AppNetworkWorkspaceIdChannelActivityRouteImport
       parentRoute: typeof AppNetworkRoute
     }
-    '/_app/tasks/$id/runs/$runId': {
-      id: '/_app/tasks/$id/runs/$runId'
-      path: '/runs/$runId'
-      fullPath: '/tasks/$id/runs/$runId'
-      preLoaderRoute: typeof AppTasksIdRunsRunIdRouteImport
-      parentRoute: typeof AppTasksIdRoute
+    '/_app/marketplace/bundles/activations/$id': {
+      id: '/_app/marketplace/bundles/activations/$id'
+      path: '/activations/$id'
+      fullPath: '/marketplace/bundles/activations/$id'
+      preLoaderRoute: typeof AppMarketplaceBundlesActivationsIdRouteImport
+      parentRoute: typeof AppMarketplaceBundlesRoute
     }
-    '/_app/network/$workspaceId/$channel/directs/$directId': {
-      id: '/_app/network/$workspaceId/$channel/directs/$directId'
-      path: '/$directId'
-      fullPath: '/network/$workspaceId/$channel/directs/$directId'
-      preLoaderRoute: typeof AppNetworkWorkspaceIdChannelDirectsDirectIdRouteImport
-      parentRoute: typeof AppNetworkWorkspaceIdChannelDirectsRoute
+    '/_app/agents/$name/sessions/$id': {
+      id: '/_app/agents/$name/sessions/$id'
+      path: '/sessions/$id'
+      fullPath: '/agents/$name/sessions/$id'
+      preLoaderRoute: typeof AppAgentsNameSessionsIdRouteImport
+      parentRoute: typeof AppAgentsNameRoute
     }
     '/_app/network/$workspaceId/$channel/threads/$threadId': {
       id: '/_app/network/$workspaceId/$channel/threads/$threadId'
@@ -1078,6 +1071,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/network/$workspaceId/$channel/threads/$threadId'
       preLoaderRoute: typeof AppNetworkWorkspaceIdChannelThreadsThreadIdRouteImport
       parentRoute: typeof AppNetworkWorkspaceIdChannelThreadsRoute
+    }
+    '/_app/network/$workspaceId/$channel/directs/$directId': {
+      id: '/_app/network/$workspaceId/$channel/directs/$directId'
+      path: '/$directId'
+      fullPath: '/network/$workspaceId/$channel/directs/$directId'
+      preLoaderRoute: typeof AppNetworkWorkspaceIdChannelDirectsDirectIdRouteImport
+      parentRoute: typeof AppNetworkWorkspaceIdChannelDirectsRoute
     }
   }
 }

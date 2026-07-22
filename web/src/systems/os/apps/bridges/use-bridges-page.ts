@@ -5,18 +5,16 @@ import type { ListingViewMode } from "@agh/ui";
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
 import {
   bridgeListFilterForScope,
-  useBridgeHealthStream,
-  useBridgeProviders,
-  useBridges,
-} from "@/systems/bridges";
-import type { BridgeScopeFilter } from "@/systems/bridges";
-import {
   parseBridgePlatformFilter,
   parseBridgeScopeFilter,
   parseBridgeStatusFilter,
+  useBridgeHealthStream,
+  useBridgeProviders,
+  useBridges,
   type BridgePlatformFilter,
+  type BridgeScopeFilter,
   type BridgeStatusFilter,
-} from "@/systems/bridges/lib/bridge-list-filters";
+} from "@/systems/bridges";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { useBridgeCreateFlow } from "@/hooks/routes/use-bridge-create-flow";
 

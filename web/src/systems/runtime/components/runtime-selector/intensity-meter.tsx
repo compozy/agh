@@ -6,15 +6,7 @@ import { cn } from "@agh/ui";
  * bars with the accent, `hollow` renders every bar faint for the
  * provider-default state.
  */
-const BAR_HEIGHTS = [
-  "h-[3px]",
-  "h-[4.5px]",
-  "h-[6px]",
-  "h-[7.5px]",
-  "h-[9px]",
-  "h-[10.5px]",
-  "h-[12px]",
-] as const;
+const BAR_HEIGHTS = ["h-px", "h-0.5", "h-1", "h-1.5", "h-2", "h-2.5", "h-3"] as const;
 
 export interface IntensityMeterProps {
   /** 1-based fill count (0 = none filled). */
@@ -32,7 +24,7 @@ export function IntensityMeter({ position, hollow = false, className }: Intensit
       data-slot="runtime-intensity-meter"
       data-position={filledCount}
       data-hollow={hollow ? "true" : "false"}
-      className={cn("inline-flex h-3 items-end gap-[1.5px]", className)}
+      className={cn("inline-flex h-3 items-end gap-0.5", className)}
     >
       {BAR_HEIGHTS.map((heightClass, index) => {
         const filled = !hollow && index + 1 <= position;
@@ -41,7 +33,7 @@ export function IntensityMeter({ position, hollow = false, className }: Intensit
             key={heightClass}
             data-fill={hollow ? "hollow" : filled ? "on" : "off"}
             className={cn(
-              "w-[2.5px] rounded-[1px]",
+              "w-0.5 rounded-full",
               heightClass,
               hollow ? "bg-line-strong" : filled ? "bg-accent-strong" : "bg-faint"
             )}

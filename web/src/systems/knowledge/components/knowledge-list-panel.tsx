@@ -13,6 +13,8 @@ import {
   Pill,
   type PillTone,
   SearchInput,
+  Skeleton,
+  SkeletonRows,
   Spinner,
   Time,
 } from "@agh/ui";
@@ -171,11 +173,21 @@ function KnowledgeListPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {isLoading && isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center px-6 py-10"
-            data-testid="knowledge-list-loading"
-          >
-            <Spinner className="size-5 text-subtle" />
+          <div aria-busy="true" data-testid="knowledge-list-loading" role="status">
+            <SkeletonRows className="min-h-full" count={6} rowClassName="border-b border-line p-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Skeleton className="h-3.5 w-2/5" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+                <Skeleton className="h-3 w-3/4" />
+                <div className="flex gap-1.5">
+                  <Skeleton className="h-5 w-14" />
+                  <Skeleton className="h-5 w-20" />
+                </div>
+              </div>
+            </SkeletonRows>
+            <span className="sr-only">Loading knowledge</span>
           </div>
         ) : errorMessage && isEmpty ? (
           <div

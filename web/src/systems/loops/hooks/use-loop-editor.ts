@@ -101,6 +101,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     publishError,
     selectedNodeId,
     selectionSeq,
+    structuralRevision,
     validateFailed,
     view,
     setBaseDefinition,
@@ -114,6 +115,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     setSelectionSeq,
     setValidateFailed,
     setView,
+    markStructureChanged,
   } = useLoopEditorState();
 
   const initedKeyRef = useRef<string | null>(null);
@@ -187,11 +189,6 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   // The Effect Event reads the latest draft without making the debounce depend on
   // the render-local validation function identity.
   const runAutoValidation = useEffectEvent(() => runValidation());
-  const structuralKey = JSON.stringify({
-    c: baseDefinition?.contract,
-    n: nodes.map(node => node.data.raw),
-    e: edges.map(edge => edge.data?.raw),
-  });
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -200,19 +197,27 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [structuralKey]);
+  }, [structuralRevision]);
 
   const onNodesChange = (changes: NodeChange<EditorNode>[]) => {
     setNodes(current => applyNodeChanges(changes, current));
+    let structureChanged = false;
     for (const change of changes) {
       if (change.type === "position") setPositionsDirty(true);
-      if (change.type === "remove") setDirty(true);
+      if (change.type === "remove") {
+        setDirty(true);
+        structureChanged = true;
+      }
     }
+    if (structureChanged) markStructureChanged();
   };
 
   const onEdgesChange = (changes: EdgeChange<EditorEdge>[]) => {
     setEdges(current => applyEdgeChanges(changes, current));
-    if (changes.some(change => change.type === "remove")) setDirty(true);
+    if (changes.some(change => change.type === "remove")) {
+      setDirty(true);
+      markStructureChanged();
+    }
   };
 
   const onConnect = (connection: Connection) => {
@@ -228,6 +233,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
       return addEdge(edge, current);
     });
     setDirty(true);
+    markStructureChanged();
   };
 
   // Bumped on a genuine selection *switch* (click / reveal / add) but NOT on a rename of the
@@ -262,6 +268,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
       setNodes(current => setNodeField(current, targetId, path, value));
     }
     setDirty(true);
+    markStructureChanged();
   };
 
   const changeContract = (field: EditableLoopContractField, value: string) => {
@@ -270,6 +277,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
       current ? withLoopContractField(current, field, value) : current
     );
     setDirty(true);
+    markStructureChanged();
   };
 
   const publish = async (): Promise<LoopDetail | null> => {
@@ -347,10 +355,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   // emission entirely while editing on the Graph canvas.
   const dslLines =
     dslBase && view === "dsl"
-      ? buildDslView(
-          graphToDefinition(dslBase, nodes, edges) as unknown as Record<string, unknown>,
-          lint.byNode
-        )
+      ? buildDslView(graphToDefinition(dslBase, nodes, edges), lint.byNode)
       : [];
 
   const status: LoopEditorStatus =

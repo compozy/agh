@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { useSessionComposerPrefill } from "@/components/assistant-ui/hooks/use-session-composer-prefill";
 import { type GoalControlAction, loopsKeys, useLoopStream } from "@/systems/loops";
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionGoalCommandResult, SessionGoalResponse } from "../types";
@@ -25,13 +24,16 @@ function replacementObjective(command: string | undefined): string | null {
   return replacement.slice(separator + 1).trim() || null;
 }
 
-export function useSessionGoalHeader(workspaceId: string, sessionId: string) {
+export function useSessionGoalHeader(
+  workspaceId: string,
+  sessionId: string,
+  onPrefillComposer?: (text: string) => void
+) {
   const queryClient = useQueryClient();
   const query = useSessionGoal(workspaceId, sessionId);
   const result = useSessionStore(state => state.goalResults[sessionId]);
   const resultCommand = useSessionStore(state => state.goalResultCommands[sessionId]);
   const setGoalResult = useSessionStore(state => state.setGoalResult);
-  const setComposerText = useSessionComposerPrefill();
   const mutation = useSendSessionPrompt({ workspaceId });
   const [pendingAction, setPendingAction] = useState<GoalControlAction>();
   const snapshot = query.data?.goal ?? null;
@@ -106,7 +108,7 @@ export function useSessionGoalHeader(workspaceId: string, sessionId: string) {
       snapshot?.live && snapshot.status === "active"
         ? () => command("pause", "/goal pause")
         : undefined,
-    onPrefillComposer: setComposerText ? (text: string) => setComposerText(text) : undefined,
+    onPrefillComposer,
     onResume:
       snapshot?.live && (snapshot.status === "paused" || snapshot.run_status === "paused")
         ? () => command("resume", "/goal resume")

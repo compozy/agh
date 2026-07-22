@@ -26,7 +26,7 @@ export function LoopConfigureChecks({
   if (descriptors.length === 0) {
     return (
       <p
-        className="rounded-lg border border-line-soft bg-canvas-tint px-3.5 py-3 text-[11.5px] text-subtle"
+        className="rounded-lg border border-line-soft bg-canvas-tint px-3.5 py-3 text-form-hint text-subtle"
         data-testid="loop-configure-checks-empty"
       >
         This loop declares no verification checks.
@@ -57,7 +57,7 @@ export function LoopConfigureChecks({
               <Input
                 type="text"
                 data-testid={`loop-configure-command-${descriptor.id}`}
-                className="ml-[96px] h-8 font-mono text-[12px]"
+                className="ml-[96px] h-8 font-mono text-form-input"
                 placeholder={descriptor.declaredCommand || "command"}
                 value={state.command}
                 disabled={commandDisabled}

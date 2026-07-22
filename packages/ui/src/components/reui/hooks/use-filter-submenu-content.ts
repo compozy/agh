@@ -1,7 +1,7 @@
 import type React from "react";
 import { useId, useRef, useState } from "react";
 
-import type { FilterFieldConfig } from "../filters";
+import type { FilterFieldConfig } from "../filter-types";
 import { scheduleFilterDomSync, scrollFilterOptionIntoView } from "./use-filter-context";
 
 interface UseFilterSubmenuContentOptions<T = unknown> {

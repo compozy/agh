@@ -17,7 +17,7 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
   if (graph.nodes.length === 0) {
     return (
       <div
-        className="rounded-lg border border-line bg-canvas-soft px-4 py-6 text-center text-[12.5px] text-subtle"
+        className="rounded-lg border border-line bg-canvas-soft px-4 py-6 text-center text-small-body text-subtle"
         data-testid="loop-dag-empty"
       >
         This Loop exposes no readable body graph.
@@ -32,13 +32,13 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
             <DagNode node={node} />
             {index < graph.nodes.length - 1 ? (
               <span aria-hidden="true" className="flex items-center self-center px-1 text-faint">
-                <ChevronRight className="size-[18px]" />
+                <ChevronRight className="size-4.5" />
               </span>
             ) : null}
           </div>
         ))}
       </div>
-      <p className="border-t border-line-soft px-4 py-3 text-[11.5px] leading-relaxed text-subtle">
+      <p className="border-t border-line-soft px-4 py-3 text-form-hint leading-relaxed text-subtle">
         Read-only view. Open the builder to fork and edit this graph.
       </p>
     </div>
@@ -57,11 +57,11 @@ function DagNode({ node }: { node: LoopGraphNode }) {
       <MonoTag className={`tracking-wider ${node.isGate ? "text-warning" : "text-faint"}`}>
         {nodeClassLabel(node)}
       </MonoTag>
-      <span className="min-w-0 truncate text-[12.5px] font-medium text-fg-strong" title={node.id}>
+      <span className="min-w-0 truncate text-small-body font-medium text-fg-strong" title={node.id}>
         {node.id}
       </span>
       <span
-        className="min-w-0 truncate font-mono text-[10px] text-subtle"
+        className="min-w-0 truncate font-mono text-mono-id text-subtle"
         title={kindLabel || undefined}
       >
         {kindLabel}

@@ -56,7 +56,7 @@ export function TaskStateBand({
       tone={tone}
       {...props}
     >
-      <h3 className={cn("text-[13px] font-medium", TONE_TITLE[tone])}>{title}</h3>
+      <h3 className={cn("text-card-title font-medium", TONE_TITLE[tone])}>{title}</h3>
       {actions ? (
         <div className="col-start-2 row-span-2 row-start-1 flex items-center gap-2 self-center">
           {actions}

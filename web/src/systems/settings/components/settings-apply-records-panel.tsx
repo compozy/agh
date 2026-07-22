@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle2, RefreshCw, RotateCw } from "lucide-react";
 
 import type { ConfigApplyRecord, SettingsApplyResponse } from "@/systems/settings/types";
-import { Alert, AlertDescription, Button, Empty, Pill, Section, Spinner } from "@agh/ui";
+import { Alert, AlertDescription, Button, Empty, Pill, Section, Skeleton, Spinner } from "@agh/ui";
 import type { PillTone } from "@agh/ui";
 
 interface SettingsApplyRecordsPanelProps {
@@ -137,8 +137,21 @@ function SettingsApplyRecordsPanel({
         ) : null}
 
         {isLoading ? (
-          <div className="flex min-h-24 items-center justify-center">
-            <Spinner className="size-5 text-subtle" />
+          <div
+            aria-label="Loading apply records"
+            className="flex flex-col divide-y divide-line border-y border-line"
+            role="status"
+          >
+            {[0, 1, 2].map(row => (
+              <div
+                className="grid min-w-0 gap-4 py-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)]"
+                key={row}
+              >
+                <Skeleton className="h-8 w-full rounded-xs" />
+                <Skeleton className="h-8 w-full rounded-xs" />
+                <Skeleton className="h-8 w-full rounded-xs" />
+              </div>
+            ))}
           </div>
         ) : records.length === 0 ? (
           <Empty

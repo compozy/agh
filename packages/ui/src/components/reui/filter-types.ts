@@ -1,10 +1,11 @@
-import type React from "react";
+import type { ChangeEvent, ReactNode } from "react";
 
-// Generic types for flexible filter system
+import type { FilterI18nConfig } from "./hooks/use-filter-context";
+
 export interface FilterOption<T = unknown> {
   value: T;
   label: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   metadata?: Record<string, unknown>;
   className?: string;
 }
@@ -15,7 +16,6 @@ export interface FilterOperator {
   supportsMultiple?: boolean;
 }
 
-// Custom renderer props interface
 export interface CustomRendererProps<T = unknown> {
   field: FilterFieldConfig<T>;
   values: T[];
@@ -23,51 +23,42 @@ export interface CustomRendererProps<T = unknown> {
   operator: string;
 }
 
-// Grouped field configuration interface
 export interface FilterFieldGroup<T = unknown> {
   group?: string;
   fields: FilterFieldConfig<T>[];
 }
 
-// Union type for both flat and grouped field configurations
 export type FilterFieldsConfig<T = unknown> = FilterFieldConfig<T>[] | FilterFieldGroup<T>[];
 
 export interface FilterFieldConfig<T = unknown> {
   key?: string;
   label?: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   type?: "select" | "multiselect" | "text" | "custom" | "separator" | "toggle";
-  // Group-level configuration
   group?: string;
   fields?: FilterFieldConfig<T>[];
-  // Field-specific options
   options?: FilterOption<T>[];
   operators?: FilterOperator[];
-  customRenderer?: (props: CustomRendererProps<T>) => React.ReactNode;
-  customValueRenderer?: (values: T[], options: FilterOption<T>[]) => React.ReactNode;
+  customRenderer?: (props: CustomRendererProps<T>) => ReactNode;
+  customValueRenderer?: (values: T[], options: FilterOption<T>[]) => ReactNode;
   placeholder?: string;
   searchable?: boolean;
   maxSelections?: number;
   min?: number;
   max?: number;
   step?: number;
-  prefix?: string | React.ReactNode;
-  suffix?: string | React.ReactNode;
+  prefix?: string | ReactNode;
+  suffix?: string | ReactNode;
   pattern?: string;
   validation?: (value: unknown) => boolean | { valid: boolean; message?: string };
   allowCustomValues?: boolean;
   className?: string;
   menuPopupClassName?: string;
-  // Grouping options (legacy support)
   groupLabel?: string;
-  // Boolean field options
   onLabel?: string;
   offLabel?: string;
-  // Input event handlers
-  onInputChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  // Default operator to use when creating a filter for this field
+  onInputChange?: (event: ChangeEvent<HTMLInputElement>) => void;
   defaultOperator?: string;
-  // Controlled values support for this field
   value?: T[];
   onValueChange?: (values: T[]) => void;
 }
@@ -84,4 +75,23 @@ export interface FilterGroup<T = unknown> {
   label?: string;
   filters: Filter<T>[];
   fields: FilterFieldConfig<T>[];
+}
+
+export interface FiltersProps<T = unknown> {
+  filters: Filter<T>[];
+  fields: FilterFieldsConfig<T>;
+  onChange: (filters: Filter<T>[]) => void;
+  className?: string;
+  variant?: "solid" | "default";
+  size?: "sm" | "default" | "lg";
+  radius?: "default" | "full";
+  i18n?: Partial<FilterI18nConfig>;
+  showSearchInput?: boolean;
+  trigger?: ReactNode;
+  allowMultiple?: boolean;
+  menuPopupClassName?: string;
+  collapseAddButton?: boolean;
+  enableShortcut?: boolean;
+  shortcutKey?: string;
+  shortcutLabel?: string;
 }

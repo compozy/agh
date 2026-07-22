@@ -1,17 +1,8 @@
-import type React from "react";
-import { useFilterInput } from "./hooks/use-filter-input";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  InputGroupText,
-} from "@agh/ui/components/input-group";
-import { cn } from "@agh/ui/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@agh/ui/components/tooltip";
-import { AlertCircleIcon } from "lucide-react";
-import { type FilterContextValue } from "./hooks/use-filter-context";
-import { Input } from "@agh/ui/components/input";
+import type * as React from "react";
+
+import { cn } from "../../lib/utils";
+import { Button } from "../button";
+import { ButtonGroupText } from "../button-group";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -19,108 +10,13 @@ import {
   DropdownMenuGroup,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@agh/ui/components/dropdown-menu";
-import { ScrollArea } from "@agh/ui/components/scroll-area";
+} from "../dropdown-menu";
+import { Input } from "../input";
+import { ScrollArea } from "../scroll-area";
+import { FilterInput } from "./filter-controls";
+import type { FilterFieldConfig, FilterOption } from "./filter-types";
+import type { FilterContextValue } from "./hooks/use-filter-context";
 import { useSelectOptionsPopover } from "./hooks/use-select-options-popover";
-import { Button } from "@agh/ui/components/button";
-import { ButtonGroupText } from "@agh/ui/components/button-group";
-
-import type { FilterFieldConfig, FilterOption } from "./filters-types";
-
-function FilterInput<T = unknown>({
-  field,
-  focusOnMount,
-  onBlur,
-  onKeyDown,
-  className,
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & {
-  className?: string;
-  field?: FilterFieldConfig<T>;
-  focusOnMount?: boolean;
-}) {
-  const {
-    context,
-    focusInputOnMount,
-    handleKeyDown,
-    isValid,
-    validateFilterInputOnBlur,
-    validationMessage,
-  } = useFilterInput({
-    field,
-    focusOnMount,
-    onBlur,
-    onKeyDown,
-    pattern: props.pattern,
-  });
-
-  return (
-    <InputGroup
-      className={cn(
-        "w-36",
-        context.size == "sm" && "h-7!",
-        context.size == "default" && "h-8!",
-        context.size == "lg" && "h-9!",
-        className
-      )}
-    >
-      {field?.prefix && (
-        <InputGroupAddon>
-          <InputGroupText>{field.prefix}</InputGroupText>
-        </InputGroupAddon>
-      )}
-      <InputGroupInput
-        ref={focusInputOnMount}
-        aria-invalid={!isValid}
-        aria-describedby={
-          !isValid && validationMessage ? `${field?.key || "input"}-error` : undefined
-        }
-        onBlur={validateFilterInputOnBlur}
-        onKeyDown={handleKeyDown}
-        className={cn(
-          context.size == "sm" && "h-7! text-form-label",
-          context.size == "default" && "h-8!",
-          context.size == "lg" && "h-9!"
-        )}
-        {...props}
-      />
-      {!isValid && validationMessage && (
-        <InputGroupAddon align="inline-end">
-          <Tooltip>
-            <TooltipTrigger render={<InputGroupButton size="icon-xs" />}>
-              <AlertCircleIcon className="text-destructive size-3" />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{validationMessage}</p>
-            </TooltipContent>
-          </Tooltip>
-        </InputGroupAddon>
-      )}
-
-      {field?.suffix && (
-        <InputGroupAddon align="inline-end">
-          <InputGroupText>{field.suffix}</InputGroupText>
-        </InputGroupAddon>
-      )}
-    </InputGroup>
-  );
-}
-
-interface FilterValueSelectorProps<T = unknown> {
-  field: FilterFieldConfig<T>;
-  values: T[];
-  onChange: (values: T[]) => void;
-  operator: string;
-  focusOnMount?: boolean;
-}
-
-interface SelectOptionsPopoverProps<T = unknown> {
-  field: FilterFieldConfig<T>;
-  values: T[];
-  onChange: (values: T[]) => void;
-  onClose?: () => void;
-  inline?: boolean;
-}
 
 interface SelectOptionsMenuContentProps<T = unknown> {
   field: FilterFieldConfig<T>;
@@ -160,14 +56,12 @@ function SelectOptionsMenuContent<T = unknown>({
   onToggleOption,
 }: SelectOptionsMenuContentProps<T>) {
   const moveHighlight = (nextIndex: number) => {
-    if (allFilteredOptions.length > 0) {
-      onHighlightOption(nextIndex);
-    }
+    if (allFilteredOptions.length > 0) onHighlightOption(nextIndex);
   };
 
   return (
     <>
-      {field.searchable !== false && (
+      {field.searchable !== false ? (
         <>
           <Input
             ref={focusSearchInput}
@@ -181,7 +75,7 @@ function SelectOptionsMenuContent<T = unknown>({
             }
             placeholder={context.i18n.placeholders.searchField(field.label || "")}
             className={cn(
-              "border-input h-8 rounded-none border-0 bg-transparent! px-2 shadow-none",
+              "h-8 rounded-none border-0 border-input bg-transparent! px-2 shadow-none",
               "focus-visible:border-border focus-visible:ring-0 focus-visible:ring-offset-0",
               open && "placeholder:text-foreground"
             )}
@@ -206,16 +100,14 @@ function SelectOptionsMenuContent<T = unknown>({
               } else if (event.key === "Enter" && highlightedIndex >= 0) {
                 event.preventDefault();
                 const option = allFilteredOptions[highlightedIndex];
-                if (option) {
-                  onToggleOption(option);
-                }
+                if (option) onToggleOption(option);
               }
               event.stopPropagation();
             }}
           />
           <DropdownMenuSeparator />
         </>
-      )}
+      ) : null}
       <div className="relative flex max-h-full">
         <div
           className="flex max-h-[min(var(--available-height),24rem)] w-full scroll-pt-2 scroll-pb-2 flex-col overscroll-contain"
@@ -223,22 +115,20 @@ function SelectOptionsMenuContent<T = unknown>({
           id={`${baseId}-listbox`}
         >
           <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
-            {allFilteredOptions.length === 0 && (
-              <div className="text-muted-foreground py-2 text-center text-small-body">
+            {allFilteredOptions.length === 0 ? (
+              <div className="py-2 text-center text-small-body text-muted-foreground">
                 {context.i18n.noResultsFound}
               </div>
-            )}
+            ) : null}
 
-            {filteredSelectedOptions.length > 0 && (
+            {filteredSelectedOptions.length > 0 ? (
               <DropdownMenuGroup className="px-1">
                 {filteredSelectedOptions.map((option, index) => {
                   const isHighlighted = highlightedIndex === index;
-                  const itemId = `${baseId}-item-${index}`;
-
                   return (
                     <DropdownMenuCheckboxItem
                       key={String(option.value)}
-                      id={itemId}
+                      id={`${baseId}-item-${index}`}
                       role="option"
                       aria-selected={isHighlighted}
                       data-highlighted={isHighlighted || undefined}
@@ -261,23 +151,21 @@ function SelectOptionsMenuContent<T = unknown>({
                   );
                 })}
               </DropdownMenuGroup>
-            )}
+            ) : null}
 
-            {filteredSelectedOptions.length > 0 && filteredUnselectedOptions.length > 0 && (
+            {filteredSelectedOptions.length > 0 && filteredUnselectedOptions.length > 0 ? (
               <DropdownMenuSeparator className="mx-0" />
-            )}
+            ) : null}
 
-            {filteredUnselectedOptions.length > 0 && (
+            {filteredUnselectedOptions.length > 0 ? (
               <DropdownMenuGroup className="px-1">
                 {filteredUnselectedOptions.map((option, index) => {
                   const overallIndex = index + filteredSelectedOptions.length;
                   const isHighlighted = highlightedIndex === overallIndex;
-                  const itemId = `${baseId}-item-${overallIndex}`;
-
                   return (
                     <DropdownMenuCheckboxItem
                       key={String(option.value)}
-                      id={itemId}
+                      id={`${baseId}-item-${overallIndex}`}
                       role="option"
                       aria-selected={isHighlighted}
                       data-highlighted={isHighlighted || undefined}
@@ -300,12 +188,20 @@ function SelectOptionsMenuContent<T = unknown>({
                   );
                 })}
               </DropdownMenuGroup>
-            )}
+            ) : null}
           </ScrollArea>
         </div>
       </div>
     </>
   );
+}
+
+interface SelectOptionsPopoverProps<T = unknown> {
+  field: FilterFieldConfig<T>;
+  values: T[];
+  onChange: (values: T[]) => void;
+  onClose?: () => void;
+  inline?: boolean;
 }
 
 function SelectOptionsPopover<T = unknown>({
@@ -315,72 +211,52 @@ function SelectOptionsPopover<T = unknown>({
   onClose,
   inline = false,
 }: SelectOptionsPopoverProps<T>) {
-  const {
-    allFilteredOptions,
-    baseId,
-    context,
-    filteredSelectedOptions,
-    filteredUnselectedOptions,
-    focusSearchInput,
-    handleClose,
-    handleOpenChange,
-    handleSearchInputChange,
-    highlightOption,
-    highlightedIndex,
-    inputRef,
-    open,
-    searchInput,
-    selectedOptions,
-    toggleOption,
-  } = useSelectOptionsPopover({ field, values, onChange, onClose });
-
+  const state = useSelectOptionsPopover({ field, values, onChange, onClose });
   const menuContent = (
     <SelectOptionsMenuContent
       field={field}
-      context={context}
-      baseId={baseId}
-      open={open}
-      searchInput={searchInput}
-      searchInputRef={inputRef}
-      focusSearchInput={focusSearchInput}
-      highlightedIndex={highlightedIndex}
-      selectedOptions={selectedOptions}
-      filteredSelectedOptions={filteredSelectedOptions}
-      filteredUnselectedOptions={filteredUnselectedOptions}
-      allFilteredOptions={allFilteredOptions}
-      onSearchInputChange={handleSearchInputChange}
-      onHighlightOption={highlightOption}
-      onRequestClose={handleClose}
-      onToggleOption={toggleOption}
+      context={state.context}
+      baseId={state.baseId}
+      open={state.open}
+      searchInput={state.searchInput}
+      searchInputRef={state.inputRef}
+      focusSearchInput={state.focusSearchInput}
+      highlightedIndex={state.highlightedIndex}
+      selectedOptions={state.selectedOptions}
+      filteredSelectedOptions={state.filteredSelectedOptions}
+      filteredUnselectedOptions={state.filteredUnselectedOptions}
+      allFilteredOptions={state.allFilteredOptions}
+      onSearchInputChange={state.handleSearchInputChange}
+      onHighlightOption={state.highlightOption}
+      onRequestClose={state.handleClose}
+      onToggleOption={state.toggleOption}
     />
   );
 
-  if (inline) {
-    return <div className="w-full">{menuContent}</div>;
-  }
+  if (inline) return <div className="w-full">{menuContent}</div>;
 
   return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+    <DropdownMenu open={state.open} onOpenChange={state.handleOpenChange}>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size={context.size}>
+          <Button variant="outline" size={state.context.size}>
             <div className="flex items-center gap-1.5">
               {field.customValueRenderer ? (
                 field.customValueRenderer(values, field.options || [])
               ) : (
                 <>
-                  {selectedOptions.length > 0 && (
+                  {state.selectedOptions.length > 0 ? (
                     <div className="flex items-center gap-1.5">
-                      {selectedOptions.slice(0, 3).map(option => (
+                      {state.selectedOptions.slice(0, 3).map(option => (
                         <div key={String(option.value)}>{option.icon}</div>
                       ))}
                     </div>
-                  )}
-                  {selectedOptions.length === 1
-                    ? selectedOptions[0].label
-                    : selectedOptions.length > 1
-                      ? `${selectedOptions.length} ${context.i18n.selectedCount}`
-                      : context.i18n.select}
+                  ) : null}
+                  {state.selectedOptions.length === 1
+                    ? state.selectedOptions[0].label
+                    : state.selectedOptions.length > 1
+                      ? `${state.selectedOptions.length} ${state.context.i18n.selectedCount}`
+                      : state.context.i18n.select}
                 </>
               )}
             </div>
@@ -397,24 +273,26 @@ function SelectOptionsPopover<T = unknown>({
   );
 }
 
-export function FilterValueSelector<T = unknown>({
+interface FilterValueSelectorProps<T = unknown> {
+  field: FilterFieldConfig<T>;
+  values: T[];
+  onChange: (values: T[]) => void;
+  operator: string;
+  focusOnMount?: boolean;
+}
+
+function FilterValueSelector<T = unknown>({
   field,
   values,
   onChange,
   operator,
   focusOnMount,
 }: FilterValueSelectorProps<T>) {
-  if (operator === "empty" || operator === "not_empty") {
-    return null;
-  }
-
-  if (field.type === "toggle") {
-    return null;
-  }
+  if (operator === "empty" || operator === "not_empty" || field.type === "toggle") return null;
 
   if (field.customRenderer) {
     return (
-      <ButtonGroupText className="hover:bg-accent aria-expanded:bg-accent bg-background dark:bg-input/30 text-start whitespace-nowrap outline-hidden">
+      <ButtonGroupText className="bg-background text-start whitespace-nowrap outline-hidden hover:bg-accent aria-expanded:bg-accent dark:bg-input/30">
         {field.customRenderer({ field, values, onChange, operator })}
       </ButtonGroupText>
     );
@@ -425,7 +303,7 @@ export function FilterValueSelector<T = unknown>({
       <FilterInput
         type="text"
         value={(values[0] as string) || ""}
-        onChange={e => onChange([e.target.value] as T[])}
+        onChange={event => onChange([event.target.value] as T[])}
         placeholder={field.placeholder}
         pattern={field.pattern}
         field={field}
@@ -435,9 +313,7 @@ export function FilterValueSelector<T = unknown>({
     );
   }
 
-  if (field.type === "select" || field.type === "multiselect") {
-    return <SelectOptionsPopover field={field} values={values} onChange={onChange} />;
-  }
-
   return <SelectOptionsPopover field={field} values={values} onChange={onChange} />;
 }
+
+export { FilterValueSelector };

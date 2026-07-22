@@ -25,11 +25,5 @@ export interface TypedTreeContext<T> {
 }
 
 export function useTreeContext<T>(): TypedTreeContext<T> {
-  const context = use(TreeContext);
-  return {
-    indent: context.indent,
-    currentItem: context.currentItem as ItemInstance<T> | undefined,
-    tree: context.tree as TreeInstance<T> | undefined,
-    toggleIconType: context.toggleIconType,
-  };
+  return use(TreeContext) as TypedTreeContext<T>;
 }

@@ -24,13 +24,13 @@ export function LoopLimitsPanel({ effectiveConfig }: LoopLimitsPanelProps) {
               data-testid="loop-limit-row"
             >
               <span className="text-xs text-subtle">{row.label}</span>
-              <span className="font-mono text-[11.5px] tabular-nums text-fg">
+              <span className="font-mono text-mono-id tabular-nums text-fg">
                 {row.value} <span className="text-faint">{row.ceiling}</span>
               </span>
             </div>
           ))}
         </div>
-        <p className="border-t border-line-soft px-3.5 py-3 text-[11px] leading-relaxed text-faint">
+        <p className="border-t border-line-soft px-3.5 py-3 text-form-hint leading-relaxed text-faint">
           Left is the per-loop default; right is the daemon ceiling, a hard backstop that cannot be
           raised. Token and wall-clock budgets are off unless set (0 = unlimited); a set budget is
           enforced. Cost is display-only, not an enforced cap.
