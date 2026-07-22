@@ -1,7 +1,7 @@
 import { ListFilter } from "lucide-react";
 
 import { Button } from "@agh/ui";
-import { Filters, type Filter } from "@agh/ui";
+import { FiltersWithSearch, type Filter } from "@agh/ui";
 
 import {
   applyBridgeFilterChips,
@@ -52,7 +52,7 @@ function BridgeListFilters({
   };
 
   return (
-    <Filters<string>
+    <FiltersWithSearch<string>
       allowMultiple={false}
       data-testid="bridge-list-filters"
       fields={fields}

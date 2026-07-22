@@ -11,8 +11,6 @@ const LINK_CLASS =
 
 const COLUMN_TITLE_CLASS = "eyebrow text-muted";
 
-const currentYear = new Date().getFullYear();
-
 function FooterLinkItem({ item }: { item: FooterLink }) {
   if (item.external) {
     return (
@@ -45,6 +43,7 @@ function FooterColumnGroup({ column, className }: { column: FooterColumn; classN
 }
 
 export function SiteFooter() {
+  const currentYear = new Date().getFullYear();
   const [runtime, network, resources] = footerColumns;
 
   return (

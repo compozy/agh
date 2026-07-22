@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { Surface } from "../surface";
 import type { PillTone } from "./pill";
 import { StatusCardContext } from "./hooks/use-status-card-tone";
 import {
@@ -14,7 +15,7 @@ import {
 
 type StatusCardTone = PillTone;
 
-interface StatusCardProps extends React.ComponentProps<"section"> {
+interface StatusCardProps extends React.ComponentProps<"div"> {
   tone?: StatusCardTone;
 }
 
@@ -22,14 +23,14 @@ function StatusCard({ tone = "neutral", className, children, ...props }: StatusC
   const contextValue = { tone };
   return (
     <StatusCardContext.Provider value={contextValue}>
-      <section
-        className={cn("flex min-w-0 flex-col gap-3 rounded-lg bg-canvas-soft px-5 py-4", className)}
+      <Surface
+        className={cn("flex min-w-0 flex-col gap-3", className)}
         data-slot="status-card"
         data-tone={tone}
         {...props}
       >
         {children}
-      </section>
+      </Surface>
     </StatusCardContext.Provider>
   );
 }

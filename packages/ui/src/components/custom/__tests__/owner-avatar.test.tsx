@@ -47,15 +47,14 @@ describe("OwnerAvatar", () => {
   });
 
   it.each([
-    ["sm", 20],
-    ["default", 24],
-    ["lg", 32],
-  ] as const)("Should render at the right pixel size for %s", (size, px) => {
+    ["sm", "size-avatar-sm"],
+    ["default", "size-avatar-default"],
+    ["lg", "size-avatar-lg"],
+  ] as const)("Should render the %s size utility", (size, sizeClass) => {
     const { container } = render(<OwnerAvatar ownerKind="agent" ownerId="x" size={size} />);
     const root = container.querySelector<HTMLElement>('[data-slot="owner-avatar"]');
     expect(root?.dataset.size).toBe(size);
-    expect(root?.style.width).toBe(`${px}px`);
-    expect(root?.style.height).toBe(`${px}px`);
+    expect(root?.className).toContain(sizeClass);
   });
 
   it("Should derive a 2-character monogram from the display name", () => {

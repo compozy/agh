@@ -1,4 +1,4 @@
-import { DetailHeader, Eyebrow } from "@agh/ui";
+import { Eyebrow } from "@agh/ui";
 
 import { formatNetworkPresenceLabel } from "../../lib/network-formatters";
 import type { NetworkPresence } from "../../types";
@@ -62,34 +62,32 @@ export function DirectRoom({ workspaceId, channel, directId, selfSessionId }: Di
       className="flex min-h-0 flex-1 flex-col"
       data-testid="network-direct-room"
     >
-      <DetailHeader
-        actions={
-          <div
-            data-slot="direct-room-meta"
-            data-testid="network-direct-identity-row-meta"
-            className="flex items-center gap-2 text-small-body text-muted"
-          >
-            <Eyebrow>agent</Eyebrow>
-            <PresenceBadge presence={room.presence} />
-          </div>
-        }
-        className="px-5 py-3"
+      <header
+        className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3"
+        data-slot="direct-room-identity"
         data-testid="network-direct-identity-row"
-        title={
-          <span className="flex min-w-0 items-center gap-3">
-            {otherPeerId ? (
-              <MessageAvatar
-                initialFrom={otherPeerId}
-                name={otherPeerId}
-                ownerRole="agent"
-                seed={otherPeerId}
-                sizePx={32}
-              />
-            ) : null}
-            <span className="truncate">{otherPeerId ? `@${otherPeerId}` : "Direct room"}</span>
-          </span>
-        }
-      />
+      >
+        {otherPeerId ? (
+          <MessageAvatar
+            initialFrom={otherPeerId}
+            name={otherPeerId}
+            ownerRole="agent"
+            seed={otherPeerId}
+            sizePx={32}
+          />
+        ) : null}
+        <h2 className="min-w-0 flex-1 truncate text-compact-h1 font-semibold tracking-compact-h1 text-fg-strong">
+          {otherPeerId ? `@${otherPeerId}` : "Direct room"}
+        </h2>
+        <div
+          className="ml-auto flex items-center gap-2 text-small-body text-muted"
+          data-slot="direct-room-meta"
+          data-testid="network-direct-identity-row-meta"
+        >
+          <Eyebrow>agent</Eyebrow>
+          <PresenceBadge presence={room.presence} />
+        </div>
+      </header>
 
       {detailError ? (
         <div className="flex flex-1 items-center justify-center px-5 py-10" role="alert">

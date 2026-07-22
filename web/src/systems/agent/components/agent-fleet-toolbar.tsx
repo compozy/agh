@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 
 import {
   Button,
-  Filters,
+  FiltersWithSearch,
   ListingToolbar,
   SearchInput,
   type Filter,
@@ -63,7 +63,7 @@ function AgentFleetToolbar({
         />
         {showFacets ? (
           <ListingToolbar.Filters>
-            <Filters<string>
+            <FiltersWithSearch<string>
               allowMultiple={false}
               data-testid="agent-fleet-filters"
               fields={fields}

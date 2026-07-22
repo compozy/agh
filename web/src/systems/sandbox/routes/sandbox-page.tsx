@@ -22,7 +22,7 @@ import {
 import { SandboxListFilters, SandboxProfilesList, SandboxProfileSheet } from "../components";
 import {
   SettingsEditorDialog,
-  SettingsFieldRow,
+  ModalSettingsFieldRow,
   SettingsRestartNotice,
   SettingsSourceBadge,
 } from "@/systems/settings";
@@ -282,8 +282,7 @@ function SandboxEditor({
       }}
     >
       <div className="flex flex-col gap-3">
-        <SettingsFieldRow
-          variant="modal"
+        <ModalSettingsFieldRow
           data-testid="sandbox-editor-name"
           label="Name"
           description={
@@ -302,8 +301,7 @@ function SandboxEditor({
             />
           }
         />
-        <SettingsFieldRow
-          variant="modal"
+        <ModalSettingsFieldRow
           data-testid="sandbox-editor-backend"
           label="Backend"
           description="Which execution backend the sandbox uses."
@@ -319,8 +317,7 @@ function SandboxEditor({
             </NativeSelect>
           }
         />
-        <SettingsFieldRow
-          variant="modal"
+        <ModalSettingsFieldRow
           data-testid="sandbox-editor-sync-mode"
           label="Sync mode"
           description="How files move between host and sandbox."
@@ -336,8 +333,7 @@ function SandboxEditor({
             />
           }
         />
-        <SettingsFieldRow
-          variant="modal"
+        <ModalSettingsFieldRow
           data-testid="sandbox-editor-persistence"
           label="Persistence"
           description="Workspace lifecycle between sessions."
@@ -353,8 +349,7 @@ function SandboxEditor({
             />
           }
         />
-        <SettingsFieldRow
-          variant="modal"
+        <ModalSettingsFieldRow
           data-testid="sandbox-editor-runtime-root"
           label="Runtime root"
           description="Directory mounted as the working root."

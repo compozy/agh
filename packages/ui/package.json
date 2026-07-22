@@ -14,6 +14,7 @@
     },
     "scripts": {
         "build": "tsc --noEmit",
+        "lint": "bunx oxfmt --check && bunx oxlint --deny-warnings",
         "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",

@@ -13,7 +13,16 @@ export interface EmptyProps extends Omit<React.ComponentProps<"div">, "title"> {
   title: React.ReactNode;
   titleAs?: EmptyTitleTag;
   description?: React.ReactNode;
+  /** Optional cause node — a mono bordered box (e.g. an error message). */
+  cause?: React.ReactNode;
   action?: React.ReactNode;
+  /**
+   * Framed variant — a bordered, intrinsically-sized card for routed
+   * empty/error states (absorbs the old `RouteState`). The icon well stays the
+   * filled element; the frame is an outline so it never collapses against a
+   * canvas-soft parent. `fill` defaults to `false` when framed.
+   */
+  framed?: boolean;
   fill?: boolean;
 }
 
@@ -34,11 +43,14 @@ function Empty({
   title,
   titleAs,
   description,
+  cause,
   action,
-  fill = true,
+  framed = false,
+  fill,
   className,
   ...props
 }: EmptyProps) {
+  const isFill = fill ?? !framed;
   let iconContent: React.ReactNode;
   if (icon === undefined) {
     iconContent = <BoxIcon className="size-4" />;
@@ -54,10 +66,12 @@ function Empty({
   return (
     <div
       data-slot="empty"
-      data-fill={fill ? "true" : "false"}
+      data-fill={isFill ? "true" : "false"}
+      data-framed={framed ? "true" : undefined}
       className={cn(
         "flex w-full flex-col items-center justify-center gap-3 rounded-lg text-center",
-        fill && "h-full min-h-0 flex-1",
+        framed && "min-h-40 border border-line px-6 py-8",
+        isFill && "h-full min-h-0 flex-1",
         className
       )}
       {...props}
@@ -71,7 +85,7 @@ function Empty({
       </span>
       <TitleTag
         data-slot="empty-title"
-        className="text-lg font-medium leading-snug tracking-empty-h1 text-fg-strong"
+        className="text-empty-h1 font-medium leading-snug tracking-empty-h1 text-fg-strong"
       >
         {title}
       </TitleTag>
@@ -82,6 +96,14 @@ function Empty({
         >
           {description}
         </p>
+      ) : null}
+      {cause ? (
+        <div
+          data-slot="empty-cause"
+          className="max-w-md rounded border border-line bg-canvas px-3 py-2 font-mono text-eyebrow text-subtle"
+        >
+          {cause}
+        </div>
       ) : null}
       {action ? (
         <div

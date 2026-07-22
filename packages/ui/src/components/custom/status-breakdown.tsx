@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { toneBg } from "../../lib/tone";
 import { cn } from "../../lib/utils";
 import type { PillTone } from "./pill";
 
@@ -16,15 +17,6 @@ export interface StatusBreakdownProps extends React.ComponentProps<"div"> {
   /** Total used to compute share; defaults to the sum of values. */
   total?: number;
 }
-
-const TONE_BAR_CLASS: Record<PillTone, string> = {
-  neutral: "bg-muted",
-  accent: "bg-accent",
-  success: "bg-success",
-  warning: "bg-warning",
-  danger: "bg-danger",
-  info: "bg-info",
-};
 
 function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownProps) {
   const sum = total ?? items.reduce((acc, item) => acc + item.value, 0);
@@ -43,10 +35,10 @@ function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownP
               <span className="inline-flex w-24 shrink-0 truncate text-form-label text-muted">
                 {item.label}
               </span>
-              <div className="relative h-1.5 flex-1 overflow-hidden rounded-pill bg-canvas">
+              <div className="relative h-1.5 flex-1 overflow-hidden rounded-pill bg-canvas-tint">
                 <span
                   data-slot="status-breakdown-bar"
-                  className={cn("absolute inset-y-0 left-0 rounded-pill", TONE_BAR_CLASS[tone])}
+                  className={cn("absolute inset-y-0 left-0 rounded-pill", toneBg(tone))}
                   style={{ width: `${Math.round(ratio * 100)}%` }}
                 />
               </div>

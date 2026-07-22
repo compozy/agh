@@ -13,7 +13,7 @@ export interface StatusDotProps extends Omit<React.ComponentProps<"span">, "chil
   tone: StatusDotTone;
   /** `solid` fills the dot; `ring` paints a 1 px outline only. */
   variant?: StatusDotVariant;
-  /** `default` = 6 px; `sm` = 5 px. */
+  /** `default` = 7 px; `sm` = 6 px. */
   size?: StatusDotSize;
   /**
    * Accessible label. Defaults to the underlying `data-tone` + `data-variant`
@@ -31,8 +31,8 @@ const TONE_TEXT_COLOR: Record<StatusDotTone, string> = {
 };
 
 const SIZE_PX: Record<StatusDotSize, string> = {
-  default: "size-1.5",
-  sm: "size-1.5",
+  default: "size-status-dot",
+  sm: "size-status-dot-sm",
 };
 
 function StatusDot({

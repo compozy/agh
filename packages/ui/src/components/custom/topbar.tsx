@@ -175,10 +175,10 @@ function TopbarIdentity({
           data-presentation={slot?.glyphPresentation ?? "icon"}
           aria-hidden="true"
           className={cn(
-            "inline-flex size-[22px] shrink-0 items-center justify-center",
+            "inline-flex size-topbar-glyph shrink-0 items-center justify-center",
             slot?.glyphPresentation === "state"
               ? "text-accent"
-              : "rounded-sm border border-line bg-badge-fill text-muted [&_svg]:size-3.5"
+              : "rounded border border-line bg-badge-fill text-muted [&_svg]:size-3.5"
           )}
         >
           {mark}

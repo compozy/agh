@@ -1,9 +1,8 @@
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { cn, Kbd, KindIcon, providerKindIconRegistry } from "@agh/ui";
+import { cn, IntensityMeter, Kbd, KindIcon, providerKindIconRegistry } from "@agh/ui";
 
-import { IntensityMeter } from "./intensity-meter";
 import {
   reasoningEffortLabel,
   reasoningEffortPosition,

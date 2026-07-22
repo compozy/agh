@@ -1,6 +1,6 @@
 import { ListFilter } from "lucide-react";
 
-import { Button, Filters, type Filter } from "@agh/ui";
+import { Button, FiltersWithSearch, type Filter } from "@agh/ui";
 
 import {
   applyAutomationFilterChips,
@@ -56,7 +56,7 @@ function AutomationListFilters({
   };
 
   return (
-    <Filters<string>
+    <FiltersWithSearch<string>
       allowMultiple={false}
       data-testid={`${kind}-list-filters`}
       fields={fields}

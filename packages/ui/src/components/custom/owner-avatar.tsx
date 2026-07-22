@@ -7,10 +7,10 @@ import { cn } from "../../lib/utils";
 
 export type OwnerAvatarSize = "sm" | "default" | "lg";
 
-const SIZE_PX: Record<OwnerAvatarSize, number> = {
-  sm: 20,
-  default: 24,
-  lg: 32,
+const SIZE_CLASS: Record<OwnerAvatarSize, string> = {
+  sm: "size-avatar-sm",
+  default: "size-avatar-default",
+  lg: "size-avatar-lg",
 };
 
 const SIZE_TEXT: Record<OwnerAvatarSize, string> = {
@@ -68,7 +68,6 @@ function OwnerAvatar({
   ...props
 }: OwnerAvatarProps) {
   const { bg, fg } = colorsFor(ownerKind, ownerId);
-  const px = SIZE_PX[size];
   const role = roleLabel ?? ROLE_LABEL[ownerKind];
   const displayName = name?.trim() || ownerId;
   const initials = monogram ?? deriveMonogram(displayName);
@@ -81,12 +80,11 @@ function OwnerAvatar({
       aria-label={`${role} ${displayName}`}
       className={cn(
         "inline-flex shrink-0 select-none items-center justify-center rounded-full font-medium uppercase tabular-nums",
+        SIZE_CLASS[size],
         SIZE_TEXT[size],
         className
       )}
       style={{
-        width: px,
-        height: px,
         backgroundColor: bg,
         color: fg,
         ...style,

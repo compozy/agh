@@ -2,7 +2,7 @@ import type * as React from "react";
 
 import { cn, StatusCard, type PillTone } from "@agh/ui";
 
-export interface TaskStateBandProps extends Omit<React.ComponentProps<"section">, "title"> {
+export interface TaskStateBandProps extends Omit<React.ComponentProps<"div">, "title"> {
   tone: PillTone;
   title: React.ReactNode;
   /** Plain-language consequence line under the title (max ~62ch). */

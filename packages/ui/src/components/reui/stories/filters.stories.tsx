@@ -3,7 +3,7 @@ import { AtSign, Briefcase, CircleDot, ListFilter, Pin } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "../../button";
-import { Filters, type Filter, type FilterFieldsConfig } from "../filters";
+import { Filters, FiltersWithSearch, type Filter, type FilterFieldsConfig } from "../filters";
 
 const TOGGLE_FIELDS: FilterFieldsConfig<boolean> = [
   {
@@ -49,7 +49,6 @@ function ToggleFiltersDemo({ initial = [] as Filter<boolean>[] }) {
         fields={TOGGLE_FIELDS}
         filters={filters}
         onChange={setFilters}
-        showSearchInput={false}
         size="sm"
         trigger={TRIGGER}
       />
@@ -103,4 +102,26 @@ export const AllChipsActive: Story = {
       ]}
     />
   ),
+};
+
+function SearchableFiltersDemo() {
+  const [filters, setFilters] = useState<Filter<boolean>[]>([]);
+
+  return (
+    <div className="w-full max-w-2xl rounded-md border border-line p-3">
+      <FiltersWithSearch<boolean>
+        allowMultiple={false}
+        fields={TOGGLE_FIELDS}
+        filters={filters}
+        onChange={setFilters}
+        size="sm"
+        trigger={TRIGGER}
+      />
+    </div>
+  );
+}
+
+export const WithMenuSearch: Story = {
+  name: "With menu search",
+  render: () => <SearchableFiltersDemo />,
 };

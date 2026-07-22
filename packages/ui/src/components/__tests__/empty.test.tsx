@@ -84,4 +84,16 @@ describe("Empty", () => {
     const empty = container.querySelector('[data-slot="empty"]');
     expect(empty?.getAttribute("data-fill")).toBe("false");
   });
+
+  it("Should render a framed, non-filling card with the cause slot in order", () => {
+    const { container } = render(
+      <Empty framed title="Unable to load" description="It broke." cause="stack: boom" />
+    );
+    const empty = container.querySelector('[data-slot="empty"]');
+    expect(empty?.getAttribute("data-framed")).toBe("true");
+    expect(empty?.getAttribute("data-fill")).toBe("false");
+    expect(empty?.className).toContain("border-line");
+    const slots = Array.from(empty?.children ?? []).map(node => node.getAttribute("data-slot"));
+    expect(slots).toEqual(["empty-icon", "empty-title", "empty-description", "empty-cause"]);
+  });
 });

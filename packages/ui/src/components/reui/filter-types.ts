@@ -86,11 +86,9 @@ export interface FiltersProps<T = unknown> {
   size?: "sm" | "default" | "lg";
   radius?: "default" | "full";
   i18n?: Partial<FilterI18nConfig>;
-  showSearchInput?: boolean;
   trigger?: ReactNode;
   allowMultiple?: boolean;
   menuPopupClassName?: string;
-  collapseAddButton?: boolean;
   enableShortcut?: boolean;
   shortcutKey?: string;
   shortcutLabel?: string;

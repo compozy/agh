@@ -11,11 +11,10 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UIProvider } from "@agh/ui";
+import { IntensityMeter, UIProvider } from "@agh/ui";
 
 import { FAVORITES_STORAGE_KEY, RECENTS_LIMIT, RECENTS_STORAGE_KEY } from "../favorites";
 import { triggerVisible } from "../use-runtime-j-shortcut";
-import { IntensityMeter } from "../intensity-meter";
 import { runtimeModelKey } from "../model-key";
 import { ReasoningBar } from "../reasoning-bar";
 import { RuntimeSelector, type RuntimeSelectorProps } from "../runtime-selector";
@@ -211,7 +210,7 @@ describe("RuntimeSelector reasoning trigger + footer", () => {
     const reasoningSegment = document.querySelector<HTMLElement>('button[data-focus="reasoning"]');
     expect(reasoningSegment).toBeInTheDocument();
     expect(reasoningSegment).toHaveTextContent("Default");
-    const meter = reasoningSegment?.querySelector('[data-slot="runtime-intensity-meter"]');
+    const meter = reasoningSegment?.querySelector('[data-slot="intensity-meter"]');
     expect(meter).not.toBeNull();
     // Semantic state (hollow, zero bars filled), not the visual class.
     expect(meter).toHaveAttribute("data-hollow", "true");
@@ -1708,7 +1707,7 @@ describe("IntensityMeter + reasoningEffortPosition", () => {
   it("Should mark exactly the requested number of bars as filled for each canonical position", () => {
     for (let position = 0; position <= 7; position += 1) {
       const { container, unmount } = render(<IntensityMeter position={position} />);
-      const meter = container.querySelector('[data-slot="runtime-intensity-meter"]');
+      const meter = container.querySelector('[data-slot="intensity-meter"]');
       const bars = Array.from(meter?.children ?? []);
       expect(bars).toHaveLength(7);
       expect(meter).toHaveAttribute("data-position", String(position));
@@ -1719,7 +1718,7 @@ describe("IntensityMeter + reasoningEffortPosition", () => {
 
   it("Should mark every bar hollow with zero filled when hollow", () => {
     const { container } = render(<IntensityMeter position={5} hollow />);
-    const meter = container.querySelector('[data-slot="runtime-intensity-meter"]');
+    const meter = container.querySelector('[data-slot="intensity-meter"]');
     const bars = Array.from(meter?.children ?? []);
     expect(meter).toHaveAttribute("data-hollow", "true");
     expect(meter).toHaveAttribute("data-position", "0");

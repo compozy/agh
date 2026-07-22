@@ -4,7 +4,7 @@ import {
   Button,
   Empty,
   Eyebrow,
-  Filters,
+  FiltersWithSearch,
   ListingPage,
   SearchInput,
   Spinner,
@@ -127,7 +127,7 @@ export function TasksInboxView({
           placeholder="Search inbox..."
           value={searchQuery}
         />
-        <Filters<string>
+        <FiltersWithSearch<string>
           allowMultiple={false}
           fields={filterFields}
           filters={filterChips}

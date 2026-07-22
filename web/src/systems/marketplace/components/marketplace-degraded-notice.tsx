@@ -12,7 +12,7 @@ type MarketplaceDegradedNoticeProps = { onRetry: () => void } & (
 
 function MarketplaceDegradedNotice(props: MarketplaceDegradedNoticeProps) {
   // A page-level notice only renders while retained data is shown, so it is always stale (warning),
-  // never unreachable (danger); the "nothing to show" case is a full-page RouteState upstream.
+  // never unreachable (danger); the "nothing to show" case is a full-page Empty state upstream.
   const isStale = props.scope === "page" || props.hasItems;
   const message =
     props.scope === "page"

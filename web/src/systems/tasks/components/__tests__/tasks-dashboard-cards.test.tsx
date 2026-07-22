@@ -5,11 +5,11 @@ import { TasksDashboardCards } from "../tasks-dashboard-cards";
 import { buildDashboardFixture } from "../test-fixtures";
 
 describe("TasksDashboardCards", () => {
-  it("Should render four KpiCard primitives labeled Active runs, Success rate, Average duration, Queue depth", () => {
+  it("Should render four Metric primitives labeled Active runs, Success rate, Average duration, Queue depth", () => {
     render(<TasksDashboardCards dashboard={buildDashboardFixture()} />);
 
     const container = screen.getByTestId("tasks-dashboard-cards");
-    const cards = container.querySelectorAll("[data-slot=kpi-card]");
+    const cards = container.querySelectorAll("[data-slot=metric]");
     expect(cards).toHaveLength(4);
 
     expect(screen.getByTestId("tasks-dashboard-card-active-runs")).toHaveTextContent(

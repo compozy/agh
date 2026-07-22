@@ -14,6 +14,7 @@
         "dev": "next dev",
         "build": "next build",
         "start": "next start",
+        "lint": "bunx oxfmt --check && bunx oxlint --deny-warnings",
         "test": "vitest run",
         "typecheck": "node ../../node_modules/@typescript/native/bin/tsc --noEmit"
     },
@@ -47,6 +48,7 @@
         "@types/react": "^19.2.17",
         "@types/react-dom": "^19.2.0",
         "@vitejs/plugin-react": "^6.0.3",
+        "babel-plugin-react-compiler": "^1.0.0",
         "jsdom": "^29.1.1",
         "tailwindcss": "^4.3.3",
         "vitest": "^4.1.10"

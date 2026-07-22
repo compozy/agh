@@ -29,7 +29,7 @@ function ListingRowLink({ className, render, ...props }: ListingRowLinkProps) {
     props: mergeProps<"a">(
       {
         className: cn(
-          "col-span-2 grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-3.5 rounded-sm outline-none focus-visible:shadow-focus-inset",
+          "col-span-2 grid min-w-0 grid-cols-[var(--size-icon-well-row)_minmax(0,1fr)] items-center gap-3.5 rounded-sm outline-none focus-visible:shadow-focus-inset",
           className
         ),
       } as Record<string, unknown>,
@@ -48,7 +48,7 @@ function ListingRowIcon({ className, ...props }: ListingRowIconProps) {
       aria-hidden="true"
       data-slot="listing-row-icon"
       className={cn(
-        "grid size-[34px] shrink-0 place-items-center rounded-md bg-elevated text-muted",
+        "grid size-icon-well-row shrink-0 place-items-center rounded-md bg-elevated text-muted",
         className
       )}
       {...props}
@@ -82,7 +82,9 @@ function ListingRowTitle({ mono, className, ...props }: ListingRowTitleProps) {
       data-mono={useMono ? "true" : undefined}
       className={cn(
         "min-w-0 truncate font-medium text-fg-strong",
-        useMono ? "font-mono text-xs tracking-normal" : "font-sans text-sm tracking-[-0.01em]",
+        useMono
+          ? "font-mono text-xs tracking-normal"
+          : "font-sans text-card-title tracking-row-title",
         className
       )}
       {...props}

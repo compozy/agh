@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { PillGroup } from "@agh/ui";
 
 import { SettingRow } from "../setting-row";
-import { SettingsFieldRow } from "../settings-field-row";
+import { ModalSettingsFieldRow, SettingsFieldRow } from "../settings-field-row";
 
 describe("SettingsFieldRow", () => {
   it("renders labels, descriptions, and controls without jargon chips", () => {
@@ -38,18 +38,17 @@ describe("SettingsFieldRow", () => {
     expect(screen.getByLabelText("API key")).toHaveAttribute("aria-invalid", "true");
   });
 
-  it("renders the srow anatomy by default and the Field container in modal variant", () => {
+  it("renders the srow anatomy by default and the Field container in ModalSettingsFieldRow", () => {
     render(
       <SettingsFieldRow label="Session timeout" control={<input />} data-testid="field-row" />
     );
     expect(screen.getByTestId("field-row")).toHaveAttribute("data-slot", "setting-row");
 
     render(
-      <SettingsFieldRow
+      <ModalSettingsFieldRow
         control={<input />}
         data-testid="field-row-modal"
         label="Display name"
-        variant="modal"
       />
     );
     expect(screen.getByTestId("field-row-modal")).toHaveAttribute("data-slot", "field");

@@ -34,7 +34,7 @@ const TOOLTIP_CONTENT_STYLE: React.CSSProperties = {
   borderRadius: "var(--radius-sm)",
   color: "var(--color-fg)",
   fontFamily: "var(--font-mono)",
-  fontSize: "11px",
+  fontSize: "var(--text-eyebrow)",
   padding: "4px 6px",
 };
 

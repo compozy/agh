@@ -2,9 +2,8 @@ import { Brain } from "lucide-react";
 import { useId, type ReactNode } from "react";
 
 import { type ReasoningEffort } from "@/lib/api-contract";
-import { cn, Eyebrow } from "@agh/ui";
+import { cn, Eyebrow, IntensityMeter } from "@agh/ui";
 
-import { IntensityMeter } from "./intensity-meter";
 import { reasoningEffortLabel, reasoningEffortPosition, type RuntimeReasoningState } from "./types";
 
 export interface ReasoningBarProps {

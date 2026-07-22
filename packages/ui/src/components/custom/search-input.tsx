@@ -17,8 +17,8 @@ export interface SearchInputProps extends Omit<
 }
 
 /**
- * Compact search field — 26 px row, 220 px min-width, panel-tone surface.
- * Focus draws a 1 px ring on `--line-strong`; no accent ring.
+ * Compact search field — 28 px row, 220 px min-width, panel-tone surface.
+ * Focus strengthens the border and draws the 2 px focus ring; no accent ring.
  */
 function SearchInput({
   value,
@@ -37,8 +37,8 @@ function SearchInput({
       data-slot="search-input"
       data-disabled={disabled ? "true" : undefined}
       className={cn(
-        "flex h-button-default min-w-search-input-min items-center gap-2 rounded border border-line bg-canvas-soft px-2 text-small-body text-fg transition-colors focus-within:border-line-strong focus-within:shadow-focus-ring",
-        "data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-60",
+        "flex h-search min-w-search-input-min items-center gap-2 rounded-md border border-line bg-canvas-soft px-2 text-small-body text-fg transition-colors focus-within:border-line-strong focus-within:shadow-focus-ring",
+        "data-[disabled=true]:cursor-not-allowed data-[disabled=true]:border-line-soft data-[disabled=true]:bg-canvas data-[disabled=true]:text-disabled data-[disabled=true]:opacity-100",
         containerClassName
       )}
     >

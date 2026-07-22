@@ -2,13 +2,14 @@ import {
   Button,
   cn,
   DescriptionCard,
+  Empty,
   Eyebrow,
   MetadataList,
   PAGE_CONTENT_GUTTER,
   Pill,
-  RouteState,
   Skeleton,
 } from "@agh/ui";
+import { PackageX } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { MarketplaceEntryResponse } from "../types";
@@ -378,16 +379,18 @@ function MarketplaceDetailSkeleton() {
 function MarketplaceDetailNotFound({ onBack }: { onBack: () => void }) {
   return (
     <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pb-20")}>
-      <RouteState
-        className="border-0 bg-transparent py-14"
+      <Empty
+        fill={false}
+        className="py-14"
+        titleAs="h2"
+        icon={PackageX}
+        title="This item is no longer in the marketplace"
+        description="The catalog source no longer returns this entry."
         action={
           <Button onClick={onBack} size="sm" type="button" variant="neutral">
             Back to marketplace
           </Button>
         }
-        message="The catalog source no longer returns this entry."
-        mode="empty"
-        title="This item is no longer in the marketplace"
       />
     </div>
   );

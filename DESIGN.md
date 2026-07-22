@@ -45,6 +45,11 @@ tokens:
       neutral: "#7a7a80"
       neutral-ink: "#8a8a90"
       neutral-tint: "rgba(150, 150, 155, 0.06)"
+      viz-line: "rgba(255, 255, 255, 0.42)"
+      viz-fill: "rgba(255, 255, 255, 0.055)"
+      viz-bar: "rgba(255, 255, 255, 0.3)"
+      viz-other: "rgba(255, 255, 255, 0.26)"
+      viz-grid: "rgba(255, 255, 255, 0.045)"
       row-hover: "rgba(255, 255, 255, 0.022)"
       row-selected: "rgba(255, 255, 255, 0.03)"
       surface-glaze: "rgba(255, 255, 255, 0.04)"
@@ -130,7 +135,8 @@ tokens:
       form-hint: { size: "0.71875rem" }
       form-required: { size: "0.625rem" }
       metric-value: { size: "1.375rem" }
-      kpi-value: { size: "1.75rem", line: "1.05" }
+      kpi-value: { size: "1.5rem", line: "1.05" }
+      kpi-compact: { size: "1.0625rem" }
       agent-metric: { size: "1rem" }
       rail-avatar: { size: "0.71875rem" }
       ws-name: { size: "0.8125rem" }
@@ -183,10 +189,16 @@ tokens:
       height-button-sm: "22px"
       height-button-default: "26px"
       height-button-lg: "30px"
+      height-button-cta: "36px"
+      height-button-cta-lg: "44px"
       size-button-icon-xs: "22px"
       size-button-icon-sm: "22px"
       size-button-icon-default: "26px"
       size-button-icon-lg: "30px"
+      height-input: "36px"
+      height-control-compact: "32px"
+      height-search: "28px"
+      height-textarea-min: "84px"
       height-switch-default: "18px"
       width-switch-default: "32px"
       height-switch-sm: "14px"
@@ -203,9 +215,17 @@ tokens:
       spacing-property-row-y: "3px"
       size-empty-icon: "38px"
       width-menu-sub-min: "96px"
-      height-form-textarea: "136px"
+      size-icon-well-row: "34px"
+      size-topbar-glyph: "22px"
+      size-status-dot: "7px"
+      size-status-dot-sm: "6px"
+      size-avatar-sm: "20px"
+      size-avatar-default: "24px"
+      size-avatar-lg: "32px"
       height-editor-footer: "52px"
       width-detail-inspector-inline: "320px"
+      width-kv-label: "140px"
+      width-form-label-col: "180px"
       width-table-cell-sm: "224px"
       width-table-cell-md: "288px"
       width-table-cell-lg: "360px"
@@ -573,7 +593,8 @@ because they are small.
 | `--text-form-hint`        | `0.71875rem` |            |            |
 | `--text-form-required`    | `0.625rem`   |            |            |
 | `--text-metric-value`     | `1.375rem`   |            |            |
-| `--text-kpi-value`        | `1.75rem`    | `1.05`     |            |
+| `--text-kpi-value`        | `1.5rem`     | `1.05`     |            |
+| `--text-kpi-compact`      | `1.0625rem`  |            |            |
 | `--text-agent-metric`     | `1rem`       |            |            |
 | `--text-rail-avatar`      | `0.71875rem` |            |            |
 | `--text-ws-name`          | `0.8125rem`  |            |            |
@@ -588,18 +609,14 @@ because they are small.
 
 <!-- BEGIN:tokens:tracking-ladder -->
 
-| Token                     | Value      |
-| ------------------------- | ---------- |
-| `--tracking-mono`         | `0.06em`   |
-| `--tracking-detail-h1`    | `-0.028em` |
-| `--tracking-compact-h1`   | `-0.022em` |
-| `--tracking-empty-h1`     | `-0.022em` |
-| `--tracking-modal-title`  | `-0.012em` |
-| `--tracking-section-head` | `-0.008em` |
-| `--tracking-tight`        | `-0.014em` |
-| `--tracking-eyebrow`      | `-0.005em` |
-| `--tracking-mono-id`      | `0`        |
-| `--tracking-body`         | `-0.006em` |
+| Token                    | Value      | Token                     | Value      |
+| ------------------------ | ---------- | ------------------------- | ---------- |
+| `--tracking-mono`        | `0.06em`   | `--tracking-detail-h1`    | `-0.028em` |
+| `--tracking-compact-h1`  | `-0.022em` | `--tracking-empty-h1`     | `-0.022em` |
+| `--tracking-modal-title` | `-0.012em` | `--tracking-section-head` | `-0.008em` |
+| `--tracking-tight`       | `-0.014em` | `--tracking-eyebrow`      | `-0.005em` |
+| `--tracking-mono-id`     | `0`        | `--tracking-body`         | `-0.006em` |
+| `--tracking-row-title`   | `-0.01em`  |                           |            |
 
 <!-- END:tokens:tracking-ladder -->
 
@@ -645,41 +662,45 @@ widths come from `--site-*` tokens.
 
 <!-- BEGIN:tokens:component-sizes -->
 
-| Token                                      | Value    | Token                                 | Value   | Token                                   | Value    |
-| ------------------------------------------ | -------- | ------------------------------------- | ------- | --------------------------------------- | -------- |
-| `--height-button-xs`                       | `22px`   | `--height-button-sm`                  | `22px`  | `--height-button-default`               | `26px`   |
-| `--height-button-lg`                       | `30px`   | `--size-button-icon-xs`               | `22px`  | `--size-button-icon-sm`                 | `22px`   |
-| `--size-button-icon-default`               | `26px`   | `--size-button-icon-lg`               | `30px`  | `--height-switch-default`               | `18px`   |
-| `--width-switch-default`                   | `32px`   | `--height-switch-sm`                  | `14px`  | `--width-switch-sm`                     | `24px`   |
-| `--height-pill-xs`                         | `17px`   | `--height-pill-sm`                    | `19px`  | `--height-pill-md`                      | `22px`   |
-| `--height-sidebar-row`                     | `28px`   | `--height-tabs-list`                  | `40px`  | `--height-tab-underline`                | `1.5px`  |
-| `--spacing-count-chip`                     | `19px`   | `--spacing-count-chip-sm`             | `17px`  | `--height-property-row`                 | `26px`   |
-| `--spacing-property-row-y`                 | `3px`    | `--size-empty-icon`                   | `38px`  | `--width-menu-sub-min`                  | `96px`   |
-| `--height-form-textarea`                   | `136px`  | `--height-editor-footer`              | `52px`  | `--width-detail-inspector-inline`       | `320px`  |
-| `--width-table-cell-sm`                    | `224px`  | `--width-table-cell-md`               | `288px` | `--width-table-cell-lg`                 | `360px`  |
-| `--container-content-max`                  | `1320px` | `--width-right-rail-default`          | `468px` | `--width-message-bubble-max`            | `640px`  |
-| `--width-wire-card-max`                    | `520px`  | `--width-search-input-min`            | `220px` | `--width-filters-menu-default`          | `200px`  |
-| `--width-filters-menu-stack`               | `220px`  | `--width-settings-nav`                | `264px` | `--container-settings-takeover`         | `56rem`  |
-| `--container-task-detail-rail`             | `64rem`  | `--width-settings-sheet`              | `640px` | `--width-task-properties-rail`          | `320px`  |
-| `--spacing-settings-sheet-viewport-gutter` | `24px`   | `--height-setting-row`                | `54px`  | `--container-setting-description`       | `52ch`   |
-| `--container-settings-page-form`           | `768px`  | `--container-settings-page-wide`      | `960px` | `--container-settings-page-description` | `72ch`   |
-| `--spacing-settings-page-bottom`           | `96px`   | `--container-settings-save-bar`       | `560px` | `--size-settings-save-dot`              | `7px`    |
-| `--height-modal-md`                        | `760px`  | `--height-modal-tall`                 | `900px` | `--height-modal-wizard`                 | `960px`  |
-| `--height-modal-xl`                        | `840px`  | `--height-menubar`                    | `44px`  | `--height-menubar-chip`                 | `26px`   |
-| `--size-dock-item`                         | `46px`   | `--size-dock-icon`                    | `21px`  | `--size-dock-badge`                     | `15px`   |
-| `--size-dock-indicator`                    | `4px`    | `--size-dock-indicator-min`           | `5px`   | `--size-traffic-light`                  | `12px`   |
-| `--size-menubar-logo`                      | `17px`   | `--size-workspace-avatar`             | `18px`  | `--size-dock-new-icon`                  | `18px`   |
-| `--spacing-dock-gap`                       | `4px`    | `--spacing-dock-pad`                  | `7px`   | `--spacing-menubar-workspace-gap`       | `7px`    |
-| `--spacing-traffic-light-gap`              | `7px`    | `--spacing-traffic-light-compact-gap` | `12px`  | `--height-dock-tabbar`                  | `56px`   |
-| `--size-dock-tab-item`                     | `44px`   | `--size-traffic-light-compact`        | `15px`  | `--size-traffic-light-compact-target`   | `44px`   |
-| `--width-space-card`                       | `264px`  | `--height-space-thumb`                | `148px` | `--spacing-spaces-subtitle-gap`         | `22px`   |
-| `--spacing-spaces-row-gap`                 | `18px`   | `--spacing-space-thumb-top-offset`    | `8px`   | `--overlay-blur`                        | `3px`    |
-| `--width-modal-sm`                         | `560px`  | `--width-modal-md`                    | `720px` | `--width-modal-lg`                      | `880px`  |
-| `--width-modal-xl`                         | `1180px` | `--width-thread-column`               | `46rem` | `--size-catalog-logo`                   | `1.5rem` |
-| `--size-provider-logo-well`                | `2.5rem` | `--size-pill-group-badge`             | `14px`  | `--height-pill-group-segment-md`        | `24px`   |
-| `--height-pill-group-segment-sm`           | `20px`   | `--space-pill-group-track-gap`        | `1px`   | `--space-pill-group-track-padding`      | `2px`    |
-| `--space-pill-group-segment-sm-x`          | `8px`    | `--space-pill-group-segment-md-x`     | `10px`  | `--space-pill-group-badge-x`            | `4px`    |
-| `--space-switch-thumb-inset`               | `2px`    |                                       |         |                                         |          |
+| Token                                 | Value   | Token                                   | Value    | Token                                      | Value    |
+| ------------------------------------- | ------- | --------------------------------------- | -------- | ------------------------------------------ | -------- |
+| `--height-button-xs`                  | `22px`  | `--height-button-sm`                    | `22px`   | `--height-button-default`                  | `26px`   |
+| `--height-button-lg`                  | `30px`  | `--height-button-cta`                   | `36px`   | `--height-button-cta-lg`                   | `44px`   |
+| `--size-button-icon-xs`               | `22px`  | `--size-button-icon-sm`                 | `22px`   | `--size-button-icon-default`               | `26px`   |
+| `--size-button-icon-lg`               | `30px`  | `--height-input`                        | `36px`   | `--height-control-compact`                 | `32px`   |
+| `--height-search`                     | `28px`  | `--height-textarea-min`                 | `84px`   | `--height-switch-default`                  | `18px`   |
+| `--width-switch-default`              | `32px`  | `--height-switch-sm`                    | `14px`   | `--width-switch-sm`                        | `24px`   |
+| `--height-pill-xs`                    | `17px`  | `--height-pill-sm`                      | `19px`   | `--height-pill-md`                         | `22px`   |
+| `--height-sidebar-row`                | `28px`  | `--height-tabs-list`                    | `40px`   | `--height-tab-underline`                   | `1.5px`  |
+| `--spacing-count-chip`                | `19px`  | `--spacing-count-chip-sm`               | `17px`   | `--height-property-row`                    | `26px`   |
+| `--spacing-property-row-y`            | `3px`   | `--size-empty-icon`                     | `38px`   | `--width-menu-sub-min`                     | `96px`   |
+| `--size-icon-well-row`                | `34px`  | `--size-topbar-glyph`                   | `22px`   | `--size-status-dot`                        | `7px`    |
+| `--size-status-dot-sm`                | `6px`   | `--size-avatar-sm`                      | `20px`   | `--size-avatar-default`                    | `24px`   |
+| `--size-avatar-lg`                    | `32px`  | `--height-editor-footer`                | `52px`   | `--width-detail-inspector-inline`          | `320px`  |
+| `--width-kv-label`                    | `140px` | `--width-form-label-col`                | `180px`  | `--width-table-cell-sm`                    | `224px`  |
+| `--width-table-cell-md`               | `288px` | `--width-table-cell-lg`                 | `360px`  | `--container-content-max`                  | `1320px` |
+| `--width-right-rail-default`          | `468px` | `--width-message-bubble-max`            | `640px`  | `--width-wire-card-max`                    | `520px`  |
+| `--width-search-input-min`            | `220px` | `--width-filters-menu-default`          | `200px`  | `--width-filters-menu-stack`               | `220px`  |
+| `--width-settings-nav`                | `264px` | `--container-settings-takeover`         | `56rem`  | `--container-task-detail-rail`             | `64rem`  |
+| `--width-settings-sheet`              | `640px` | `--width-task-properties-rail`          | `320px`  | `--spacing-settings-sheet-viewport-gutter` | `24px`   |
+| `--height-setting-row`                | `54px`  | `--container-setting-description`       | `52ch`   | `--container-settings-page-form`           | `768px`  |
+| `--container-settings-page-wide`      | `960px` | `--container-settings-page-description` | `72ch`   | `--spacing-settings-page-bottom`           | `96px`   |
+| `--container-settings-save-bar`       | `560px` | `--size-settings-save-dot`              | `7px`    | `--height-modal-md`                        | `760px`  |
+| `--height-modal-tall`                 | `900px` | `--height-modal-wizard`                 | `960px`  | `--height-modal-xl`                        | `840px`  |
+| `--height-menubar`                    | `44px`  | `--height-menubar-chip`                 | `26px`   | `--size-dock-item`                         | `46px`   |
+| `--size-dock-icon`                    | `21px`  | `--size-dock-badge`                     | `15px`   | `--size-dock-indicator`                    | `4px`    |
+| `--size-dock-indicator-min`           | `5px`   | `--size-traffic-light`                  | `12px`   | `--size-menubar-logo`                      | `17px`   |
+| `--size-workspace-avatar`             | `18px`  | `--size-dock-new-icon`                  | `18px`   | `--spacing-dock-gap`                       | `4px`    |
+| `--spacing-dock-pad`                  | `7px`   | `--spacing-menubar-workspace-gap`       | `7px`    | `--spacing-traffic-light-gap`              | `7px`    |
+| `--spacing-traffic-light-compact-gap` | `12px`  | `--height-dock-tabbar`                  | `56px`   | `--size-dock-tab-item`                     | `44px`   |
+| `--size-traffic-light-compact`        | `15px`  | `--size-traffic-light-compact-target`   | `44px`   | `--width-space-card`                       | `264px`  |
+| `--height-space-thumb`                | `148px` | `--spacing-spaces-subtitle-gap`         | `22px`   | `--spacing-spaces-row-gap`                 | `18px`   |
+| `--spacing-space-thumb-top-offset`    | `8px`   | `--overlay-blur`                        | `3px`    | `--width-modal-sm`                         | `560px`  |
+| `--width-modal-md`                    | `720px` | `--width-modal-lg`                      | `880px`  | `--width-modal-xl`                         | `1180px` |
+| `--width-thread-column`               | `46rem` | `--size-catalog-logo`                   | `1.5rem` | `--size-provider-logo-well`                | `2.5rem` |
+| `--size-pill-group-badge`             | `14px`  | `--height-pill-group-segment-md`        | `24px`   | `--height-pill-group-segment-sm`           | `20px`   |
+| `--space-pill-group-track-gap`        | `1px`   | `--space-pill-group-track-padding`      | `2px`    | `--space-pill-group-segment-sm-x`          | `8px`    |
+| `--space-pill-group-segment-md-x`     | `10px`  | `--space-pill-group-badge-x`            | `4px`    | `--space-switch-thumb-inset`               | `2px`    |
 
 <!-- END:tokens:component-sizes -->
 

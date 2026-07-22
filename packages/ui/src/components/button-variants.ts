@@ -9,9 +9,12 @@ const buttonVariants = cva(
           "bg-accent text-accent-ink shadow-highlight hover:bg-accent-hover [a]:hover:bg-accent-hover",
         primary:
           "bg-accent text-accent-ink shadow-highlight hover:bg-accent-hover [a]:hover:bg-accent-hover",
-        outline: "border-line bg-transparent text-fg hover:bg-hover aria-expanded:bg-hover",
-        secondary: "bg-canvas-tint border-line text-fg hover:bg-hover aria-expanded:bg-hover",
-        ghost: "text-fg hover:bg-hover aria-expanded:bg-hover aria-expanded:text-fg",
+        outline:
+          "border-line bg-transparent text-fg hover:bg-btn-default-hover aria-expanded:bg-btn-default-hover",
+        secondary:
+          "bg-canvas-tint border-line text-fg hover:bg-btn-default-hover aria-expanded:bg-btn-default-hover",
+        ghost:
+          "text-fg hover:bg-btn-default-hover aria-expanded:bg-btn-default-hover aria-expanded:text-fg",
         destructive: "bg-danger-tint text-danger hover:bg-danger-tint hover:opacity-90",
         success: "bg-success-tint text-success hover:opacity-90",
         link: "text-accent underline-offset-4 hover:underline",
@@ -23,9 +26,9 @@ const buttonVariants = cva(
         xs: "h-button-xs gap-1 rounded-md px-2 text-eyebrow has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-button-sm gap-1 rounded-md px-2.5 text-eyebrow has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         lg: "h-button-lg gap-1.5 px-3 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        cta: "h-9 gap-2 px-5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
+        cta: "h-button-cta gap-2 px-5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
         "cta-lg":
-          "h-11 gap-2 rounded-md px-5 text-small-body has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
+          "h-button-cta-lg gap-2 rounded-md px-5 text-small-body has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
         icon: "size-button-icon-default",
         "icon-xs": "size-button-icon-xs rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-button-icon-sm rounded-md",

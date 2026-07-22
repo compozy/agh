@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { toneBg } from "../../lib/tone";
 import { cn } from "../../lib/utils";
 import type { PillTone } from "./pill";
 
@@ -18,15 +19,6 @@ export interface StackedProgressProps extends React.ComponentProps<"div"> {
   ariaLabel?: string;
 }
 
-const TONE_CLASS: Record<PillTone, string> = {
-  neutral: "bg-muted",
-  accent: "bg-accent",
-  success: "bg-success",
-  warning: "bg-warning",
-  danger: "bg-danger",
-  info: "bg-info",
-};
-
 function StackedProgress({
   segments,
   total,
@@ -41,7 +33,7 @@ function StackedProgress({
       data-slot="stacked-progress"
       role="img"
       aria-label={ariaLabel}
-      className={cn("flex h-1.5 w-full overflow-hidden rounded-pill bg-canvas", className)}
+      className={cn("flex h-1.5 w-full overflow-hidden rounded-pill bg-canvas-tint", className)}
       {...props}
     >
       {segments.map(segment => {
@@ -57,7 +49,7 @@ function StackedProgress({
             data-slot="stacked-progress-segment"
             data-tone={tone}
             aria-hidden="true"
-            className={cn("h-full", TONE_CLASS[tone])}
+            className={cn("h-full", toneBg(tone))}
             style={{ width: `${Math.round(ratio * 100)}%` }}
           />
         );

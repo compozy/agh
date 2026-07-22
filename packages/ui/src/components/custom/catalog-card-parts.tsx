@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import { toneText } from "../../lib/tone";
 import { cn } from "../../lib/utils";
 
 export type CatalogCardTone = "accent" | "neutral" | "success" | "warning" | "danger" | "info";
@@ -22,23 +23,6 @@ const LOGO_SIZE_CLASS: Record<CatalogCardLogoSize, string> = {
   lg: "size-(--size-provider-logo-well)",
 };
 
-function catalogCardLogoToneClass(tone: CatalogCardTone): string {
-  switch (tone) {
-    case "success":
-      return "text-success";
-    case "warning":
-      return "text-warning";
-    case "danger":
-      return "text-danger";
-    case "info":
-      return "text-info";
-    case "neutral":
-      return "text-muted";
-    case "accent":
-      return "text-accent";
-  }
-}
-
 export function CatalogCardLogo({
   tone = "accent",
   size = "default",
@@ -54,7 +38,7 @@ export function CatalogCardLogo({
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded bg-surface-glaze",
         LOGO_SIZE_CLASS[size],
-        catalogCardLogoToneClass(tone),
+        toneText(tone),
         className
       )}
       {...props}

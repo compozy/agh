@@ -1,6 +1,6 @@
 import { AlertCircle, SearchX } from "lucide-react";
 
-import { Button, Empty, RouteState, Spinner } from "@agh/ui";
+import { Button, Empty, Spinner } from "@agh/ui";
 
 import { MarketplaceCard } from "./marketplace-card";
 import { MarketplaceGridSkeleton } from "./marketplace-grid";
@@ -48,32 +48,36 @@ function MarketplaceKindResults({
 
   if (page.scope === "installed" && page.marketplaceContinuationError) {
     return (
-      <RouteState
+      <Empty
+        framed
+        titleAs="h2"
+        icon={AlertCircle}
+        title="The marketplace catalog is incomplete"
+        description="Installed status is unavailable until the complete catalog can be checked."
+        cause={page.marketplaceContinuationError.message}
         action={
           <Button onClick={() => page.refetch()} size="sm" type="button">
             Retry
           </Button>
         }
-        cause={page.marketplaceContinuationError.message}
-        message="Installed status is unavailable until the complete catalog can be checked."
-        mode="error"
-        title="The marketplace catalog is incomplete"
       />
     );
   }
 
   if (page.error && !hasVisibleItems) {
     return (
-      <RouteState
+      <Empty
+        framed
+        titleAs="h2"
+        icon={AlertCircle}
+        title="The marketplace is unreachable"
+        description="No sources responded. Retry, or come back in a moment."
+        cause={page.error.message}
         action={
           <Button onClick={() => page.refetch()} size="sm" type="button">
             Retry
           </Button>
         }
-        cause={page.error.message}
-        message="No sources responded. Retry, or come back in a moment."
-        mode="error"
-        title="The marketplace is unreachable"
       />
     );
   }

@@ -143,11 +143,10 @@ describe("DirectRoom headerless layout", () => {
     }
   });
 
-  it("Should render the identity header via <DetailHeader> (24 px H1)", async () => {
+  it("Should render the identity header as a domain-local compact head", async () => {
     renderRoom();
     const header = screen.getByTestId("network-direct-identity-row");
-    expect(header).toHaveAttribute("data-slot", "detail-header");
-    const title = header.querySelector('[data-slot="detail-header-title"]');
+    const title = header.querySelector("h2");
     expect(title).not.toBeNull();
     await screen.findByText("@peer-remote");
     expect(title?.textContent).toContain("@peer-remote");

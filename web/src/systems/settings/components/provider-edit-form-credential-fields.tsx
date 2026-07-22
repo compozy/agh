@@ -4,7 +4,7 @@ import { Button, Input } from "@agh/ui";
 
 import type { ProviderDraft } from "../types";
 import type { ProviderDraftChange } from "./provider-edit-form";
-import { SettingsFieldRow } from "./settings-field-row";
+import { ModalSettingsFieldRow } from "./settings-field-row";
 
 type CredentialSlotDraft = ProviderDraft["credential_slots"][number];
 
@@ -18,8 +18,7 @@ export function ProviderCredentialFields({ draft, onChange }: ProviderCredential
 
   return (
     <>
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-api-key"
         label="Target env"
         description="Environment variable injected from the provider credential slot."
@@ -39,8 +38,7 @@ export function ProviderCredentialFields({ draft, onChange }: ProviderCredential
           </div>
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-secret-ref"
         label="Secret ref"
         description="Bound credential source injected into the target env var at launch."
@@ -60,8 +58,7 @@ export function ProviderCredentialFields({ draft, onChange }: ProviderCredential
           </div>
         }
       />
-      <SettingsFieldRow
-        variant="modal"
+      <ModalSettingsFieldRow
         data-testid="settings-providers-editor-secret-value"
         label="API key"
         description="Write-only value stored when the secret ref uses vault:."
@@ -89,8 +86,7 @@ function AdditionalCredentialSlotsEditor({ draft, onChange }: ProviderCredential
   const disabled = draft.auth_mode !== "bound_secret";
 
   return (
-    <SettingsFieldRow
-      variant="modal"
+    <ModalSettingsFieldRow
       data-testid="settings-providers-editor-credential-slots"
       label="More slots"
       description="Additional credential refs injected into provider subprocess env."

@@ -8,11 +8,12 @@ describe("Card", () => {
     const { container } = render(<Card>body</Card>);
     const root = container.querySelector<HTMLElement>('[data-slot="card"]');
     expect(root).not.toBeNull();
+    expect(root).toHaveAttribute("data-size", "default");
   });
 
-  it("Should reflect data-active-rail when activeRail is set", () => {
-    const { container } = render(<Card activeRail>body</Card>);
+  it("Should reflect the sm size variant via data-size", () => {
+    const { container } = render(<Card size="sm">body</Card>);
     const root = container.querySelector<HTMLElement>('[data-slot="card"]');
-    expect(root?.getAttribute("data-active-rail")).toBe("true");
+    expect(root?.getAttribute("data-size")).toBe("sm");
   });
 });

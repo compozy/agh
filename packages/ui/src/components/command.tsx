@@ -57,7 +57,7 @@ function CommandInput({
     <div data-slot="command-input-wrapper" className="p-1 pb-0">
       <div
         data-slot="command-input-group"
-        className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-line bg-canvas-tint px-2 text-small-body text-fg transition-colors outline-none focus-within:border-line-strong"
+        className="flex h-control-compact w-full min-w-0 items-center gap-2 rounded-md border border-line bg-canvas-tint px-2 text-small-body text-fg transition-colors outline-none focus-within:border-line-strong focus-within:shadow-focus-ring"
       >
         <SearchIcon aria-hidden="true" className="size-4 shrink-0 text-subtle" />
         <CommandPrimitive.Input

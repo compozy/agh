@@ -1,5 +1,5 @@
 import type { PillTone } from "@agh/ui";
-import { KpiCard, PillDot } from "@agh/ui";
+import { Metric, PillDot } from "@agh/ui";
 
 import type { LoopKpi, LoopRunKpis } from "../../lib/loop-runs-view";
 
@@ -51,8 +51,9 @@ export function LoopRunsKpis({ kpis }: LoopRunsKpisProps) {
       {KPI_CONFIG.map(config => {
         const kpi: LoopKpi = kpis[config.key];
         return (
-          <KpiCard
+          <Metric
             key={config.key}
+            labelCase="eyebrow"
             data-testid={config.testId}
             label={
               <span className="inline-flex items-center gap-1.5">
@@ -61,7 +62,7 @@ export function LoopRunsKpis({ kpis }: LoopRunsKpisProps) {
               </span>
             }
             value={kpi.count}
-            detail={kpi.detail}
+            subtext={kpi.detail}
           />
         );
       })}

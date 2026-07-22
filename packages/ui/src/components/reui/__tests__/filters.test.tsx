@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { Button, Filters, type FilterFieldsConfig } from "@agh/ui";
+import { Button, Filters, FiltersWithSearch, type FilterFieldsConfig } from "@agh/ui";
 
 const FIELDS: FilterFieldsConfig<boolean> = [
   {
@@ -22,7 +22,6 @@ describe("Filters public surface", () => {
         fields={FIELDS}
         filters={[]}
         onChange={onChange}
-        showSearchInput={false}
         size="sm"
         trigger={
           <Button size="sm" variant="ghost" aria-label="Add filter">
@@ -51,7 +50,6 @@ describe("Filters public surface", () => {
         ]}
         filters={[{ id: "created-at", field: "created_at", operator: "is", values: [] }]}
         onChange={vi.fn()}
-        showSearchInput={false}
       />
     );
 
@@ -66,5 +64,27 @@ describe("Filters public surface", () => {
       "is empty",
       "is not empty",
     ]);
+  });
+
+  it("Should resolve FiltersWithSearch from @agh/ui as a distinct searchable variant", () => {
+    const onChange = vi.fn();
+
+    render(
+      <FiltersWithSearch<boolean>
+        allowMultiple={false}
+        fields={FIELDS}
+        filters={[]}
+        onChange={onChange}
+        size="sm"
+        trigger={
+          <Button size="sm" variant="ghost" aria-label="Add filter with search">
+            Filter
+          </Button>
+        }
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Add filter with search" })).toBeInTheDocument();
+    expect(FiltersWithSearch).not.toBe(Filters);
   });
 });

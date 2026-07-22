@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { toneText } from "../../lib/tone";
 import { cn } from "../../lib/utils";
 import { ConnectionIndicator, type ConnectionStatus } from "./connection-indicator";
 import { Eyebrow } from "./eyebrow";
@@ -26,15 +27,6 @@ export interface StatusLineProps extends React.ComponentProps<"div"> {
   /** Typed item array + N-013 / N-005. Replaces the legacy `ReactNode[]` shape. */
   items: ReadonlyArray<StatusLineItem>;
 }
-
-const TONE_TEXT_CLASS: Record<PillTone, string> = {
-  neutral: "text-muted",
-  accent: "text-accent",
-  success: "text-success",
-  warning: "text-warning",
-  danger: "text-danger",
-  info: "text-info",
-};
 
 function StatusLine({ status, daemonLabel, items, className, ...props }: StatusLineProps) {
   return (
@@ -66,7 +58,7 @@ function StatusLine({ status, daemonLabel, items, className, ...props }: StatusL
               data-slot="status-line-item-value"
               className={cn(
                 "font-sans text-form-label tracking-eyebrow tabular-nums",
-                TONE_TEXT_CLASS[tone]
+                toneText(tone)
               )}
             >
               {item.value}

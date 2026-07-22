@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { cn } from "../../lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "../dropdown-menu";
 import { ScrollArea } from "../scroll-area";
@@ -11,7 +13,29 @@ import { FiltersMenuSearchInput } from "./filters-menu-search";
 import { FilterContext, type FilterContextValue } from "./hooks/use-filter-context";
 import { useFilters } from "./hooks/use-filters";
 
-function Filters<T = unknown>({
+type FiltersMenuSearchSlotProps<T> = {
+  activeMenu: ReturnType<typeof useFilters<T>>["activeMenu"];
+  addFilter: ReturnType<typeof useFilters<T>>["addFilter"];
+  addFilterOpen: ReturnType<typeof useFilters<T>>["addFilterOpen"];
+  enableShortcut: boolean;
+  filteredFields: ReturnType<typeof useFilters<T>>["filteredFields"];
+  focusRootInput: ReturnType<typeof useFilters<T>>["focusRootInput"];
+  highlightRootOption: ReturnType<typeof useFilters<T>>["highlightRootOption"];
+  i18n: ReturnType<typeof useFilters<T>>["mergedI18n"];
+  menuSearchInput: ReturnType<typeof useFilters<T>>["menuSearchInput"];
+  openSubMenu: ReturnType<typeof useFilters<T>>["openSubMenu"];
+  rootHighlightedIndex: ReturnType<typeof useFilters<T>>["rootHighlightedIndex"];
+  rootId: ReturnType<typeof useFilters<T>>["rootId"];
+  rootInputRef: ReturnType<typeof useFilters<T>>["rootInputRef"];
+  setMenuState: ReturnType<typeof useFilters<T>>["setMenuState"];
+  shortcutLabel: string;
+};
+
+type FiltersFrameProps<T> = FiltersProps<T> & {
+  renderMenuSearch?: (props: FiltersMenuSearchSlotProps<T>) => ReactNode;
+};
+
+function FiltersFrame<T = unknown>({
   filters,
   fields,
   onChange,
@@ -20,14 +44,14 @@ function Filters<T = unknown>({
   size = "default",
   radius = "default",
   i18n,
-  showSearchInput = true,
   trigger,
   allowMultiple = true,
   menuPopupClassName,
   enableShortcut = false,
   shortcutKey = "f",
   shortcutLabel = "F",
-}: FiltersProps<T>) {
+  renderMenuSearch,
+}: FiltersFrameProps<T>) {
   const state = useFilters({
     allowMultiple,
     enableShortcut,
@@ -58,25 +82,23 @@ function Filters<T = unknown>({
               className={cn("w-filters-menu-stack", menuPopupClassName)}
               align="start"
             >
-              {showSearchInput ? (
-                <FiltersMenuSearchInput
-                  activeMenu={state.activeMenu}
-                  addFilter={state.addFilter}
-                  addFilterOpen={state.addFilterOpen}
-                  enableShortcut={enableShortcut}
-                  filteredFields={state.filteredFields}
-                  focusRootInput={state.focusRootInput}
-                  highlightRootOption={state.highlightRootOption}
-                  i18n={state.mergedI18n}
-                  menuSearchInput={state.menuSearchInput}
-                  openSubMenu={state.openSubMenu}
-                  rootHighlightedIndex={state.rootHighlightedIndex}
-                  rootId={state.rootId}
-                  rootInputRef={state.rootInputRef}
-                  setMenuState={state.setMenuState}
-                  shortcutLabel={shortcutLabel}
-                />
-              ) : null}
+              {renderMenuSearch?.({
+                activeMenu: state.activeMenu,
+                addFilter: state.addFilter,
+                addFilterOpen: state.addFilterOpen,
+                enableShortcut,
+                filteredFields: state.filteredFields,
+                focusRootInput: state.focusRootInput,
+                highlightRootOption: state.highlightRootOption,
+                i18n: state.mergedI18n,
+                menuSearchInput: state.menuSearchInput,
+                openSubMenu: state.openSubMenu,
+                rootHighlightedIndex: state.rootHighlightedIndex,
+                rootId: state.rootId,
+                rootInputRef: state.rootInputRef,
+                setMenuState: state.setMenuState,
+                shortcutLabel,
+              })}
 
               <div className="relative flex max-h-full">
                 <div
@@ -119,7 +141,22 @@ function Filters<T = unknown>({
   );
 }
 
-export { Filters };
+/** Filters shell without a menu search field — compose `FiltersWithSearch` when search is needed. */
+function Filters<T = unknown>(props: FiltersProps<T>) {
+  return <FiltersFrame {...props} />;
+}
+
+/** Filters shell that includes the add-filter menu search input. */
+function FiltersWithSearch<T = unknown>(props: FiltersProps<T>) {
+  return (
+    <FiltersFrame
+      {...props}
+      renderMenuSearch={slotProps => <FiltersMenuSearchInput {...slotProps} />}
+    />
+  );
+}
+
+export { Filters, FiltersWithSearch };
 export type {
   CustomRendererProps,
   Filter,

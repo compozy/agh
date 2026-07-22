@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowUpRight, ListTodo, X } from "lucide-react";
 
-import { Button, DetailHeader, Eyebrow, MonoId, Pill } from "@agh/ui";
+import { Button, Eyebrow, MonoId, Pill } from "@agh/ui";
 
 import { usePromoteNetworkThreadTask } from "../../hooks/use-network-actions";
 import type { NetworkThreadDetail, NetworkThreadTaskLink } from "../../types";
@@ -67,44 +67,18 @@ export function ThreadOverlayHeader({
   };
 
   return (
-    <DetailHeader
-      actions={
-        <>
-          <ThreadSubscriptionControl
-            channel={channel}
-            sessionId={selfSessionId}
-            threadId={threadId}
-            workspaceId={workspaceId}
-          />
-          <Button
-            aria-label="Promote thread to task"
-            data-testid="network-thread-promote-task"
-            disabled={!canPromote || promote.isPending}
-            onClick={() => void handlePromote()}
-            size="sm"
-            title="Create a task from this thread without starting a run."
-            type="button"
-            variant="neutral"
-          >
-            <ListTodo aria-hidden="true" className="size-3" />
-            Promote
-          </Button>
-          <Button
-            aria-label="Close thread overlay"
-            data-testid="network-thread-overlay-close"
-            onClick={onClose}
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-          >
-            <X aria-hidden="true" className="size-4" />
-          </Button>
-        </>
-      }
-      className="px-4 py-3"
+    <header
+      className="flex flex-wrap items-start gap-3 border-b border-line px-4 py-3"
       data-testid="network-thread-overlay-header"
-      meta={
-        <>
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <h2 className="min-w-0 truncate text-compact-h1 font-semibold tracking-compact-h1 text-fg-strong">
+          {title}
+        </h2>
+        <div
+          className="flex flex-wrap items-center gap-3 text-form-label text-muted"
+          data-testid="network-thread-overlay-meta"
+        >
           {participantLabel ? <Eyebrow className="text-subtle">{participantLabel}</Eyebrow> : null}
           <Button
             aria-label="Open thread in main pane"
@@ -118,10 +92,40 @@ export function ThreadOverlayHeader({
             <ArrowUpRight aria-hidden="true" className="size-3" />
             Open in main
           </Button>
-        </>
-      }
-      title={<span className="truncate">{title}</span>}
-    />
+        </div>
+      </div>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <ThreadSubscriptionControl
+          channel={channel}
+          sessionId={selfSessionId}
+          threadId={threadId}
+          workspaceId={workspaceId}
+        />
+        <Button
+          aria-label="Promote thread to task"
+          data-testid="network-thread-promote-task"
+          disabled={!canPromote || promote.isPending}
+          onClick={() => void handlePromote()}
+          size="sm"
+          title="Create a task from this thread without starting a run."
+          type="button"
+          variant="neutral"
+        >
+          <ListTodo aria-hidden="true" className="size-3" />
+          Promote
+        </Button>
+        <Button
+          aria-label="Close thread overlay"
+          data-testid="network-thread-overlay-close"
+          onClick={onClose}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          <X aria-hidden="true" className="size-4" />
+        </Button>
+      </div>
+    </header>
   );
 }
 
