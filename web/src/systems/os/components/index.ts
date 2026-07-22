@@ -28,4 +28,4 @@ export { OsWinLayer } from "./os-win-layer";
 export { OsWindow, type OsWindowProps } from "./os-window";
 export { OsWindowErrorBoundary } from "./os-window-error-boundary";
 export { AttentionBell, type AttentionBellProps } from "./attention-bell";
-export { DesktopSessionsRail } from "./sessions-rail";
+export { OsSessionsModal, type OsSessionsModalProps } from "./sessions-modal";

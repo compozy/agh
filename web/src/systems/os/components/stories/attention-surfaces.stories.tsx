@@ -10,7 +10,7 @@ import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
 import { createDesktopStore } from "../../stores/desktop-store";
 import { DesktopMenubar } from "../desktop-menubar";
-import { DesktopSessionsRail } from "../sessions-rail";
+import { OsSessionsModal } from "../sessions-modal";
 import { OsDockZone } from "../os-dock";
 import { buildDeskItems, DesktopShell } from "./_desktop";
 
@@ -82,14 +82,13 @@ function createStoryShell({ collapsedAgent }: { collapsedAgent?: string } = {}):
   const store = createDesktopStore();
   const router: OsRouterPort = { navigate: () => {}, replace: () => {} };
   store.getState().hydrate([]);
-  store.getState().openRail();
   if (collapsedAgent) store.getState().toggleRailGroup(collapsedAgent);
   const coordinator = new RoutingCoordinator(store, router);
   coordinator.completeHydration();
   return { store, coordinator, flushPersistence: () => {} };
 }
 
-function RailFixture({ collapsedAgent }: { collapsedAgent?: string }) {
+function SessionsModalFixture({ collapsedAgent }: { collapsedAgent?: string }) {
   const [shell] = useState(() => createStoryShell({ collapsedAgent }));
   const dockItems = buildDeskItems({
     open: ["sessions"],
@@ -98,7 +97,7 @@ function RailFixture({ collapsedAgent }: { collapsedAgent?: string }) {
   return (
     <OsShellContext.Provider value={shell}>
       <DesktopShell dock={false} dockItems={dockItems}>
-        <DesktopSessionsRail sessions={CATALOG} disconnected={false} />
+        <OsSessionsModal open onOpenChange={fn()} sessions={CATALOG} disconnected={false} />
         <OsDockZone items={dockItems} onSelect={fn()} onNewSession={fn()} />
       </DesktopShell>
     </OsShellContext.Provider>
@@ -130,15 +129,15 @@ function BellFixture() {
   );
 }
 
-const meta: Meta<typeof DesktopSessionsRail> = {
+const meta: Meta<typeof OsSessionsModal> = {
   title: "systems/os/components/AttentionSurfaces",
-  component: DesktopSessionsRail,
+  component: OsSessionsModal,
   parameters: {
     layout: "fullscreen",
     docs: {
       description: {
         component:
-          "Production attention surfaces: the session-catalog rail, focus-only menubar bell, and projection-backed dock badges.",
+          "Production attention surfaces: the session-catalog modal, focus-only menubar bell, and projection-backed dock badges.",
       },
     },
   },
@@ -147,30 +146,31 @@ const meta: Meta<typeof DesktopSessionsRail> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Rail recent view with the runtime's raw status vocabulary and six-row recent limit. */
-export const RailRecent: Story = {
-  args: { sessions: CATALOG, disconnected: false },
-  render: () => <RailFixture />,
+/** Modal recent view with the runtime's raw status vocabulary and six-row recent limit. */
+export const SessionsRecent: Story = {
+  args: { open: true, onOpenChange: fn(), sessions: CATALOG, disconnected: false },
+  render: () => <SessionsModalFixture />,
 };
 
 /** Grouped catalog with the webgen agent persisted as collapsed. */
-export const RailGrouped: Story = {
-  args: { sessions: CATALOG, disconnected: false },
-  render: () => <RailFixture collapsedAgent="webgen" />,
+export const SessionsGrouped: Story = {
+  args: { open: true, onOpenChange: fn(), sessions: CATALOG, disconnected: false },
+  render: () => <SessionsModalFixture collapsedAgent="webgen" />,
   play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole("button", { name: "Show all sessions" }));
+    const body = canvasElement.ownerDocument.body;
+    await userEvent.click(within(body).getByRole("button", { name: "Show all sessions" }));
   },
 };
 
 /** Open attention bell with one waiting session and one task awaiting approval. */
 export const BellPopulated: Story = {
-  args: { sessions: CATALOG, disconnected: false },
+  args: { open: true, onOpenChange: fn(), sessions: CATALOG, disconnected: false },
   render: () => <BellFixture />,
 };
 
 /** Projection-backed badges: sessions remains exact, while a large task count caps at 9+. */
 export const DockBadges: Story = {
-  args: { sessions: CATALOG, disconnected: false },
+  args: { open: true, onOpenChange: fn(), sessions: CATALOG, disconnected: false },
   render: () => (
     <DesktopShell
       dockItems={buildDeskItems({

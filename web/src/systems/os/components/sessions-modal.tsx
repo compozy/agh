@@ -3,14 +3,14 @@ import { useState } from "react";
 
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
   Eyebrow,
   Icon,
   PillDot,
   SearchInput,
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
   StatusDot,
   Time,
   type PillTone,
@@ -19,13 +19,20 @@ import {
 import { cn } from "@/lib/utils";
 import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
 
-import { useDesktopSessionsRail } from "../hooks/use-desktop-sessions-rail";
+import { useOsSessionsModal } from "../hooks/use-os-sessions-modal";
 
-type RailView = "recent" | "all";
+type ModalView = "recent" | "all";
 
 interface SessionGroup {
   agentName: string;
   sessions: SessionPayload[];
+}
+
+export interface OsSessionsModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sessions: readonly SessionPayload[];
+  disconnected: boolean;
 }
 
 function statusTone(badge: string): PillTone {
@@ -49,7 +56,7 @@ function SessionRow({ session, onSelect }: { session: SessionPayload; onSelect: 
       type="button"
       className="grid w-full grid-cols-[8px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none"
       data-status={session.badge}
-      data-testid={`os-rail-session-${session.id}`}
+      data-testid={`os-sessions-modal-session-${session.id}`}
       onClick={onSelect}
     >
       <span className="mt-1.5 grid place-items-center">
@@ -70,7 +77,7 @@ function SessionRow({ session, onSelect }: { session: SessionPayload; onSelect: 
   );
 }
 
-function SessionsRailBody({
+function SessionsModalBody({
   sessions,
   disconnected,
   collapsedAgentIds,
@@ -85,7 +92,7 @@ function SessionsRailBody({
   onSelectSession: (session: SessionPayload) => void;
   onClose: () => void;
 }) {
-  const [view, setView] = useState<RailView>("recent");
+  const [view, setView] = useState<ModalView>("recent");
   const [filter, setFilter] = useState("");
   const normalizedFilter = filter.trim().toLocaleLowerCase();
   const filtered = sessions.filter(session => {
@@ -108,7 +115,7 @@ function SessionsRailBody({
   const collapsedAgents = new Set(collapsedAgentIds);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="os-sessions-rail-content">
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="os-sessions-modal-content">
       <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
         {view === "all" ? (
           <Button
@@ -151,16 +158,16 @@ function SessionsRailBody({
           Session updates are unavailable. Cached sessions remain visible.
         </p>
       ) : null}
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
           className={cn(
-            "flex h-full w-[200%] transition-transform duration-shell-slow ease-spring",
+            "flex h-full min-h-0 w-[200%] transition-transform duration-shell-slow ease-spring",
             view === "all" && "-translate-x-1/2"
           )}
           data-view={view}
         >
-          <div className="flex h-full w-1/2 shrink-0 flex-col overflow-y-auto px-2.5 pb-3">
-            <div className="flex flex-col gap-0.5">
+          <div className="flex h-full w-1/2 shrink-0 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5">
               {filtered.slice(0, 6).map(session => (
                 <SessionRow
                   key={session.id}
@@ -168,13 +175,15 @@ function SessionsRailBody({
                   onSelect={() => onSelectSession(session)}
                 />
               ))}
+              {filtered.length === 0 ? (
+                <p className="px-3 py-8 text-center text-small-body text-muted">
+                  No sessions match.
+                </p>
+              ) : null}
             </div>
-            {filtered.length === 0 ? (
-              <p className="px-3 py-8 text-center text-small-body text-muted">No sessions match.</p>
-            ) : null}
             <button
               type="button"
-              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md px-2 py-2 text-small-body font-medium text-subtle transition-colors hover:bg-row-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+              className="flex w-full shrink-0 items-center justify-center gap-1.5 border-t border-line-soft px-2 py-2.5 text-small-body font-medium text-subtle transition-colors hover:bg-row-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
               onClick={() => setView("all")}
             >
               Show all sessions
@@ -237,17 +246,20 @@ function SessionsRailBody({
   );
 }
 
-export function DesktopSessionsRail({
+/**
+ * Global sessions catalog (shell-level Dialog). Same filter / recent↔all body
+ * as the former rail; chrome matches ⌘K (portal, scrim, top offset).
+ */
+export function OsSessionsModal({
+  open,
+  onOpenChange,
   sessions,
   disconnected,
-}: {
-  sessions: readonly SessionPayload[];
-  disconnected: boolean;
-}) {
-  const model = useDesktopSessionsRail();
-  const { coordinator, store, open, presentation, collapsedAgentIds } = model;
+}: OsSessionsModalProps) {
+  const { coordinator, store, collapsedAgentIds } = useOsSessionsModal();
 
   const selectSession = (session: SessionPayload) => {
+    onOpenChange(false);
     coordinator.userOpen({
       app: "session",
       instanceKey: session.id,
@@ -256,46 +268,29 @@ export function DesktopSessionsRail({
         search: {},
       },
     });
-    if (presentation === "compact") store.getState().closeRail();
   };
-  const content = (
-    <SessionsRailBody
-      sessions={sessions}
-      disconnected={disconnected}
-      collapsedAgentIds={collapsedAgentIds}
-      onToggleGroup={agentName => store.getState().toggleRailGroup(agentName)}
-      onSelectSession={selectSession}
-      onClose={() => store.getState().closeRail()}
-    />
-  );
 
-  if (presentation === "compact") {
-    return (
-      <Sheet open={open} onOpenChange={next => !next && store.getState().closeRail()}>
-        <SheetContent
-          side="left"
-          showCloseButton={false}
-          className="w-[min(88vw,22rem)] gap-0 border-r border-line bg-shell-glass p-0 backdrop-blur-shell"
-          data-testid="os-sessions-rail-sheet"
-        >
-          <SheetTitle className="sr-only">Sessions</SheetTitle>
-          <SheetDescription className="sr-only">
-            Filter sessions and open one in the current workspace.
-          </SheetDescription>
-          {content}
-        </SheetContent>
-      </Sheet>
-    );
-  }
-
-  if (!open) return null;
   return (
-    <aside
-      aria-label="Sessions"
-      className="absolute top-3 bottom-24 left-3 z-20 flex w-80 min-h-0 flex-col overflow-hidden rounded-window border border-line bg-shell-glass shadow-window backdrop-blur-shell"
-      data-testid="os-sessions-rail"
-    >
-      {content}
-    </aside>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        unframed
+        showCloseButton={false}
+        data-testid="os-sessions-modal"
+        className="top-[9vh] flex h-[min(var(--height-modal-md),70vh)] max-h-[70vh] w-full translate-y-0 flex-col overflow-hidden min-[960px]:top-[16vh] sm:w-detail-inspector-inline sm:max-w-none"
+      >
+        <DialogTitle className="sr-only">Sessions</DialogTitle>
+        <DialogDescription className="sr-only">
+          Filter sessions and open one in the current workspace.
+        </DialogDescription>
+        <SessionsModalBody
+          sessions={sessions}
+          disconnected={disconnected}
+          collapsedAgentIds={collapsedAgentIds}
+          onToggleGroup={agentName => store.getState().toggleRailGroup(agentName)}
+          onSelectSession={selectSession}
+          onClose={() => onOpenChange(false)}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }

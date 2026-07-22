@@ -1,8 +1,8 @@
 {
   "version": 1,
   "kind": "html",
-  "title": "settings/settings-design-system.html",
-  "entry": "settings/settings-design-system.html",
+  "title": "design-system/patterns.html",
+  "entry": "design-system/patterns.html",
   "renderer": "html",
   "status": "complete",
   "exports": [
@@ -10,8 +10,8 @@
     "pdf",
     "zip"
   ],
-  "createdAt": "2026-07-18T03:51:45.843Z",
-  "updatedAt": "2026-07-18T03:51:45.843Z",
+  "createdAt": "2026-07-22T14:40:56.223Z",
+  "updatedAt": "2026-07-22T14:40:56.223Z",
   "metadata": {
     "inferred": true,
     "reconciled": true

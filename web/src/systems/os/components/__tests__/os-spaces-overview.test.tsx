@@ -121,7 +121,6 @@ function renderOverview() {
       key: "desktop",
       value: encodeDesktopPayload({
         focusedId: "app:vault",
-        railOpen: false,
         wallpaper: "carbon",
       }),
       rev: 1,

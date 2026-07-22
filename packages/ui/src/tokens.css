@@ -339,7 +339,7 @@
 
   /* OS shell chrome — the sanctioned depth carve-out (DESIGN.md §5).
      Glass, backdrop blur, and window shadows apply to shell chrome only:
-     menubar, dock, sessions rail, shell popovers, and window frames.
+     menubar, dock, shell popovers, and window frames.
      Content inside window bodies stays on the flat ramp/hairline model.
      The canonical `--shell-glass` literals live in `:root`; these `--color-*`
      adapters reference them so production keeps resolving through `--color-*`. */

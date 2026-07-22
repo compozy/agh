@@ -40,6 +40,8 @@ export interface OsCommandPaletteProps {
   onOpenChange: (open: boolean) => void;
   /** Opens the Spaces overview overlay (⇧⌘S parity — US-019.EC-3 fallback). */
   onOpenSpaces?: () => void;
+  /** Toggles the global Sessions catalog modal. */
+  onToggleSessions?: () => void;
 }
 
 /** Apps the palette can open: every registry app except multi-instance sessions. */
@@ -67,8 +69,13 @@ const ARRANGE_COMMAND_ICONS: Record<"two-up" | "grid", LucideIcon> = {
  * overlay (closed set) — it renders above the win-layer and portals to the
  * document body, never into a window. Behavior lives in `useOsCommandPalette`.
  */
-export function OsCommandPalette({ open, onOpenChange, onOpenSpaces }: OsCommandPaletteProps) {
-  const model = useOsCommandPalette(open, onOpenChange, { onOpenSpaces });
+export function OsCommandPalette({
+  open,
+  onOpenChange,
+  onOpenSpaces,
+  onToggleSessions,
+}: OsCommandPaletteProps) {
+  const model = useOsCommandPalette(open, onOpenChange, { onOpenSpaces, onToggleSessions });
 
   return (
     <CommandDialog
@@ -183,9 +190,9 @@ export function OsCommandPalette({ open, onOpenChange, onOpenSpaces }: OsCommand
           ) : null}
           <CommandGroup heading="Actions">
             <CommandItem
-              value="toggle sessions rail"
+              value="toggle sessions"
               data-testid="os-palette-toggle-sessions"
-              onSelect={model.toggleRail}
+              onSelect={model.toggleSessions}
             >
               <OS_APPS.session.icon className="size-3.5 text-muted" />
               Toggle sessions

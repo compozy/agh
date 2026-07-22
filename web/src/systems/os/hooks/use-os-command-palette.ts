@@ -32,7 +32,7 @@ export interface OsCommandPaletteModel {
   jumpToSession(sessionId: string, agentName: string): void;
   dispatchSnap(command: OsSnapCommand): void;
   dispatchArrange(command: OsArrangeCommand): void;
-  toggleRail(): void;
+  toggleSessions(): void;
   newSession(): void;
   openSpaces(): void;
   openAppearance(): void;
@@ -47,7 +47,7 @@ export interface OsCommandPaletteModel {
 export function useOsCommandPalette(
   open: boolean,
   onOpenChange: (open: boolean) => void,
-  options: { onOpenSpaces?: () => void } = {}
+  options: { onOpenSpaces?: () => void; onToggleSessions?: () => void } = {}
 ): OsCommandPaletteModel {
   const { coordinator, store } = useOsShell();
   const sessionCreate = useSessionCreate();
@@ -127,7 +127,7 @@ export function useOsCommandPalette(
         if (state.focusedId === null) return;
         state.arrangeWindows(state.focusedId, command.preset);
       }),
-    toggleRail: () => run(() => store.getState().toggleRail()),
+    toggleSessions: () => run(() => options.onToggleSessions?.()),
     newSession: () => run(() => sessionCreate.openForAgent("")),
     openSpaces: () => run(() => options.onOpenSpaces?.()),
     openAppearance: () =>

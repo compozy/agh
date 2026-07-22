@@ -49,8 +49,6 @@ const required = [
   ...surfaces,
   ...surfaces.map(file => `${file}.artifact.json`),
   "index.html",
-  "modal-design-system.html",
-  "modal-design-system.html.artifact.json",
   "modal-system.css",
   "modal-system.js",
   "MODAL-STANDARD.md",
@@ -155,7 +153,7 @@ for (const file of surfaces) {
   for (const component of componentMatrix[file]) {
     if (!source.includes(`data-od-component="${component}"`)) failures.push(`${file}: canonical component missing: ${component}`);
   }
-  if (!file.startsWith("provider-")) {
+  if (!file.includes("provider-sheet")) {
     if (!/<div class="head-icon"[^>]*>/.test(source)) failures.push(`${file}: DialogHeader missing icon well (head-icon)`);
     if (!/<div class="eyebrow">/.test(source)) failures.push(`${file}: DialogHeader missing eyebrow`);
   } else if (!/class="head-icon/.test(source) || !/<div class="eyebrow">/.test(source)) {
@@ -165,28 +163,13 @@ for (const file of surfaces) {
   if (links.length !== 1) failures.push(`index.html: ${file} linked ${links.length} times`);
 }
 
-if ((launcher.match(/href="modal-design-system\.html"/g) || []).length !== 1) failures.push("index.html: modal design system must be linked once");
 for (const href of launcher.matchAll(/href="([^"]+\.html)"/g)) {
   if (!exists(href[1])) failures.push(`index.html: unresolved link ${href[1]}`);
 }
 
-const designSystem = read("modal-design-system.html");
-checkStructure("modal-design-system.html", designSystem);
-checkUniqueIds("modal-design-system.html", designSystem);
-checkReferences("modal-design-system.html", designSystem);
-checkComponentRoots("modal-design-system.html", designSystem);
-for (const preview of ["runtime-selector", "agent-select", "agent-multi-select", "scope-selector", "workspace-select", "command-select"]) {
-  if (!designSystem.includes(`data-preview="${preview}"`)) failures.push(`modal-design-system.html: deterministic preview missing: ${preview}`);
-}
-for (const component of ["dialog", "runtime-selector", "agent-select", "agent-multi-select", "scope-selector", "workspace-select", "command-select", "radio-card", "settings-field-row", "secret-field", "immutable-identity", "form-section", "dialog-footer", "alert", "confirm-dialog"]) {
-  if (!designSystem.includes(`data-od-component="${component}"`)) failures.push(`modal-design-system.html: component documentation missing: ${component}`);
-}
-for (const marker of ["Extra-wide host", "Wizard host", "When a modal is wrong", "Selection grammar", "Lifecycle", "Do / don’t", "Accessibility"]) {
-  if (!designSystem.includes(marker)) failures.push(`modal-design-system.html: guidance section missing: ${marker}`);
-}
-for (const surface of surfaces) {
-  if (!designSystem.includes(`<code>${surface}</code>`)) failures.push(`modal-design-system.html: explicit surface row missing: ${surface}`);
-}
+// The modal design-system catalog was absorbed into ../design-system/
+// (patterns.html §05 owns the contract summary; this suite keeps owning
+// the runnable library: modal-system.css/.js + the 16 surfaces).
 
 const css = read("modal-system.css");
 const geometry = [
@@ -227,12 +210,12 @@ for (const mobileTarget of [".input, select, .command-select { min-height: 44px"
   if (!css.includes(mobileTarget)) failures.push(`modal-system.css: mobile target contract missing: ${mobileTarget}`);
 }
 
-const combined = [...surfaces, "index.html", "modal-design-system.html"].map(read).join("\n");
+const combined = [...surfaces, "index.html"].map(read).join("\n");
 const forbidden = [
   [/\sstyle="/i, "inline style"],
   [/linear-gradient|radial-gradient|conic-gradient/i, "gradient"],
   [/class="[^"]*agent-field/i, "obsolete agent-field"],
-  // Numbered FormSection ordinals are allowed in modal-design-system.html anatomy demos only.
+  // Numbered FormSection ordinals are allowed in design-system anatomy demos only.
   // Surface modals must not ship .sec__num — checked separately below.
   [/<select[^>]+id="agent"/i, "native agent selector"],
   [/<select[^>]+id="provider"/i, "separate provider selector"],
@@ -260,32 +243,15 @@ for (const behavior of ["event.stopPropagation()", "event.key === 'Home'", "even
   if (!sharedScript.includes(behavior)) failures.push(`modal-system.js: behavior contract missing: ${behavior}`);
 }
 
-const runtimeReferencePath = path.join(directory, "..", "agents", "provider-model-reasoning-selector.html");
-if (!fs.existsSync(runtimeReferencePath)) {
-  failures.push("agents/provider-model-reasoning-selector.html: missing");
-} else {
-  const runtimeReference = fs.readFileSync(runtimeReferencePath, "utf8");
-  checkStructure("agents/provider-model-reasoning-selector.html", runtimeReference);
-  checkUniqueIds("agents/provider-model-reasoning-selector.html", runtimeReference);
-  checkReferences("agents/provider-model-reasoning-selector.html", runtimeReference);
-  for (const level of ["Default", "None", "Minimal", "Low", "Medium", "High", "Extra high", "Max"]) {
-    if (!runtimeReference.includes(`>${level}<`)) failures.push(`agents/provider-model-reasoning-selector.html: reasoning level missing: ${level}`);
-  }
-  for (const role of ["combobox", "listbox", "group", "radiogroup", "option", "radio", "dialog"]) {
-    if (!runtimeReference.includes(`role="${role}"`)) failures.push(`agents/provider-model-reasoning-selector.html: role missing: ${role}`);
-  }
-  if (!/component-popover__reasoning" role="group"[^>]*data-pressed-group/.test(runtimeReference)) failures.push("agents/provider-model-reasoning-selector.html: reasoning must use role=group with pressed buttons");
-  if (!/data-favorite-key="anthropic:claude-sonnet-4"[^>]*|aria-pressed="true"[^>]*data-favorite-key="anthropic:claude-sonnet-4"/.test(runtimeReference)) failures.push("agents/provider-model-reasoning-selector.html: provider-qualified favorite toggle missing");
-  if (/<button[^>]*role="option"[^>]*>★/.test(runtimeReference)) failures.push("agents/provider-model-reasoning-selector.html: favorite must not be embedded in a model option");
-  if (/linear-gradient|radial-gradient|\sstyle="/i.test(runtimeReference)) failures.push("agents/provider-model-reasoning-selector.html: gradient or inline style found");
-  for (const marker of ["No runtime choices found", "Catalog unavailable", "Select model", "Provider-qualified favorites", "aria-activedescendant"]) {
-    if (!runtimeReference.includes(marker)) failures.push(`agents/provider-model-reasoning-selector.html: contract marker missing: ${marker}`);
-  }
-}
+// The RuntimeSelector reference prototype moved to _done/agents/ and was
+// later rewritten (approved reasoning-slider redesign), so the old 8-level
+// pill contract no longer applies. The living RuntimeSelector contract is
+// owned by ../design-system/patterns.html §05 and production
+// web/src/systems/runtime/components.
 
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
 
-console.log(`PASS: ${surfaces.length} modal surfaces, canonical component matrix, design-system catalog, RuntimeSelector reference, and shared assets verified.`);
+console.log(`PASS: ${surfaces.length} modal surfaces, canonical component matrix, and shared assets verified.`);

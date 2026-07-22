@@ -198,11 +198,14 @@ test("E2E-006: two session windows stream independently through minimize and res
   const secondary = await createNamedSession(runtime, workspace.id, "Secondary responder");
 
   await appPage.getByRole("button", { name: "Sessions" }).click();
-  const rail = appPage.getByTestId("os-sessions-rail");
-  await expect(rail).toBeVisible();
-  await rail.getByTestId(`os-rail-session-${primary.id}`).first().click();
-  await rail.getByTestId(`os-rail-session-${secondary.id}`).first().click();
-  await rail.getByRole("button", { name: "Close sessions" }).click();
+  const sessionsModal = appPage.getByTestId("os-sessions-modal");
+  await expect(sessionsModal).toBeVisible();
+  await sessionsModal.getByTestId(`os-sessions-modal-session-${primary.id}`).first().click();
+  await expect(sessionsModal).toHaveCount(0);
+  await appPage.getByRole("button", { name: "Sessions" }).click();
+  await expect(sessionsModal).toBeVisible();
+  await sessionsModal.getByTestId(`os-sessions-modal-session-${secondary.id}`).first().click();
+  await expect(sessionsModal).toHaveCount(0);
 
   const primaryWindow = appPage.getByTestId(`os-window-session:${primary.id}`);
   const secondaryWindow = appPage.getByTestId(`os-window-session:${secondary.id}`);
@@ -258,9 +261,9 @@ test("E2E-006: two session windows stream independently through minimize and res
     .toBe(true);
 
   await appPage.getByRole("button", { name: "Sessions" }).click();
-  const restoredRail = appPage.getByTestId("os-sessions-rail");
-  await expect(restoredRail).toBeVisible();
-  await restoredRail.getByTestId(`os-rail-session-${primary.id}`).first().click();
+  const restoredModal = appPage.getByTestId("os-sessions-modal");
+  await expect(restoredModal).toBeVisible();
+  await restoredModal.getByTestId(`os-sessions-modal-session-${primary.id}`).first().click();
   const restoredPrimary = appPage.getByTestId(`os-window-session:${primary.id}`);
   await expect(restoredPrimary).toBeVisible();
   await expect(restoredPrimary.getByTestId("chat-view")).toContainText(
@@ -458,9 +461,10 @@ test("E2E-024: a Tasks confirm stays scoped while a session remains interactive"
   const task = await createTask(runtime, "Window-scoped deletion");
 
   await appPage.getByRole("button", { name: "Sessions" }).click();
-  const rail = appPage.getByTestId("os-sessions-rail");
-  await rail.getByTestId(`os-rail-session-${session.id}`).first().click();
-  await rail.getByRole("button", { name: "Close sessions" }).click();
+  const sessionsModal = appPage.getByTestId("os-sessions-modal");
+  await expect(sessionsModal).toBeVisible();
+  await sessionsModal.getByTestId(`os-sessions-modal-session-${session.id}`).first().click();
+  await expect(sessionsModal).toHaveCount(0);
   const sessionWindow = appPage.getByTestId(`os-window-session:${session.id}`);
   const composer = sessionWindow.getByTestId("composer-textarea");
   await composer.fill("observe primary stream");
@@ -1090,12 +1094,12 @@ test("E2E-020: compact keeps deep links, truthful badges, and the rail overlay w
   await tabbar.locator('[data-app="tasks"]').click();
   await expect(tasksWindow).toBeVisible();
 
-  // The sessions rail presents as an overlay sheet; dismissing returns intact.
+  // The sessions catalog presents as a global modal; dismissing returns intact.
   await tabbar.locator('[data-app="session"]').click();
-  const sheet = appPage.getByTestId("os-sessions-rail-sheet");
-  await expect(sheet).toBeVisible();
+  const sessionsModal = appPage.getByTestId("os-sessions-modal");
+  await expect(sessionsModal).toBeVisible();
   await appPage.keyboard.press("Escape");
-  await expect(sheet).toHaveCount(0);
+  await expect(sessionsModal).toHaveCount(0);
   await expect(tasksWindow).toBeVisible();
   await expect(tasksWindow).toContainText(detailTask.title);
 });

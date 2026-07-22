@@ -7,7 +7,8 @@ export type DesktopOverlay =
   | "help-menu"
   | "bell"
   | "palette"
-  | "spaces";
+  | "spaces"
+  | "sessions";
 
 /**
  * Single owner for shell popovers and desktop-level overlays. Opening one

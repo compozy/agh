@@ -338,7 +338,7 @@ The runtime is dark-only. `color-scheme: dark` is part of the product
 contract, not a theme preference. Surfaces must never depend on white
 backgrounds, pastel cards, decorative blur, or ambient shadows for legibility.
 The single sanctioned exception is OS-shell chrome: the menubar, dock,
-sessions rail, shell popovers, and window frames use the tokenized shell
+shell popovers, and window frames use the tokenized shell
 glass and blur from §5. Content inside window bodies never does.
 
 The core atmosphere is:
@@ -470,7 +470,7 @@ runtime variables that intentionally stay outside `@theme`.
 
 ### Shell glass
 
-OS-shell chrome (menubar, dock, sessions rail, shell popovers, window frames)
+OS-shell chrome (menubar, dock, shell popovers, window frames)
 reads its translucent glass surfaces from these tokens — the only sanctioned
 glass in the system. Window-body content never uses them (§5).
 
@@ -689,7 +689,7 @@ The model is flat by default. The surface ramp creates depth; hairlines and
 inset rings clarify boundaries. Adding new shadow tokens is a design-system
 change, not a local styling decision.
 
-Depth has two layers. OS-shell chrome — the menubar, dock, sessions rail,
+Depth has two layers. OS-shell chrome — the menubar, dock,
 shell popovers, and window frames — is the one place glass, backdrop blur,
 and cast window shadows are allowed, drawn from the shell tokens below. This
 carve-out separates floating chrome from the wallpaper behind it. Content
@@ -857,7 +857,7 @@ is listed.
 - Decorative depth. Pattern: generic Tailwind shadow utilities on cards,
   popovers, headers, or rows. Use the flat ring/ramp model and the shadow
   whitelist above. The only cast-shadow and glass exception is OS-shell chrome
-  (menubar, dock, sessions rail, shell popovers, window frames) per §5; window
+  (menubar, dock, shell popovers, window frames) per §5; window
   content stays flat.
 - Fake affordances. Pattern: UI controls, metrics, or statuses that are not
   backed by runtime APIs, CLI/UDS/HTTP surfaces, or real state.

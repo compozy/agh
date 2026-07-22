@@ -6,6 +6,8 @@ import { OsDockTabBar } from "./os-dock-tab-bar";
 export interface DesktopDockProps {
   onNewSession: () => void;
   badges: OsAttentionBadges;
+  sessionsOpen: boolean;
+  onToggleSessions: () => void;
 }
 
 /**
@@ -14,8 +16,16 @@ export interface DesktopDockProps {
  * mobile block). Entries, activation semantics, and the magnification gates
  * live in `useDesktopDock`.
  */
-export function DesktopDock({ onNewSession, badges }: DesktopDockProps) {
-  const { entries, presentation, magnify, handleSelect } = useDesktopDock(badges);
+export function DesktopDock({
+  onNewSession,
+  badges,
+  sessionsOpen,
+  onToggleSessions,
+}: DesktopDockProps) {
+  const { entries, presentation, magnify, handleSelect } = useDesktopDock(badges, {
+    sessionsOpen,
+    onToggleSessions,
+  });
 
   if (presentation === "compact") {
     return <OsDockTabBar items={entries} onSelect={handleSelect} onNewSession={onNewSession} />;

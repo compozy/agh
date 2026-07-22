@@ -113,13 +113,15 @@ describe("OsCommandPalette", () => {
     expect(pushes).toEqual(["/tasks"]);
   });
 
-  it("Should route the sessions action through the persisted rail toggle (UT-084)", async () => {
+  it("Should route the sessions action through the shell overlay toggle (UT-084)", async () => {
     const user = userEvent.setup();
-    const { store, shell } = createHarness();
+    const { shell } = createHarness();
+    const onToggleSessions = vi.fn();
+    const onOpenChange = vi.fn();
 
     render(
       <OsShellContext.Provider value={shell}>
-        <OsCommandPalette open onOpenChange={() => {}} />
+        <OsCommandPalette open onOpenChange={onOpenChange} onToggleSessions={onToggleSessions} />
       </OsShellContext.Provider>
     );
 
@@ -128,7 +130,8 @@ describe("OsCommandPalette", () => {
       "toggle sessions"
     );
     await user.keyboard("{Enter}");
-    expect(store.getState().railOpen).toBe(true);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onToggleSessions).toHaveBeenCalled();
   });
 
   it("Should list snap commands for the focused window and dispatch snapWindow (UT-101)", async () => {

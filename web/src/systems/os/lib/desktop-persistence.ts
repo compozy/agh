@@ -117,7 +117,6 @@ export function createDesktopPersistence(store: DesktopStoreApi): {
     }
     const desktopChanged =
       state.focusedId !== prev.focusedId ||
-      state.railOpen !== prev.railOpen ||
       state.railCollapsedAgentIds !== prev.railCollapsedAgentIds ||
       state.wallpaper !== prev.wallpaper ||
       state.reduceMotion !== prev.reduceMotion ||
