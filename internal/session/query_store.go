@@ -29,7 +29,7 @@ type queryStoreRuntime struct {
 func newDefaultQueryStoreRuntime(logger *slog.Logger) *queryStoreRuntime {
 	pool := sessiondb.NewReadOnlyPool(sessiondb.ReadOnlyPoolConfig{
 		TTL: defaultReadOnlyQueryStoreTTL,
-		Open: func(ctx context.Context, sessionID string, path string) (store.EventRecorder, error) {
+		Open: func(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error) {
 			return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
 		},
 	})
@@ -47,7 +47,7 @@ func (r *queryStoreRuntime) Open(
 	ctx context.Context,
 	sessionID string,
 	path string,
-) (EventRecorder, error) {
+) (EventReadCloser, error) {
 	if r == nil || r.pool == nil {
 		return nil, errors.New("session: query store runtime is required")
 	}

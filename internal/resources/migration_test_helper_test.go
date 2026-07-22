@@ -11,6 +11,12 @@ func globalTestMigrationStream() store.MigrationStream {
 		FS:           globalschema.Files,
 		Dir:          "migrations",
 		VersionTable: "goose_db_version_global",
-		LegacyTables: []string{"schema_migrations"},
+		LegacyTables: []string{"schema_migrations", "memory_schema_migrations"},
+		Bootstrap: &store.MigrationBootstrap{
+			FS:           globalschema.Files,
+			MigrationDir: "migrations",
+			SchemaSource: "definitions",
+			SeedSource:   "bootstrap.sql",
+		},
 	}
 }

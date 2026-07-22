@@ -15,5 +15,10 @@ func MigrationStream() storepkg.MigrationStream {
 		Dir:          "migrations",
 		VersionTable: memoryMigrationVersionTable,
 		LegacyTables: []string{"schema_migrations", "memory_schema_migrations"},
+		Bootstrap: &storepkg.MigrationBootstrap{
+			FS:           memoryschema.Files,
+			MigrationDir: "migrations",
+			SchemaSource: "schema.sql",
+		},
 	}
 }

@@ -3,7 +3,6 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -555,18 +554,11 @@ func TestStoreHelpersAndErrorPaths(t *testing.T) {
 		t.Fatal("NewID(\"\") = empty, want non-empty")
 	}
 
-	if shouldRecoverSQLite(errors.New("file is not a database")) {
-		t.Fatal("shouldRecoverSQLite(untyped not a database) = true, want false")
+	if err := Checkpoint(testutil.Context(t), nil); err != nil {
+		t.Fatalf("Checkpoint(nil) error = %v", err)
 	}
-	if shouldRecoverSQLite(errors.New("permission denied")) {
-		t.Fatal("shouldRecoverSQLite(permission denied) = true, want false")
-	}
-
-	if err := checkpoint(testutil.Context(t), nil); err != nil {
-		t.Fatalf("checkpoint(nil) error = %v", err)
-	}
-	if _, err := openSQLiteDatabase(testutil.Context(t), "", nil); err == nil {
-		t.Fatal("openSQLiteDatabase(\"\") error = nil, want non-nil")
+	if _, err := OpenSQLiteDatabase(testutil.Context(t), "", nil); err == nil {
+		t.Fatal("OpenSQLiteDatabase(\"\") error = nil, want non-nil")
 	}
 }
 

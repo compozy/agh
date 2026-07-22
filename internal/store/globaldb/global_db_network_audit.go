@@ -171,6 +171,5 @@ func insertNetworkAuditWithExecutor(ctx context.Context, exec networkSQLExecutor
 }
 
 func nullableNetworkString(value string) sql.NullString {
-	value = strings.TrimSpace(value)
-	return sql.NullString{String: value, Valid: value != ""}
+	return store.SQLNullString(value)
 }

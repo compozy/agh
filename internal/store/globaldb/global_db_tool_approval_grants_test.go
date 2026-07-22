@@ -1,8 +1,6 @@
 package globaldb
 
 import (
-	"context"
-	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -184,56 +182,58 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 }
 
 func TestGlobalDBToolApprovalGrantMigration(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve durable grants through the head upgrade", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := testutil.Context(t)
-	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	prefixDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		return store.Apply(ctx, db, previousApprovalGrantMigrationStream(t))
-	})
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase(v16 prefix) error = %v", err)
-	}
-	prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: approvalGrantTestTime}
-	prefixGlobalDB.initializeRepositories()
-	workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "approval-upgrade", t.TempDir())
-	if err := prefixDB.Close(); err != nil {
-		t.Fatalf("prefixDB.Close() error = %v", err)
-	}
-
-	globalDB, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(v17 upgrade) error = %v", err)
-	}
-	created := putApprovalGrantForTest(t, globalDB, toolspkg.ApprovalGrant{
-		ApprovalGrantKey: approvalGrantTestKey(workspaceID, "codex", approvalGrantDigest("upgrade")),
-		Decision:         toolspkg.ApprovalGrantAllow,
-	})
-	if err := globalDB.Close(ctx); err != nil {
-		t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
-	}
-
-	reopened, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := reopened.Close(ctx); err != nil {
-			t.Errorf("reopened.Close() error = %v", err)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, previousApprovalGrantMigrationStream(t))
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v16 prefix) error = %v", err)
 		}
+		ctx := testutil.Context(t)
+		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: approvalGrantTestTime}
+		prefixGlobalDB.initializeRepositories(openConfig{})
+		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "approval-upgrade", t.TempDir())
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+
+		globalDB, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v17 upgrade) error = %v", err)
+		}
+		ctx = testutil.Context(t)
+		created := putApprovalGrantForTest(t, globalDB, toolspkg.ApprovalGrant{
+			ApprovalGrantKey: approvalGrantTestKey(workspaceID, "codex", approvalGrantDigest("upgrade")),
+			Decision:         toolspkg.ApprovalGrantAllow,
+		})
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
+		}
+
+		reopened, err := OpenGlobalDB(testutil.Context(t), path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		ctx = testutil.Context(t)
+		t.Cleanup(func() {
+			if err := reopened.Close(ctx); err != nil {
+				t.Errorf("reopened.Close() error = %v", err)
+			}
+		})
+		listed, err := reopened.ListApprovalGrants(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("ListApprovalGrants(reopen) error = %v", err)
+		}
+		if len(listed) != 1 || listed[0].ID != created.ID {
+			t.Fatalf("ListApprovalGrants(reopen) = %#v, want durable grant", listed)
+		}
+		status, err := store.Status(ctx, reopened.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(latest) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
 	})
-	listed, err := reopened.ListApprovalGrants(ctx, workspaceID)
-	if err != nil {
-		t.Fatalf("ListApprovalGrants(reopen) error = %v", err)
-	}
-	if len(listed) != 1 || listed[0].ID != created.ID {
-		t.Fatalf("ListApprovalGrants(reopen) = %#v, want durable grant", listed)
-	}
-	status, err := store.Status(ctx, reopened.db, MigrationStream())
-	if err != nil {
-		t.Fatalf("Status(latest) error = %v", err)
-	}
-	assertCompleteMigrationStream(t, status, MigrationStream())
 }
 
 func previousApprovalGrantMigrationStream(t *testing.T) store.MigrationStream {

@@ -225,43 +225,27 @@ func (n *NotificationRepo) DeletePreset(ctx context.Context, name string) error 
 func (n *NotificationRepo) EnsureBuiltInPresets(
 	ctx context.Context,
 	defaults []presetspkg.Preset,
-) (err error) {
+) error {
 	if err := n.checkReady(ctx, "ensure notification preset defaults"); err != nil {
 		return err
 	}
-	conn, err := n.db.Conn(ctx)
+	err := store.ExecuteWrite(ctx, n.db, func(writeCtx context.Context, tx *store.WriteTx) error {
+		queries := sqlcgen.New(tx)
+		for _, defaultPreset := range defaults {
+			if seedErr := seedNotificationPresetDefault(
+				writeCtx,
+				queries,
+				defaultPreset.Normalize(),
+				n.now(),
+			); seedErr != nil {
+				return seedErr
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("store: open notification preset default transaction: %w", err)
+		return fmt.Errorf("store: seed notification preset defaults: %w", err)
 	}
-	defer func() {
-		if closeErr := conn.Close(); closeErr != nil {
-			joinCleanupError(
-				&err,
-				fmt.Errorf("store: close notification preset default transaction connection: %w", closeErr),
-			)
-		}
-	}()
-	// dynamic-sql: BEGIN IMMEDIATE is explicit SQLite transaction control on the pinned notification connection.
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("store: begin notification preset default seed: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			rollbackNotificationImmediate(ctx, &err, conn, "notification preset default seed")
-		}
-	}()
-	queries := sqlcgen.New(conn)
-	for _, defaultPreset := range defaults {
-		if seedErr := seedNotificationPresetDefault(ctx, queries, defaultPreset.Normalize(), n.now()); seedErr != nil {
-			return seedErr
-		}
-	}
-	// dynamic-sql: COMMIT closes the explicit SQLite transaction and is outside sqlc's query model.
-	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return fmt.Errorf("store: commit notification preset default seed: %w", err)
-	}
-	committed = true
 	return nil
 }
 

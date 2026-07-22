@@ -205,15 +205,11 @@ func formatEventSummaryLeaseUntil(value *time.Time) string {
 }
 
 func nullableObserveString(value string) sql.NullString {
-	value = strings.TrimSpace(value)
-	return sql.NullString{String: value, Valid: value != ""}
+	return store.SQLNullString(value)
 }
 
 func nullableObserveStringPointer(value *string) sql.NullString {
-	if value == nil {
-		return sql.NullString{}
-	}
-	return nullableObserveString(*value)
+	return store.SQLNullStringPointer(value)
 }
 
 func nullableObserveInt64(value *int64) sql.NullInt64 {

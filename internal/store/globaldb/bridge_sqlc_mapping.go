@@ -14,8 +14,7 @@ import (
 )
 
 func nullableBridgeString(value string) sql.NullString {
-	value = strings.TrimSpace(value)
-	return sql.NullString{String: value, Valid: value != ""}
+	return store.SQLNullString(value)
 }
 
 func nullableBridgeTimestamp(value time.Time) sql.NullString {

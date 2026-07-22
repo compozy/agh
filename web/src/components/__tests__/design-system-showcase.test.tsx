@@ -3,7 +3,9 @@ import { render, screen, within } from "@testing-library/react";
 
 import { UIProvider } from "@agh/ui";
 
-import { DesignSystemShowcase, SECTIONS, TOKEN_GROUPS } from "@/components/design-system-showcase";
+import { DesignSystemShowcase } from "@/components/design-system-showcase";
+import { SECTIONS } from "@/components/design-system-showcase-sections";
+import { TOKEN_GROUPS } from "@/components/design-system-showcase-tokens";
 
 function renderShowcase() {
   return render(

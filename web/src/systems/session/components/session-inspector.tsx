@@ -1,25 +1,6 @@
-import { useState } from "react";
-import { Activity, AlertCircle, ChevronRight, FileCode, Gauge, Library } from "lucide-react";
-
-import {
-  Button,
-  DetailInspector,
-  Empty,
-  Eyebrow,
-  MetadataList,
-  Metric,
-  Pill,
-  ScrollArea,
-  Spinner,
-  cn,
-  type PillTone,
-} from "@agh/ui";
-
-import { formatMessageTimestamp } from "../lib/format-timestamp";
-import { SessionLedgerUnavailableError } from "../adapters/session-api";
-import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";
 import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
 import { describeCost, type CostSource, type CostStatus } from "@/lib/cost-provenance";
+import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";
 import {
   deriveFileReads,
   deriveTraceEvents,
@@ -27,10 +8,15 @@ import {
   TRACE_LIMIT_DEFAULT,
   type InspectorFileEntry,
   type InspectorTraceEvent,
-  type InspectorTraceKind,
-  type InspectorTraceStatus,
   type ThreadMessageState,
 } from "./session-inspector.logic";
+import { TraceSection } from "./session-inspector-trace";
+import { useState } from "react";
+import { DetailInspector, Empty, Eyebrow, Metric, ScrollArea, Spinner, cn } from "@agh/ui";
+import { AlertCircle, FileCode, Gauge, Library } from "lucide-react";
+import { SessionLedgerUnavailableError } from "../adapters/session-api";
+
+import { SessionLedgerEventsPanel, SessionLedgerMetaPanel } from "./session-inspector-ledger";
 
 const EMPTY_VAULT_SECRETS: readonly VaultSecret[] = [];
 
@@ -100,8 +86,10 @@ export interface SessionInspectorProps {
   className?: string;
 }
 
-const LEDGER_EVENT_LIMIT = 20;
+export const LEDGER_EVENT_LIMIT = 20;
+
 const EMPTY_MEMORY_STATE: InspectorMemoryState = Object.freeze({});
+
 const SECTION_LABELS = {
   trace: "Trace",
   usage: "Usage",
@@ -126,23 +114,6 @@ const SESSION_INSPECTOR_TAB_TESTIDS: Record<InspectorTabId, string> = {
   memory: "session-inspector-tab-memory",
   files: "session-inspector-tab-files",
   vault: "session-inspector-tab-vault",
-};
-
-const TRACE_STATUS_TONE: Record<InspectorTraceStatus, PillTone> = {
-  ok: "success",
-  warn: "warning",
-  error: "danger",
-  pending: "accent",
-};
-
-const TRACE_KIND_LABEL: Record<InspectorTraceKind, string> = {
-  start: "START",
-  user: "USER",
-  agent: "AGENT",
-  tool: "TOOL",
-  diff: "DIFF",
-  system: "SYSTEM",
-  approval: "APPROVAL",
 };
 
 function formatNumber(value?: number): string {
@@ -281,89 +252,6 @@ export function SessionInspector({
   );
 }
 
-interface TraceSectionProps {
-  events: InspectorTraceEvent[];
-  total: number;
-  limit: number;
-  onViewAll?: () => void;
-}
-
-function TraceSection({ events, total, limit, onViewAll }: TraceSectionProps) {
-  const hasOverflow = total > limit;
-  return (
-    <div data-testid="session-inspector-trace" className="flex min-h-full flex-col">
-      {events.length === 0 ? (
-        <Empty
-          icon={Activity}
-          title="No trace events yet"
-          description="Trace rows appear as the agent sends prompts, runs tools, and receives responses."
-          data-testid="session-inspector-trace-empty"
-        />
-      ) : (
-        <ol data-testid="session-inspector-trace-list" className="flex flex-col gap-3">
-          {events.map(event => (
-            <TraceRow key={event.id} event={event} />
-          ))}
-        </ol>
-      )}
-      {hasOverflow && onViewAll ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onViewAll}
-          data-testid="session-inspector-trace-view-all"
-          className="mt-3 h-7 gap-1 self-start px-1 text-muted hover:text-fg"
-        >
-          View all
-          <ChevronRight className="size-3" />
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
-function TraceRow({ event }: { event: InspectorTraceEvent }) {
-  const tone = TRACE_STATUS_TONE[event.status];
-  const pulse = event.status === "pending";
-  const ts = formatMessageTimestamp(event.timestamp);
-  return (
-    <li
-      data-testid="session-inspector-trace-row"
-      data-kind={event.kind}
-      data-status={event.status}
-      className="flex items-start gap-2"
-    >
-      <Pill.Dot
-        tone={tone}
-        size="md"
-        pulse={pulse}
-        className="mt-1 shrink-0"
-        data-testid="session-inspector-trace-dot"
-      />
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <Eyebrow data-testid="session-inspector-trace-timestamp" className="text-subtle shrink-0">
-          {ts}
-        </Eyebrow>
-        <Pill
-          mono
-          tone={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "neutral"}
-          className="shrink-0"
-          data-testid="session-inspector-trace-kind"
-        >
-          {TRACE_KIND_LABEL[event.kind]}
-        </Pill>
-        <span
-          data-testid="session-inspector-trace-label"
-          className="min-w-0 flex-1 truncate text-small-body text-fg"
-        >
-          {event.label}
-        </span>
-      </div>
-    </li>
-  );
-}
-
 interface UsageSectionProps {
   usage: InspectorUsage | null | undefined;
 }
@@ -495,158 +383,6 @@ function MemorySection({ memory }: MemorySectionProps) {
       <SessionLedgerEventsPanel events={ledger.events} />
     </div>
   );
-}
-
-interface SessionLedgerMetaPanelProps {
-  meta: SessionLedgerMeta;
-}
-
-function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
-  const items: Array<{ label: string; value: string; testId: string; mono?: boolean }> = [
-    { label: "Workspace", value: meta.workspace_id ?? "—", testId: "workspace", mono: true },
-    {
-      label: "Root session",
-      value: meta.root_session_id ?? meta.session_id,
-      testId: "root-session",
-      mono: true,
-    },
-    {
-      label: "Parent session",
-      value: meta.parent_session_id ?? "—",
-      testId: "parent-session",
-      mono: true,
-    },
-    {
-      label: "Spawn depth",
-      value: String(meta.spawn_depth),
-      testId: "spawn-depth",
-      mono: true,
-    },
-    {
-      label: "Created",
-      value: formatLedgerTimestamp(meta.created_at),
-      testId: "created-at",
-      mono: true,
-    },
-    {
-      label: "Stopped",
-      value: meta.stopped_at ? formatLedgerTimestamp(meta.stopped_at) : "--",
-      testId: "stopped-at",
-      mono: true,
-    },
-    { label: "Path", value: meta.path, testId: "path", mono: true },
-    { label: "Checksum", value: meta.checksum, testId: "checksum", mono: true },
-    { label: "Version", value: `v${meta.version}`, testId: "version", mono: true },
-  ];
-
-  return (
-    <section
-      aria-label="Session ledger lineage"
-      data-testid="session-inspector-memory-meta"
-      className="flex flex-col gap-2"
-    >
-      <div className="flex items-center gap-2">
-        <Pill mono tone="info" data-testid="session-inspector-memory-meta-kind">
-          LEDGER
-        </Pill>
-        <Eyebrow className="text-muted">Forensic</Eyebrow>
-      </div>
-      <MetadataList>
-        {items.map(item => (
-          <MetadataList.Row
-            key={item.testId}
-            data-testid={`session-inspector-memory-meta-${item.testId}`}
-            className="items-baseline justify-between gap-2"
-          >
-            <MetadataList.Term>{item.label}</MetadataList.Term>
-            <MetadataList.Value
-              className={cn(
-                "min-w-0 flex-1 break-all text-right text-form-label text-fg",
-                item.mono ? "font-mono text-eyebrow" : null
-              )}
-              data-testid={`session-inspector-memory-meta-${item.testId}-value`}
-            >
-              {item.value}
-            </MetadataList.Value>
-          </MetadataList.Row>
-        ))}
-      </MetadataList>
-    </section>
-  );
-}
-
-interface SessionLedgerEventsPanelProps {
-  events: readonly SessionLedgerEvent[];
-}
-
-function SessionLedgerEventsPanel({ events }: SessionLedgerEventsPanelProps) {
-  const visible = events.slice(-LEDGER_EVENT_LIMIT);
-  return (
-    <section
-      aria-label="Session ledger events"
-      data-testid="session-inspector-memory-events"
-      className="flex flex-col gap-2"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <Eyebrow className="text-muted">Ledger events</Eyebrow>
-        <span
-          className="font-mono text-badge text-subtle"
-          data-testid="session-inspector-memory-events-count"
-        >
-          {events.length}
-        </span>
-      </div>
-      {visible.length === 0 ? (
-        <Empty
-          icon={Library}
-          title="No ledger events"
-          description="The session ended without recorded events; nothing was journaled for this run."
-          data-testid="session-inspector-memory-events-empty"
-        />
-      ) : (
-        <ul
-          data-testid="session-inspector-memory-events-list"
-          className="flex flex-col divide-y divide-line"
-        >
-          {visible.map(event => (
-            <li
-              key={`${event.sequence}-${event.event_type}`}
-              data-testid="session-inspector-memory-event-row"
-              className="flex items-center gap-2 py-2"
-            >
-              <Eyebrow
-                data-testid="session-inspector-memory-event-sequence"
-                className="text-subtle shrink-0"
-              >
-                #{event.sequence}
-              </Eyebrow>
-              <Pill mono tone="neutral" data-testid="session-inspector-memory-event-type">
-                {event.event_type}
-              </Pill>
-              <span
-                data-testid="session-inspector-memory-event-timestamp"
-                className="ml-auto shrink-0 font-mono text-badge text-subtle"
-              >
-                {formatLedgerTimestamp(event.emitted_at)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function formatLedgerTimestamp(value: string): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 interface FilesSectionProps {

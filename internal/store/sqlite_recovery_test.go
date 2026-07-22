@@ -1,9 +1,11 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -12,6 +14,58 @@ import (
 
 func TestOpenSQLiteDatabaseRecoveryContract(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should classify corruption without mutating database family files", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		dbPath := filepath.Join(t.TempDir(), "corrupt.db")
+		family := map[string][]byte{
+			dbPath:          []byte("not a sqlite database"),
+			dbPath + "-wal": []byte("preserve wal companion"),
+			dbPath + "-shm": []byte("preserve shm companion"),
+		}
+		for path, contents := range family {
+			if err := os.WriteFile(path, contents, 0o600); err != nil {
+				t.Fatalf("WriteFile(%s) error = %v", filepath.Base(path), err)
+			}
+		}
+
+		db, err := OpenSQLiteDatabase(ctx, dbPath, nil)
+		if db != nil {
+			if closeErr := db.Close(); closeErr != nil {
+				t.Fatalf("Close(unexpected database) error = %v", closeErr)
+			}
+			t.Fatal("OpenSQLiteDatabase(corrupt) database is non-nil, want nil")
+		}
+		if !errors.Is(err, ErrSQLiteCorrupt) {
+			t.Fatalf("OpenSQLiteDatabase(corrupt) error = %v, want ErrSQLiteCorrupt", err)
+		}
+		var corruptionErr *SQLiteCorruptionError
+		if !errors.As(err, &corruptionErr) {
+			t.Fatalf("OpenSQLiteDatabase(corrupt) error = %T, want *SQLiteCorruptionError", err)
+		}
+		if corruptionErr.Path != dbPath {
+			t.Fatalf("SQLiteCorruptionError.Path = %q, want %q", corruptionErr.Path, dbPath)
+		}
+
+		for path, want := range family {
+			got, readErr := os.ReadFile(path)
+			if readErr != nil {
+				t.Fatalf("ReadFile(%s) error = %v", filepath.Base(path), readErr)
+			}
+			if !bytes.Equal(got, want) {
+				t.Fatalf("ReadFile(%s) = %q, want preserved %q", filepath.Base(path), got, want)
+			}
+		}
+		matches, globErr := filepath.Glob(dbPath + ".corrupt.*")
+		if globErr != nil {
+			t.Fatalf("Glob(corrupt files) error = %v", globErr)
+		}
+		if len(matches) != 0 {
+			t.Fatalf("corrupt quarantine files = %v, want none", matches)
+		}
+	})
 
 	t.Run("Should not quarantine healthy database after malformed initialization error", func(t *testing.T) {
 		t.Parallel()
@@ -45,6 +99,9 @@ func TestOpenSQLiteDatabaseRecoveryContract(t *testing.T) {
 		}
 		if !errors.Is(err, initErr) {
 			t.Fatalf("OpenSQLiteDatabase(init fail) error = %v, want %v", err, initErr)
+		}
+		if errors.Is(err, ErrSQLiteCorrupt) {
+			t.Fatalf("OpenSQLiteDatabase(init fail) error = %v, want non-corruption classification", err)
 		}
 		matches, err := filepath.Glob(dbPath + ".corrupt.*")
 		if err != nil {

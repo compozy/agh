@@ -887,12 +887,11 @@ describe("SessionChatRuntimeProvider", () => {
     renderSessionThread({ includeClearAction: true, includeTranscriptStateProbe: true });
 
     const composer = await screen.findByRole("textbox", { name: "Session prompt" });
-    await user.type(composer, "Conversation that should disappear during Clear");
+    const prompt = "Clear me";
+    await user.type(composer, prompt);
     await user.click(screen.getByTestId("composer-send-button"));
 
-    expect(
-      await screen.findByText("Conversation that should disappear during Clear")
-    ).toBeInTheDocument();
+    expect(await screen.findByText(prompt)).toBeInTheDocument();
     expect(
       await screen.findByText("Live runtime answer before transcript reconciliation.")
     ).toBeInTheDocument();
@@ -902,9 +901,7 @@ describe("SessionChatRuntimeProvider", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Clear test conversation" })).toBeDisabled();
     });
-    expect(
-      screen.queryByText("Conversation that should disappear during Clear")
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(prompt)).not.toBeInTheDocument();
     expect(
       screen.queryByText("Live runtime answer before transcript reconciliation.")
     ).not.toBeInTheDocument();
@@ -913,9 +910,7 @@ describe("SessionChatRuntimeProvider", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Clear test conversation" })).toBeEnabled();
     });
-    expect(
-      screen.queryByText("Conversation that should disappear during Clear")
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(prompt)).not.toBeInTheDocument();
   }, 10_000);
 
   it("promotes an optimistic runtime message to the server identity without a duplicate row", () => {

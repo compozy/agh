@@ -17,7 +17,7 @@ func clearSessionSQLite(ctx context.Context, db *sql.DB) error {
 	if db == nil {
 		return errors.New("store: clear session sqlite database is required")
 	}
-	return store.ExecuteWriteNoCheckpoint(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
+	return store.ExecuteWrite(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		clearSteps := []func(context.Context) error{
 			queries.ClearHookRuns,

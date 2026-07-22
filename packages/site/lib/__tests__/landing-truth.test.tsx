@@ -8,7 +8,7 @@ const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const repoRoot = resolve(siteRoot, "../..");
 const landingRoot = resolve(siteRoot, "components/landing");
 const runtimeRoot = resolve(siteRoot, "content/runtime");
-const providerSourcePath = resolve(repoRoot, "internal/config/provider.go");
+const providerSourceRoot = resolve(repoRoot, "internal/config");
 const serverLandingMetricModules = ["hero.tsx", "comparison.tsx"].map(file =>
   resolve(landingRoot, file)
 );
@@ -64,6 +64,14 @@ function simpleGoStringConstants(source: string): Map<string, string> {
   return constants;
 }
 
+function goPackageSource(dir: string): string {
+  return readdirSync(dir)
+    .filter(file => file.endsWith(".go") && !file.endsWith("_test.go"))
+    .sort()
+    .map(file => readFileSync(resolve(dir, file), "utf8"))
+    .join("\n");
+}
+
 function resolveGoString(token: string, constants: Map<string, string>): string | undefined {
   if (token.startsWith('"')) {
     return token.slice(1, -1);
@@ -98,7 +106,7 @@ function builtinProviderNamesFromSource(source: string): Map<string, string> {
 }
 
 function builtinProviderNames(): Map<string, string> {
-  return builtinProviderNamesFromSource(readFileSync(providerSourcePath, "utf8"));
+  return builtinProviderNamesFromSource(goPackageSource(providerSourceRoot));
 }
 
 function runtimeRouteExists(route: string): boolean {

@@ -2021,7 +2021,7 @@ func appendSessionWatchEventForTest(
 	event store.SessionEvent,
 ) store.SessionEvent {
 	t.Helper()
-	sessionDir := filepath.Join(sessionsDirForDatabasePath(globalDB.path), sessionID)
+	sessionDir := filepath.Join(filepath.Dir(globalDB.path), "sessions", sessionID)
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", sessionDir, err)
 	}

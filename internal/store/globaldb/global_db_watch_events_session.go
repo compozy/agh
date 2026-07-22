@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/sessiondb"
 )
 
 func (g *WatchEventsRepo) readSessionWatchEventsCursor(
@@ -80,7 +78,7 @@ func (g *WatchEventsRepo) openSessionWatchEventsReader(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 	stream string,
-) (*sessiondb.ReadOnlySessionDB, bool, error) {
+) (store.EventMetadataReadCloser, bool, error) {
 	sessionID, ok := looppkg.WatchEventsSessionIDFromStream(stream)
 	if !ok {
 		return nil, false, fmt.Errorf("%w: watch-events session stream is invalid: %q", looppkg.ErrValidation, stream)
@@ -96,8 +94,10 @@ func (g *WatchEventsRepo) openSessionWatchEventsReader(
 	if len(sessions) == 0 {
 		return nil, false, nil
 	}
-	path := store.SessionDBFile(filepath.Join(sessionsDirForDatabasePath(g.path), sessionID))
-	reader, err := sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
+	if g.openSessionEventMetadata == nil {
+		return nil, false, errors.New("store: session watch-events metadata opener is required")
+	}
+	reader, err := g.openSessionEventMetadata(ctx, sessionID)
 	if err != nil {
 		return nil, false, fmt.Errorf("store: open session watch-events db %q: %w", sessionID, err)
 	}
@@ -117,7 +117,7 @@ func sessionWatchEventFromMetadata(
 	workspaceID string,
 	sessionID string,
 	stream string,
-	row sessiondb.EventMetadata,
+	row store.EventMetadata,
 ) looppkg.WatchEvent {
 	payload := map[string]any{
 		watchEventsPayloadRecordTypeKey: strings.TrimSpace(row.Type),

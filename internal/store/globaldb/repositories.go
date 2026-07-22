@@ -80,11 +80,14 @@ type MarketplaceRepo struct{ *repoBase }
 type ObserveRepo struct{ *repoBase }
 type ToolRuntimeRepo struct{ *repoBase }
 type VaultRepo struct{ *repoBase }
-type WatchEventsRepo struct{ *repoBase }
+type WatchEventsRepo struct {
+	*repoBase
+	openSessionEventMetadata store.SessionEventMetadataOpener
+}
 type DeadEntityRepo struct{ *repoBase }
 type ApprovalGrantRepo struct{ *repoBase }
 
-func (g *GlobalDB) initializeRepositories() {
+func (g *GlobalDB) initializeRepositories(config openConfig) {
 	base := newRepoBase(g.db, func() time.Time { return g.now() }, &g.closed)
 	base.path = g.path
 	g.WorkspaceRepo = &WorkspaceRepo{repoBase: base}
@@ -114,7 +117,10 @@ func (g *GlobalDB) initializeRepositories() {
 	g.NotificationRepo = &NotificationRepo{repoBase: base}
 	g.ToolRuntimeRepo = &ToolRuntimeRepo{repoBase: base}
 	g.VaultRepo = &VaultRepo{repoBase: base}
-	g.WatchEventsRepo = &WatchEventsRepo{repoBase: base}
+	g.WatchEventsRepo = &WatchEventsRepo{
+		repoBase:                 base,
+		openSessionEventMetadata: config.openSessionEventMetadata,
+	}
 	g.DeadEntityRepo = &DeadEntityRepo{repoBase: base}
 	g.ApprovalGrantRepo = &ApprovalGrantRepo{repoBase: base}
 	loopRepo.watchEvents = g.WatchEventsRepo

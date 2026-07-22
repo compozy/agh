@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/agh/internal/store"
 )
 
 type participationSnapshotFields struct {
@@ -42,8 +43,7 @@ func encodeParticipationSnapshot(
 }
 
 func nullableParticipationChannel(channel string) sql.NullString {
-	channel = strings.TrimSpace(channel)
-	return sql.NullString{String: channel, Valid: channel != ""}
+	return store.SQLNullString(channel)
 }
 
 func decodeParticipationSnapshot(

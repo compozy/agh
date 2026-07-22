@@ -35,7 +35,7 @@ var (
 )
 
 // EventStoreOpener opens the live session event database for read-only projection.
-type EventStoreOpener func(ctx context.Context, sessionID string, path string) (store.EventRecorder, error)
+type EventStoreOpener func(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error)
 
 // Config controls forensic ledger materialization.
 type Config struct {
@@ -237,7 +237,7 @@ func (m *Materializer) target(record store.SessionLedgerRecord) (ledgerTarget, e
 	}, nil
 }
 
-func openReadOnlyEventStore(ctx context.Context, sessionID string, path string) (store.EventRecorder, error) {
+func openReadOnlyEventStore(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, fmt.Errorf("%w: events db path is required", ErrInvalidRecord)
 	}

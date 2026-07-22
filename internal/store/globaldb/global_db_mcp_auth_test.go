@@ -333,17 +333,17 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 	t.Run("Should hard-cut name-only tokens while preserving scoped marketplace secrets", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t)
 		databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
 		legacyDB, err := sql.Open(sqliteDriverName, databasePath)
 		if err != nil {
 			t.Fatalf("sql.Open(legacy) error = %v", err)
 		}
 		prefixStream := globalMigrationPrefix(t, "00001_baseline.sql", "00002_schema.sql")
-		if err := store.Apply(ctx, legacyDB, prefixStream); err != nil {
+		if err := applyGlobalMigrationPrefix(t, legacyDB, prefixStream); err != nil {
 			closeErr := legacyDB.Close()
 			t.Fatalf("Apply(global v2) error = %v; close error = %v", err, closeErr)
 		}
+		ctx := testutil.Context(t)
 		status, err := store.Status(ctx, legacyDB, prefixStream)
 		if err != nil {
 			closeErr := legacyDB.Close()
@@ -412,10 +412,11 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			t.Fatalf("Close(legacy) error = %v", err)
 		}
 
-		migrated, err := OpenGlobalDB(ctx, databasePath)
+		migrated, err := openGlobalMigrationUpgrade(t, databasePath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(full-stream migration) error = %v", err)
 		}
+		ctx = testutil.Context(t)
 		migratedStatus, err := store.Status(ctx, migrated.db, MigrationStream())
 		if err != nil {
 			closeErr := migrated.Close(ctx)
@@ -433,10 +434,11 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			t.Fatalf("Close(migrated) error = %v", err)
 		}
 
-		reopened, err := OpenGlobalDB(ctx, databasePath)
+		reopened, err := OpenGlobalDB(testutil.Context(t), databasePath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(reopen v3) error = %v", err)
 		}
+		ctx = testutil.Context(t)
 		t.Cleanup(func() {
 			if err := reopened.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(reopened) error = %v", err)
@@ -458,7 +460,6 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 	t.Run("Should preserve durable token rows while marking pre-fingerprint credentials unbound", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t)
 		databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
 		previousDB, err := sql.Open(sqliteDriverName, databasePath)
 		if err != nil {
@@ -472,10 +473,11 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			"00004_schema.sql",
 			"00005_schema.sql",
 		)
-		if err := store.Apply(ctx, previousDB, prefix); err != nil {
+		if err := applyGlobalMigrationPrefix(t, previousDB, prefix); err != nil {
 			closeErr := previousDB.Close()
 			t.Fatalf("Apply(global v5) error = %v; close error = %v", err, closeErr)
 		}
+		ctx := testutil.Context(t)
 		if _, err := previousDB.ExecContext(
 			ctx,
 			`INSERT INTO mcp_auth_tokens (
@@ -514,10 +516,11 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			t.Fatalf("Close(previous) error = %v", err)
 		}
 
-		migrated, err := OpenGlobalDB(ctx, databasePath)
+		migrated, err := openGlobalMigrationUpgrade(t, databasePath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(migrate latest) error = %v", err)
 		}
+		ctx = testutil.Context(t)
 		assertUnboundMCPAuthMigrationRow(ctx, t, migrated.db)
 		status, err := store.Status(ctx, migrated.db, MigrationStream())
 		if err != nil {
@@ -529,10 +532,11 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			t.Fatalf("Close(migrated) error = %v", err)
 		}
 
-		reopened, err := OpenGlobalDB(ctx, databasePath)
+		reopened, err := OpenGlobalDB(testutil.Context(t), databasePath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(reopen latest) error = %v", err)
 		}
+		ctx = testutil.Context(t)
 		t.Cleanup(func() {
 			if err := reopened.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(reopened) error = %v", err)

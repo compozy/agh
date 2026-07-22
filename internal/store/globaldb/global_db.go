@@ -14,12 +14,11 @@ import (
 	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
-var _ store.SessionRegistry = (*GlobalDB)(nil)
 var _ aghworkspace.Store = (*WorkspaceRepo)(nil)
 var _ aghworkspace.CoordinationSettings = (*WorkspaceRepo)(nil)
 
 // OpenGlobalDB opens or creates the global AGH index database.
-func OpenGlobalDB(ctx context.Context, path string) (*GlobalDB, error) {
+func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*GlobalDB, error) {
 	if ctx == nil {
 		return nil, errors.New("store: open global database context is required")
 	}
@@ -40,7 +39,7 @@ func OpenGlobalDB(ctx context.Context, path string) (*GlobalDB, error) {
 			return time.Now().UTC()
 		},
 	}
-	globalDB.initializeRepositories()
+	globalDB.initializeRepositories(newOpenConfig(options))
 	if err := globalDB.EnsureBuiltInPresets(ctx, presetspkg.BuiltInPresets(globalDB.now())); err != nil {
 		closeErr := db.Close()
 		return nil, errors.Join(fmt.Errorf("store: initialize built-in notification presets: %w", err), closeErr)

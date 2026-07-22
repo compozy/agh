@@ -1,24 +1,20 @@
 package daytona
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
+
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
+
 	"strconv"
-	"strings"
+
 	"sync"
 	"time"
-
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 const (
@@ -60,7 +56,7 @@ func (s *restSSHTokenSource) FetchSSHAccess(
 	apiURL string,
 	sandboxID string,
 	expiresIn time.Duration,
-) (sshAccess, error) {
+) (_ sshAccess, err error) {
 	key := ""
 	if s.apiKey != nil {
 		key = s.apiKey()
@@ -91,7 +87,7 @@ func (s *restSSHTokenSource) FetchSSHAccess(
 	if err != nil {
 		return sshAccess{}, fmt.Errorf("sandbox/daytona: fetch SSH access token: %w", err)
 	}
-	defer resp.Body.Close()
+	defer mergeHTTPResponseCloseError(&err, resp, "SSH access token")
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		if readErr != nil {
@@ -200,321 +196,4 @@ func (m *sshTokenManager) shouldRefresh(access sshAccess) bool {
 
 func tokenCacheKey(apiURL string, sandboxID string) string {
 	return normalizeAPIURL(apiURL) + "\x00" + sandboxID
-}
-
-type sshDialer func(
-	ctx context.Context,
-	network string,
-	address string,
-	config *ssh.ClientConfig,
-) (*ssh.Client, error)
-
-func defaultSSHDialer(
-	ctx context.Context,
-	network string,
-	address string,
-	config *ssh.ClientConfig,
-) (*ssh.Client, error) {
-	dialer := net.Dialer{Timeout: defaultSSHDialTimeout}
-	conn, err := dialer.DialContext(ctx, network, address)
-	if err != nil {
-		return nil, err
-	}
-	clientConn, chans, reqs, err := ssh.NewClientConn(conn, address, config)
-	if err != nil {
-		if closeErr := conn.Close(); closeErr != nil {
-			err = errors.Join(err, closeErr)
-		}
-		return nil, err
-	}
-	return ssh.NewClient(clientConn, chans, reqs), nil
-}
-
-type sshTransport struct {
-	tokens          *sshTokenManager
-	host            string
-	port            string
-	dial            sshDialer
-	hostKeyCallback ssh.HostKeyCallback
-	keepAlive       time.Duration
-	now             func() time.Time
-}
-
-type sshClientDialer interface {
-	DialClient(ctx context.Context, sandbox sandboxInfo) (*ssh.Client, error)
-}
-
-func newSSHTransport(tokens *sshTokenManager, opts ...func(*sshTransport)) *sshTransport {
-	transport := &sshTransport{
-		tokens:          tokens,
-		host:            defaultSSHHost,
-		port:            defaultSSHPort,
-		dial:            defaultSSHDialer,
-		hostKeyCallback: defaultHostKeyCallback(),
-		keepAlive:       defaultSSHKeepAlive,
-		now:             time.Now,
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(transport)
-		}
-	}
-	if transport.host == "" {
-		transport.host = defaultSSHHost
-	}
-	if transport.port == "" {
-		transport.port = defaultSSHPort
-	}
-	if transport.dial == nil {
-		transport.dial = defaultSSHDialer
-	}
-	if transport.hostKeyCallback == nil {
-		transport.hostKeyCallback = defaultHostKeyCallback()
-	}
-	if transport.keepAlive <= 0 {
-		transport.keepAlive = defaultSSHKeepAlive
-	}
-	return transport
-}
-
-func (t *sshTransport) Dial(
-	ctx context.Context,
-	sandbox sandboxInfo,
-	command string,
-) (transportSession, error) {
-	session, err := t.dialWithFreshness(ctx, sandbox, command, false)
-	if err == nil {
-		return session, nil
-	}
-	retry, retryErr := t.dialWithFreshness(ctx, sandbox, command, true)
-	if retryErr != nil {
-		return nil, errors.Join(err, retryErr)
-	}
-	return retry, nil
-}
-
-func (t *sshTransport) DialClient(ctx context.Context, sandbox sandboxInfo) (*ssh.Client, error) {
-	client, err := t.dialClientWithFreshness(ctx, sandbox, false)
-	if err == nil {
-		return client, nil
-	}
-	retry, retryErr := t.dialClientWithFreshness(ctx, sandbox, true)
-	if retryErr != nil {
-		return nil, errors.Join(err, retryErr)
-	}
-	return retry, nil
-}
-
-func (t *sshTransport) dialWithFreshness(
-	ctx context.Context,
-	sandbox sandboxInfo,
-	command string,
-	forceToken bool,
-) (transportSession, error) {
-	client, err := t.dialClientWithFreshness(ctx, sandbox, forceToken)
-	if err != nil {
-		return nil, err
-	}
-	session, err := client.NewSession()
-	if err != nil {
-		if closeErr := client.Close(); closeErr != nil {
-			err = errors.Join(err, closeErr)
-		}
-		return nil, fmt.Errorf("sandbox/daytona: create SSH session for sandbox %q: %w", sandbox.ID, err)
-	}
-	stdin, err := session.StdinPipe()
-	if err != nil {
-		closeSSH(client, session)
-		return nil, fmt.Errorf("sandbox/daytona: open SSH stdin for sandbox %q: %w", sandbox.ID, err)
-	}
-	stdout, err := session.StdoutPipe()
-	if err != nil {
-		closeSSH(client, session)
-		return nil, fmt.Errorf("sandbox/daytona: open SSH stdout for sandbox %q: %w", sandbox.ID, err)
-	}
-	var stderr bytes.Buffer
-	session.Stderr = &stderr
-	if err := session.Start(command); err != nil {
-		closeSSH(client, session)
-		return nil, fmt.Errorf("sandbox/daytona: start SSH command in sandbox %q: %w", sandbox.ID, err)
-	}
-	return newSSHSession(client, session, stdin, stdout, &stderr, t.keepAlive), nil
-}
-
-func (t *sshTransport) dialClientWithFreshness(
-	ctx context.Context,
-	sandbox sandboxInfo,
-	forceToken bool,
-) (*ssh.Client, error) {
-	access, err := t.tokens.Ensure(ctx, sandbox.APIURL, sandbox.ID, forceToken)
-	if err != nil {
-		return nil, fmt.Errorf("sandbox/daytona: ensure SSH access for sandbox %q: %w", sandbox.ID, err)
-	}
-	config := &ssh.ClientConfig{
-		User:            access.Token,
-		Auth:            []ssh.AuthMethod{ssh.Password("")},
-		HostKeyCallback: t.hostKeyCallback,
-		Timeout:         defaultSSHDialTimeout,
-	}
-	address := net.JoinHostPort(normalizeSSHHost(firstNonEmpty(sandbox.SSHHost, t.host)), t.port)
-	client, err := t.dial(ctx, "tcp", address, config)
-	if err != nil {
-		return nil, fmt.Errorf("sandbox/daytona: dial SSH sandbox %q: %w", sandbox.ID, err)
-	}
-	return client, nil
-}
-
-func closeSSH(client *ssh.Client, session *ssh.Session) {
-	if session != nil {
-		_ = session.Close()
-	}
-	if client != nil {
-		_ = client.Close()
-	}
-}
-
-type sshSession struct {
-	client    *ssh.Client
-	session   *ssh.Session
-	stdin     io.WriteCloser
-	stdout    io.Reader
-	stderr    *bytes.Buffer
-	closeOnce sync.Once
-	done      chan struct{}
-	waitErr   error
-	cancel    context.CancelFunc
-}
-
-func newSSHSession(
-	client *ssh.Client,
-	session *ssh.Session,
-	stdin io.WriteCloser,
-	stdout io.Reader,
-	stderr *bytes.Buffer,
-	keepAlive time.Duration,
-) *sshSession {
-	ctx, cancel := context.WithCancel(context.Background())
-	remote := &sshSession{
-		client:  client,
-		session: session,
-		stdin:   stdin,
-		stdout:  stdout,
-		stderr:  stderr,
-		done:    make(chan struct{}),
-		cancel:  cancel,
-	}
-	go remote.keepAlive(ctx, keepAlive)
-	go func() {
-		remote.waitErr = normalizeSSHWaitErr(session.Wait(), stderr)
-		cancel()
-		close(remote.done)
-	}()
-	return remote
-}
-
-func (s *sshSession) Read(p []byte) (int, error) {
-	return s.stdout.Read(p)
-}
-
-func (s *sshSession) Write(p []byte) (int, error) {
-	return s.stdin.Write(p)
-}
-
-func (s *sshSession) CloseWrite() error {
-	if s.stdin == nil {
-		return nil
-	}
-	return s.stdin.Close()
-}
-
-func (s *sshSession) Close() error {
-	var err error
-	s.closeOnce.Do(func() {
-		if s.cancel != nil {
-			s.cancel()
-		}
-		err = errors.Join(s.CloseWrite(), s.session.Close(), s.client.Close())
-	})
-	return err
-}
-
-func (s *sshSession) Done() <-chan struct{} {
-	return s.done
-}
-
-func (s *sshSession) Wait() error {
-	<-s.done
-	return s.waitErr
-}
-
-func (s *sshSession) Stop(ctx context.Context) error {
-	if err := s.Close(); err != nil {
-		return err
-	}
-	select {
-	case <-s.done:
-		return s.waitErr
-	case <-ctx.Done():
-		return fmt.Errorf("sandbox/daytona: stop SSH session: %w", ctx.Err())
-	}
-}
-
-func (s *sshSession) Stderr() string {
-	if s.stderr == nil {
-		return ""
-	}
-	return s.stderr.String()
-}
-
-func (s *sshSession) keepAlive(ctx context.Context, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			_, _, err := s.client.SendRequest("keepalive@openssh.com", true, nil)
-			if err != nil {
-				return
-			}
-		}
-	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func defaultHostKeyCallback() ssh.HostKeyCallback {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return func(hostname string, _ net.Addr, _ ssh.PublicKey) error {
-			return fmt.Errorf("sandbox/daytona: resolve home for SSH known_hosts %q: %w", hostname, err)
-		}
-	}
-	callback, err := knownhosts.New(filepath.Join(home, ".ssh", "known_hosts"))
-	if err != nil {
-		return func(hostname string, _ net.Addr, _ ssh.PublicKey) error {
-			return fmt.Errorf("sandbox/daytona: load SSH known_hosts for %q: %w", hostname, err)
-		}
-	}
-	return callback
-}
-
-func normalizeSSHWaitErr(err error, stderr *bytes.Buffer) error {
-	if err == nil {
-		return nil
-	}
-	if missing, ok := errors.AsType[*ssh.ExitMissingError](err); ok && missing != nil {
-		if stderr == nil || strings.TrimSpace(stderr.String()) == "" {
-			return nil
-		}
-	}
-	return err
 }

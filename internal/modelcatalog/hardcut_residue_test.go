@@ -3,6 +3,9 @@ package modelcatalog
 import (
 	"bufio"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -88,6 +91,7 @@ func appendResiduesFromFile(
 	if skipResidueGuardFile(rel) {
 		return residues
 	}
+	allowedRanges := removedProviderModelKeyOwnerRanges(t, path, rel)
 	file, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("os.Open(%q) error = %v", path, err)
@@ -108,7 +112,7 @@ func appendResiduesFromFile(
 			if !strings.Contains(line, field) {
 				continue
 			}
-			if allowedProviderModelResidue(rel, line, field) {
+			if allowedProviderModelResidue(rel, line, lineNo, field, allowedRanges) {
 				continue
 			}
 			residues = append(residues, fmt.Sprintf("%s:%d contains %s", rel, lineNo, field))
@@ -118,6 +122,38 @@ func appendResiduesFromFile(
 		t.Fatalf("Scan(%q) error = %v", path, err)
 	}
 	return residues
+}
+
+type sourceLineRange struct {
+	start int
+	end   int
+}
+
+func removedProviderModelKeyOwnerRanges(t *testing.T, path string, rel string) []sourceLineRange {
+	t.Helper()
+
+	if !strings.HasPrefix(rel, "internal/config/") || filepath.Ext(rel) != ".go" {
+		return nil
+	}
+
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(fileSet, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parser.ParseFile(%q) error = %v", path, err)
+	}
+
+	ranges := make([]sourceLineRange, 0, 1)
+	for _, declaration := range parsed.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || function.Name.Name != "rejectRemovedProviderModelKeys" {
+			continue
+		}
+		ranges = append(ranges, sourceLineRange{
+			start: fileSet.Position(function.Pos()).Line,
+			end:   fileSet.Position(function.End()).Line,
+		})
+	}
+	return ranges
 }
 
 func skipResidueGuardDir(name string) bool {
@@ -145,8 +181,14 @@ func skipResidueGuardFile(rel string) bool {
 	return strings.Contains(rel, "/__tests__/") || strings.Contains(rel, "/testdata/")
 }
 
-func allowedProviderModelResidue(rel string, line string, field string) bool {
-	if rel == "internal/config/merge.go" {
+func allowedProviderModelResidue(
+	rel string,
+	line string,
+	lineNo int,
+	field string,
+	allowedRanges []sourceLineRange,
+) bool {
+	if lineWithinRanges(lineNo, allowedRanges) {
 		return strings.Contains(line, fmt.Sprintf("%q", field))
 	}
 	if rel == "packages/site/content/runtime/core/agents/providers.mdx" ||
@@ -166,4 +208,13 @@ func allowedProviderModelResidue(rel string, line string, field string) bool {
 	default:
 		return false
 	}
+}
+
+func lineWithinRanges(line int, ranges []sourceLineRange) bool {
+	for _, candidate := range ranges {
+		if line >= candidate.start && line <= candidate.end {
+			return true
+		}
+	}
+	return false
 }

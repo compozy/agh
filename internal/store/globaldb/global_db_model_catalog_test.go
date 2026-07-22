@@ -21,71 +21,73 @@ import (
 // Boundary IN: a production v18 GlobalDB prefix with one cached source row.
 // Boundary OUT: head repository reads after close and reopen.
 func TestGlobalDBModelCatalogPricingMigration(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve cached model prices through the head upgrade", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := testutil.Context(t)
-	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	prefixDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		return store.Apply(ctx, db, modelCatalogPricingMigrationPrefix(t))
-	})
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase(v18 prefix) error = %v", err)
-	}
-	assertTableExcludesColumns(t, prefixDB, "model_catalog_rows", []string{
-		"cost_cache_read_per_million",
-		"cost_cache_write_per_million",
-		"cost_reasoning_per_million",
-	})
-	if _, err := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_sources (
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, modelCatalogPricingMigrationPrefix(t))
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v18 prefix) error = %v", err)
+		}
+		ctx := testutil.Context(t)
+		assertTableExcludesColumns(t, prefixDB, "model_catalog_rows", []string{
+			"cost_cache_read_per_million",
+			"cost_cache_write_per_million",
+			"cost_reasoning_per_million",
+		})
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_sources (
 		source_id, provider_id, source_kind, priority, refresh_state, row_count, stale
 	) VALUES ('config', 'codex', 'config', 120, 'succeeded', 1, 0)`); err != nil {
-		t.Fatalf("seed v18 model_catalog_sources error = %v", err)
-	}
-	if _, err := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_rows (
+			t.Fatalf("seed v18 model_catalog_sources error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_rows (
 		source_id, provider_id, model_id, source_kind, priority,
 		cost_input_per_million, cost_output_per_million
 	) VALUES ('config', 'codex', 'gpt-5.4', 'config', 120, 1.25, 10.5)`); err != nil {
-		t.Fatalf("seed v18 model_catalog_rows error = %v", err)
-	}
-	if err := prefixDB.Close(); err != nil {
-		t.Fatalf("prefixDB.Close() error = %v", err)
-	}
-
-	upgraded, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(v19 upgrade) error = %v", err)
-	}
-	if err := upgraded.Close(ctx); err != nil {
-		t.Fatalf("Close(upgraded) error = %v", err)
-	}
-	reopened, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := reopened.Close(testutil.Context(t)); err != nil {
-			t.Errorf("Close(reopened) error = %v", err)
+			t.Fatalf("seed v18 model_catalog_rows error = %v", err)
 		}
-	})
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
 
-	rows, err := reopened.ListRows(ctx, modelcatalog.ListOptions{
-		ProviderID: "codex", SourceID: "config", IncludeStale: true,
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v19 upgrade) error = %v", err)
+		}
+		ctx = testutil.Context(t)
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("Close(upgraded) error = %v", err)
+		}
+		reopened, err := OpenGlobalDB(testutil.Context(t), path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		ctx = testutil.Context(t)
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reopened) error = %v", err)
+			}
+		})
+
+		rows, err := reopened.ListRows(ctx, modelcatalog.ListOptions{
+			ProviderID: "codex", SourceID: "config", IncludeStale: true,
+		})
+		if err != nil {
+			t.Fatalf("ListRows(after migration) error = %v", err)
+		}
+		if len(rows) != 1 || rows[0].SourceID != "config" || rows[0].ProviderID != "codex" ||
+			rows[0].ModelID != "gpt-5.4" || rows[0].CostInputPerMillion == nil ||
+			*rows[0].CostInputPerMillion != 1.25 || rows[0].CostOutputPerMillion == nil ||
+			*rows[0].CostOutputPerMillion != 10.5 || rows[0].CostCacheReadPerMillion != nil ||
+			rows[0].CostCacheWritePerMillion != nil || rows[0].CostReasoningPerMillion != nil {
+			t.Fatalf("ListRows(after migration) = %#v, want preserved identity/legacy prices and nil new rates", rows)
+		}
+		status, err := store.Status(ctx, reopened.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(global) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
 	})
-	if err != nil {
-		t.Fatalf("ListRows(after migration) error = %v", err)
-	}
-	if len(rows) != 1 || rows[0].SourceID != "config" || rows[0].ProviderID != "codex" ||
-		rows[0].ModelID != "gpt-5.4" || rows[0].CostInputPerMillion == nil ||
-		*rows[0].CostInputPerMillion != 1.25 || rows[0].CostOutputPerMillion == nil ||
-		*rows[0].CostOutputPerMillion != 10.5 || rows[0].CostCacheReadPerMillion != nil ||
-		rows[0].CostCacheWritePerMillion != nil || rows[0].CostReasoningPerMillion != nil {
-		t.Fatalf("ListRows(after migration) = %#v, want preserved identity/legacy prices and nil new rates", rows)
-	}
-	status, err := store.Status(ctx, reopened.db, MigrationStream())
-	if err != nil {
-		t.Fatalf("Status(global) error = %v", err)
-	}
-	assertCompleteMigrationStream(t, status, MigrationStream())
 }
 
 func modelCatalogPricingMigrationPrefix(t *testing.T) store.MigrationStream {

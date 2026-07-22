@@ -969,7 +969,36 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 		assertReadOnlySessionDatabaseUnchanged(t, path, before, beforeWAL, beforeSHM)
 	})
 
-	t.Run("Should query an existing database without accepting writes", func(t *testing.T) {
+	t.Run("Should refuse a behind database without changing files", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		db, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatalf("sql.Open(previous session stream) error = %v", err)
+		}
+		if err := store.Apply(ctx, db, previousSessionMigrationStream(t)); err != nil {
+			if closeErr := db.Close(); closeErr != nil {
+				err = errors.Join(err, closeErr)
+			}
+			t.Fatalf("Apply(previous session stream) error = %v", err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(previous session stream) error = %v", err)
+		}
+		before := readOnlySessionDatabaseDigest(t, path)
+		beforeWAL := readOnlySessionFilePresence(t, path+"-wal")
+		beforeSHM := readOnlySessionFilePresence(t, path+"-shm")
+
+		_, err = OpenSessionDBReadOnly(ctx, "sess-read-only-behind", path)
+		if !errors.Is(err, store.ErrSchemaBehind) {
+			t.Fatalf("OpenSessionDBReadOnly(behind) error = %v, want ErrSchemaBehind", err)
+		}
+		assertReadOnlySessionDatabaseUnchanged(t, path, before, beforeWAL, beforeSHM)
+	})
+
+	t.Run("Should query an existing database through the read-only contract", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -1009,21 +1038,6 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 		}
 		if events[0].SessionID != "sess-read-only-existing" || events[0].TurnID != "turn-read-only" {
 			t.Fatalf("events[0] = %#v, want session/turn ids set", events[0])
-		}
-
-		err = reader.Record(ctx, SessionEvent{
-			TurnID:    "turn-forbidden",
-			Type:      "agent_message",
-			AgentName: "coder",
-			Content:   "{\"text\":\"forbidden\"}",
-		})
-		if !errors.Is(err, ErrReadOnlyRecordEvents) {
-			t.Fatalf("Record(read-only) error = %v, want read-only write rejection", err)
-		}
-
-		err = reader.RecordTokenUsage(ctx, TokenUsage{TurnID: "turn-forbidden"})
-		if !errors.Is(err, ErrReadOnlyRecordTokenUsage) {
-			t.Fatalf("RecordTokenUsage(read-only) error = %v, want read-only usage rejection", err)
 		}
 	})
 
@@ -1758,40 +1772,6 @@ func TestSessionDBHistoryGroupsByTurn(t *testing.T) {
 	})
 }
 
-func TestSessionDBRecoversFromCorruption(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should recover corrupt database files", func(t *testing.T) {
-		t.Parallel()
-
-		sessionDir := t.TempDir()
-		path := filepath.Join(sessionDir, SessionDatabaseName)
-		if err := os.WriteFile(path, []byte("not a sqlite database"), 0o644); err != nil {
-			t.Fatalf("WriteFile() error = %v", err)
-		}
-
-		sessionDB, err := OpenSessionDB(testutil.Context(t), "sess-corrupt", path)
-		if err != nil {
-			t.Fatalf("OpenSessionDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := sessionDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Fatalf("Close() error = %v", closeErr)
-			}
-		})
-
-		assertTablesPresent(t, sessionDB.db, sessionMigrationVersionTable, "events", "token_usage")
-
-		matches, err := filepath.Glob(path + ".corrupt.*")
-		if err != nil {
-			t.Fatalf("Glob() error = %v", err)
-		}
-		if got, want := len(matches), 1; got != want {
-			t.Fatalf("len(corrupt files) = %d, want %d (%v)", got, want, matches)
-		}
-	})
-}
-
 func TestSessionDBWriteFailureReturnsError(t *testing.T) {
 	t.Parallel()
 
@@ -2057,7 +2037,7 @@ func eventSequences(events []SessionEvent) []int64 {
 	return out
 }
 
-func metadataEventSequences(events []EventMetadata) []int64 {
+func metadataEventSequences(events []store.EventMetadata) []int64 {
 	out := make([]int64, 0, len(events))
 	for _, event := range events {
 		out = append(out, event.Sequence)

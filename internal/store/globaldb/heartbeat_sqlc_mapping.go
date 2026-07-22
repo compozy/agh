@@ -134,8 +134,7 @@ func heartbeatWakeEventFromGenerated(row sqlcgen.AgentHeartbeatWakeEvent) (heart
 }
 
 func nullableHeartbeatString(value string) sql.NullString {
-	value = strings.TrimSpace(value)
-	return sql.NullString{String: value, Valid: value != ""}
+	return store.SQLNullString(value)
 }
 
 func nullableHeartbeatText(value string) sql.NullString {

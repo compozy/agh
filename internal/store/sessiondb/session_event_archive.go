@@ -59,7 +59,7 @@ func (s *SessionDB) writeArchiveEvents(
 		FromSequence: request.FromSequence,
 		ToSequence:   request.ToSequence,
 	}
-	err := store.ExecuteWriteNoCheckpoint(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+	err := store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
 		count, err := sqlcgen.New(tx).ArchiveEventRange(ctx, sqlcgen.ArchiveEventRangeParams{
 			FromSequence: request.FromSequence,
 			ToSequence:   request.ToSequence,

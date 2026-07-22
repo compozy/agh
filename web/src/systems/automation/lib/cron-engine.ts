@@ -11,7 +11,20 @@
  * stay deterministic.
  */
 
-const DOW_LONG = [
+/**
+ * Pure schedule math for the automation Job create/preview flow.
+ *
+ * The runtime scheduler (internal/automation) evaluates a standard 5-field cron
+ * in UTC — no seconds field and no `@daily`-style macros. This module mirrors
+ * those semantics so the in-form readout and the live "next runs" preview match
+ * what the daemon will actually do. Everything here is a faithful derivation of
+ * the saved expression/interval/time, never a fabricated metric.
+ *
+ * All `now` parameters default to `Date.now()` but are injectable so unit tests
+ * stay deterministic.
+ */
+
+export const DOW_LONG = [
   "Sunday",
   "Monday",
   "Tuesday",
@@ -20,8 +33,10 @@ const DOW_LONG = [
   "Friday",
   "Saturday",
 ] as const;
-const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const MONTH_SHORT = [
+
+export const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+export const MONTH_SHORT = [
   "Jan",
   "Feb",
   "Mar",
@@ -37,8 +52,11 @@ const MONTH_SHORT = [
 ] as const;
 
 const MINUTE_MS = 60_000;
+
 const HOUR_MS = 3_600_000;
-const DAY_MS = 86_400_000;
+
+export const DAY_MS = 86_400_000;
+
 /** Upper bound on the minute-by-minute scan for the next fire (≈ 367 days). */
 const CRON_SCAN_CAP = 367 * 24 * 60;
 
@@ -433,80 +451,12 @@ export function parseDuration(value: string): number | null {
   return ms > 0 ? ms : null;
 }
 
-/**
- * Convert a timezone-naive `datetime-local` value (whose wall-clock we treat as
- * UTC, matching the scheduler) into a `Date`, or `null` when unparseable.
- */
-export function localInputToDate(value: string): Date | null {
-  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-  if (!match) {
-    return null;
-  }
-  return new Date(
-    Date.UTC(
-      Number(match[1]),
-      Number(match[2]) - 1,
-      Number(match[3]),
-      Number(match[4]),
-      Number(match[5]),
-      0
-    )
-  );
-}
-
-/** Render a `Date` as the timezone-naive `datetime-local` string in UTC. */
-export function dateToLocalInput(date: Date): string {
-  return (
-    `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}` +
-    `T${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`
-  );
-}
-
-/** RFC3339 / ISO-8601 UTC string without milliseconds (`…:00Z`). */
-export function toRfc3339(date: Date | null): string {
-  return date ? date.toISOString().replace(/\.\d{3}Z$/, "Z") : "";
-}
-
-/** Default `at` value: next round hour, one day out, as a `datetime-local` string. */
-export function defaultAtLocal(now: number = Date.now()): string {
-  const date = new Date(now + DAY_MS);
-  date.setUTCMinutes(0, 0, 0);
-  return dateToLocalInput(date);
-}
-
-/** Absolute UTC label, e.g. `Mon Jun 3, 09:00`. */
-export function formatAbsoluteUtc(date: Date): string {
-  return (
-    `${DOW_SHORT[date.getUTCDay()]} ${MONTH_SHORT[date.getUTCMonth()]} ${date.getUTCDate()}, ` +
-    formatClock(date.getUTCHours(), date.getUTCMinutes())
-  );
-}
-
-/** Relative label, e.g. `in 2h 30m`, `now`. */
-export function formatRelative(date: Date, now: number = Date.now()): string {
-  const seconds = Math.round((date.getTime() - now) / 1000);
-  if (seconds < 0) {
-    return "now";
-  }
-  if (seconds < 60) {
-    return `in ${seconds}s`;
-  }
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) {
-    return `in ${minutes} min`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remMinutes = minutes % 60;
-  if (hours < 24) {
-    return `in ${hours}h${remMinutes ? ` ${remMinutes}m` : ""}`;
-  }
-  const days = Math.floor(hours / 24);
-  const remHours = hours % 24;
-  return `in ${days}d${remHours ? ` ${remHours}h` : ""}`;
-}
-
-export const SCHEDULE_CONSTANTS = {
-  DOW_LONG,
-  DOW_SHORT,
-  MONTH_SHORT,
-} as const;
+export {
+  SCHEDULE_CONSTANTS,
+  dateToLocalInput,
+  defaultAtLocal,
+  formatAbsoluteUtc,
+  formatRelative,
+  localInputToDate,
+  toRfc3339,
+} from "./cron-date";

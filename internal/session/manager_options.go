@@ -31,7 +31,13 @@ func WithStore(opener StoreOpener) Option {
 	return func(manager *Manager) {
 		manager.openStore = opener
 		if !manager.queryStoreExplicit {
-			manager.openQueryStore = opener
+			manager.openQueryStore = func(
+				ctx context.Context,
+				sessionID string,
+				path string,
+			) (EventReadCloser, error) {
+				return opener(ctx, sessionID, path)
+			}
 		}
 	}
 }
@@ -39,7 +45,7 @@ func WithStore(opener StoreOpener) Option {
 // WithQueryStore injects the opener used for stopped-session transcript/event
 // reads. Production uses a read-only no-create opener so stale viewers cannot
 // recreate events.db during clear/delete races.
-func WithQueryStore(opener StoreOpener) Option {
+func WithQueryStore(opener QueryStoreOpener) Option {
 	return func(manager *Manager) {
 		manager.openQueryStore = opener
 		manager.queryStoreExplicit = true

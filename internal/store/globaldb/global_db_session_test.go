@@ -615,59 +615,6 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 		assertSessionDeleteRowCounts(t, globalDB, survivorID, 1, 1, 1)
 	})
 
-	t.Run("Should upgrade the immutable bridge prefix before cascading session history", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-			return store.Apply(ctx, db, sessionCascadeMigrationPrefix(t))
-		})
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v2 prefix) error = %v", err)
-		}
-		prefixGlobalDB := &GlobalDB{
-			db:   prefixDB,
-			path: path,
-			now: func() time.Time {
-				return time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
-			},
-		}
-		prefixGlobalDB.initializeRepositories()
-		targetID := "sess-v2-upgrade-target"
-		survivorID := "sess-v2-upgrade-survivor"
-		seedSessionDeletePrefixRows(t, prefixGlobalDB, targetID)
-		seedSessionDeletePrefixRows(t, prefixGlobalDB, survivorID)
-		if err := prefixDB.Close(); err != nil {
-			t.Fatalf("prefixDB.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(full-stream upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := globalDB.Close(testutil.Context(t)); err != nil {
-				t.Errorf("Close(upgraded global DB) error = %v", err)
-			}
-		})
-
-		assertSessionDeleteRowCounts(t, globalDB, targetID, 1, 1, 1)
-		assertSessionDeleteRowCounts(t, globalDB, survivorID, 1, 1, 1)
-		assertSessionDeleteForeignKeysCascade(t, globalDB.db)
-		status, err := store.Status(ctx, globalDB.db, MigrationStream())
-		if err != nil {
-			t.Fatalf("Status(upgraded global DB) error = %v", err)
-		}
-		assertCompleteMigrationStream(t, status, MigrationStream())
-
-		if err := globalDB.DeleteSession(ctx, targetID); err != nil {
-			t.Fatalf("DeleteSession(upgraded target) error = %v", err)
-		}
-		assertSessionDeleteRowCounts(t, globalDB, targetID, 0, 0, 0)
-		assertSessionDeleteRowCounts(t, globalDB, survivorID, 1, 1, 1)
-	})
-
 	t.Run("Should return session not found when the catalog row is absent", func(t *testing.T) {
 		t.Parallel()
 
@@ -701,6 +648,59 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 		}
 
 		assertSessionDeleteRowCounts(t, globalDB, sessionID, 1, 1, 1)
+	})
+}
+
+// TestGlobalDBSessionCascadeMigration is serial because its race-instrumented
+// v2-to-head replay is the package's machine-sized historical fixture.
+func TestGlobalDBSessionCascadeMigration(t *testing.T) {
+	t.Run("Should upgrade the immutable bridge prefix before cascading session history", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, sessionCascadeMigrationPrefix(t))
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v2 prefix) error = %v", err)
+		}
+		prefixGlobalDB := &GlobalDB{
+			db:   prefixDB,
+			path: path,
+			now: func() time.Time {
+				return time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+			},
+		}
+		prefixGlobalDB.initializeRepositories(openConfig{})
+		targetID := "sess-v2-upgrade-target"
+		survivorID := "sess-v2-upgrade-survivor"
+		seedSessionDeletePrefixRows(t, prefixGlobalDB, targetID)
+		seedSessionDeletePrefixRows(t, prefixGlobalDB, survivorID)
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+
+		globalDB, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(full-stream upgrade) error = %v", err)
+		}
+		ctx := testutil.Context(t)
+		t.Cleanup(func() {
+			if err := globalDB.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(upgraded global DB) error = %v", err)
+			}
+		})
+
+		assertSessionDeleteRowCounts(t, globalDB, targetID, 1, 1, 1)
+		assertSessionDeleteRowCounts(t, globalDB, survivorID, 1, 1, 1)
+		assertSessionDeleteForeignKeysCascade(t, globalDB.db)
+		status, err := store.Status(ctx, globalDB.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(upgraded global DB) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+
+		if err := globalDB.DeleteSession(ctx, targetID); err != nil {
+			t.Fatalf("DeleteSession(upgraded target) error = %v", err)
+		}
+		assertSessionDeleteRowCounts(t, globalDB, targetID, 0, 0, 0)
+		assertSessionDeleteRowCounts(t, globalDB, survivorID, 1, 1, 1)
 	})
 }
 

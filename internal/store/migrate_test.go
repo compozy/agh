@@ -114,6 +114,22 @@ func TestApplyMigrationStream(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a no-transaction migration when the pool has one connection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openEngineTestDB(t, "no-transaction-one-connection.db")
+		db.SetMaxOpenConns(1)
+		stream := fixtureMigrationStream("goose_db_version_workspace", "testdata/migrations/no_transaction")
+		err := Apply(ctx, db, stream)
+		if !errors.Is(err, ErrMigrationConnectionCapacity) {
+			t.Fatalf("Apply() error = %v, want ErrMigrationConnectionCapacity", err)
+		}
+		if tableExistsForTest(t, db, stream.VersionTable) || tableExistsForTest(t, db, "rebuild_items") {
+			t.Fatal("non-transaction migration changed the database after connection-capacity refusal")
+		}
+	})
+
 	t.Run("Should reject a database ahead of the embedded head", func(t *testing.T) {
 		t.Parallel()
 

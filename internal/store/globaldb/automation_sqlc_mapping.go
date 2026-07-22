@@ -19,8 +19,7 @@ func requireAutomationAffected(affected int64, notFound error, id string, label 
 }
 
 func nullableAutomationString(value string) sql.NullString {
-	value = strings.TrimSpace(value)
-	return sql.NullString{String: value, Valid: value != ""}
+	return store.SQLNullString(value)
 }
 
 func nullableAutomationTime(value *time.Time) sql.NullString {

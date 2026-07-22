@@ -189,7 +189,7 @@ func TestClearConversationResetsStoreOpenedWithStaleRows(t *testing.T) {
 				}
 				return recorder, nil
 			}),
-			WithQueryStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
+			WithQueryStore(func(ctx context.Context, sessionID string, path string) (EventReadCloser, error) {
 				return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
 			}),
 		)

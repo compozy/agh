@@ -217,74 +217,75 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 }
 
 func TestGlobalDBSchedulerCatchUpPolicyMigration(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve scheduler state while hard-cutting catch-up policy values", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := testutil.Context(t)
-	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	previousDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		return store.Apply(ctx, db, previousAutomationMigrationStream(t))
-	})
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase(previous schema) error = %v", err)
-	}
-	updatedAt := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
-	if _, err := previousDB.ExecContext(
-		ctx,
-		`INSERT INTO automation_scheduler_state (
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		previousDB, err := openGlobalMigrationPrefixDatabase(t, path, previousAutomationMigrationStream(t))
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(previous schema) error = %v", err)
+		}
+		ctx := testutil.Context(t)
+		updatedAt := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+		if _, err := previousDB.ExecContext(
+			ctx,
+			`INSERT INTO automation_scheduler_state (
 			job_id, last_fire_id, schedule_hash, catch_up_policy,
 			misfire_grace_seconds, misfire_count, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		"job-migration-cursor",
-		"fire-before-upgrade",
-		"hash-before-upgrade",
-		"skip",
-		45,
-		3,
-		store.FormatTimestamp(updatedAt),
-	); err != nil {
-		t.Fatalf("seed previous scheduler state error = %v", err)
-	}
-	if err := previousDB.Close(); err != nil {
-		t.Fatalf("previousDB.Close() error = %v", err)
-	}
-
-	globalDB, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := globalDB.Close(ctx); err != nil {
-			t.Errorf("GlobalDB.Close() error = %v", err)
+			"job-migration-cursor",
+			"fire-before-upgrade",
+			"hash-before-upgrade",
+			"skip",
+			45,
+			3,
+			store.FormatTimestamp(updatedAt),
+		); err != nil {
+			t.Fatalf("seed previous scheduler state error = %v", err)
 		}
+		if err := previousDB.Close(); err != nil {
+			t.Fatalf("previousDB.Close() error = %v", err)
+		}
+
+		globalDB, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
+		}
+		ctx = testutil.Context(t)
+		t.Cleanup(func() {
+			if err := globalDB.Close(ctx); err != nil {
+				t.Errorf("GlobalDB.Close() error = %v", err)
+			}
+		})
+
+		state, err := globalDB.GetSchedulerState(ctx, "job-migration-cursor")
+		if err != nil {
+			t.Fatalf("GetSchedulerState() after upgrade error = %v", err)
+		}
+		if got, want := state.CatchUpPolicy, automation.SchedulerCatchUpPolicySkipMissed; got != want {
+			t.Fatalf("GetSchedulerState().CatchUpPolicy = %q, want %q", got, want)
+		}
+		if got, want := state.LastFireID, "fire-before-upgrade"; got != want {
+			t.Fatalf("GetSchedulerState().LastFireID = %q, want %q", got, want)
+		}
+		if got, want := state.MisfireGraceSeconds, 45; got != want {
+			t.Fatalf("GetSchedulerState().MisfireGraceSeconds = %d, want %d", got, want)
+		}
+		if got, want := state.MisfireCount, 3; got != want {
+			t.Fatalf("GetSchedulerState().MisfireCount = %d, want %d", got, want)
+		}
+
+		state.CatchUpPolicy = automation.SchedulerCatchUpPolicyRunOnce
+		state.UpdatedAt = updatedAt.Add(time.Minute)
+		if _, err := globalDB.SaveSchedulerState(ctx, state); err != nil {
+			t.Fatalf("SaveSchedulerState(run once policy) error = %v", err)
+		}
+		status, err := store.Status(ctx, globalDB.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(global) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
 	})
-
-	state, err := globalDB.GetSchedulerState(ctx, "job-migration-cursor")
-	if err != nil {
-		t.Fatalf("GetSchedulerState() after upgrade error = %v", err)
-	}
-	if got, want := state.CatchUpPolicy, automation.SchedulerCatchUpPolicySkipMissed; got != want {
-		t.Fatalf("GetSchedulerState().CatchUpPolicy = %q, want %q", got, want)
-	}
-	if got, want := state.LastFireID, "fire-before-upgrade"; got != want {
-		t.Fatalf("GetSchedulerState().LastFireID = %q, want %q", got, want)
-	}
-	if got, want := state.MisfireGraceSeconds, 45; got != want {
-		t.Fatalf("GetSchedulerState().MisfireGraceSeconds = %d, want %d", got, want)
-	}
-	if got, want := state.MisfireCount, 3; got != want {
-		t.Fatalf("GetSchedulerState().MisfireCount = %d, want %d", got, want)
-	}
-
-	state.CatchUpPolicy = automation.SchedulerCatchUpPolicyRunOnce
-	state.UpdatedAt = updatedAt.Add(time.Minute)
-	if _, err := globalDB.SaveSchedulerState(ctx, state); err != nil {
-		t.Fatalf("SaveSchedulerState(run once policy) error = %v", err)
-	}
-	status, err := store.Status(ctx, globalDB.db, MigrationStream())
-	if err != nil {
-		t.Fatalf("Status(global) error = %v", err)
-	}
-	assertCompleteMigrationStream(t, status, MigrationStream())
 }
 
 func previousAutomationMigrationStream(t *testing.T) store.MigrationStream {
@@ -1186,14 +1187,12 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 	t.Run("Should append the v20 schema and preserve suggestions across reopen", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-			return store.Apply(ctx, db, automationSuggestionMigrationPrefix(t))
-		})
+		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, automationSuggestionMigrationPrefix(t))
 		if err != nil {
 			t.Fatalf("OpenSQLiteDatabase(v19 prefix) error = %v", err)
 		}
+		ctx := testutil.Context(t)
 		prefixClosed := false
 		t.Cleanup(func() {
 			if prefixClosed {
@@ -1211,17 +1210,18 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 			t.Fatal("automation_suggestions exists at v19, want append-only v20 ownership")
 		}
 		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: time.Now}
-		prefixGlobalDB.initializeRepositories()
+		prefixGlobalDB.initializeRepositories(openConfig{})
 		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-upgrade", t.TempDir())
 		if err := prefixDB.Close(); err != nil {
 			t.Fatalf("prefixDB.Close() error = %v", err)
 		}
 		prefixClosed = true
 
-		upgraded, err := OpenGlobalDB(ctx, path)
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(v20 upgrade) error = %v", err)
 		}
+		ctx = testutil.Context(t)
 		upgradedClosed := false
 		t.Cleanup(func() {
 			if upgradedClosed {
@@ -1249,10 +1249,11 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 		}
 		upgradedClosed = true
 
-		reopened, err := OpenGlobalDB(ctx, path)
+		reopened, err := OpenGlobalDB(testutil.Context(t), path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
 		}
+		ctx = testutil.Context(t)
 		t.Cleanup(func() {
 			if err := reopened.Close(testutil.Context(t)); err != nil {
 				t.Errorf("reopened.Close() error = %v", err)
@@ -1271,14 +1272,16 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 	t.Run("Should preserve v20 payload rows through the hard column rename", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-			return store.Apply(ctx, db, automationSuggestionMigrationPrefix(t, "00020_schema.sql"))
-		})
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			automationSuggestionMigrationPrefix(t, "00020_schema.sql"),
+		)
 		if err != nil {
 			t.Fatalf("OpenSQLiteDatabase(v20 prefix) error = %v", err)
 		}
+		ctx := testutil.Context(t)
 		prefixClosed := false
 		t.Cleanup(func() {
 			if prefixClosed {
@@ -1289,7 +1292,7 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 			}
 		})
 		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: time.Now}
-		prefixGlobalDB.initializeRepositories()
+		prefixGlobalDB.initializeRepositories(openConfig{})
 		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-payload-rename", t.TempDir())
 		created := automationSuggestionForTest(
 			"suggestion-payload-rename",
@@ -1321,10 +1324,11 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 		}
 		prefixClosed = true
 
-		upgraded, err := OpenGlobalDB(ctx, path)
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(payload rename) error = %v", err)
 		}
+		ctx = testutil.Context(t)
 		t.Cleanup(func() {
 			if err := upgraded.Close(testutil.Context(t)); err != nil {
 				t.Errorf("upgraded.Close() error = %v", err)

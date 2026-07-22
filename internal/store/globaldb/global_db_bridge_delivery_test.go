@@ -1,7 +1,6 @@
 package globaldb
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"io/fs"
@@ -32,14 +31,12 @@ func TestGlobalDBBridgeDeliverySchemaMigration(t *testing.T) {
 	t.Run("Should append the bridge delivery schema after the observed migration prefix", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		legacyDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-			return store.Apply(ctx, db, previousBridgeDeliveryMigrationStream(t))
-		})
+		legacyDB, err := openGlobalMigrationPrefixDatabase(t, path, previousBridgeDeliveryMigrationStream(t))
 		if err != nil {
 			t.Fatalf("OpenSQLiteDatabase(previous schema) error = %v", err)
 		}
+		ctx := testutil.Context(t)
 		if _, err := legacyDB.ExecContext(
 			ctx,
 			`INSERT INTO bridge_instances (
@@ -63,18 +60,20 @@ func TestGlobalDBBridgeDeliverySchemaMigration(t *testing.T) {
 			t.Fatalf("legacyDB.Close() error = %v", err)
 		}
 
-		globalDB, err := OpenGlobalDB(ctx, path)
+		globalDB, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
 		}
+		ctx = testutil.Context(t)
 		if err := globalDB.Close(ctx); err != nil {
 			t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
 		}
 
-		reopened, err := OpenGlobalDB(ctx, path)
+		reopened, err := OpenGlobalDB(testutil.Context(t), path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
 		}
+		ctx = testutil.Context(t)
 		t.Cleanup(func() {
 			if err := reopened.Close(ctx); err != nil {
 				t.Errorf("reopened.Close() error = %v", err)

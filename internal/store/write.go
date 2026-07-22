@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"sync/atomic"
 	"time"
 
 	"modernc.org/sqlite"
@@ -18,15 +17,12 @@ const (
 	defaultWriteMaxAttempts       = 15
 	defaultWriteMinRetryDelay     = 20 * time.Millisecond
 	defaultWriteMaxRetryDelay     = 150 * time.Millisecond
-	defaultWriteCheckpointEvery   = 64
 	defaultWriteRollbackTimeout   = 5 * time.Second
 	sqlitePrimaryResultCodeMask   = 0xff
 	sqliteBeginImmediateStatement = "BEGIN IMMEDIATE"
 	sqliteCommitStatement         = "COMMIT"
 	sqliteRollbackStatement       = "ROLLBACK"
 )
-
-var executeWriteSuccesses atomic.Uint64
 
 // WriteTx is the single-connection transaction handle passed to ExecuteWrite callbacks.
 type WriteTx struct {
@@ -67,33 +63,19 @@ func ExecuteWrite(ctx context.Context, db *sql.DB, fn func(context.Context, *Wri
 	return executeWrite(ctx, db, defaultExecuteWriteConfig(), fn)
 }
 
-// ExecuteWriteNoCheckpoint runs fn inside a write transaction without the
-// package-level checkpoint hook. Callers that own their own WAL policy use this
-// to avoid cross-database checkpoint side effects.
-func ExecuteWriteNoCheckpoint(ctx context.Context, db *sql.DB, fn func(context.Context, *WriteTx) error) error {
-	cfg := defaultExecuteWriteConfig()
-	cfg.checkpointEvery = 0
-	cfg.checkpoint = nil
-	return executeWrite(ctx, db, cfg, fn)
-}
-
 type executeWriteConfig struct {
-	maxAttempts     int
-	minRetryDelay   time.Duration
-	maxRetryDelay   time.Duration
-	checkpointEvery uint64
-	jitter          func(time.Duration, time.Duration) time.Duration
-	checkpoint      func(context.Context, *sql.DB) error
+	maxAttempts   int
+	minRetryDelay time.Duration
+	maxRetryDelay time.Duration
+	jitter        func(time.Duration, time.Duration) time.Duration
 }
 
 func defaultExecuteWriteConfig() executeWriteConfig {
 	return executeWriteConfig{
-		maxAttempts:     defaultWriteMaxAttempts,
-		minRetryDelay:   defaultWriteMinRetryDelay,
-		maxRetryDelay:   defaultWriteMaxRetryDelay,
-		checkpointEvery: defaultWriteCheckpointEvery,
-		jitter:          randomWriteRetryDelay,
-		checkpoint:      Checkpoint,
+		maxAttempts:   defaultWriteMaxAttempts,
+		minRetryDelay: defaultWriteMinRetryDelay,
+		maxRetryDelay: defaultWriteMaxRetryDelay,
+		jitter:        randomWriteRetryDelay,
 	}
 }
 
@@ -118,7 +100,7 @@ func executeWrite(
 	for attempt := 1; attempt <= cfg.maxAttempts; attempt++ {
 		err := executeWriteAttempt(ctx, db, fn)
 		if err == nil {
-			return maybeCheckpointAfterWrite(ctx, db, cfg)
+			return nil
 		}
 		lastErr = err
 		if !IsSQLiteBusy(err) || attempt == cfg.maxAttempts {
@@ -145,9 +127,6 @@ func normalizeExecuteWriteConfig(cfg executeWriteConfig) executeWriteConfig {
 	}
 	if cfg.jitter == nil {
 		cfg.jitter = defaults.jitter
-	}
-	if cfg.checkpoint == nil {
-		cfg.checkpoint = defaults.checkpoint
 	}
 	return cfg
 }
@@ -205,19 +184,6 @@ func rollbackWriteTx(ctx context.Context, conn *sql.Conn) error {
 	defer cancel()
 	if _, err := conn.ExecContext(rollbackCtx, sqliteRollbackStatement); err != nil {
 		return fmt.Errorf("store: rollback sqlite write: %w", err)
-	}
-	return nil
-}
-
-func maybeCheckpointAfterWrite(ctx context.Context, db *sql.DB, cfg executeWriteConfig) error {
-	if cfg.checkpointEvery == 0 {
-		return nil
-	}
-	if executeWriteSuccesses.Add(1)%cfg.checkpointEvery != 0 {
-		return nil
-	}
-	if err := cfg.checkpoint(ctx, db); err != nil {
-		return fmt.Errorf("store: checkpoint after sqlite write: %w", err)
 	}
 	return nil
 }
