@@ -1,30 +1,15 @@
 import type { LoopRunEventFrame } from "../types";
 
 /**
- * The SSE contract the run page consumes (techspec §observability). Each payload
- * type below is the shape the daemon writes into `frame.payload`; the reducer reads
- * it through runtime guards so an unknown or malformed frame degrades to a bare
- * event line instead of throwing.
+ * The SSE contract the run page consumes (techspec §observability). The stream
+ * replays every retained event from `after_sequence` (default 0), so the reducer
+ * below rebuilds the full run history on connect: raw structural frames feed the
+ * story timeline + the Inspect drawer's Events section, while the structured
+ * kinds (`gate_verdict`, `needs_approval`, `token_tick`, `goal_turn_*`) also
+ * update their dedicated surface. Payloads are read through runtime guards so an
+ * unknown or malformed frame degrades to a bare retained frame instead of
+ * throwing.
  */
-
-/** One collapsed line for the "Live events" rail (every frame yields one). */
-export interface LoopLiveEvent {
-  seq: number;
-  at: string;
-  kind: string;
-  /** Success/danger/warning accent for the event kind (rail-only, cosmetic). */
-  tone: "neutral" | "ok" | "warn" | "err";
-  message: string;
-}
-
-export interface LoopChannelMessage {
-  id: string;
-  author: string;
-  role?: string;
-  text: string;
-  /** The harvested `result` coordination message that completes converse-and-decide. */
-  isResult: boolean;
-}
 
 export interface LoopGateVerdict {
   nodeId: string;
@@ -81,8 +66,14 @@ export interface LoopCoordinatorFailure {
 }
 
 export interface LoopRunLiveState {
-  events: LoopLiveEvent[];
-  channelMessages: LoopChannelMessage[];
+  /**
+   * Retained structural frames in arrival (seq) order — the single source for
+   * the story timeline and the Inspect drawer's raw Events section. The
+   * high-frequency display kinds (`token_tick`, `channel_msg`) are excluded so
+   * they can never evict structural history; their data lands in `tokensUsed`
+   * and the network surface respectively.
+   */
+  frames: LoopRunEventFrame[];
   /** Latest gate verdict keyed by `nodeId` (a re-run overwrites the prior verdict). */
   gateVerdicts: Record<string, LoopGateVerdict>;
   needsApproval: LoopApprovalRequest | null;
@@ -95,8 +86,7 @@ export interface LoopRunLiveState {
 
 export function emptyLoopRunLiveState(): LoopRunLiveState {
   return {
-    events: [],
-    channelMessages: [],
+    frames: [],
     gateVerdicts: {},
     needsApproval: null,
     tokensUsed: null,
@@ -105,22 +95,11 @@ export function emptyLoopRunLiveState(): LoopRunLiveState {
   };
 }
 
-const MAX_RAIL_EVENTS = 40;
+/** Bounds retained structural frames; a run past this keeps its newest history. */
+const MAX_STORY_FRAMES = 500;
 
-const KIND_TONE: Record<string, LoopLiveEvent["tone"]> = {
-  node_running: "neutral",
-  node_succeeded: "ok",
-  node_failed: "err",
-  gate_verdict: "warn",
-  generation_started: "warn",
-  channel_msg: "ok",
-  token_tick: "ok",
-  needs_approval: "warn",
-  status_changed: "neutral",
-  goal_turn_started: "neutral",
-  goal_turn_completed: "ok",
-  goal_status_changed: "warn",
-};
+/** Kinds excluded from frame retention (aggregated elsewhere, no story row). */
+const UNRETAINED_KINDS = new Set<string>(["token_tick", "channel_msg"]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
@@ -134,17 +113,6 @@ function num(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function numOrString(value: unknown, fallback = ""): string {
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return str(value, fallback);
-}
-
-function reattemptStrategyLabel(value: unknown): string {
-  if (value === "failed_only") return "failed-only";
-  if (value === "full_body") return "full-body";
-  return str(value);
-}
-
 function parseCoordinatorFailure(value: unknown): LoopCoordinatorFailure | null {
   const failure = asRecord(value);
   if (!failure || failure.kind !== "coordinator_failure") return null;
@@ -153,41 +121,6 @@ function parseCoordinatorFailure(value: unknown): LoopCoordinatorFailure | null 
   const recovery = str(failure.recovery).trim();
   if (!code || !cause || !recovery) return null;
   return { kind: "coordinator_failure", code, cause, recovery };
-}
-
-/** Human summary for the rail line, derived per kind from the frame payload. */
-function eventMessage(kind: string, payload: Record<string, unknown> | null): string {
-  if (!payload) return kind;
-  switch (kind) {
-    case "node_running":
-    case "node_succeeded":
-    case "node_failed":
-      return str(payload.node_id, kind);
-    case "gate_verdict":
-      return `${str(payload.node_id, "gate")} → ${str(payload.verdict, "verdict")}`;
-    case "generation_started": {
-      const strategy = reattemptStrategyLabel(payload.reattempt_strategy);
-      return `gen ${numOrString(payload.generation, "?")}${strategy ? ` · ${strategy}` : ""}`;
-    }
-    case "channel_msg":
-      return `${str(payload.author, "peer")}: ${str(payload.text)}`.slice(0, 80);
-    case "token_tick": {
-      const total = num(payload.tokens_used);
-      return total === undefined ? "token tick" : `${total.toLocaleString()} tokens`;
-    }
-    case "needs_approval":
-      return str(payload.title, "human approval requested");
-    case "status_changed":
-      return str(payload.status, "status changed");
-    case "goal_turn_started":
-      return `turn ${numOrString(payload.turn, "?")} started`;
-    case "goal_turn_completed":
-      return `turn ${numOrString(payload.turn, "?")} · ${str(payload.result_status, "completed")}`;
-    case "goal_status_changed":
-      return `${str(payload.from, "goal")} → ${str(payload.to, "status")}`;
-    default:
-      return kind;
-  }
 }
 
 function applyGateVerdict(
@@ -222,24 +155,6 @@ function applyGateVerdict(
       }),
     },
   };
-}
-
-function appendChannelMessage(
-  messages: LoopChannelMessage[],
-  payload: Record<string, unknown>
-): LoopChannelMessage[] {
-  const text = str(payload.text);
-  if (text === "") return messages;
-  return [
-    ...messages,
-    {
-      id: str(payload.id) || `msg-${messages.length}`,
-      author: str(payload.author, "peer"),
-      role: str(payload.role) || undefined,
-      text,
-      isResult: payload.is_result === true || str(payload.kind) === "result",
-    },
-  ];
 }
 
 function parseApproval(payload: Record<string, unknown>): LoopApprovalRequest {
@@ -300,11 +215,18 @@ function applyGoalTurn(
   return turns.map((turn, turnIndex) => (turnIndex === index ? next : turn));
 }
 
+/** Retains a structural frame in seq order, skipping reconnect-replay duplicates. */
+function retainFrame(frames: LoopRunEventFrame[], frame: LoopRunEventFrame): LoopRunEventFrame[] {
+  const seq = num(frame.seq) ?? 0;
+  const last = frames.length > 0 ? (num(frames[frames.length - 1].seq) ?? 0) : 0;
+  if (seq > 0 && seq <= last) return frames;
+  return [...frames, frame].slice(-MAX_STORY_FRAMES);
+}
+
 /**
- * Folds one SSE frame into the run-page live state: every frame appends a rail line
- * (bounded), and the structured kinds (`gate_verdict`, `channel_msg`, `needs_approval`,
- * `token_tick`) also update their dedicated surface. Malformed payloads degrade to the
- * rail line only.
+ * Folds one SSE frame into the run-page live state: structural frames are
+ * retained in order (bounded), and the structured kinds also update their
+ * dedicated slice. Malformed payloads degrade to the retained frame only.
  */
 export function applyLoopEventFrame(
   state: LoopRunLiveState,
@@ -312,27 +234,14 @@ export function applyLoopEventFrame(
 ): LoopRunLiveState {
   const kind = str(frame.kind);
   const payload = asRecord(frame.payload);
-  const event: LoopLiveEvent = {
-    seq: num(frame.seq) ?? 0,
-    at: str(frame.at),
-    kind,
-    tone:
-      kind === "status_changed" && parseCoordinatorFailure(payload?.failure)
-        ? "err"
-        : (KIND_TONE[kind] ?? "neutral"),
-    message: eventMessage(kind, payload),
-  };
   const next: LoopRunLiveState = {
     ...state,
-    events: [event, ...state.events].slice(0, MAX_RAIL_EVENTS),
+    frames: UNRETAINED_KINDS.has(kind) ? state.frames : retainFrame(state.frames, frame),
   };
   if (!payload) return next;
   switch (kind) {
     case "gate_verdict":
       next.gateVerdicts = applyGateVerdict(state.gateVerdicts, payload);
-      break;
-    case "channel_msg":
-      next.channelMessages = appendChannelMessage(state.channelMessages, payload);
       break;
     case "needs_approval":
       next.needsApproval = parseApproval(payload);

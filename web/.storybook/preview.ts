@@ -165,6 +165,31 @@ function createStubStorybookRouter(
     path: "runs/$runId",
     component: Story,
   });
+  const loopsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "loops",
+    component: Story,
+  });
+  const loopDetailRoute = createRoute({
+    getParentRoute: () => loopsRoute,
+    path: "$name",
+    component: Story,
+  });
+  const loopEditorRoute = createRoute({
+    getParentRoute: () => loopDetailRoute,
+    path: "editor",
+    component: Story,
+  });
+  const loopRunDetailRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "loop-runs/$runId",
+    component: Story,
+  });
+  const vaultRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "vault",
+    component: Story,
+  });
 
   return createRouter({
     routeTree: rootRoute.addChildren([
@@ -176,6 +201,9 @@ function createStubStorybookRouter(
       networkRoute,
       knowledgeRoute,
       skillsRoute,
+      loopsRoute.addChildren([loopDetailRoute.addChildren([loopEditorRoute])]),
+      loopRunDetailRoute,
+      vaultRoute,
       tasksRoute.addChildren([
         taskNewRoute,
         taskDetailRoute.addChildren([taskEditRoute, taskRunDetailRoute]),

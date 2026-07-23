@@ -1,164 +1,45 @@
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { StorySurface } from "@/storybook/story-layout";
+import { LoopRunPageBody } from "../run-page/loop-run-page-body";
+import {
+  buildScenarioProps,
+  exhaustedScenario,
+  failedScenario,
+  needsApprovalScenario,
+  noOpScenario,
+  pausedScenario,
+  runningScenario,
+  watchingScenario,
+  type LoopRunStoryScenario,
+} from "./loop-run-page-fixtures";
 
-import type { LoopRunLiveState } from "../../lib/loop-events";
-import { buildRunMeters } from "../../lib/loop-run-meters";
-import { buildRunTimeline, latestGenerationBreadth } from "../../lib/loop-timeline";
-import { isTerminalLoopStatus } from "../../lib/loop-formatters";
-import { loopDetailByName, loopRunDetailByRunId } from "../../mocks/fixtures";
-import type { LoopRunRecord } from "../../types";
-import { LoopFailureDetail } from "../run-page/loop-failure-detail";
-import { LoopApprovalGate } from "../run-page/loop-approval-gate";
-import { LoopGenerationTimeline } from "../run-page/loop-generation-timeline";
-import { LoopRunContractHeader } from "../run-page/loop-run-contract-header";
-import { LoopRunEventsRail } from "../run-page/loop-run-events-rail";
-import { LoopRunFacts } from "../run-page/loop-run-facts";
-import { LoopRunMeters } from "../run-page/loop-run-meters";
-import { LoopStatusLegend } from "../run-page/loop-status-legend";
+/**
+ * The redesigned run detail page (LOOP-RUN-REDESIGN-SPEC.md) across its §7
+ * states, derived from synthetic frames through the production reducer + libs.
+ * These stories are the visual-contract capture targets for the canonical
+ * prototypes (`loop-run-detail.html` / `loop-run-detail-states.html`).
+ */
 
-const deliveryDefinition = loopDetailByName.get("software-delivery")!.definition;
-const watchDefinition = loopDetailByName.get("reviews-watch")!.definition;
-const deliveryDetail = loopRunDetailByRunId.get("looprun_running")!;
-const watchDetail = loopRunDetailByRunId.get("looprun_watching")!;
-
-const liveState: LoopRunLiveState = {
-  events: [
-    {
-      seq: 8,
-      at: "2026-07-06T14:38:00Z",
-      kind: "node_running",
-      tone: "neutral",
-      message: "execute_task · b3",
-    },
-    {
-      seq: 7,
-      at: "2026-07-06T14:36:00Z",
-      kind: "gate_verdict",
-      tone: "err",
-      message: "review → revise",
-    },
-    {
-      seq: 6,
-      at: "2026-07-06T14:35:00Z",
-      kind: "node_failed",
-      tone: "err",
-      message: "execute_task · b3",
-    },
-    {
-      seq: 5,
-      at: "2026-07-06T14:31:00Z",
-      kind: "node_succeeded",
-      tone: "ok",
-      message: "execute_task · b2",
-    },
-    {
-      seq: 4,
-      at: "2026-07-06T14:27:00Z",
-      kind: "generation_started",
-      tone: "warn",
-      message: "gen 2 · failed-only",
-    },
-  ],
-  channelMessages: [
-    {
-      id: "m1",
-      author: "implementer",
-      role: "run-agent",
-      text: "Fixed 7 of 10; 3 documented invalid.",
-      isResult: false,
-    },
-    {
-      id: "m2",
-      author: "reviewer",
-      role: "agent-judge",
-      text: "Two issues still unhandled in batch 3.",
-      isResult: false,
-    },
-    {
-      id: "m3",
-      author: "coordinator",
-      role: "result",
-      text: "Route batch 3 back for a failed-only re-run.",
-      isResult: true,
-    },
-  ],
-  gateVerdicts: {
-    review: {
-      nodeId: "review",
-      generation: 1,
-      verdict: "revise",
-      confidence: 0.91,
-      reason: "A batch with unhandled ids is a failed batch; no-progress window 1 of 2.",
-      route: "revise",
-      criteria: [
-        { id: "all_issues_handled", type: "agent-judge", status: "revise", note: "agent reviewer" },
-      ],
-      blockingIssues: [
-        { id: "issue_022", note: "no triage decision in the batch 3 harvest" },
-        { id: "issue_024", note: "triaged valid but no fix landed" },
-      ],
-    },
-  },
-  needsApproval: {
-    gateId: "approve",
-    title: "Approve merge to main?",
-    prompt: "The delivery loop reached its human gate before targeting main.",
-    facts: [
-      { label: "Branch", value: "main" },
-      { label: "Diff", value: "+412 / −86" },
-      { label: "Tests", value: "project checks · pass" },
-    ],
-  },
-  tokensUsed: null,
-  goalTurns: [],
-  failure: null,
-};
-
-interface RunPageProps {
-  run: LoopRunRecord;
-  definition: typeof deliveryDefinition;
-  generations: typeof deliveryDetail.generations;
-  live: LoopRunLiveState;
-}
-
-function RunPage({ run, definition, generations, live }: RunPageProps) {
-  const isLive = !isTerminalLoopStatus(run.status);
-  const timeline = buildRunTimeline(generations, definition);
-  const meters = buildRunMeters(run, latestGenerationBreadth(generations));
+function ScenarioPage({
+  scenario,
+  inspectInitiallyOpen = false,
+}: {
+  scenario: LoopRunStoryScenario;
+  inspectInitiallyOpen?: boolean;
+}) {
+  const [inspectOpen, setInspectOpen] = useState(inspectInitiallyOpen);
+  const props = buildScenarioProps(scenario);
   return (
-    <StorySurface className="flex h-[900px] p-0">
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-        <LoopRunContractHeader
-          run={run}
-          contract={definition.contract}
-          meters={<LoopRunMeters meters={meters} />}
-        />
-        <div className="flex flex-col gap-4 px-6 py-5">
-          {live.failure ? <LoopFailureDetail failure={live.failure} /> : null}
-          {run.status === "needs-approval" ? (
-            <LoopApprovalGate run={run} request={live.needsApproval} onDecision={() => undefined} />
-          ) : null}
-          <LoopGenerationTimeline
-            generations={timeline}
-            gateVerdicts={live.gateVerdicts}
-            channelMessages={live.channelMessages}
-            isLive={isLive}
-          />
-        </div>
-      </div>
-      <aside className="w-[332px] shrink-0 overflow-y-auto border-l border-line bg-canvas-soft">
-        <LoopRunEventsRail events={live.events} isLive={isLive} />
-        <LoopRunFacts run={run} loopVersion={4} concurrency="forbid" />
-        <LoopStatusLegend />
-      </aside>
-    </StorySurface>
+    <div className="flex h-dvh flex-col bg-canvas">
+      <LoopRunPageBody {...props} inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }} />
+    </div>
   );
 }
 
-const meta: Meta<typeof RunPage> = {
+const meta: Meta<typeof ScenarioPage> = {
   title: "systems/loops/components/LoopRunPage",
-  component: RunPage,
+  component: ScenarioPage,
   parameters: { layout: "fullscreen" },
 };
 
@@ -166,102 +47,33 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Running: Story = {
-  render: () => (
-    <RunPage
-      run={deliveryDetail.run}
-      definition={deliveryDefinition}
-      generations={deliveryDetail.generations}
-      live={liveState}
-    />
-  ),
+  render: () => <ScenarioPage scenario={runningScenario()} />,
 };
 
 export const NeedsApproval: Story = {
-  render: () => (
-    <RunPage
-      run={{ ...deliveryDetail.run, status: "needs-approval" }}
-      definition={deliveryDefinition}
-      generations={deliveryDetail.generations}
-      live={liveState}
-    />
-  ),
+  render: () => <ScenarioPage scenario={needsApprovalScenario()} />,
 };
 
-export const WatchChannel: Story = {
-  render: () => (
-    <RunPage
-      run={watchDetail.run}
-      definition={watchDefinition}
-      generations={watchDetail.generations}
-      live={liveState}
-    />
-  ),
+export const Watching: Story = {
+  render: () => <ScenarioPage scenario={watchingScenario()} />,
 };
 
-export const TerminalExhausted: Story = {
-  render: () => (
-    <RunPage
-      run={{ ...deliveryDetail.run, status: "exhausted" }}
-      definition={deliveryDefinition}
-      generations={deliveryDetail.generations}
-      live={{ ...liveState, events: [] }}
-    />
-  ),
+export const Paused: Story = {
+  render: () => <ScenarioPage scenario={pausedScenario()} />,
 };
 
-export const StalledActionFailure: Story = {
-  render: () => (
-    <RunPage
-      run={{ ...deliveryDetail.run, status: "stalled" }}
-      definition={deliveryDefinition}
-      generations={[
-        {
-          generation: 1,
-          outputs: [
-            {
-              node_id: "load_tasks",
-              status: "failed",
-              output_ref: JSON.stringify({
-                kind: "action_failure",
-                code: "tool_invalid_input",
-                cause: "No task set matched .compozy/tasks/helix-v1-launch/task_*.md.",
-                recovery:
-                  "Create the matching task set or correct the Loop input, then retry the run.",
-              }),
-            },
-          ],
-        },
-      ]}
-      live={{ ...liveState, events: [] }}
-    />
-  ),
+export const Failed: Story = {
+  render: () => <ScenarioPage scenario={failedScenario()} />,
 };
 
-export const GenerationZeroWatchFailure: Story = {
-  render: () => (
-    <RunPage
-      run={{ ...watchDetail.run, status: "failed", generation: 0 }}
-      definition={watchDefinition}
-      generations={[]}
-      live={{
-        ...liveState,
-        events: [
-          {
-            seq: 1,
-            at: "2026-07-13T11:27:32Z",
-            kind: "status_changed",
-            tone: "err",
-            message: "failed",
-          },
-        ],
-        failure: {
-          kind: "coordinator_failure",
-          code: "watch_poll_failed",
-          cause: "The watch source failed before it could produce a generation.",
-          recovery:
-            "Verify the Loop watch provider and workspace prerequisites, then start a new run.",
-        },
-      }}
-    />
-  ),
+export const Exhausted: Story = {
+  render: () => <ScenarioPage scenario={exhaustedScenario()} />,
+};
+
+export const NoOp: Story = {
+  render: () => <ScenarioPage scenario={noOpScenario()} />,
+};
+
+export const InspectOpen: Story = {
+  render: () => <ScenarioPage scenario={runningScenario()} inspectInitiallyOpen />,
 };

@@ -1,8 +1,24 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { GoalTurnTimeline } from "../run-page/goal-turn-timeline";
-import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+      <a
+        href={typeof to === "string" ? to : "#"}
+        data-params={JSON.stringify(params)}
+        {...(props as Record<string, unknown>)}
+      >
+        {children as React.ReactNode}
+      </a>
+    ),
+  };
+});
+
+const { GoalTurnTimeline } = await import("../run-page/goal-turn-timeline");
+type GoalTurnTimelineItem = import("../../hooks/use-goal-turns").GoalTurnTimelineItem;
 
 function turn(overrides: Partial<GoalTurnTimelineItem> = {}): GoalTurnTimelineItem {
   return {
@@ -44,6 +60,14 @@ describe("GoalTurnTimeline", () => {
     expect(timeline).toHaveTextContent("Evidence is incomplete.");
     expect(timeline).toHaveTextContent("blob_1");
     expect(timeline).toHaveTextContent("420 tokens");
+  });
+
+  it("Should link each turn's session to the session route", () => {
+    render(<GoalTurnTimeline turns={[turn()]} />);
+    expect(screen.getByTestId("goal-turn-session-link-1")).toHaveAttribute(
+      "data-params",
+      JSON.stringify({ id: "session_1" })
+    );
   });
 
   it("Should preserve nullable in-progress facts without inventing terminal evidence", () => {

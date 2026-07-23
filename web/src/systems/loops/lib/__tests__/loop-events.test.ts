@@ -16,13 +16,35 @@ function frame(kind: LoopRunEventKind, payload: unknown, seq = 1): LoopRunEventF
 }
 
 describe("applyLoopEventFrame", () => {
-  it("Should append a rail line for every frame, newest-first and bounded", () => {
+  it("Should retain structural frames in seq order, bounded to the newest history", () => {
     let state = emptyLoopRunLiveState();
-    for (let i = 1; i <= 45; i++) {
+    for (let i = 1; i <= 520; i++) {
       state = applyLoopEventFrame(state, frame("status_changed", { status: "running" }, i));
     }
-    expect(state.events).toHaveLength(40);
-    expect(state.events[0].seq).toBe(45);
+    expect(state.frames).toHaveLength(500);
+    expect(state.frames[0].seq).toBe(21);
+    expect(state.frames[state.frames.length - 1].seq).toBe(520);
+  });
+
+  it("Should never retain token_tick or channel_msg frames (they aggregate elsewhere)", () => {
+    let state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("token_tick", { tokens_used: 1_000 }, 1)
+    );
+    state = applyLoopEventFrame(state, frame("channel_msg", { id: "m1", text: "hello" }, 2));
+    state = applyLoopEventFrame(state, frame("node_running", { node_id: "fix" }, 3));
+    expect(state.frames.map(f => f.kind)).toEqual(["node_running"]);
+    expect(state.tokensUsed).toBe(1_000);
+  });
+
+  it("Should skip reconnect-replay duplicates by seq", () => {
+    let state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("node_running", { node_id: "fix" }, 5)
+    );
+    state = applyLoopEventFrame(state, frame("node_running", { node_id: "fix" }, 5));
+    state = applyLoopEventFrame(state, frame("node_succeeded", { node_id: "fix" }, 4));
+    expect(state.frames).toHaveLength(1);
   });
 
   it("Should fold a gate_verdict into the per-node verdict map", () => {
@@ -46,23 +68,6 @@ describe("applyLoopEventFrame", () => {
     expect(verdict.route).toBe("revise");
   });
 
-  it("Should append channel messages and flag the harvested result", () => {
-    let state = applyLoopEventFrame(
-      emptyLoopRunLiveState(),
-      frame("channel_msg", { id: "m1", author: "implementer", text: "shipped" }, 1)
-    );
-    state = applyLoopEventFrame(
-      state,
-      frame(
-        "channel_msg",
-        { id: "m2", author: "coordinator", text: "approved", is_result: true },
-        2
-      )
-    );
-    expect(state.channelMessages).toHaveLength(2);
-    expect(state.channelMessages[1].isResult).toBe(true);
-  });
-
   it("Should capture a needs_approval payload and the latest token tick", () => {
     let state = applyLoopEventFrame(
       emptyLoopRunLiveState(),
@@ -76,14 +81,6 @@ describe("applyLoopEventFrame", () => {
     expect(state.needsApproval?.gateId).toBe("approve");
     expect(state.needsApproval?.facts[0].value).toBe("main");
     expect(state.tokensUsed).toBe(268_000);
-  });
-
-  it("Should render generated re-attempt enum values as display labels", () => {
-    const state = applyLoopEventFrame(
-      emptyLoopRunLiveState(),
-      frame("generation_started", { generation: 2, reattempt_strategy: "failed_only" })
-    );
-    expect(state.events[0].message).toBe("gen 2 · failed-only");
   });
 
   it("Should merge Goal turn start and completion frames by prompt identity", () => {
@@ -143,16 +140,12 @@ describe("applyLoopEventFrame", () => {
     ]);
   });
 
-  it("Should keep Goal status changes in the rail without inventing a turn", () => {
+  it("Should retain a goal_status_changed frame without inventing a turn", () => {
     const state = applyLoopEventFrame(
       emptyLoopRunLiveState(),
       frame("goal_status_changed", { from: "active", to: "complete" })
     );
-    expect(state.events[0]).toMatchObject({
-      kind: "goal_status_changed",
-      tone: "warn",
-      message: "active → complete",
-    });
+    expect(state.frames[0].kind).toBe("goal_status_changed");
     expect(state.goalTurns).toEqual([]);
   });
 
@@ -178,12 +171,12 @@ describe("applyLoopEventFrame", () => {
       cause: "The watch source failed before it could produce a generation.",
       recovery: "Verify the Loop watch provider and workspace prerequisites, then start a new run.",
     });
-    expect(state.events[0]).toMatchObject({ tone: "err", message: "failed" });
+    expect(state.frames[0].kind).toBe("status_changed");
   });
 
-  it("Should degrade a malformed frame to a rail line without throwing", () => {
+  it("Should degrade a malformed frame to a retained frame without throwing", () => {
     const state = applyLoopEventFrame(emptyLoopRunLiveState(), frame("gate_verdict", null));
-    expect(state.events).toHaveLength(1);
+    expect(state.frames).toHaveLength(1);
     expect(state.gateVerdicts).toEqual({});
   });
 });
