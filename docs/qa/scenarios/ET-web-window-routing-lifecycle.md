@@ -16,6 +16,6 @@ last_report:
 overlaps: ET-web-desktop-shell-lifecycle; ET-desktop-state-agent-surface; ET-web-route-chrome-topbar
 ---
 
-story: As an operator or agent, I can arrange one shared desktop and trust every surface to observe the same focused windows and geometry.
+story: As a builder, I can arrange one shared desktop and trust every surface to observe the same focused windows and geometry.
 
 qa-impact: OS Shell Task 04 introduced the window manager, routing coordinator, live convergence, and agent-arranged geometry. Flag only; the next QA cycle owns live retesting.

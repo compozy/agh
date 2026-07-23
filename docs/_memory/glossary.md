@@ -236,7 +236,7 @@ status authority.
 
 ### Task Execution Profile
 
-The task-owned typed overlay that selects the runtime shape of orchestration for one task. Persisted under `task_execution_profiles` plus selector side tables (never in `metadata_json`). Configured under `[task.orchestration.profile]` and managed through `agh task profile inspect|update|delete`, `/api/tasks/{id}/profile`, native task tools, and the operator web UI Task setup sheet.
+The task-owned typed overlay that selects the runtime shape of orchestration for one task. Persisted under `task_execution_profiles` plus selector side tables (never in `metadata_json`). Configured under `[task.orchestration.profile]` and managed through `agh task profile inspect|update|delete`, `/api/tasks/{id}/profile`, native task tools, and the web UI Task setup sheet.
 
 The profile carries `CoordinatorProfile` (`mode = "inherit" | "guided"`), `WorkerProfile` (worker agent/provider/model + worker eligibility selectors), `ReviewProfile` (reviewer selectors), `ParticipantPolicy` (allowed/preferred channels, peers, agents, capabilities), `SandboxPolicy` (`mode = "inherit" | "none" | "ref"`), and an optional `network_participation` request for future runs. Validation runs at write time in `task.Service.SetExecutionProfile`; session start loads the persisted profile without re-running validation. PUT replaces the entire profile — omitted blocks normalize to defaults.
 
@@ -278,7 +278,7 @@ Daemon-managed child-session creation. Defaults: `max_depth = 1`, `max_children 
 
 ## OS Shell
 
-The web operator surface presents as a desktop: a menubar, a wallpapered desktop, free-floating windows, and a dock (ADR-001/002/006). These terms name that presentation model. The runtime object remains the `workspace`; the shell only rearranges how its surfaces are shown.
+The web UI presents as a desktop: a menubar, a wallpapered desktop, free-floating windows, and a dock (ADR-001/002/006). These terms name that presentation model. The runtime object remains the `workspace`; the shell only rearranges how its surfaces are shown.
 
 ### Workspace
 

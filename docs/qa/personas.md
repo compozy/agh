@@ -1,14 +1,14 @@
 # Personas
 
-Project personas for AGH QA. Derived from the seed catalog (`.agents/skills/qa-report/references/personas.md`) and grounded in AGH's real audience: operators who run/observe/configure durable agent work, autonomous agents that manage that work through structured surfaces, and the humans who evaluate and approve it. Personas are durable instance data — update when the audience changes, not per cycle. The `Persona Affected:` field in bug reports and the `persona` field in scenario files use each persona's `name`.
+Project personas for AGH QA. Derived from the seed catalog (`.agents/skills/qa-report/references/personas.md`) and grounded in AGH's real audience: people who run agent work — technical or not: founders, product people, writers, analysts, and developers — autonomous agents that manage that work through structured surfaces, and the humans who evaluate and approve the results. PRODUCT.md Users is the register authority: design and test for the least technical person who still owns real work. Personas are durable instance data — update when the audience changes, not per cycle. The `Persona Affected:` field in bug reports and the `persona` field in scenario files use each persona's `name`.
 
-Four persona families share this tree: the **Loops** surface (Bruno / Lea / Marina / Ada / Sol), **Bridge operations** (Tessa / Maya / Omar, with Ada driving structured surfaces), the **Session experience** — the ACP agent conversation/transcript thread (Théo / Nia / Rafa, with Ada driving it headless and Sol/Marina as accessibility/mobile lenses) — and **Marketplace & acquisition** (Bruno as the mid-session acquirer, Ada as the agent plane, plus Vera / Iris below for the administrative and remote-operator roles the Marketplace program introduced). A persona is defined by its goal on a surface, not just its archetype: the same human can wear a different operating role on each surface.
+Four persona families share this tree: the **Loops** surface (Bruno / Lea / Marina / Ada / Sol), **Bridge operations** (Tessa / Maya / Omar, with Ada driving structured surfaces), the **Session experience** — the ACP agent conversation/transcript thread (Théo / Nia / Rafa, with Ada driving it headless and Sol/Marina as accessibility/mobile lenses) — and **Marketplace & acquisition** (Bruno as the mid-session acquirer, Ada as the agent plane, plus Vera / Iris below for the administrative and remote-operator roles the Marketplace program introduced). A persona is defined by its goal on a surface, not just its archetype: the same human can wear a different operating role on each surface. Cora (below) is the cross-surface plain-language lens — the roster's least technical person, re-walking hero journeys on every family's surface.
 
 > **Mobile & accessibility coverage.** A dedicated mobile persona is not maintained because AGH's primary surface is a desktop web SPA + CLI; mobile is covered as a device *lens* on Marina (the read/approve surfaces are the realistic phone use — approving a merge gate, or glancing at a running session, between meetings). The **loop visual editor canvas is explicitly desktop-only** (DAG canvas, drag, inspector) — mobile is a recorded skip for that surface, not a gap. Accessibility is a first-class persona (Sol), whose lens extends over the redesigned session thread (live SSE announcements, status never color-only, reduced-motion streaming pulse — see J-13/CH-020).
 
 ---
 
-## Bruno — Delivery Operator (primary builder)
+## Bruno — Delivery Builder (primary)
 
 ```yaml
 persona:
@@ -62,7 +62,7 @@ persona:
 - **What they reveal:** truthful-outcome trust (is a waiting run shown as waiting, not done?), approval routing correctness, mobile layout of the run page / approval card / Runs KPIs, discoverability of the "needs a look" queue, start-binding attach flow.
 - **Owns journeys:** J-03 observe-and-approve, J-09 automation-start-bindings, J-08 watch-and-maintain (evaluator view); **J-27 mobile Goal observation/discovery**.
 
-## Ada — Autonomous Agent Operator
+## Ada — Autonomous Agent (structured surfaces)
 
 ```yaml
 persona:
@@ -80,7 +80,7 @@ persona:
 - **What they reveal:** CLI↔HTTP↔UDS↔native-tool parity gaps, status values that don't map 1:1 to the 11-state enum, coercion in structured output, the approve capability gate (an agent must not approve its own gate), `Unavailable(ReasonDependencyMissing)` contracts before the service is ready, non-deterministic `ReasonCode`s`. **On the session surface** (session-improvements program): bounded REST tail/older pages, stable pagination cursors, cold bounded snapshots, fenced reconnect via `after_sequence` + `epoch`/`generation`, explicit reset reasons, empty-delta cursor advancement, keep-alive cadence, byte-identical `frames=raw` follow, and list/detail/status lifecycle parity through spawn→background→stop→restart. **On bridges:** strict JSON setup, HTTP/UDS parity, explicit skipped checks, deterministic exit codes, and a complete setup with no TTY or browser.
 - **Owns journeys:** J-07 agent-operated-run (Loops); **J-15 operate-session-via-cli-api** and **J-diagnose-task-session-health** (session experience — the Automation Agent role in `_qa.md` §2 maps to Ada; not a new persona); **J-connect-bridge-provider** and **J-diagnose-repair-bridge** (structured bridge operation). **Goal:** J-29 structured operation and recovery.
 
-## Sol — Accessibility-Reliant Operator
+## Sol — Accessibility-Reliant User
 
 ```yaml
 persona:
@@ -94,9 +94,33 @@ persona:
   patience_seconds: 45
 ```
 
-- **Who:** an operator who relies on VoiceOver/NVDA and keyboard-only interaction. AGH's truthful-UI rule ("color carries state") is an accessibility risk if state is signalled by **color alone** — Sol is the leash that keeps status legible without sight.
+- **Who:** a person who relies on VoiceOver/NVDA and keyboard-only interaction. AGH's truthful-UI rule ("color carries state") is an accessibility risk if state is signalled by **color alone** — Sol is the leash that keeps status legible without sight.
 - **What they reveal:** status pills that are color-only (the 11 states must be announced/labelled, not just tinted), focus traps and escape in the Configure sheet + approval dialog, reduced-motion honored on the running/watching pulse, keyboard reachability of the editor canvas and its inspector, unannounced live SSE updates (dynamic content), missing labels on auto-generated input fields.
 - **Owns journeys:** cross-cutting a11y lens on J-03 observe-and-approve and J-05 configure (see CH-011); also informs J-01 run-form and J-06 editor; **model-selector:** a11y lens on J-17 start-a-session-through-the-unified-runtime-selector (see CH-034). **On the session surface:** cross-cutting a11y lens on J-13 follow-a-live-run (see CH-020) — live SSE updates must be announced, the 11 lifecycle states legible without color, the streaming/working pulse gated by reduced-motion, and the redesigned tool rows/composer keyboard-reachable. **On Goal:** J-27 chip/timeline/editor accessibility (CH-040).
+
+---
+
+# Everyday Delegation persona (cross-surface)
+
+Added 2026-07-22 with the people-first register (PRODUCT.md Users): AGH's primary audience includes non-technical people who delegate real work to agents. Cora is the roster's least technical person — the plain-language leash every hero surface must survive.
+
+## Cora — Non-technical Founder (delegates work)
+
+```yaml
+persona:
+  name: Cora
+  base: Casual User
+  goal: "Hand real work to agents from the web desktop — start it, see what is running, what needs me, and what finished — and act on it without ever opening a terminal or learning runtime vocabulary."
+  device: laptop
+  network: wifi-fast
+  modality: mouse-keyboard
+  locale: en-US
+  patience_seconds: 30
+```
+
+- **Who:** a solo founder doing marketing, research, and ops work who runs agents weekly through the web UI only. No CLI, no protocol knowledge, no appetite for either. She judges every screen by one test: can she answer "what is running, what needs me, what finished, what did it produce" in seconds, in her own words.
+- **What they reveal:** runtime jargon or raw enums/ids as primary text, states that require protocol knowledge to interpret, controls with unclear consequences, error copy that names internals without a next step, approval prompts that assume terminal context, signal-color noise that reads as alarm on a healthy screen, empty states that don't say what to do next, and any hero flow where the plain-language read fails while the expert read works.
+- **Owns journeys:** cross-cutting plain-language lens on the hero journeys — J-01 arrive-and-use, J-03 observe-and-approve, J-10 converse-and-decide, J-11 return-to-running-session, and J-12 open-session-fast. Charters pair her with the owning persona's mission re-run in plain-language mode; she never needs a journey of her own to block a release.
 
 ---
 
@@ -176,9 +200,9 @@ persona:
 
 # Session Experience personas
 
-Personas for the session-improvements program (the ACP agent conversation/transcript thread — a distinct surface from Loops). Introduced from `_qa.md` §2 and grounded in AGH's session audience: operators running long-lived background agent sessions, first-time viewers judging AGH in ten seconds, reviewers auditing finished transcripts, and headless agents driving sessions over CLI/HTTP/UDS. The **Automation Agent (CLI/API)** role is Ada above (extended), not a new entry — do not duplicate.
+Personas for the session-improvements program (the ACP agent conversation/transcript thread — a distinct surface from Loops). Introduced from `_qa.md` §2 and grounded in AGH's session audience: people running long-lived background agent sessions, first-time viewers judging AGH in ten seconds, reviewers auditing finished transcripts, and headless agents driving sessions over CLI/HTTP/UDS. The **Automation Agent (CLI/API)** role is Ada above (extended), not a new entry — do not duplicate.
 
-## Théo — Returning Operator (session hero)
+## Théo — Returning Session User (session hero)
 
 ```yaml
 persona:

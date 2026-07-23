@@ -72,6 +72,17 @@ func (h *BaseHandlers) resolveAgentDefinition(
 		)
 	}
 
+	if h.AgentCatalog != nil {
+		entry, err := h.AgentCatalog.GetAgent(ctx, target)
+		if err != nil {
+			return resolvedAgentDefinition{}, err
+		}
+		return resolvedAgentDefinition{
+			Entry:  entry,
+			Config: h.Config,
+		}, nil
+	}
+
 	agent, err := h.AgentLoader(target, h.HomePaths)
 	if err != nil {
 		return resolvedAgentDefinition{}, err

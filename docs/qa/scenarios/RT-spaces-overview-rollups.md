@@ -2,7 +2,7 @@
 id: RT-spaces-overview-rollups
 area: RT
 title: Spaces overview shows real agent/session rollups and creates spaces
-persona: Operator
+persona: Théo
 journey:
 expected: ⇧⌘S opens the Spaces overview with a header ("Spaces" + "N spaces · M agents distributed" once workspace details load + "New space" button) over one card per workspace showing monogram, name, Current pill on the active space, "N agents · M sessions · K windows" from runtime data, a Members monogram stack from workspace agents, the workspace root path, and an Enter affordance. Card click switches workspace and closes; New space closes the overlay and opens the workspace setup dialog.
 entry_points: web desktop shell ⇧⌘S, command palette "Spaces overview", menubar View menu

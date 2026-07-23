@@ -12,10 +12,11 @@ import (
 )
 
 type resourceCatalog[T any] struct {
-	mu        sync.RWMutex
-	revision  int64
-	records   []resources.Record[T]
-	cloneSpec func(T) T
+	mu             sync.RWMutex
+	revision       int64
+	records        []resources.Record[T]
+	transientSpecs map[string]T
+	cloneSpec      func(T) T
 }
 
 func newResourceCatalog[T any](cloneSpec func(T) T) *resourceCatalog[T] {
@@ -30,6 +31,30 @@ func (c *resourceCatalog[T]) Replace(revision int64, records []resources.Record[
 	defer c.mu.Unlock()
 	c.revision = revision
 	c.records = cloneResourceRecords(records, c.cloneSpec)
+	retainedTransientSpecs := make(map[string]T, len(c.records))
+	for index := range c.records {
+		transientSpec, ok := c.transientSpecs[c.records[index].ID]
+		if !ok {
+			continue
+		}
+		c.records[index].Spec = c.cloneSpec(transientSpec)
+		retainedTransientSpecs[c.records[index].ID] = c.cloneSpec(transientSpec)
+	}
+	c.transientSpecs = retainedTransientSpecs
+}
+
+func (c *resourceCatalog[T]) MergeTransientSpecs(specs map[string]T) {
+	if c == nil || len(specs) == 0 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.transientSpecs == nil {
+		c.transientSpecs = make(map[string]T, len(specs))
+	}
+	for id, spec := range specs {
+		c.transientSpecs[id] = c.cloneSpec(spec)
+	}
 }
 
 func (c *resourceCatalog[T]) Update(update func([]resources.Record[T]) []resources.Record[T]) {

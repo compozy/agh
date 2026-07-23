@@ -16,6 +16,6 @@ last_report:
 overlaps: ET-desktop-state-agent-surface; ET-web-window-routing-lifecycle
 ---
 
-story: As an operator, I can keep arranging work when persistence is temporarily unavailable and recover without mixing workspace state.
+story: As a builder, I can keep arranging work when persistence is temporarily unavailable and recover without mixing workspace state.
 
 qa-impact: OS Shell Task 04 introduced the runnable desktop, workspace-scoped hydration, degraded posture, and recovery policy. Menubar mark hard-cut from invented Logo variants to the official AGH `symbol`. 2026-07-22 — Sessions catalog moved from floating rail to global modal; desktop doc no longer persists `railOpen`. Flag only; the next QA cycle owns live retesting.

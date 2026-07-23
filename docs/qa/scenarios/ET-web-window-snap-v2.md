@@ -16,6 +16,6 @@ last_report:
 overlaps: ET-web-window-routing-lifecycle; ET-desktop-state-agent-surface; ET-web-command-palette-shortcuts
 ---
 
-story: As an operator I arrange windows the way macOS/Windows lets me — generous snap targets, breathable gutters, a linked seam, in-place resize, window-relative splits, and a zoom-button menu — and agents converge on the same fractional truth.
+story: As a builder I arrange windows the way macOS/Windows lets me — generous snap targets, breathable gutters, a linked seam, in-place resize, window-relative splits, and a zoom-button menu — and agents converge on the same fractional truth.
 
 qa-impact: Snap UX overhaul (post task_09) changed zone bands/hysteresis, added gutter+seam, resize-in-place fraction rewrite, maximized resize detach, window-relative split drops, top/bottom preset zones, and the zoom hover menu with arrange presets. Flag only; the next QA cycle owns live retesting.

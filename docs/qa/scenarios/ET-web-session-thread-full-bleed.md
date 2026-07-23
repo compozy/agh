@@ -16,6 +16,6 @@ last_report:
 overlaps: ET-web-dock-default-window-size; RT-session-lifecycle-affordances
 ---
 
-story: As an operator I use a wide Session window and the chat transcript plus composer fill the available width instead of sitting in a narrow centered column.
+story: As a builder I use a wide Session window and the chat transcript plus composer fill the available width instead of sitting in a narrow centered column.
 
 qa-impact: Removed ThreadContentRail max-width/centering so session chat is full-bleed (2026-07-22). Flag only; the next QA cycle owns live retesting.

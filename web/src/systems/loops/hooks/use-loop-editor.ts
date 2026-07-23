@@ -31,12 +31,16 @@ import { layoutEditorGraph } from "../lib/loop-editor-layout";
 import { buildNodeFields, type FieldPath, type FieldSpec } from "../lib/loop-node-schema";
 import type { PaletteItem } from "../lib/loop-palette";
 import type { LoopDefinition, LoopDetail } from "../types";
-import { useLoopEditorState, type LoopEditorView } from "./use-loop-editor-state";
+import {
+  useLoopEditorState,
+  type LoopEditorSidebarTab,
+  type LoopEditorView,
+} from "./use-loop-editor-state";
 
 const AUTO_VALIDATE_DEBOUNCE_MS = 400;
 
 export type LoopEditorStatus = "no-workspace" | "loading" | "error" | "ready";
-export type { LoopEditorView } from "./use-loop-editor-state";
+export type { LoopEditorSidebarTab, LoopEditorView } from "./use-loop-editor-state";
 
 export interface UseLoopEditorResult {
   status: LoopEditorStatus;
@@ -50,6 +54,8 @@ export interface UseLoopEditorResult {
   selectedFields: FieldSpec[];
   /** Increments only on a selection switch (not a rename) — the inspector's remount key. */
   selectionSeq: number;
+  sidebarTab: LoopEditorSidebarTab;
+  setSidebarTab: (tab: LoopEditorSidebarTab) => void;
   view: LoopEditorView;
   setView: (view: LoopEditorView) => void;
   isDirty: boolean;
@@ -101,6 +107,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     publishError,
     selectedNodeId,
     selectionSeq,
+    sidebarTab,
     structuralRevision,
     validateFailed,
     view,
@@ -113,6 +120,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     setPublishError,
     setSelectedNodeId,
     setSelectionSeq,
+    setSidebarTab,
     setValidateFailed,
     setView,
     markStructureChanged,
@@ -242,10 +250,12 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   const selectNode = (id: string | null) => {
     setSelectedNodeId(id);
     setSelectionSeq(seq => seq + 1);
+    if (id != null) setSidebarTab("node");
   };
   const revealNode = (id: string) => {
     setSelectedNodeId(id);
     setSelectionSeq(seq => seq + 1);
+    setSidebarTab("node");
     setView("graph");
   };
 
@@ -381,6 +391,8 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     selectedNode,
     selectedFields,
     selectionSeq,
+    sidebarTab,
+    setSidebarTab,
     view,
     setView,
     isDirty,

@@ -348,10 +348,11 @@ generated token regions by hand. Change the CSS source, then run
 
 ## 1. Visual theme and atmosphere
 
-AGH is a local operator console for long-running agent work. The product should
-feel quiet, dense, and intentional: a warm near-black canvas, restrained text,
-flat depth, and a single action accent. It is not a marketing-gradient system
-and it is not a generic SaaS blue-gray dashboard.
+AGH is an agent operating system for everyone who works with AI agents — not
+an expert-only console. The product should feel quiet, calm, and intentional:
+a warm near-black canvas, restrained text, flat depth, and a single action
+accent. It is not a marketing-gradient system, not a generic SaaS blue-gray
+dashboard, and no longer the dense operator cockpit of its early direction.
 
 The runtime is dark-only. `color-scheme: dark` is part of the product
 contract, not a theme preference. Surfaces must never depend on white
@@ -363,14 +364,16 @@ glass and blur from §5. Content inside window bodies never does.
 The core atmosphere is:
 
 - Warm dark, never cool slate. The neutral ramp leans brown-black so extended
-  operator sessions feel less harsh than pure black or blue-gray.
+  working sessions feel less harsh than pure black or blue-gray.
 - One accent. `--color-accent` means "act" and should usually appear once in a
   viewport as the active CTA or primary identity marker.
 - Flat depth. Hierarchy comes from the surface ramp, translucent hairlines, and
   inset focus rings. Content cards do not cast shadows.
-- Operational density. Runtime screens optimize for repeated scanning,
-  comparison, and state changes. The site can breathe more, but it still uses
-  the same color and motion contract.
+- Calm by default, deep on demand. Default views show few, plainly named
+  things with generous rhythm; scanning depth (event trails, wire views, raw
+  payloads) lives one step away on inspection surfaces. Density is a tool for
+  inspection, never the default posture of a screen. The site can breathe even
+  more, but it still uses the same color and motion contract.
 - Truthful UI. Do not render controls, counts, metrics, or statuses the runtime
   does not expose.
 
@@ -380,6 +383,10 @@ Color carries state. The warm ramp separates shell, page, grouped surfaces, and
 active surfaces without decorative depth. Hairlines use low-alpha white so they
 layer consistently across every ramp step. Signal colors are desaturated and
 usually appear as tint backgrounds plus readable text, not as solid banners.
+Signal color is information, never decoration: it marks the states actually
+present (running, needs attention, failed), not taxonomy. Rows and cards stay
+neutral at rest — a view earns color only from live state, and a screen that
+shows many colors at rest is misusing the palette.
 
 Every production color should resolve through a `--color-*` token. Raw hex is
 acceptable only in the token source, static generated artifacts, or documented
@@ -628,9 +635,12 @@ is the route's `<Topbar>` with OS window controls injected into its leading
 zone. Detail surfaces may add `<DetailHeader>` inside the window body, but
 list and route pages should not invent body-side page H1s.
 
-The page envelope is dense by default. Route content gets constrained width,
-predictable gutters, and scrollable interior panels. Repeated list rows should
-hold their geometry when hover states, icons, counts, or loading states appear.
+The page envelope is calm by default. Route content gets constrained width,
+predictable gutters, generous row rhythm, and scrollable interior panels.
+Compact geometry belongs to inspection surfaces built for comparison — event
+trails, tables, wire views — never to a route's default read. Repeated list
+rows should hold their geometry when hover states, icons, counts, or loading
+states appear.
 
 Modal anatomy is consistent: scrim, centered panel, ruled header when needed,
 body, and footer. Widths and height ceilings come from the component-size
@@ -781,9 +791,10 @@ a single spring ease. Window-body content keeps the base ladder.
 ## 7. Voice and content
 
 `COPY.md` owns product language. The design-system implication is simple:
-visible text should help operators act or understand state. Avoid hype,
-welcome copy, exclamation marks, emoji, and decorative explanatory text inside
-the product UI.
+visible text should help people act or understand state, in everyday words.
+Runtime jargon belongs on inspection surfaces where precision earns it, not in
+a screen's default read. Avoid hype, welcome copy, exclamation marks, emoji,
+and decorative explanatory text inside the product UI.
 
 Runtime labels should be concrete nouns or verbs. Empty states should state the
 empty condition and provide the next useful action if one exists. Error states
@@ -874,6 +885,10 @@ is listed.
 - Accent overload. Pattern: accent CTA, accent pill, accent tab, accent hover,
   and accent rail in the same viewport. Preserve a single accent target and use
   foreground, neutral, or signal tokens for the rest.
+- Signal overload. Pattern: colored pills, badges, and dots on most rows at
+  rest — the control-room look. Signal tokens mark live state only; taxonomy
+  and metadata stay neutral (`<MonoId>`, neutral pills, muted text), so the
+  states that matter are the only things in color.
 - Decorative depth. Pattern: generic Tailwind shadow utilities on cards,
   popovers, headers, or rows. Use the flat ring/ramp model and the shadow
   whitelist above. The only cast-shadow and glass exception is OS-shell chrome

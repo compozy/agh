@@ -78,6 +78,7 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.stageAgentTransientSpecs(desired.agents)
 	agentChanged, err := s.syncAgents(ctx, desired.agents)
 	if err != nil {
 		return err

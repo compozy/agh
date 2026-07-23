@@ -16,6 +16,6 @@ last_report:
 overlaps: ET-web-window-routing-lifecycle; ET-web-desktop-shell-lifecycle; ET-web-catalog-navigation
 ---
 
-story: As an operator I open a dock app and get a work surface large enough to read lists and toolbars without immediately resizing.
+story: As a builder I open a dock app and get a work surface large enough to read lists and toolbars without immediately resizing.
 
 qa-impact: Enlarged defaultRect values for cramped prototype-sized dock apps (2026-07-22). Flag only; the next QA cycle owns live retesting.

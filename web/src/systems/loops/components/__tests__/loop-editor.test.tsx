@@ -47,6 +47,13 @@ function nodeCard(id: string): HTMLElement {
   return card;
 }
 
+function expandLinterDock() {
+  const toggle = screen.getByTestId("loop-linter-toggle");
+  if (toggle.getAttribute("aria-expanded") === "false") {
+    fireEvent.click(toggle);
+  }
+}
+
 describe("LoopEditor", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -74,24 +81,41 @@ describe("LoopEditor", () => {
     expect(onBack).toHaveBeenCalledOnce();
   });
 
-  it("E2E-web-12: edits a workspace Loop draft — palette add, inspector swap, invariant chips", async () => {
+  it("Should open the Contract lane by default and switch to Node when a canvas node is selected", async () => {
+    renderEditor();
+    await screen.findByTestId("loop-editor");
+    await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
+
+    expect(screen.getByTestId("loop-editor-tab-contract")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("loop-editor-contract")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-editor-inspector")).not.toBeInTheDocument();
+
+    fireEvent.click(nodeCard("implement"));
+    await waitFor(() =>
+      expect(screen.getByTestId("loop-editor-tab-node")).toHaveAttribute("aria-selected", "true")
+    );
+    expect(
+      within(screen.getByTestId("loop-editor-inspector")).getByTestId("loop-inspector-name")
+    ).toHaveTextContent("implement");
+  });
+
+  it("E2E-web-12: edits a workspace Loop draft — palette add, inspector swap", async () => {
     renderEditor();
     await screen.findByTestId("loop-editor");
     // The canonical body renders on the canvas.
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
-    // The four canonical invariant chips are present.
-    for (const key of ["acyclicity", "reachability", "termination", "fan_out"]) {
-      expect(screen.getByTestId(`loop-invariant-${key}`)).toBeInTheDocument();
-    }
+    expect(screen.getByTestId("loop-editor-save")).toBeInTheDocument();
     // No unsaved-changes chip until the definition is edited.
     expect(screen.queryByTestId("loop-editor-dirty-chip")).not.toBeInTheDocument();
-    // Adding a node from the palette extends the body, selects it, and marks the draft dirty.
+    // Adding a node from the palette extends the body, selects it, opens Node lane, and marks dirty.
     fireEvent.click(screen.getByTestId("loop-palette-item-run-agent"));
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(9));
     expect(screen.getByTestId("loop-editor-dirty-chip")).toBeInTheDocument();
-    expect(
-      within(screen.getByTestId("loop-editor-inspector")).getByTestId("loop-inspector-name")
-    ).toHaveTextContent("run_agent");
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("loop-editor-inspector")).getByTestId("loop-inspector-name")
+      ).toHaveTextContent("run_agent")
+    );
   });
 
   it("Should preserve both nodes when palette additions are dispatched in one event turn", async () => {
@@ -137,14 +161,18 @@ describe("LoopEditor", () => {
     fireEvent.change(fanOut, { target: { value: "80" } });
     // The daemon linter (mock) returns fan_out_ceiling_exceeded → issue + node badge + gate.
     await waitFor(() =>
-      expect(screen.getByTestId("loop-linter-issue")).toHaveTextContent(/ceiling of 64/i)
+      expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("1 issue")
     );
+    expandLinterDock();
+    expect(screen.getByTestId("loop-linter-issue")).toHaveTextContent(/ceiling of 64/i);
     expect(nodeCard("implement")).toHaveAttribute("data-node-error", "true");
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
-    expect(screen.getByTestId("loop-invariant-fan_out")).toHaveAttribute("data-status", "fail");
     // Lowering it back under the ceiling clears the issue and re-enables Publish.
     fireEvent.change(fanOut, { target: { value: "32" } });
-    await waitFor(() => expect(screen.queryByTestId("loop-linter-issue")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("0 issues")
+    );
+    expect(screen.queryByTestId("loop-linter-issue")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled();
     expect(nodeCard("implement")).toHaveAttribute("data-node-error", "false");
   });
@@ -170,9 +198,9 @@ describe("LoopEditor", () => {
     await screen.findByTestId("loop-editor");
     fireEvent.click(screen.getByTestId("loop-editor-validate"));
     await waitFor(() => expect(nodeCard("review")).toHaveAttribute("data-node-error", "true"));
-    expect(screen.getByTestId("loop-invariant-acyclicity")).toHaveAttribute("data-status", "fail");
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
     // Reveal node selects it in the inspector.
+    expandLinterDock();
     fireEvent.click(screen.getByTestId("loop-linter-reveal"));
     await waitFor(() =>
       expect(
@@ -209,6 +237,7 @@ describe("LoopEditor", () => {
       /1 issue to resolve/i
     );
     expect(screen.getByTestId("loop-editor-publish-error")).toHaveAttribute("role", "alert");
+    expandLinterDock();
     expect(screen.getByTestId("loop-linter-issue")).toHaveTextContent(/needs a judge/i);
     // The publish verdict now gates further publishes (an unattributed code fails safe).
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
@@ -241,13 +270,13 @@ describe("LoopEditor", () => {
     renderEditor("software-delivery", [downValidate]);
     await screen.findByTestId("loop-editor");
     // The mount auto-validate fails → the dock reports unavailable instead of "all pass".
-    await waitFor(() => expect(screen.getByTestId("loop-linter-unavailable")).toBeInTheDocument());
-    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("unavailable");
-    // Chips are neutral/pending, never a claimed pass.
-    expect(screen.getByTestId("loop-invariant-acyclicity")).toHaveAttribute(
-      "data-status",
-      "pending"
+    await waitFor(() =>
+      expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("unavailable")
     );
+    expandLinterDock();
+    expect(screen.getByTestId("loop-linter-unavailable")).toBeInTheDocument();
+    // Header stays truthful — unavailable, never a claimed pass.
+    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("unavailable");
   });
 
   it("E2E-web-14: Graph/DSL toggle renders agh.loop/v1 and highlights the offending field", async () => {
@@ -259,9 +288,11 @@ describe("LoopEditor", () => {
     fireEvent.change(await screen.findByTestId("loop-field-max_fan_out"), {
       target: { value: "80" },
     });
-    await waitFor(() => expect(screen.getByTestId("loop-linter-issue")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("tab", { name: /DSL/i }));
-    expect(screen.getByRole("tab", { name: /DSL/i })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() =>
+      expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("1 issue")
+    );
+    fireEvent.click(screen.getByTestId("loop-editor-view-dsl"));
+    expect(screen.getByTestId("loop-editor-view-dsl")).toHaveAttribute("aria-pressed", "true");
     const dsl = await screen.findByTestId("loop-editor-dsl");
     expect(dsl).toHaveTextContent("agh.loop/v1");
     const offending = dsl.querySelector('[data-offending="true"]');

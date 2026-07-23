@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: MS-029
 ---
 
-story: As an operator I read every configured MCP server's real configuration, authorization, runtime, and probe status at a glance without a plausible green masking a broken server.
+story: As a builder I read every configured MCP server's real configuration, authorization, runtime, and probe status at a glance without a plausible green masking a broken server.
 
 src: docs/design/opendesign/mcp-management.html
 

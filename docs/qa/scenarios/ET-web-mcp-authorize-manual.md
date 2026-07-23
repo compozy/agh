@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-web-mcp-authorize; ET-cli-mcp-auth-manual-exchange
 ---
 
-story: As an operator whose browser cannot reach the daemon host, I paste the authorization code or full redirect URL to complete authorization.
+story: As a remote admin whose browser cannot reach the daemon host, I paste the authorization code or full redirect URL to complete authorization.
 
 src: docs/design/opendesign/mcp-management.html
 

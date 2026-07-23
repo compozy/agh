@@ -18,6 +18,7 @@ import (
 
 	"github.com/compozy/agh/internal/agentidentity"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 )
 
@@ -28,12 +29,124 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		// not parallel: lifecycle steps share one ordered runtime state.
 		runDaemonE2EAgentDefinitionLifecycleParity(t)
 	})
+
+	t.Run("Should categorize and update a bundled extension agent through the effective catalog", func(t *testing.T) {
+		// not parallel: lifecycle steps share one ordered runtime state.
+		configSeed := agentDefinitionE2EConfigSeed()
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			ConfigSeed: configSeed,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+
+		const agentName = "code_implementer"
+		var before aghcontract.AgentResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodGet,
+			"/api/agents/"+url.PathEscape(agentName),
+			nil,
+			&before,
+		); err != nil {
+			t.Fatalf("HTTP get extension agent error = %v", err)
+		}
+		if !reflect.DeepEqual(before.Agent.CategoryPath, []string{"Compozy"}) {
+			t.Fatalf("extension agent category = %#v, want Compozy", before.Agent.CategoryPath)
+		}
+		if before.Agent.EffectiveRuntime == nil || before.Agent.EffectiveRuntime.Provider == "" {
+			t.Fatalf("extension agent effective runtime = %#v, want resolved provider", before.Agent.EffectiveRuntime)
+		}
+		selectedProvider := before.Agent.EffectiveRuntime.Provider
+		selectedModel := before.Agent.EffectiveRuntime.Model
+
+		update := aghcontract.UpdateAgentRequest{
+			Agent: aghcontract.CreateAgentPayload{
+				Name:            before.Agent.Name,
+				Provider:        selectedProvider,
+				Command:         before.Agent.Command,
+				Model:           selectedModel,
+				ReasoningEffort: before.Agent.ReasoningEffort,
+				Tools:           append([]string(nil), before.Agent.Tools...),
+				Toolsets:        append([]string(nil), before.Agent.Toolsets...),
+				DenyTools:       append([]string(nil), before.Agent.DenyTools...),
+				Permissions:     aghcontract.SettingsPermissionMode(before.Agent.Permissions),
+				CategoryPath:    append([]string(nil), before.Agent.CategoryPath...),
+				Skills:          before.Agent.Skills,
+				Prompt:          before.Agent.Prompt,
+			},
+			ExpectedDigest: before.Agent.DefinitionDigest,
+		}
+		var updated aghcontract.AgentResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPut,
+			"/api/agents/"+url.PathEscape(agentName),
+			update,
+			&updated,
+		); err != nil {
+			t.Fatalf("HTTP update extension agent error = %v", err)
+		}
+		if updated.Agent.Provider != selectedProvider || updated.Agent.Model != selectedModel ||
+			!reflect.DeepEqual(updated.Agent.CategoryPath, []string{"Compozy"}) {
+			t.Fatalf("updated extension agent = %#v, want selected runtime in Compozy", updated.Agent)
+		}
+		if updated.Agent.DefinitionDigest == before.Agent.DefinitionDigest {
+			t.Fatalf("updated extension agent digest = %q, want a persisted runtime change", updated.Agent.DefinitionDigest)
+		}
+
+		var fresh aghcontract.AgentResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodGet,
+			"/api/agents/"+url.PathEscape(agentName),
+			nil,
+			&fresh,
+		); err != nil {
+			t.Fatalf("HTTP fresh-read extension agent error = %v", err)
+		}
+		if fresh.Agent.DefinitionDigest != updated.Agent.DefinitionDigest ||
+			fresh.Agent.Provider != selectedProvider || fresh.Agent.Model != selectedModel {
+			t.Fatalf("fresh extension agent = %#v, want persisted update %#v", fresh.Agent, updated.Agent)
+		}
+
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := harness.Stop(stopCtx); err != nil {
+			stopCancel()
+			t.Fatalf("stop runtime before extension agent restart check error = %v", err)
+		}
+		stopCancel()
+
+		restarted := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			BinaryPath: harness.BinaryPath,
+			HomePaths:  harness.HomePaths,
+			ConfigSeed: configSeed,
+			Workspace:  e2etest.WorkspaceSeedOptions{Root: harness.WorkspaceRoot},
+		})
+		var afterRestart aghcontract.AgentResponse
+		if err := restarted.HTTPJSON(
+			ctx,
+			http.MethodGet,
+			"/api/agents/"+url.PathEscape(agentName),
+			nil,
+			&afterRestart,
+		); err != nil {
+			t.Fatalf("HTTP post-restart extension agent read error = %v", err)
+		}
+		if afterRestart.Agent.DefinitionDigest != updated.Agent.DefinitionDigest ||
+			afterRestart.Agent.Provider != selectedProvider || afterRestart.Agent.Model != selectedModel ||
+			!reflect.DeepEqual(afterRestart.Agent.CategoryPath, []string{"Compozy"}) {
+			t.Fatalf("post-restart extension agent = %#v, want persisted update %#v", afterRestart.Agent, updated.Agent)
+		}
+	})
 }
 
 func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	t.Helper()
 
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+	configSeed := agentDefinitionE2EConfigSeed()
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: configSeed,
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
@@ -257,6 +370,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	restarted := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath: harness.BinaryPath,
 		HomePaths:  harness.HomePaths,
+		ConfigSeed: configSeed,
 		Workspace:  e2etest.WorkspaceSeedOptions{Root: harness.WorkspaceRoot},
 	})
 
@@ -299,6 +413,20 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		agentidentity.ExitUnavailable,
 		httpNotFound.Payload.Error,
 	)
+}
+
+func agentDefinitionE2EConfigSeed() e2etest.ConfigSeedOptions {
+	return e2etest.ConfigSeedOptions{
+		DefaultProvider: "fake",
+		Providers: map[string]aghconfig.ProviderConfig{
+			"fake": {
+				Command: "fake-agent --stdio",
+				Models: aghconfig.ProviderModelsConfig{
+					Default: "fake-model",
+				},
+			},
+		},
+	}
 }
 
 type agentDefinitionE2EView struct {

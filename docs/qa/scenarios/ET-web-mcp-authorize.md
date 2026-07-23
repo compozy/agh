@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-api-mcp-oauth-endpoints; ET-cli-mcp-authorize; ET-web-mcp-authorize-manual
 ---
 
-story: As an operator I authorize a remote MCP server from the product, following the browser handoff, and see it confirmed only when the credential is truly present.
+story: As a builder I authorize a remote MCP server from the product, following the browser handoff, and see it confirmed only when the credential is truly present.
 
 src: docs/design/opendesign/mcp-management.html
 

@@ -448,14 +448,16 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 	t.Parallel()
 
 	rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+	agentCatalog := newResourceCatalog(cloneAgentDef)
 	desired := agentSkillDesiredResources{
 		agents: []agentPublicationInput{{
 			sourceKey: "test/agent/coder",
 			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			spec: aghconfig.AgentDef{
-				Name:   "coder",
-				Prompt: "Use canonical tools.",
-				Tools:  []string{"agh__lookup"},
+				Name:       "coder",
+				Prompt:     "Use canonical tools.",
+				Tools:      []string{"agh__lookup"},
+				SourcePath: "/extensions/dev-cycle/agents/coder/AGENT.md",
 			},
 		}},
 		skills: []skillPublicationInput{{
@@ -482,7 +484,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		rawStore,
 		agentStore,
 		agentCodec,
-		nil,
+		newAgentProjector(agentCatalog),
 		skillStore,
 		skillCodec,
 		nil,
@@ -502,6 +504,16 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 	if err := syncer.Sync(context.Background()); err != nil {
 		t.Fatalf("Sync() error = %v", err)
 	}
+	t.Run("Should retain authored agent provenance in the projected catalog", func(t *testing.T) {
+		// not parallel: the parent mutates this catalog after the assertion.
+		projected, err := agentCatalogDependency(agentCatalog).GetAgent(context.Background(), "coder")
+		if err != nil {
+			t.Fatalf("GetAgent(coder) error = %v", err)
+		}
+		if projected.Def.SourcePath != "/extensions/dev-cycle/agents/coder/AGENT.md" {
+			t.Fatalf("GetAgent(coder).Def.SourcePath = %q, want authored extension path", projected.Def.SourcePath)
+		}
+	})
 	assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 1, 1, 1)
 	if triggered[aghconfig.AgentResourceKind] != 1 ||
 		triggered[skillspkg.SkillResourceKind] != 1 ||

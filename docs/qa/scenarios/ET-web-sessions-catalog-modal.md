@@ -16,6 +16,6 @@ last_report:
 overlaps: ET-web-desktop-shell-lifecycle; ET-web-command-palette-shortcuts
 ---
 
-story: As an operator, I can jump between sessions from a global catalog modal without a persistent side rail.
+story: As a builder, I can jump between sessions from a global catalog modal without a persistent side rail.
 
 qa-impact: 2026-07-22 — Sessions catalog hard-cut from floating rail/Sheet to shell-level Dialog overlay (parity with ⌘K). `railOpen` removed from persisted desktop doc. Flag only; the next QA cycle owns live retesting.
