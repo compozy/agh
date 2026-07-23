@@ -41,6 +41,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		extensionDescriptors(),
 		bundleDescriptors(),
 		resourceDescriptors(),
+		windowManagerDescriptors(),
 		mcpDescriptors(),
 		mcpAuthDescriptors(),
 	}

@@ -444,13 +444,12 @@
   --size-traffic-light-compact: 15px;
   --size-traffic-light-compact-target: 44px;
 
-  /* Spaces-overview cards (os-v2.css `.space-card`/`.space-thumb`). */
-  --width-space-card: 264px;
-  --height-space-thumb: 148px;
-  --spacing-spaces-subtitle-gap: 22px;
-  --spacing-spaces-row-gap: 18px;
-  --spacing-space-thumb-top-offset: 8px;
-  --text-space-avatar: 9px;
+  /* Workspace and desktop overview cards. */
+  --width-workspace-card: 264px;
+  --height-workspace-thumb: 148px;
+  --spacing-workspaces-subtitle-gap: 22px;
+  --spacing-workspaces-row-gap: 18px;
+  --text-workspace-avatar: 9px;
 }
 
 :root {

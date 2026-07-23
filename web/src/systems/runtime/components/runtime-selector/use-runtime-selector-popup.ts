@@ -7,6 +7,17 @@ import type { RuntimeSelectorController } from "./use-runtime-selector";
 
 type PopoverOpenChange = NonNullable<ComponentProps<typeof Popover>["onOpenChange"]>;
 
+function isRuntimeJShortcut(
+  event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey">
+): boolean {
+  return (
+    (event.metaKey || event.ctrlKey) &&
+    !event.altKey &&
+    !event.shiftKey &&
+    event.key.toLowerCase() === "j"
+  );
+}
+
 export interface UseRuntimeSelectorPopupArgs {
   controller: RuntimeSelectorController;
   providers: RuntimeProviderOption[];
@@ -69,6 +80,13 @@ export function useRuntimeSelectorPopup({
     openPopup();
   };
 
+  const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled || !isRuntimeJShortcut(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    handleTriggerPress();
+  };
+
   const resolveInitialFocus = (): HTMLElement | null => searchRef.current;
 
   const anchor = () => triggerRef.current;
@@ -110,6 +128,7 @@ export function useRuntimeSelectorPopup({
     finalFocus,
     handleOpenChange,
     handleTriggerPress,
+    handleTriggerKeyDown,
     resolveInitialFocus,
     handleSearchKeyDown,
   };

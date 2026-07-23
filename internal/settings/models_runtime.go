@@ -56,6 +56,11 @@ type NetworkSection struct {
 	Links   []OperationalLink
 }
 
+// WindowManagerSection is the window-manager section read model.
+type WindowManagerSection struct {
+	Config aghconfig.WindowManagerConfig
+}
+
 // ObservabilitySection is the observability section read model.
 type ObservabilitySection struct {
 	Config         aghconfig.ObservabilityConfig

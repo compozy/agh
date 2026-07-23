@@ -8,7 +8,7 @@ export interface OsHydrationStatusProps {
   hydration: OsHydration;
 }
 
-/** Non-blocking desktop-state connection status for the system menubar. */
+/** Non-blocking window-manager topology status for the system menubar. */
 export function OsHydrationStatus({ hydration }: OsHydrationStatusProps) {
   if (hydration !== "degraded") return null;
 

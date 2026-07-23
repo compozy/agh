@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { QueryClient } from "@tanstack/react-query";
 import { fn, userEvent, within } from "storybook/test";
 
 import type { SessionPayload } from "@/systems/session";
@@ -7,8 +8,8 @@ import type { WorkspacePayload } from "@/systems/workspace";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
+import { WindowManagerRuntime } from "../../hooks/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
-import { createDesktopStore } from "../../stores/desktop-store";
 import { DesktopMenubar } from "../desktop-menubar";
 import { OsSessionsModal } from "../sessions-modal";
 import { OsDockZone } from "../os-dock";
@@ -79,13 +80,12 @@ const ATTENTION: OsAttentionModel = {
 };
 
 function createStoryShell({ collapsedAgent }: { collapsedAgent?: string } = {}): OsShellHandle {
-  const store = createDesktopStore();
+  const manager = new WindowManagerRuntime(new QueryClient());
   const router: OsRouterPort = { navigate: () => {}, replace: () => {} };
-  store.getState().hydrate([]);
-  if (collapsedAgent) store.getState().toggleRailGroup(collapsedAgent);
-  const coordinator = new RoutingCoordinator(store, router);
+  if (collapsedAgent) manager.getState().toggleRailGroup(collapsedAgent);
+  const coordinator = new RoutingCoordinator(manager, router);
   coordinator.completeHydration();
-  return { store, coordinator, flushPersistence: () => {} };
+  return { store: manager, manager, coordinator };
 }
 
 function SessionsModalFixture({ collapsedAgent }: { collapsedAgent?: string }) {
@@ -115,11 +115,12 @@ function BellFixture() {
         <DesktopMenubar
           workspaces={[WORKSPACE]}
           activeWorkspace={WORKSPACE}
+          onOpenWorkspaces={fn()}
           onSelectWorkspace={fn()}
           onAddWorkspace={fn()}
           onNewSession={fn()}
           onOpenPalette={fn()}
-          onOpenSpaces={fn()}
+          onOpenDesktops={fn()}
           activeOverlay="bell"
           onOverlayOpenChange={fn()}
           attention={ATTENTION}

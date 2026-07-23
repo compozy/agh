@@ -38,6 +38,11 @@ func (s *service) classifySectionApplyRequest(
 			return lifecycle.RestartRequired
 		}
 		return s.classifyNetworkRequest(ctx, req)
+	case SectionWindowManager:
+		if req.WindowManager == nil {
+			return lifecycle.Live
+		}
+		return s.classifyWindowManagerRequest(ctx, req)
 	default:
 		return lifecycle.RestartRequired
 	}
@@ -113,6 +118,7 @@ func cloneActiveConfig(cfg *aghconfig.Config) aghconfig.Config {
 	cloned.Sandboxes = mapsClone(cfg.Sandboxes)
 	cloned.MCPServers = append([]aghconfig.MCPServer(nil), cfg.MCPServers...)
 	cloned.Hooks.Declarations = append([]hookspkg.HookDecl(nil), cfg.Hooks.Declarations...)
+	cloned.WindowManager = cloneWindowManagerConfig(cfg.WindowManager)
 	return cloned
 }
 

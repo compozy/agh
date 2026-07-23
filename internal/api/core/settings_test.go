@@ -523,6 +523,8 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.PATCH("/automation", handlers.UpdateSettingsAutomation)
 	settings.GET("/network", handlers.GetSettingsNetwork)
 	settings.PATCH("/network", handlers.UpdateSettingsNetwork)
+	settings.GET("/window-manager", handlers.GetSettingsWindowManager)
+	settings.PATCH("/window-manager", handlers.UpdateSettingsWindowManager)
 	settings.GET("/observability", handlers.GetSettingsObservability)
 	settings.PATCH("/observability", handlers.UpdateSettingsObservability)
 	settings.GET("/hooks-extensions", handlers.GetSettingsHooksExtensions)
@@ -1202,6 +1204,38 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			},
 		},
 		{
+			Section:         settingspkg.SectionWindowManager,
+			Scope:           settingspkg.ScopeGlobal,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			WindowManager: &settingspkg.WindowManagerSection{
+				Config: aghconfig.WindowManagerConfig{
+					NewWindowPolicy:     aghconfig.WindowNewPolicyBesideFocus,
+					SmallViewportPolicy: aghconfig.WindowSmallViewportReject,
+					FocusPolicy:         aghconfig.WindowFocusDirectional,
+					FocusWrap:           true,
+					FocusFollowsPointer: true,
+					RaiseOnFocus:        false,
+					DragAwayPolicy:      aghconfig.WindowDragAwayGroup,
+					GroupMoveModifier:   "control",
+					HistoryLimit:        77,
+					DesktopTransition:   aghconfig.WindowDesktopTransitionCrossfade,
+					Gaps: aghconfig.WindowManagerGapsConfig{
+						Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,
+					},
+					Snap: aghconfig.WindowManagerSnapConfig{
+						EdgeBand:     40,
+						CornerReach:  180,
+						ExitSlack:    20,
+						RepeatRatios: []float64{0.4, 0.7, 0.3},
+					},
+					Bindings: aghconfig.WindowManagerBindingConfig{
+						TopCenter: "none", BottomCenter: "zoom",
+					},
+					Shortcuts: map[string]string{"desktop.switch.next": "Meta+ArrowRight"},
+				},
+			},
+		},
+		{
 			Section:         settingspkg.SectionObservability,
 			Scope:           settingspkg.ScopeGlobal,
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
@@ -1295,8 +1329,21 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 	for _, envelope := range sectionEnvelopes {
 		t.Run("Should section/"+string(envelope.Section), func(t *testing.T) {
 			t.Parallel()
-			if _, err := core.SettingsSectionResponseFromEnvelope(envelope); err != nil {
+			response, err := core.SettingsSectionResponseFromEnvelope(envelope)
+			if err != nil {
 				t.Fatalf("SettingsSectionResponseFromEnvelope(%s) error = %v", envelope.Section, err)
+			}
+			if envelope.Section != settingspkg.SectionWindowManager {
+				return
+			}
+			payload, ok := response.(contract.SettingsWindowManagerResponse)
+			if !ok {
+				t.Fatalf("window-manager response = %T, want SettingsWindowManagerResponse", response)
+			}
+			if payload.Config.HistoryLimit != 77 ||
+				!reflect.DeepEqual(payload.Config.Snap.RepeatRatios, []float64{0.4, 0.7, 0.3}) ||
+				payload.Config.Shortcuts["desktop.switch.next"] != "Meta+ArrowRight" {
+				t.Fatalf("window-manager response config = %#v, want complete conversion", payload.Config)
 			}
 		})
 	}
@@ -1560,6 +1607,11 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		{name: "skills", path: "/api/settings/skills", want: "skills.config is required"},
 		{name: "automation", path: "/api/settings/automation", want: "automation.config is required"},
 		{name: "network", path: "/api/settings/network", want: "network.config is required"},
+		{
+			name: "Should require window-manager config",
+			path: "/api/settings/window-manager",
+			want: "window-manager.config is required",
+		},
 		{name: "observability", path: "/api/settings/observability", want: "observability.config is required"},
 		{name: "hooks extensions", path: "/api/settings/hooks-extensions", want: "hooks-extensions.config is required"},
 	}
@@ -1609,6 +1661,34 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should reject window-manager stack without an edge-center target", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		config := validSettingsWindowManagerConfigPayload()
+		config.Bindings.TopCenter = contract.SettingsWindowBindingAction("stack")
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/window-manager",
+			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: config}),
+		)
+		if got, want := resp.Code, http.StatusBadRequest; got != want {
+			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+		if service.UpdateSectionCalls != 0 {
+			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
+		}
+		var payload contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if !strings.Contains(payload.Error, "window_manager.bindings.top_center") {
+			t.Fatalf("payload.Error = %q, want binding validation path", payload.Error)
+		}
+	})
 }
 
 func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {
@@ -1802,6 +1882,22 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 		},
 		{
+			name: "Should delegate window-manager config",
+			path: "/api/settings/window-manager",
+			body: contract.UpdateSettingsWindowManagerRequest{
+				Config: validSettingsWindowManagerConfigPayload(),
+			},
+			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
+				t.Helper()
+				if req.WindowManager == nil ||
+					req.WindowManager.HistoryLimit != 77 ||
+					!reflect.DeepEqual(req.WindowManager.Snap.RepeatRatios, []float64{0.4, 0.7, 0.3}) ||
+					req.WindowManager.Shortcuts["desktop.switch.next"] != "Meta+ArrowRight" {
+					t.Fatalf("req.WindowManager = %#v, want complete window-manager config", req.WindowManager)
+				}
+			},
+		},
+		{
 			name: "observability",
 			path: "/api/settings/observability",
 			body: contract.UpdateSettingsObservabilityRequest{
@@ -1882,6 +1978,42 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			}
 			tc.assert(t, service.LastUpdateSectionRequest)
 		})
+	}
+}
+
+func validSettingsWindowManagerConfigPayload() contract.SettingsWindowManagerConfigPayload {
+	return contract.SettingsWindowManagerConfigPayload{
+		NewWindowPolicy:     contract.SettingsWindowNewPolicyBesideFocus,
+		SmallViewportPolicy: contract.SettingsWindowSmallViewportPolicyReject,
+		FocusPolicy:         contract.SettingsWindowFocusPolicyDirectional,
+		FocusWrap:           true,
+		FocusFollowsPointer: true,
+		RaiseOnFocus:        false,
+		DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyGroup,
+		GroupMoveModifier:   contract.SettingsWindowGroupMoveModifierControl,
+		HistoryLimit:        77,
+		DesktopTransition:   contract.SettingsWindowDesktopTransitionCrossfade,
+		Gaps: contract.SettingsWindowManagerGapsPayload{
+			Inner:  12,
+			Top:    18,
+			Right:  14,
+			Bottom: 16,
+			Left:   20,
+		},
+		Snap: contract.SettingsWindowManagerSnapPayload{
+			EdgeBand:     40,
+			CornerReach:  180,
+			ExitSlack:    20,
+			RepeatRatios: []float64{0.4, 0.7, 0.3},
+		},
+		Bindings: contract.SettingsWindowManagerBindingPayload{
+			TopCenter:    contract.SettingsWindowBindingActionNone,
+			BottomCenter: contract.SettingsWindowBindingActionZoom,
+		},
+		Shortcuts: map[string]string{
+			"desktop.switch.next": "Meta+ArrowRight",
+			"window.focus.left":   "Alt+ArrowLeft",
+		},
 	}
 }
 
@@ -2546,6 +2678,52 @@ func TestSettingsCollectionMutationHandlersRejectInvalidPayloads(t *testing.T) {
 
 func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should serialize empty window-manager shortcuts as an object", func(t *testing.T) {
+		t.Parallel()
+
+		config := aghconfig.DefaultWindowManagerConfig()
+		config.Shortcuts = nil
+		service := &stubSettingsService{
+			GetSectionFn: func(
+				_ context.Context,
+				req settingspkg.SectionRequest,
+			) (settingspkg.SectionEnvelope, error) {
+				if req.Section != settingspkg.SectionWindowManager {
+					return settingspkg.SectionEnvelope{}, errors.New("unexpected section")
+				}
+				return settingspkg.SectionEnvelope{
+					Section:         settingspkg.SectionWindowManager,
+					Scope:           settingspkg.ScopeGlobal,
+					AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+					WindowManager: &settingspkg.WindowManagerSection{
+						Config: config,
+					},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/api/settings/window-manager",
+			nil,
+		)
+		if got, want := resp.Code, http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+
+		var payload contract.SettingsWindowManagerResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Config.Shortcuts == nil {
+			t.Fatalf("config.shortcuts = nil, want empty object; body=%s", resp.Body.String())
+		}
+		if got := len(payload.Config.Shortcuts); got != 0 {
+			t.Fatalf("len(config.shortcuts) = %d, want 0", got)
+		}
+	})
 
 	service := &stubSettingsService{
 		GetSectionFn: func(_ context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {

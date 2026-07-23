@@ -12,6 +12,7 @@ import (
 
 	automationpkg "github.com/compozy/agh/internal/automation"
 	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 func TestLoadBundleSpecsLoadsMixedFormatsAndSorts(t *testing.T) {
@@ -170,6 +171,130 @@ requirements = ["workspace-write"]
 	}
 	if agent.Heartbeat == nil || agent.Heartbeat.SourcePath != "agents/marketer/HEARTBEAT.md" {
 		t.Fatalf("agent.Heartbeat = %#v, want packaged HEARTBEAT sidecar", agent.Heartbeat)
+	}
+}
+
+func TestLoadBundleSpecsLoadsStrictProfileLayouts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should load and canonicalize strict JSON profile layouts", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(rootDir, "bundles"), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(bundles) error = %v", err)
+		}
+		if err := os.MkdirAll(filepath.Join(rootDir, "layouts"), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(layouts) error = %v", err)
+		}
+		writeBundleWithLayouts(t, rootDir, []string{"layouts/two-up.json"})
+		writeJSONFile(t, filepath.Join(rootDir, "layouts", "two-up.json"), testBundleLayoutResource("two-up"))
+
+		bundles, err := LoadBundleSpecs(context.Background(), rootDir, &Manifest{
+			Name: "bundle-loader",
+			Resources: ResourcesConfig{
+				Bundles: []string{"bundles"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("LoadBundleSpecs() error = %v", err)
+		}
+		layouts := bundles[0].Profiles[0].Layouts
+		if got, want := len(layouts), 1; got != want {
+			t.Fatalf("len(profile.Layouts) = %d, want %d", got, want)
+		}
+		if got, want := layouts[0].Path, "layouts/two-up.json"; got != want {
+			t.Fatalf("layout.Path = %q, want %q", got, want)
+		}
+		if got, want := layouts[0].Layout.ID, "two-up"; got != want {
+			t.Fatalf("layout.ID = %q, want %q", got, want)
+		}
+		if got, want := layouts[0].Layout.AspectVariant, windowmanager.LayoutAspectAny; got != want {
+			t.Fatalf("layout.AspectVariant = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestLoadBundleSpecsRejectsEscapingOrNonStrictProfileLayouts(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		layoutPath string
+		want       string
+		setup      func(*testing.T, string, string)
+	}{
+		{
+			name:       "Should reject lexical traversal outside the extension root",
+			layoutPath: "../outside.json",
+			want:       "escapes extension root",
+			setup: func(t *testing.T, _ string, containerDir string) {
+				t.Helper()
+				writeJSONFile(t, filepath.Join(containerDir, "outside.json"), testBundleLayoutResource("outside"))
+			},
+		},
+		{
+			name:       "Should reject symlinks that resolve outside the extension root",
+			layoutPath: "layouts/escape.json",
+			want:       "escapes extension root",
+			setup: func(t *testing.T, rootDir string, containerDir string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Join(rootDir, "layouts"), 0o755); err != nil {
+					t.Fatalf("os.MkdirAll(layouts) error = %v", err)
+				}
+				outside := filepath.Join(containerDir, "outside.json")
+				writeJSONFile(t, outside, testBundleLayoutResource("outside"))
+				if err := os.Symlink(outside, filepath.Join(rootDir, "layouts", "escape.json")); err != nil {
+					t.Fatalf("os.Symlink() error = %v", err)
+				}
+			},
+		},
+		{
+			name:       "Should reject unknown JSON fields",
+			layoutPath: "layouts/unknown.json",
+			want:       "unknown field",
+			setup: func(t *testing.T, rootDir string, _ string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Join(rootDir, "layouts"), 0o755); err != nil {
+					t.Fatalf("os.MkdirAll(layouts) error = %v", err)
+				}
+				writeFile(
+					t,
+					filepath.Join(rootDir, "layouts", "unknown.json"),
+					`{"version":1,"id":"unknown","display_name":"Unknown",`+
+						`"aspect_variant":"any","overflow_policy":"stack",`+
+						`"document":{"version":2,"workspace_id":"","desktops":[],`+
+						`"windows":{},"overrides":{}},"legacy":true}`,
+				)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			containerDir := t.TempDir()
+			rootDir := filepath.Join(containerDir, "extension")
+			if err := os.MkdirAll(filepath.Join(rootDir, "bundles"), 0o755); err != nil {
+				t.Fatalf("os.MkdirAll(bundles) error = %v", err)
+			}
+			tc.setup(t, rootDir, containerDir)
+			writeBundleWithLayouts(t, rootDir, []string{tc.layoutPath})
+
+			_, err := LoadBundleSpecs(context.Background(), rootDir, &Manifest{
+				Name: "bundle-loader",
+				Resources: ResourcesConfig{
+					Bundles: []string{"bundles"},
+				},
+			})
+			if !errors.Is(err, ErrBundleInvalid) {
+				t.Fatalf("LoadBundleSpecs() error = %v, want ErrBundleInvalid", err)
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("LoadBundleSpecs() error = %v, want %q", err, tc.want)
+			}
+		})
 	}
 }
 
@@ -412,6 +537,56 @@ func writeBundleWithAgents(t *testing.T, rootDir string, paths []string) {
 		builder.WriteByte('\n')
 	}
 	writeFile(t, filepath.Join(rootDir, "bundles", "marketing.toml"), builder.String())
+}
+
+func writeBundleWithLayouts(t *testing.T, rootDir string, paths []string) {
+	t.Helper()
+
+	var builder strings.Builder
+	builder.WriteString("name = \"marketing\"\n\n[[profiles]]\nname = \"default\"\n")
+	for _, path := range paths {
+		builder.WriteString("\n[[profiles.layouts]]\n")
+		builder.WriteString("path = ")
+		encoded, err := json.Marshal(path)
+		if err != nil {
+			t.Fatalf("json.Marshal(path) error = %v", err)
+		}
+		builder.WriteString(string(encoded))
+		builder.WriteByte('\n')
+	}
+	writeFile(t, filepath.Join(rootDir, "bundles", "marketing.toml"), builder.String())
+}
+
+func writeJSONFile(t *testing.T, path string, value any) {
+	t.Helper()
+
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%s) error = %v", path, err)
+	}
+}
+
+func testBundleLayoutResource(id string) windowmanager.LayoutResource {
+	return windowmanager.LayoutResource{
+		Version:          windowmanager.LayoutResourceVersion,
+		ID:               id,
+		DisplayName:      "Two up",
+		ParticipantSlots: []windowmanager.WindowID{"primary", "secondary"},
+		Document: windowmanager.LayoutDocument{
+			Version: windowmanager.SnapshotVersion,
+			Desktops: []windowmanager.Desktop{{
+				ID:       "desktop-default",
+				Name:     "Desktop 1",
+				Purpose:  windowmanager.DesktopPurposeStandard,
+				Groups:   []windowmanager.LayoutGroup{},
+				Floating: []windowmanager.WindowID{},
+			}},
+			Windows: map[windowmanager.WindowID]windowmanager.Window{},
+		},
+	}
 }
 
 func writeProfileAgent(t *testing.T, rootDir string, relPath string, name string, soulBody string) {

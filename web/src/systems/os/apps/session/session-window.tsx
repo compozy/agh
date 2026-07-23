@@ -20,7 +20,7 @@ const SESSION_AGENT_PATTERN = /^\/agents\/([^/]+)\/sessions\//;
  */
 export function SessionWindow({ windowId }: { windowId: string }) {
   const { coordinator } = useOsShell();
-  const pathname = useDesktop(state => state.windows[windowId]?.location.pathname ?? "");
+  const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? "");
   const sessionId = matchSessionInstance(pathname);
   const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);
   const agentName = agentMatch ? decodeURIComponent(agentMatch[1]) : null;
@@ -33,13 +33,15 @@ export function SessionWindow({ windowId }: { windowId: string }) {
   useEffect(() => {
     if (!sessionQuery.error?.message.includes("not found") || agentName === null) return;
     toast.error("Session not found");
-    coordinator.userClose(windowId);
-    coordinator.userOpen({
-      app: "agents",
-      location: {
-        pathname: `/agents/${encodeURIComponent(agentName)}`,
-        search: {},
-      },
+    void coordinator.userClose(windowId).then(closed => {
+      if (!closed) return;
+      coordinator.userOpen({
+        app: "agents",
+        route: {
+          pathname: `/agents/${encodeURIComponent(agentName)}`,
+          search: {},
+        },
+      });
     });
   }, [agentName, coordinator, sessionQuery.error, windowId]);
 
@@ -73,13 +75,15 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         id={sessionId}
         workspaceId={workspaceId}
         onDeleteSuccess={() => {
-          coordinator.userClose(windowId);
-          coordinator.userOpen({
-            app: "agents",
-            location: {
-              pathname: `/agents/${encodeURIComponent(agentName)}`,
-              search: {},
-            },
+          void coordinator.userClose(windowId).then(closed => {
+            if (!closed) return;
+            coordinator.userOpen({
+              app: "agents",
+              route: {
+                pathname: `/agents/${encodeURIComponent(agentName)}`,
+                search: {},
+              },
+            });
           });
         }}
       />

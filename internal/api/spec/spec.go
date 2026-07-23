@@ -47,6 +47,7 @@ const (
 	specAPISettingsMCPServersNamePath                        = "/api/settings/mcp-servers/{name}"
 	specAPISettingsMemoryPath                                = "/api/settings/memory"
 	specAPISettingsNetworkPath                               = "/api/settings/network"
+	specAPISettingsWindowManagerPath                         = "/api/settings/window-manager"
 	specAPISettingsObservabilityPath                         = "/api/settings/observability"
 	specAPISettingsProvidersNamePath                         = "/api/settings/providers/{name}"
 	specAPISettingsSandboxesNamePath                         = "/api/settings/sandboxes/{name}"
@@ -263,8 +264,8 @@ func Document() (*openapi3.T, error) {
 			{Name: specWorkspacesKey},
 		},
 	}
-	if err := registerDesktopStateComponentSchemas(doc.Components.Schemas); err != nil {
-		return nil, fmt.Errorf("register desktop-state component schemas: %w", err)
+	if err := registerWindowManagerComponentSchemas(doc.Components.Schemas); err != nil {
+		return nil, fmt.Errorf("register window-manager component schemas: %w", err)
 	}
 
 	for _, opSpec := range Operations() {
@@ -274,6 +275,7 @@ func Document() (*openapi3.T, error) {
 		}
 		doc.AddOperation(opSpec.Path, opSpec.Method, operation)
 	}
+	resolveComponentSchemaReferences(doc.Components.Schemas)
 
 	if err := doc.Validate(context.Background()); err != nil {
 		return nil, fmt.Errorf("validate openapi: %w", err)

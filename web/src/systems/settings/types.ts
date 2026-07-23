@@ -9,6 +9,7 @@ export type SettingsAutomationSection = OperationResponse<"getSettingsAutomation
 export type SettingsNetworkSection = OperationResponse<"getSettingsNetwork", 200>;
 export type SettingsObservabilitySection = OperationResponse<"getSettingsObservability", 200>;
 export type SettingsHooksExtensionsSection = OperationResponse<"getSettingsHooksExtensions", 200>;
+export type SettingsWindowManagerSection = OperationResponse<"getSettingsWindowManager", 200>;
 export type SettingsHooksExtensionsHook = NonNullable<
   SettingsHooksExtensionsSection["hooks"]
 >[number];
@@ -102,6 +103,8 @@ export type SettingsUpdateObservabilityRequest =
   OperationRequestBody<"updateSettingsObservability">;
 export type SettingsUpdateHooksExtensionsRequest =
   OperationRequestBody<"updateSettingsHooksExtensions">;
+export type SettingsUpdateWindowManagerRequest =
+  OperationRequestBody<"updateSettingsWindowManager">;
 
 export type SettingsRestartResponse = OperationResponse<"triggerSettingsRestart", 202>;
 export type SettingsRestartStatus = OperationResponse<"getSettingsRestartStatus", 200>;
@@ -122,6 +125,7 @@ export type SettingsMutationResult =
   | OperationResponse<"updateSettingsNetwork", 200>
   | OperationResponse<"updateSettingsObservability", 200>
   | OperationResponse<"updateSettingsHooksExtensions", 200>
+  | OperationResponse<"updateSettingsWindowManager", 200>
   | OperationResponse<"putSettingsProvider", 200>
   | OperationResponse<"deleteSettingsProvider", 200>
   | OperationResponse<"putSettingsMCPServer", 200>
@@ -139,7 +143,8 @@ export type SettingsSectionName =
   | SettingsAutomationSection["section"]
   | SettingsNetworkSection["section"]
   | SettingsObservabilitySection["section"]
-  | SettingsHooksExtensionsSection["section"];
+  | SettingsHooksExtensionsSection["section"]
+  | SettingsWindowManagerSection["section"];
 export type SettingsRestartStatusName = SettingsRestartResponse["status"];
 export type SettingsSource = SettingsProviderEntry["source_metadata"]["effective_source"];
 export type SettingsSourceKind = SettingsSource["kind"];
@@ -162,6 +167,7 @@ export interface SettingsSectionDescriptor {
 export type SettingsSectionSlug =
   | "general"
   | "appearance"
+  | "layouts"
   | "providers"
   | "sandboxes"
   | "memory"

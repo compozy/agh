@@ -5,7 +5,7 @@ import {
   type ResolvedTaskDetailSearch,
   type TaskViewMode,
 } from "@/systems/tasks";
-import type { OsWindowLocation } from "../../lib/os-types";
+import type { OsWindowRoute } from "../../lib/os-types";
 
 export type TaskWindowLocation =
   | { kind: "catalog"; mode: TaskViewMode }
@@ -22,7 +22,7 @@ function decodePathSegment(value: string): string {
   }
 }
 
-export function parseTaskWindowLocation(location: OsWindowLocation): TaskWindowLocation {
+export function parseTaskWindowLocation(location: OsWindowRoute): TaskWindowLocation {
   if (location.pathname === "/tasks/new") {
     return { kind: "create", search: validateTaskCreateSearch(location.search) };
   }

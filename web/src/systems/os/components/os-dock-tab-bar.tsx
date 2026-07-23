@@ -60,6 +60,7 @@ function TabBarItem({ item, onSelect }: { item: OsDockItemData; onSelect: (id: s
 
 export interface OsDockTabBarProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
   items: OsDockEntry[];
+  leading?: React.ReactNode;
   onSelect: (id: string) => void;
   onNewSession: () => void;
 }
@@ -72,6 +73,7 @@ export interface OsDockTabBarProps extends Omit<React.ComponentProps<"nav">, "on
  */
 export function OsDockTabBar({
   items,
+  leading,
   onSelect,
   onNewSession,
   className,
@@ -88,6 +90,16 @@ export function OsDockTabBar({
       )}
       {...props}
     >
+      {leading ? (
+        <div
+          className="flex shrink-0 items-center pt-1.5 pb-[calc(--spacing(1.5)+env(safe-area-inset-bottom,0px))]"
+          style={{
+            paddingInlineStart: "calc(var(--spacing) * 4 + env(safe-area-inset-left, 0px))",
+          }}
+        >
+          {leading}
+        </div>
+      ) : null}
       <div
         className={cn(
           "no-scrollbar flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto",
@@ -103,6 +115,9 @@ export function OsDockTabBar({
       <div
         data-slot="os-dock-actions"
         className="flex shrink-0 items-center border-l border-line py-1.5 pr-2 pb-[calc(--spacing(1.5)+env(safe-area-inset-bottom,0px))] pl-1.5"
+        style={{
+          paddingInlineEnd: "calc(var(--spacing) * 2 + env(safe-area-inset-right, 0px))",
+        }}
       >
         <button
           type="button"

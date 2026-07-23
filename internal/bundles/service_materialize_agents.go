@@ -178,5 +178,9 @@ func (s *Service) materializeActivationBridges(
 }
 
 func materializedInventoryCapacity(profile extensionpkg.BundleProfile) int {
-	return len(profile.Agents)*3 + len(profile.Jobs) + len(profile.Triggers) + len(profile.Bridges)
+	return len(profile.Layouts) +
+		len(profile.Agents)*3 +
+		len(profile.Jobs) +
+		len(profile.Triggers) +
+		len(profile.Bridges)
 }

@@ -1,13 +1,13 @@
 ---
 title: Bundles
-description: Package agents, channels, jobs, triggers, and bridge presets from extensions into activatable runtime profiles.
+description: Package agents, channels, automation, window layouts, and bridge presets from extensions into activatable runtime profiles.
 ---
 
 Bundles are extension-provided presets. A bundle catalog record describes what an extension can
 provide; a bundle activation chooses one profile and asks AGH to project its runtime resources.
 
 Use bundles when a feature should install as a coherent unit: specialized agents, channels,
-automation jobs, triggers, and bridge instances that make sense together.
+automation jobs, triggers, window layouts, and bridge instances that make sense together.
 
 ## Activation flow
 
@@ -21,18 +21,19 @@ automation jobs, triggers, and bridge instances that make sense together.
     Project --> Sidecars[agent.soul and agent.heartbeat records]
     Project --> Jobs[automation.job records]
     Project --> Triggers[automation.trigger records]
+    Project --> Layouts[window_layout records]
     Project --> Bridges[bridge.instance records]
     Project --> Channels[Declared network channels]`}
   caption="Bundle activation projects one extension profile into runtime resources. Declared channels never enroll executions into Live participation."
 />
 
-| Object            | What it does                                                             |
-| ----------------- | ------------------------------------------------------------------------ |
-| Bundle catalog    | Lists extension bundles and profiles available for activation.           |
-| Bundle profile    | Chooses agents, channels, jobs, triggers, and bridges inside one bundle. |
-| Bundle activation | Records one active profile at global or workspace scope.                 |
-| Inventory         | Lists the resources AGH projected from the activation.                   |
-| Network settings  | Reports declared channels for inventory and explicit future selection.   |
+| Object            | What it does                                                                      |
+| ----------------- | --------------------------------------------------------------------------------- |
+| Bundle catalog    | Lists extension bundles and profiles available for activation.                    |
+| Bundle profile    | Chooses agents, channels, jobs, triggers, layouts, and bridges inside one bundle. |
+| Bundle activation | Records one active profile at global or workspace scope.                          |
+| Inventory         | Lists the resources AGH projected from the activation.                            |
+| Network settings  | Reports declared channels for inventory and explicit future selection.            |
 
 ## Operator routes
 
@@ -82,8 +83,8 @@ Content-Type: application/json
 }
 ```
 
-Preview returns the activation payload AGH would create: channels, agents, jobs, triggers, bridges,
-and inventory. It does not mutate the runtime.
+Preview returns the activation payload AGH would create: channels, agents, jobs, triggers, layouts,
+bridges, and inventory. It does not mutate the runtime.
 
 ## Activate a profile
 
@@ -102,9 +103,9 @@ Content-Type: application/json
 ```
 
 Activation creates or updates a `bundle.activation` resource. Reconcile then projects owned
-`agent`, `agent.soul`, `agent.heartbeat`, `automation.job`, `automation.trigger`, and
-`bridge.instance` records. The response includes the stable activation id and projected inventory so
-operators can audit what changed.
+`agent`, `agent.soul`, `agent.heartbeat`, `automation.job`, `automation.trigger`, `window_layout`,
+and `bridge.instance` records. The response includes the stable activation id and projected inventory
+so operators can audit what changed.
 
 If the extension manifest declares a Live Network requirement, activation must confirm the current
 requirement digest. The activation records that digest plus who confirmed it and when. A changed
@@ -146,6 +147,25 @@ defaults.
 Sidecars are paired by agent resource id, owner, and scope. A global sidecar with the same agent
 name cannot attach to a workspace-scoped bundled agent, and one activation cannot leak sidecars into
 another activation.
+
+## Bundle-owned window layouts
+
+Bundle profiles reference strict `window_layout` JSON files with `[[profiles.layouts]]`:
+
+```toml
+[[profiles.layouts]]
+path = "layouts/two-up.json"
+```
+
+The path is relative to the extension root and must remain inside it after symlinks resolve. The file
+must contain one canonical `window_layout` resource: resource version `1`, a stable authored `id`, a
+display name, an `any`, `landscape`, or `portrait` aspect variant, a `stack` or `reject` overflow
+policy, optional participant slots, and a valid version `2` layout document.
+
+AGH validates the file when the extension loads and validates it again in the activation scope before
+writing anything. Each activation receives its own derived resource id, so two activations of the same
+profile cannot overwrite one another. Preview and activation payloads expose the projected layouts and
+inventory; deactivation removes only the layouts owned by that activation.
 
 ## Scope and Network requirement rules
 

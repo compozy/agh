@@ -24,3 +24,8 @@ export {
   settingsSkillsSectionFixture,
 } from "./fixtures";
 export { handlers } from "./handlers";
+export {
+  settingsWindowManagerSectionFixture,
+  windowManagerLayoutDocumentFixture,
+  windowManagerLayoutResourceFixture,
+} from "./window-manager-fixtures";

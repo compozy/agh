@@ -16,6 +16,7 @@ func bundleCatalogBundle(items []BundleCatalogRecord) outputBundle {
 			bridgeExtensionValue,
 			bundleBundleValue,
 			"Profiles",
+			"Layouts",
 			"Agents",
 			"Jobs",
 			"Triggers",
@@ -26,17 +27,19 @@ func bundleCatalogBundle(items []BundleCatalogRecord) outputBundle {
 			bundleExtensionKey,
 			bundleBundleKey,
 			"profiles",
+			"layouts",
 			"agents",
 			"jobs",
 			"triggers",
 			"bridges",
 		},
 		func(item BundleCatalogRecord) []string {
-			agents, jobs, triggers, bridges := bundleCatalogCounts(item)
+			layouts, agents, jobs, triggers, bridges := bundleCatalogCounts(item)
 			return []string{
 				stringOrDash(item.ExtensionName),
 				stringOrDash(item.BundleName),
 				strings.Join(bundleProfileNames(item), ","),
+				strconv.Itoa(layouts),
 				strconv.Itoa(agents),
 				strconv.Itoa(jobs),
 				strconv.Itoa(triggers),
@@ -44,11 +47,12 @@ func bundleCatalogBundle(items []BundleCatalogRecord) outputBundle {
 			}
 		},
 		func(item BundleCatalogRecord) []string {
-			agents, jobs, triggers, bridges := bundleCatalogCounts(item)
+			layouts, agents, jobs, triggers, bridges := bundleCatalogCounts(item)
 			return []string{
 				item.ExtensionName,
 				item.BundleName,
 				strings.Join(bundleProfileNames(item), "|"),
+				strconv.Itoa(layouts),
 				strconv.Itoa(agents),
 				strconv.Itoa(jobs),
 				strconv.Itoa(triggers),
@@ -73,6 +77,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 			bundleProfileValue,
 			automationScopeValue,
 			authoredContextWorkspaceValue,
+			"Layouts",
 			"Agents",
 			"Inventory",
 		},
@@ -85,6 +90,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 			bundleProfileKey,
 			automationScopeKey,
 			workspaceSkillSource,
+			"layouts",
 			"agents",
 			"inventory",
 		},
@@ -97,6 +103,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 				stringOrDash(item.ProfileName),
 				stringOrDash(item.Scope),
 				stringOrDash(item.WorkspaceID),
+				strconv.Itoa(len(item.Layouts)),
 				strconv.Itoa(len(item.Agents)),
 				strconv.Itoa(len(item.Inventory)),
 			}
@@ -110,6 +117,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 				item.ProfileName,
 				item.Scope,
 				item.WorkspaceID,
+				strconv.Itoa(len(item.Layouts)),
 				strconv.Itoa(len(item.Agents)),
 				strconv.Itoa(len(item.Inventory)),
 			}
@@ -142,6 +150,7 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 					{Label: bundleUpdatedValue, Value: formatTime(item.UpdatedAt)},
 				}),
 				bundleChannelsTable(item.Channels),
+				bundleLayoutsTable(item.Layouts),
 				bundleAgentsTable(item.Agents),
 				bundleJobsTable(item.Jobs),
 				bundleTriggersTable(item.Triggers),
@@ -172,6 +181,7 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 						item.WorkspaceID,
 					},
 				),
+				bundleLayoutsToon(item.Layouts),
 				renderToonArray(
 					"agents",
 					[]string{
@@ -191,6 +201,20 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 			), nil
 		},
 	}
+}
+
+func bundleLayoutsToon(items []BundleLayoutRecord) string {
+	return renderToonArray(
+		"layouts",
+		[]string{
+			automationNameKey,
+			"aspect",
+			"slot_count",
+			"overflow",
+			"participant_slots",
+		},
+		bundleLayoutRows(items),
+	)
 }
 
 func bundleNetworkSettingsBundle(item BundleNetworkSettingsRecord) outputBundle {

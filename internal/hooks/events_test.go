@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 86
+const expectedHookEventCount = 90
 
 func TestAllHookEvents(t *testing.T) {
 	t.Parallel()
@@ -64,6 +64,10 @@ func TestSyncEligibleClassification(t *testing.T) {
 		HookLoopGatePost:                 {},
 		HookLoopNodeTerminal:             {},
 		HookLoopTerminal:                 {},
+		HookWindowManagerLayoutApplied:   {},
+		HookWindowManagerDesktopCreated:  {},
+		HookWindowManagerDesktopDeleted:  {},
+		HookWindowManagerWindowMoved:     {},
 	}
 
 	if !HookSessionPreCreate.SyncEligible() {
@@ -158,6 +162,36 @@ func TestNetworkHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {
 			t.Fatalf("%s.SyncEligible() = true, want false", event)
 		}
 	}
+}
+
+func TestWindowManagerHookEventsHaveExpectedFamilyAndSyncEligibility(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should classify every window-manager event as async-only", func(t *testing.T) {
+		t.Parallel()
+
+		expected := []HookEvent{
+			HookWindowManagerLayoutApplied,
+			HookWindowManagerDesktopCreated,
+			HookWindowManagerDesktopDeleted,
+			HookWindowManagerWindowMoved,
+		}
+		seen := make(map[HookEvent]struct{}, len(AllHookEvents()))
+		for _, event := range AllHookEvents() {
+			seen[event] = struct{}{}
+		}
+		for _, event := range expected {
+			if _, ok := seen[event]; !ok {
+				t.Fatalf("AllHookEvents() missing %q", event)
+			}
+			if got := event.Family(); got != HookEventFamilyWindowManager {
+				t.Fatalf("%s.Family() = %q, want %q", event, got, HookEventFamilyWindowManager)
+			}
+			if event.SyncEligible() {
+				t.Fatalf("%s.SyncEligible() = true, want false", event)
+			}
+		}
+	})
 }
 
 func TestAutonomyHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {

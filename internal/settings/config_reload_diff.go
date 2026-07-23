@@ -29,6 +29,7 @@ func reloadChangedPaths(current *aghconfig.Config, desired *aghconfig.Config) []
 		changed = append(changed, "automation.suggestions.pending_cap")
 	}
 	changed = append(changed, diffNetworkSettings(current.Network, desired.Network)...)
+	changed = append(changed, diffWindowManagerSettings(current.WindowManager, desired.WindowManager)...)
 	changed = append(changed, diffObservabilitySettings(current.Observability, desired.Observability)...)
 	changed = append(changed, diffExtensionsSettings(current.Extensions, desired.Extensions)...)
 	changed = append(changed, diffMarketplaceCatalog(current.Marketplace.Catalog, desired.Marketplace.Catalog)...)

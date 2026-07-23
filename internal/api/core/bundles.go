@@ -186,6 +186,7 @@ func BundleCatalogPayloads(items []bundlepkg.CatalogEntry) []contract.BundleCata
 				Description:    strings.TrimSpace(profile.Description),
 				PrimaryChannel: strings.TrimSpace(profile.Channels.Primary),
 				Channels:       bundleChannelPayloads(profile.Channels),
+				LayoutCount:    len(profile.Layouts),
 				AgentCount:     len(profile.Agents),
 				JobCount:       len(profile.Jobs),
 				TriggerCount:   len(profile.Triggers),
@@ -267,6 +268,7 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 		NetworkRequirementConfirmedBy: strings.TrimSpace(item.Activation.ConfirmedBy),
 		NetworkRequirementConfirmedAt: strings.TrimSpace(item.Activation.ConfirmedAt),
 		Channels:                      bundleChannelPayloads(item.Profile.Channels),
+		Layouts:                       bundleLayoutPayloads(item.Activation.ID, item.Profile.Layouts),
 		Agents:                        agents,
 		Jobs:                          jobs,
 		Triggers:                      triggers,
@@ -276,6 +278,27 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 		CreatedAt:                     item.Activation.CreatedAt,
 		UpdatedAt:                     item.Activation.UpdatedAt,
 	}
+}
+
+func bundleLayoutPayloads(
+	activationID string,
+	items []extensionpkg.BundleLayout,
+) []contract.BundleLayoutPayload {
+	payload := make([]contract.BundleLayoutPayload, 0, len(items))
+	for _, item := range items {
+		slots := make([]string, 0, len(item.Layout.ParticipantSlots))
+		for _, slot := range item.Layout.ParticipantSlots {
+			slots = append(slots, strings.TrimSpace(string(slot)))
+		}
+		payload = append(payload, contract.BundleLayoutPayload{
+			ID:               bundlepkgStableID("lay", activationID, item.Layout.ID),
+			DisplayName:      strings.TrimSpace(item.Layout.DisplayName),
+			AspectVariant:    strings.TrimSpace(string(item.Layout.AspectVariant)),
+			ParticipantSlots: slots,
+			OverflowPolicy:   strings.TrimSpace(string(item.Layout.OverflowPolicy)),
+		})
+	}
+	return payload
 }
 
 func bundleInventoryPayloads(items []bundlepkg.InventoryItem) []contract.BundleInventoryPayload {

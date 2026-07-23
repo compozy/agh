@@ -1,156 +1,115 @@
+import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import { useStore } from "zustand";
-
-import { useActiveWorkspaceStore } from "@/systems/workspace";
+import { useEffect, useState } from "react";
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
-import { createDesktopPersistence } from "../lib/desktop-persistence";
-import { OsStateClient, type OsSocket } from "../lib/os-state-client";
+import type { WindowManagerErrorPayload, WindowManagerSnapshot } from "../lib/window-manager-types";
+import {
+  windowManagerConfigOptions,
+  windowManagerSnapshotOptions,
+} from "../lib/window-manager-query";
 import { RoutingCoordinator, type OsRouterPort } from "../lib/routing-coordinator";
-import { OS_COMPACT_BREAKPOINT, type OsWallpaper, type OsWindowLocation } from "../lib/os-types";
-import { desktopStore } from "../stores/desktop-store";
-
-interface MutableShellHandle extends OsShellHandle {
-  setFlush(flush: () => void): void;
-}
+import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier";
+import { WindowManagerRuntime } from "./window-manager-runtime";
+import { useWindowManagerClient } from "./use-window-manager-client";
+import { useWindowManagerStream } from "./use-window-manager-stream";
 
 export interface DesktopChromeModel {
   shell: OsShellHandle;
-  wallpaper: OsWallpaper;
-}
-
-function browserSocketFactory(url: string): OsSocket {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const nativeSocket = new WebSocket(`${protocol}//${window.location.host}${url}`);
-  const socket: OsSocket = {
-    send: data => nativeSocket.send(data),
-    close: () => nativeSocket.close(),
-    onopen: null,
-    onmessage: null,
-    onclose: null,
-    onerror: null,
-  };
-  nativeSocket.onopen = () => socket.onopen?.();
-  nativeSocket.onmessage = event => socket.onmessage?.({ data: event.data });
-  nativeSocket.onclose = () => socket.onclose?.();
-  nativeSocket.onerror = () => socket.onerror?.();
-  return socket;
+  query: UseQueryResult<WindowManagerSnapshot, Error>;
 }
 
 function navigateTo(
   router: ReturnType<typeof useRouter>,
-  location: OsWindowLocation,
+  route: { pathname: string; search: Record<string, unknown> },
   replace: boolean
 ): void {
-  const href = `${location.pathname}${router.options.stringifySearch(location.search)}`;
+  const href = `${route.pathname}${router.options.stringifySearch(route.search)}`;
   if (replace) router.history.replace(href);
   else router.history.push(href);
 }
 
+function streamError(error: Error | WindowManagerErrorPayload): Error {
+  return error instanceof Error ? error : new Error(error.error);
+}
+
 /**
- * Desktop chrome lifecycle: the shell handle (store + coordinator + flush),
- * the per-workspace desktop-state client (start/stop/rebind on switch — rule
- * 8), hydration completion (rule 4), viewport-derived presentation, and the
- * one-shot soft-cap guidance toast (US-001.EC-3).
+ * Owns the workspace-scoped Query, stable client registration, fenced stream,
+ * and the transient projection runtime. Query remains the only snapshot owner.
  */
 export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChromeModel {
   const router = useRouter();
-  const [shell] = useState<MutableShellHandle>(() => {
-    let flush: () => void = () => {};
+  const queryClient = useQueryClient();
+  const query = useQuery(
+    windowManagerSnapshotOptions(activeWorkspaceId ?? "") as ReturnType<
+      typeof windowManagerSnapshotOptions
+    >
+  );
+  const configQuery = useQuery(windowManagerConfigOptions());
+  const [manager] = useState(() => new WindowManagerRuntime(queryClient));
+  const [shell] = useState<OsShellHandle>(() => {
     const port: OsRouterPort = {
-      navigate: location => navigateTo(router, location, false),
-      replace: location => navigateTo(router, location, true),
+      navigate: route => navigateTo(router, route, false),
+      replace: route => navigateTo(router, route, true),
     };
     return {
-      store: desktopStore,
-      coordinator: new RoutingCoordinator(desktopStore, port),
-      flushPersistence: () => flush(),
-      setFlush: next => {
-        flush = next;
-      },
+      store: manager,
+      manager,
+      coordinator: new RoutingCoordinator(manager, port),
     };
   });
 
-  const previousWorkspaceRef = useRef<string | null>(null);
+  const client = useWindowManagerClient(
+    activeWorkspaceId,
+    view => {
+      manager.setClient(view);
+      shell.coordinator.reportAuthoritativeState();
+    },
+    error => manager.setLoadError(error)
+  );
 
-  // A workspace-selection change flips the coordinator into its switch cycle
-  // SYNCHRONOUSLY — before the router can commit a cross-workspace deep link.
-  // A route match landing between the selection change and the lifecycle
-  // effect below is then held as the switch's focus intent instead of being
-  // reconciled into the outgoing space's store (US-016.EC-2, no leak).
-  useEffect(() => {
-    return useActiveWorkspaceStore.subscribe(state => {
-      const next = state.selectedWorkspaceId;
-      const current = previousWorkspaceRef.current;
-      if (current !== null && next !== null && next !== current) {
-        shell.coordinator.beginWorkspaceSwitch();
-      }
-    });
-  }, [shell]);
+  useEffect(() => subscribeWorkspaceSwitchBarrier(shell.coordinator), [shell]);
 
-  // Desktop-state client lifecycle: one client per active workspace; a switch
-  // tears the old one down (flushing the outgoing space's pending writes as
-  // one batch), resets the desktop, and rehydrates (rule 8).
   useEffect(() => {
-    if (activeWorkspaceId === null) return;
-    if (
-      previousWorkspaceRef.current !== null &&
-      previousWorkspaceRef.current !== activeWorkspaceId
-    ) {
-      shell.coordinator.beginWorkspaceSwitch();
-      desktopStore.getState().resetForWorkspace();
+    if (activeWorkspaceId === null) {
+      manager.unbind();
+      return undefined;
     }
-    previousWorkspaceRef.current = activeWorkspaceId;
+    manager.bind({ workspaceId: activeWorkspaceId, clientId: client.clientId });
+    shell.coordinator.beginWorkspaceSwitch();
+    return () => manager.unbind();
+  }, [activeWorkspaceId, client.clientId, manager, shell]);
 
-    const persistence = createDesktopPersistence(desktopStore);
-    const client = new OsStateClient({
-      workspaceId: activeWorkspaceId,
-      socketFactory: browserSocketFactory,
-      callbacks: persistence.callbacks,
-    });
-    const unbind = persistence.bind(client);
-    shell.setFlush(() => client.flush());
-    client.start();
-    const handleBeforeUnload = () => client.flush();
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      client.flush();
-      shell.setFlush(() => {});
-      unbind();
-      client.stop();
-    };
-  }, [activeWorkspaceId, shell]);
-
-  // Hydration completion drives the URL truth-up / deep-link intent (rule 4).
-  const hydration = useStore(desktopStore, state => state.hydration);
   useEffect(() => {
-    if (hydration !== "pending") shell.coordinator.completeHydration();
-  }, [hydration, shell]);
+    if (client.status === "registered" && query.data && configQuery.data) {
+      shell.coordinator.completeHydration();
+    }
+  }, [client.status, configQuery.data, query.data, shell]);
 
-  // Presentation mode is derived from the viewport, never persisted.
-  useEffect(() => {
-    const query = window.matchMedia(`(max-width: ${OS_COMPACT_BREAKPOINT - 1}px)`);
-    const apply = () =>
-      desktopStore.getState().setPresentation(query.matches ? "compact" : "floating");
-    apply();
-    query.addEventListener("change", apply);
-    return () => query.removeEventListener("change", apply);
-  }, []);
+  useWindowManagerStream({
+    workspaceId: activeWorkspaceId,
+    clientId: client.clientId,
+    registrationEpoch: client.registrationEpoch,
+    currentClient: client.client,
+    enabled: client.status === "registered",
+    afterRevision: query.data?.revision ?? 0,
+    onStatusChange: status => manager.setConnectionStatus(status),
+    onSnapshot: () => {
+      manager.setLoadError(null);
+      shell.coordinator.reportAuthoritativeState();
+    },
+    onClient: view => {
+      manager.setClient(view);
+      shell.coordinator.reportAuthoritativeState();
+    },
+    onClientInvalidated: client.reregister,
+    onError: error => manager.setLoadError(streamError(error)),
+  });
 
-  // Soft-cap guidance (US-001.EC-3): one toast when the 13th window opens.
-  const softCapNotice = useStore(desktopStore, state => state.softCapNotice);
-  useEffect(() => {
-    if (!softCapNotice) return;
-    toast("More than 12 windows open", {
-      description: "Everything keeps working — minimizing idle windows keeps the desktop fluid.",
-    });
-    desktopStore.getState().clearSoftCapNotice();
-  }, [softCapNotice]);
+  useEffect(() => () => manager.destroy(), [manager]);
 
-  const wallpaper = useStore(desktopStore, state => state.wallpaper);
-
-  return { shell, wallpaper };
+  return {
+    shell,
+    query,
+  };
 }

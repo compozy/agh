@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/heartbeat"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 const (
@@ -26,6 +27,8 @@ type ResourceStore struct {
 	bundleCodec     resources.KindCodec[BundleResourceSpec]
 	activations     resources.Store[ActivationResourceSpec]
 	activationCodec resources.KindCodec[ActivationResourceSpec]
+	layouts         resources.Store[windowmanager.LayoutResource]
+	layoutCodec     resources.KindCodec[windowmanager.LayoutResource]
 	agents          resources.Store[aghconfig.AgentDef]
 	agentCodec      resources.KindCodec[aghconfig.AgentDef]
 	souls           resources.Store[soul.ResourceSpec]
@@ -49,6 +52,8 @@ type ResourceStoreConfig struct {
 	BundleCodec     resources.KindCodec[BundleResourceSpec]
 	Activations     resources.Store[ActivationResourceSpec]
 	ActivationCodec resources.KindCodec[ActivationResourceSpec]
+	Layouts         resources.Store[windowmanager.LayoutResource]
+	LayoutCodec     resources.KindCodec[windowmanager.LayoutResource]
 	Agents          resources.Store[aghconfig.AgentDef]
 	AgentCodec      resources.KindCodec[aghconfig.AgentDef]
 	Souls           resources.Store[soul.ResourceSpec]
@@ -69,12 +74,13 @@ type ResourceStoreConfig struct {
 var _ Store = (*ResourceStore)(nil)
 
 var bundleActivationOwnedKindAllowlist = map[resources.ResourceKind]struct{}{
-	aghconfig.AgentResourceKind:          {},
-	soul.ResourceKind:                    {},
-	heartbeat.ResourceKind:               {},
-	automationpkg.JobResourceKind:        {},
-	automationpkg.TriggerResourceKind:    {},
-	bridgepkg.BridgeInstanceResourceKind: {},
+	windowmanager.WindowLayoutResourceKind: {},
+	aghconfig.AgentResourceKind:            {},
+	soul.ResourceKind:                      {},
+	heartbeat.ResourceKind:                 {},
+	automationpkg.JobResourceKind:          {},
+	automationpkg.TriggerResourceKind:      {},
+	bridgepkg.BridgeInstanceResourceKind:   {},
 }
 
 func bundleActivationOwnedKindAllowed(kind resources.ResourceKind) bool {
@@ -84,35 +90,11 @@ func bundleActivationOwnedKindAllowed(kind resources.ResourceKind) bool {
 
 // NewResourceStore constructs a resource-backed bundle store.
 func NewResourceStore(cfg ResourceStoreConfig) (*ResourceStore, error) {
-	if cfg.Bundles == nil {
-		return nil, errors.New("bundles: bundle resource store is required")
+	if err := validateResourceStoreCoreConfig(cfg); err != nil {
+		return nil, err
 	}
-	if cfg.BundleCodec == nil {
-		return nil, errors.New("bundles: bundle resource codec is required")
-	}
-	if cfg.Activations == nil {
-		return nil, errors.New("bundles: activation resource store is required")
-	}
-	if cfg.ActivationCodec == nil {
-		return nil, errors.New("bundles: activation resource codec is required")
-	}
-	if cfg.Agents == nil || cfg.AgentCodec == nil {
-		return nil, errors.New("bundles: agent resource store and codec are required")
-	}
-	if cfg.Souls == nil || cfg.SoulCodec == nil {
-		return nil, errors.New("bundles: soul resource store and codec are required")
-	}
-	if cfg.Heartbeats == nil || cfg.HeartbeatCodec == nil {
-		return nil, errors.New("bundles: heartbeat resource store and codec are required")
-	}
-	if cfg.Jobs == nil || cfg.JobCodec == nil {
-		return nil, errors.New("bundles: automation job resource store and codec are required")
-	}
-	if cfg.Triggers == nil || cfg.TriggerCodec == nil {
-		return nil, errors.New("bundles: automation trigger resource store and codec are required")
-	}
-	if cfg.Bridges == nil || cfg.BridgeCodec == nil {
-		return nil, errors.New("bundles: bridge instance resource store and codec are required")
+	if err := validateResourceStoreProjectionConfig(cfg); err != nil {
+		return nil, err
 	}
 	if cfg.Actor.Kind == "" {
 		cfg.Actor = defaultBundleResourceActor()
@@ -125,6 +107,8 @@ func NewResourceStore(cfg ResourceStoreConfig) (*ResourceStore, error) {
 		bundleCodec:     cfg.BundleCodec,
 		activations:     cfg.Activations,
 		activationCodec: cfg.ActivationCodec,
+		layouts:         cfg.Layouts,
+		layoutCodec:     cfg.LayoutCodec,
 		agents:          cfg.Agents,
 		agentCodec:      cfg.AgentCodec,
 		souls:           cfg.Souls,
@@ -141,6 +125,47 @@ func NewResourceStore(cfg ResourceStoreConfig) (*ResourceStore, error) {
 		trigger:         cfg.Trigger,
 		now:             cfg.Now,
 	}, nil
+}
+
+func validateResourceStoreCoreConfig(cfg ResourceStoreConfig) error {
+	if cfg.Bundles == nil {
+		return errors.New("bundles: bundle resource store is required")
+	}
+	if cfg.BundleCodec == nil {
+		return errors.New("bundles: bundle resource codec is required")
+	}
+	if cfg.Activations == nil {
+		return errors.New("bundles: activation resource store is required")
+	}
+	if cfg.ActivationCodec == nil {
+		return errors.New("bundles: activation resource codec is required")
+	}
+	if cfg.Layouts == nil || cfg.LayoutCodec == nil {
+		return errors.New("bundles: window layout resource store and codec are required")
+	}
+	if cfg.Agents == nil || cfg.AgentCodec == nil {
+		return errors.New("bundles: agent resource store and codec are required")
+	}
+	if cfg.Souls == nil || cfg.SoulCodec == nil {
+		return errors.New("bundles: soul resource store and codec are required")
+	}
+	if cfg.Heartbeats == nil || cfg.HeartbeatCodec == nil {
+		return errors.New("bundles: heartbeat resource store and codec are required")
+	}
+	return nil
+}
+
+func validateResourceStoreProjectionConfig(cfg ResourceStoreConfig) error {
+	if cfg.Jobs == nil || cfg.JobCodec == nil {
+		return errors.New("bundles: automation job resource store and codec are required")
+	}
+	if cfg.Triggers == nil || cfg.TriggerCodec == nil {
+		return errors.New("bundles: automation trigger resource store and codec are required")
+	}
+	if cfg.Bridges == nil || cfg.BridgeCodec == nil {
+		return errors.New("bundles: bridge instance resource store and codec are required")
+	}
+	return nil
 }
 
 func defaultBundleResourceActor() resources.MutationActor {
@@ -191,6 +216,7 @@ func (s *ResourceStore) ListBundleActivationInventory(
 	}
 	items := make([]InventoryItem, 0)
 	collectors := []func(context.Context, resources.ResourceOwner) ([]InventoryItem, error){
+		s.listOwnedLayoutInventory,
 		s.listOwnedAgentInventory,
 		s.listOwnedSoulInventory,
 		s.listOwnedHeartbeatInventory,
@@ -333,7 +359,7 @@ func (s *ResourceStore) ApplyBundleActivationResources(
 	if err != nil {
 		return err
 	}
-	changed := make(map[resources.ResourceKind]struct{}, 6)
+	changed := make(map[resources.ResourceKind]struct{}, 7)
 	if err := s.applyBundleActivationResourcePlan(ctx, plan, changed); err != nil {
 		rollbackCtx := context.WithoutCancel(ctx)
 		if deadline, ok := ctx.Deadline(); ok {
@@ -369,5 +395,8 @@ func (s *ResourceStore) applyBundleActivationResourcePlan(
 	if err := s.syncOwnedTriggerResources(ctx, plan, changed); err != nil {
 		return err
 	}
-	return s.syncOwnedBridgeResources(ctx, plan, changed)
+	if err := s.syncOwnedBridgeResources(ctx, plan, changed); err != nil {
+		return err
+	}
+	return s.syncOwnedLayoutResources(ctx, plan, changed)
 }

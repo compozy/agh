@@ -19,6 +19,7 @@ import (
 	storepkg "github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 type bundleResourceUnitHarness struct {
@@ -29,6 +30,7 @@ type bundleResourceUnitHarness struct {
 	resourceStore  *ResourceStore
 	bundles        resources.Store[BundleResourceSpec]
 	activations    resources.Store[ActivationResourceSpec]
+	layouts        resources.Store[windowmanager.LayoutResource]
 	agents         resources.Store[aghconfig.AgentDef]
 	souls          resources.Store[soul.ResourceSpec]
 	heartbeats     resources.Store[heartbeat.ResourceSpec]
@@ -40,6 +42,11 @@ type bundleResourceUnitHarness struct {
 
 type failingJobStore struct {
 	base   resources.Store[automationpkg.Job]
+	putErr error
+}
+
+type failingLayoutStore struct {
+	base   resources.Store[windowmanager.LayoutResource]
 	putErr error
 }
 
@@ -78,6 +85,43 @@ func (s failingJobStore) List(
 	actor resources.MutationActor,
 	filter resources.ResourceFilter,
 ) ([]resources.Record[automationpkg.Job], error) {
+	return s.base.List(ctx, actor, filter)
+}
+
+func (s failingLayoutStore) Put(
+	ctx context.Context,
+	actor resources.MutationActor,
+	draft resources.Draft[windowmanager.LayoutResource],
+) (resources.Record[windowmanager.LayoutResource], error) {
+	record, err := s.base.Put(ctx, actor, draft)
+	if err != nil {
+		return resources.Record[windowmanager.LayoutResource]{}, err
+	}
+	return record, s.putErr
+}
+
+func (s failingLayoutStore) Delete(
+	ctx context.Context,
+	actor resources.MutationActor,
+	id string,
+	expectedVersion int64,
+) error {
+	return s.base.Delete(ctx, actor, id, expectedVersion)
+}
+
+func (s failingLayoutStore) Get(
+	ctx context.Context,
+	actor resources.MutationActor,
+	id string,
+) (resources.Record[windowmanager.LayoutResource], error) {
+	return s.base.Get(ctx, actor, id)
+}
+
+func (s failingLayoutStore) List(
+	ctx context.Context,
+	actor resources.MutationActor,
+	filter resources.ResourceFilter,
+) ([]resources.Record[windowmanager.LayoutResource], error) {
 	return s.base.List(ctx, actor, filter)
 }
 
@@ -140,6 +184,26 @@ func TestBundleResourceCodecsValidateAndNormalize(t *testing.T) {
 	}
 	if !decodedBundle.OwnerProvidesBridgeAdapter {
 		t.Fatal("decodedBundle.OwnerProvidesBridgeAdapter = false, want true")
+	}
+	if got, want := decodedBundle.Bundle.Profiles[0].Layouts[0].Layout.AspectVariant,
+		windowmanager.LayoutAspectAny; got != want {
+		t.Fatalf("decoded layout aspect = %q, want %q", got, want)
+	}
+
+	invalidBundle := cloneBundleSpec(ext.Bundles[0])
+	invalidBundle.Profiles[0].Layouts[0].Layout.ParticipantSlots = []windowmanager.WindowID{
+		"duplicate",
+		"duplicate",
+	}
+	if _, err := bundleCodec.DecodeAndValidate(
+		testutil.Context(t),
+		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		mustEncodeJSON(t, BundleResourceSpec{
+			ExtensionName: "marketing-team",
+			Bundle:        invalidBundle,
+		}),
+	); !errors.Is(err, resources.ErrValidation) {
+		t.Fatalf("DecodeAndValidate(invalid embedded layout) error = %v, want ErrValidation", err)
 	}
 
 	activationCodec, err := NewActivationResourceCodec()
@@ -229,22 +293,28 @@ func TestResourceStoreActivationCRUDInventoryAndApply(t *testing.T) {
 		t.Fatalf("len(bundles) = %d, want %d", got, want)
 	}
 
+	layout := bundleTestLayoutResource("layout-owned", "Owned Layout")
 	job := unitJob("job-owned", "owned")
 	trigger := unitTrigger("trigger-owned", "owned-trigger")
 	bridge := unitBridge("bridge-owned", "Owned Bridge")
 	err = h.resourceStore.ApplyBundleActivationResources(h.ctx, BundleActivationResourcePlan{
 		activeActivationIDs: map[string]struct{}{activation.ID: {}},
-		desiredJobs:         []automationpkg.Job{job},
-		desiredTriggers:     []automationpkg.Trigger{trigger},
-		desiredBridges:      []bridgepkg.BridgeInstance{bridge},
-		jobOwners:           map[string]string{job.ID: activation.ID},
-		triggerOwners:       map[string]string{trigger.ID: activation.ID},
-		bridgeOwners:        map[string]string{bridge.ID: activation.ID},
+		desiredLayouts: []ownedLayoutResource{{
+			ID: layout.ID, Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, Spec: layout,
+		}},
+		desiredJobs:     []automationpkg.Job{job},
+		desiredTriggers: []automationpkg.Trigger{trigger},
+		desiredBridges:  []bridgepkg.BridgeInstance{bridge},
+		layoutOwners:    map[string]string{layout.ID: activation.ID},
+		jobOwners:       map[string]string{job.ID: activation.ID},
+		triggerOwners:   map[string]string{trigger.ID: activation.ID},
+		bridgeOwners:    map[string]string{bridge.ID: activation.ID},
 	})
 	if err != nil {
 		t.Fatalf("ApplyBundleActivationResources() error = %v", err)
 	}
 	for _, kind := range []resources.ResourceKind{
+		windowmanager.WindowLayoutResourceKind,
 		automationpkg.JobResourceKind,
 		automationpkg.TriggerResourceKind,
 		bridgepkg.BridgeInstanceResourceKind,
@@ -256,12 +326,16 @@ func TestResourceStoreActivationCRUDInventoryAndApply(t *testing.T) {
 	h.triggeredKinds = nil
 	if err := h.resourceStore.ApplyBundleActivationResources(h.ctx, BundleActivationResourcePlan{
 		activeActivationIDs: map[string]struct{}{activation.ID: {}},
-		desiredJobs:         []automationpkg.Job{job},
-		desiredTriggers:     []automationpkg.Trigger{trigger},
-		desiredBridges:      []bridgepkg.BridgeInstance{bridge},
-		jobOwners:           map[string]string{job.ID: activation.ID},
-		triggerOwners:       map[string]string{trigger.ID: activation.ID},
-		bridgeOwners:        map[string]string{bridge.ID: activation.ID},
+		desiredLayouts: []ownedLayoutResource{{
+			ID: layout.ID, Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, Spec: layout,
+		}},
+		desiredJobs:     []automationpkg.Job{job},
+		desiredTriggers: []automationpkg.Trigger{trigger},
+		desiredBridges:  []bridgepkg.BridgeInstance{bridge},
+		layoutOwners:    map[string]string{layout.ID: activation.ID},
+		jobOwners:       map[string]string{job.ID: activation.ID},
+		triggerOwners:   map[string]string{trigger.ID: activation.ID},
+		bridgeOwners:    map[string]string{bridge.ID: activation.ID},
 	}); err != nil {
 		t.Fatalf("ApplyBundleActivationResources(unchanged) error = %v", err)
 	}
@@ -272,8 +346,18 @@ func TestResourceStoreActivationCRUDInventoryAndApply(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListBundleActivationInventory() error = %v", err)
 	}
-	if got, want := len(inventory), 3; got != want {
+	if got, want := len(inventory), 4; got != want {
 		t.Fatalf("len(inventory) = %d, want %d", got, want)
+	}
+	layoutRecord, err := h.layouts.Get(h.ctx, h.actor, layout.ID)
+	if err != nil {
+		t.Fatalf("Get(layout) error = %v", err)
+	}
+	if layoutRecord.ID != layoutRecord.Spec.ID {
+		t.Fatalf("layout record/spec IDs = %q/%q, want identical", layoutRecord.ID, layoutRecord.Spec.ID)
+	}
+	if got, want := layoutRecord.Scope.Kind, resources.ResourceScopeKindGlobal; got != want {
+		t.Fatalf("layout scope = %q, want %q", got, want)
 	}
 	if err := h.resourceStore.DeleteBundleActivation(h.ctx, activation.ID); err != nil {
 		t.Fatalf("DeleteBundleActivation() error = %v", err)
@@ -326,9 +410,9 @@ func TestResourceStoreApplyRollsBackEarlierKindsOnLaterFailure(t *testing.T) {
 		t.Parallel()
 
 		h := newBundleResourceUnitHarness(t)
-		putErr := errors.New("put job failed")
-		h.resourceStore.jobs = failingJobStore{
-			base:   h.jobs,
+		putErr := errors.New("put layout failed")
+		h.resourceStore.layouts = failingLayoutStore{
+			base:   h.layouts,
 			putErr: putErr,
 		}
 
@@ -338,15 +422,15 @@ func TestResourceStoreApplyRollsBackEarlierKindsOnLaterFailure(t *testing.T) {
 			Scope: scope,
 			Spec:  bundleAgentRecord("agent_owned_atomic", "atomic-agent", scope).Spec,
 		}
-		job := unitJob("job-owned-atomic", "atomic-job")
+		layout := bundleTestLayoutResource("layout-owned-atomic", "Atomic layout")
 		activationID := "act-atomic"
 
 		err := h.resourceStore.ApplyBundleActivationResources(h.ctx, BundleActivationResourcePlan{
 			activeActivationIDs: map[string]struct{}{activationID: {}},
+			desiredLayouts:      []ownedLayoutResource{{ID: layout.ID, Scope: scope, Spec: layout}},
 			desiredAgents:       []ownedAgentResource{agent},
-			desiredJobs:         []automationpkg.Job{job},
+			layoutOwners:        map[string]string{layout.ID: activationID},
 			agentOwners:         map[string]string{agent.ID: activationID},
-			jobOwners:           map[string]string{job.ID: activationID},
 		})
 		if !errors.Is(err, putErr) {
 			t.Fatalf("ApplyBundleActivationResources() error = %v, want %v", err, putErr)
@@ -354,8 +438,8 @@ func TestResourceStoreApplyRollsBackEarlierKindsOnLaterFailure(t *testing.T) {
 		if _, err := h.agents.Get(h.ctx, h.actor, agent.ID); !errors.Is(err, resources.ErrNotFound) {
 			t.Fatalf("Get(agent) error = %v, want ErrNotFound after rollback", err)
 		}
-		if _, err := h.jobs.Get(h.ctx, h.actor, job.ID); !errors.Is(err, resources.ErrNotFound) {
-			t.Fatalf("Get(job) error = %v, want ErrNotFound after rollback", err)
+		if _, err := h.layouts.Get(h.ctx, h.actor, layout.ID); !errors.Is(err, resources.ErrNotFound) {
+			t.Fatalf("Get(layout) error = %v, want ErrNotFound after rollback", err)
 		}
 		if len(h.triggeredKinds) != 0 {
 			t.Fatalf("triggered kinds after rollback = %#v, want none", h.triggeredKinds)
@@ -554,6 +638,8 @@ func TestNewResourceStoreAppliesDefaultActor(t *testing.T) {
 		BundleCodec:     h.resourceStore.bundleCodec,
 		Activations:     h.activations,
 		ActivationCodec: h.resourceStore.activationCodec,
+		Layouts:         h.layouts,
+		LayoutCodec:     h.resourceStore.layoutCodec,
 		Agents:          h.agents,
 		AgentCodec:      h.resourceStore.agentCodec,
 		Souls:           h.souls,
@@ -585,6 +671,8 @@ func TestNewResourceStoreAppliesDefaultActor(t *testing.T) {
 		{name: "bundle codec", mutate: func(cfg *ResourceStoreConfig) { cfg.BundleCodec = nil }},
 		{name: "activations", mutate: func(cfg *ResourceStoreConfig) { cfg.Activations = nil }},
 		{name: "activation codec", mutate: func(cfg *ResourceStoreConfig) { cfg.ActivationCodec = nil }},
+		{name: "layout store", mutate: func(cfg *ResourceStoreConfig) { cfg.Layouts = nil }},
+		{name: "layout codec", mutate: func(cfg *ResourceStoreConfig) { cfg.LayoutCodec = nil }},
 		{name: "agent store", mutate: func(cfg *ResourceStoreConfig) { cfg.Agents = nil }},
 		{name: "agent codec", mutate: func(cfg *ResourceStoreConfig) { cfg.AgentCodec = nil }},
 		{name: "soul store", mutate: func(cfg *ResourceStoreConfig) { cfg.Souls = nil }},
@@ -638,6 +726,10 @@ func newBundleResourceUnitHarness(t *testing.T) *bundleResourceUnitHarness {
 	if err != nil {
 		t.Fatalf("NewActivationResourceCodec() error = %v", err)
 	}
+	layoutCodec, err := windowmanager.NewLayoutResourceCodec()
+	if err != nil {
+		t.Fatalf("NewLayoutResourceCodec() error = %v", err)
+	}
 	agentCodec, err := aghconfig.NewAgentResourceCodec()
 	if err != nil {
 		t.Fatalf("NewAgentResourceCodec() error = %v", err)
@@ -665,6 +757,7 @@ func newBundleResourceUnitHarness(t *testing.T) *bundleResourceUnitHarness {
 
 	bundleStore := mustNewUnitTypedStore(t, kernel, bundleCodec)
 	activationStore := mustNewUnitTypedStore(t, kernel, activationCodec)
+	layoutStore := mustNewUnitTypedStore(t, kernel, layoutCodec)
 	agentStore := mustNewUnitTypedStore(t, kernel, agentCodec)
 	soulStore := mustNewUnitTypedStore(t, kernel, soulCodec)
 	heartbeatStore := mustNewUnitTypedStore(t, kernel, heartbeatCodec)
@@ -679,6 +772,7 @@ func newBundleResourceUnitHarness(t *testing.T) *bundleResourceUnitHarness {
 		actor:       actor,
 		bundles:     bundleStore,
 		activations: activationStore,
+		layouts:     layoutStore,
 		agents:      agentStore,
 		souls:       soulStore,
 		heartbeats:  heartbeatStore,
@@ -691,6 +785,8 @@ func newBundleResourceUnitHarness(t *testing.T) *bundleResourceUnitHarness {
 		BundleCodec:     bundleCodec,
 		Activations:     activationStore,
 		ActivationCodec: activationCodec,
+		Layouts:         layoutStore,
+		LayoutCodec:     layoutCodec,
 		Agents:          agentStore,
 		AgentCodec:      agentCodec,
 		Souls:           soulStore,

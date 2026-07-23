@@ -1,6 +1,20 @@
-import type { components } from "@/generated/agh-openapi";
+import type {
+  DesktopId,
+  DropPlacement,
+  FocusDirection,
+  GroupId,
+  LayoutDesktop,
+  LayoutNodeId,
+  LayoutProjection,
+  WindowPlacement,
+  WindowManagerClientView,
+  WindowManagerConfig,
+  WindowManagerConnectionStatus,
+  WindowManagerSnapshot,
+} from "./window-manager-types";
+import type { SnapCorner, SnapSide, SnapTarget } from "./snap-targets";
 
-/** The 14 desktop apps. Window ids derive from these (`app:<id>` | `session:<sessionId>`). */
+/** The app surfaces rendered inside daemon-managed logical windows. */
 export type OsAppId =
   | "dashboard"
   | "session"
@@ -24,224 +38,132 @@ export interface OsRect {
   h: number;
 }
 
-/**
- * Persisted snap zone: normalized fractions (0..1) of the desktop work area
- * (ADR-009). Clients derive px locally; fractions are the cross-client truth.
- */
-export interface OsSnapZone {
-  fx: number;
-  fy: number;
-  fw: number;
-  fh: number;
-}
-
-/**
- * Snap zone catalog ids: the six pointer zones (ADR-009 — halves + corner
- * quarters; the top DRAG edge stays unbound, zoom owns full) plus the
- * preset-only `top`/`bottom` halves reachable via the zoom menu and palette,
- * never via drag.
- */
-export type OsSnapZoneId =
-  | "left"
-  | "right"
-  | "top"
-  | "bottom"
-  | "top-left"
-  | "top-right"
-  | "bottom-left"
-  | "bottom-right";
-
-/** Multi-window arrange presets (zoom menu "Fill & Arrange" + palette). */
-export type OsArrangePreset = "two-up" | "grid";
-
-/** Directional half of a window a split drop claims. */
-export type OsSplitSide = "left" | "right" | "top" | "bottom";
-
-/** Ephemeral drag hint: what a release would do with `windowId`. */
-export type OsSnapHint =
-  | { windowId: string; kind: "zone"; zoneId: OsSnapZoneId }
-  | {
-      windowId: string;
-      kind: "window";
-      targetId: string;
-      side: OsSplitSide;
-      /** Claimed half of the target's visual rect (px), for the overlay. */
-      rect: OsRect;
-    };
-
-export interface OsWindowLocation {
+export interface OsWindowRoute {
   pathname: string;
   search: Record<string, unknown>;
 }
 
+/** Client projection of one authoritative daemon window. */
 export interface OsWindow {
   id: string;
   app: OsAppId;
   instanceKey: string | null;
-  location: OsWindowLocation;
+  route: OsWindowRoute;
+  desktopId: DesktopId;
+  placement: WindowPlacement;
   rect: OsRect;
-  prevRect: OsRect | null;
-  z: number;
+  layer: number;
   minimized: boolean;
-  maximized: boolean;
-  /** Derived-geometry authority while set; exclusive with `maximized` (invariant 19). */
-  snap: OsSnapZone | null;
+  groupId: GroupId | null;
+  nodeId: LayoutNodeId | null;
+  stackId: LayoutNodeId | null;
+  stackActive: boolean;
 }
 
 export type OsWallpaper = "ember" | "mesh" | "carbon";
 export type OsPresentation = "floating" | "compact";
+export type OsViewportState = "ready" | "rejected";
 export type OsHydration = "pending" | "live" | "degraded";
-
-/** Canonical wire DTO for one desktop-state entry (generated from OpenAPI). */
-export type OsStateEntry = components["schemas"]["DesktopStateEntry"];
-
-/** One live desktop-state change delivered over the stream. */
-export interface OsStateEvent {
-  entry: OsStateEntry;
-  origin: string;
-}
+export type OsArrangePreset = "two-up" | "grid";
 
 export interface OsOpenTarget {
   app: OsAppId;
   instanceKey?: string;
-  location?: OsWindowLocation;
+  route?: OsWindowRoute;
 }
 
-/** Viewport box the win-layer occupies; rect clamping is computed against it. */
 export interface OsDesktopBounds {
   width: number;
   height: number;
 }
 
-export interface OsDesktopStore {
-  windows: Record<string, OsWindow>;
+export interface MoveWindowInput {
+  destinationDesktopId: DesktopId;
+  targetWindowId?: string;
+  placement: DropPlacement;
+  floatingRect?: OsRect;
+  moveGroup?: boolean;
+}
+
+/**
+ * Selector surface derived from Query snapshots plus client-local presentation.
+ * It is never persisted and never owns a revision.
+ */
+export interface OsDesktopRuntimeStore {
+  snapshot: WindowManagerSnapshot | null;
+  windowManagerConfig: WindowManagerConfig | null;
+  client: WindowManagerClientView | null;
+  desktops: readonly LayoutDesktop[];
+  projections: Readonly<Record<DesktopId, LayoutProjection>>;
+  windows: Readonly<Record<string, OsWindow>>;
+  activeDesktopId: DesktopId | null;
   focusedId: string | null;
-  railCollapsedAgentIds: string[];
+  railCollapsedAgentIds: readonly string[];
   wallpaper: OsWallpaper;
-  /** Desktop-doc motion preference (in-product toggle; system pref composes at read sites). */
   reduceMotion: boolean;
   dockMagnify: boolean;
   presentation: OsPresentation;
+  viewportState: OsViewportState;
   hydration: OsHydration;
+  connectionStatus: WindowManagerConnectionStatus;
+  desktopBounds: OsDesktopBounds | null;
   openOrFocus(target: OsOpenTarget): string;
-  closeWindow(id: string): void;
+  closeWindow(id: string): Promise<boolean>;
   focusWindow(id: string): void;
-  minimizeWindow(id: string): void;
+  minimizeWindow(id: string): Promise<boolean>;
   restoreWindow(id: string): void;
-  toggleZoom(id: string): void;
-  /**
-   * Snaps a window to a fractional zone (invariant 19): stores the pre-snap
-   * rect in `prevRect` and clears `maximized`. `zone: null` restores the
-   * stored `prevRect` exactly. No-op in compact presentation.
-   */
-  snapWindow(id: string, zone: OsSnapZone | null): void;
-  /**
-   * Resize-in-place for a snapped window: rewrites `snap` fractions from the
-   * resulting px rect (work-area inverse) so the window STAYS snapped and
-   * keeps proportional reflow. `prevRect` is untouched — drag-away restore
-   * still returns the pre-snap rect exactly. No-op when not snapped.
-   */
-  resizeSnapped(id: string, rect: OsRect): void;
+  zoomWindow(id: string): void;
+  toggleFloating(id: string): void;
+  moveWindow(id: string, input: MoveWindowInput): void;
+  arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
+  commitFloatingRect(id: string, rect: OsRect): void;
+  resizeLayout(splitId: string, boundaryIndex: number, delta: number): void;
+  balanceLayout(groupId?: string, splitId?: string): void;
+  navigateWindow(id: string, route: OsWindowRoute): void;
   toggleRailGroup(agentId: string): void;
-  /** Appearance prefs (US-015): persisted with the space via the desktop doc. */
   setWallpaper(wallpaper: OsWallpaper): void;
   setDockMagnify(on: boolean): void;
   setReduceMotion(on: boolean): void;
-  /**
-   * Commits a floating px rect: the window becomes (or stays) floating at
-   * `rect`. Clears `snap` (drag-away detach) and `maximized` (resize detach)
-   * in the same mutation — the fraction-preserving path is `resizeSnapped`.
-   */
-  commitRect(id: string, rect: OsRect): void;
-  setLocation(id: string, loc: OsWindowLocation): void;
-  applyRemote(event: OsStateEvent): void;
+  setDesktopBounds(bounds: OsDesktopBounds): void;
 }
 
-/** Operational WM state used by the shell around the exact public contract. */
-export interface OsDesktopRuntimeStore extends OsDesktopStore {
-  /** One-shot soft-cap guidance flag; set once when the 13th window opens. */
-  softCapNotice: boolean;
-  /** Last measured win-layer box; snapped/maximized geometry derives from it. */
-  desktopBounds: OsDesktopBounds | null;
-  /** Live snap-drag hint (one per desktop); never persisted. */
-  snapHint: OsSnapHint | null;
-  setSnapHint(hint: OsSnapHint | null): void;
-  /**
-   * Live seam-resize preview: per-window zone overrides while a seam drag is
-   * in flight. Rendering derives from these; nothing persists until the
-   * gesture commits through `snapWindow`. Never persisted.
-   */
-  seamPreview: Record<string, OsSnapZone> | null;
-  setSeamPreview(preview: Record<string, OsSnapZone> | null): void;
-  /**
-   * Split drop (window-relative snap): the target's visual footprint divides
-   * in fraction space — the dragged window takes the `side` half, the target
-   * keeps the other — and BOTH land snapped (two `win:*` fraction writes, no
-   * group state). No-op when a half would violate the codec floor.
-   */
-  splitWindows(dragId: string, targetId: string, side: OsSplitSide): void;
-  /**
-   * Arranges the anchor window plus the most recent visible windows (by z)
-   * into a preset: `two-up` = anchor left half + latest other right half;
-   * `grid` = up to four windows in halves/quarters by participant count.
-   * No-op without at least one other visible window.
-   */
-  arrangeWindows(anchorId: string, preset: OsArrangePreset): void;
-  /** Snapshot adoption: replaces the mirror, drops invalid entries, compacts z. */
-  hydrate(entries: OsStateEntry[]): void;
-  setPresentation(presentation: OsPresentation): void;
-  setHydration(hydration: OsHydration): void;
-  /** Records the settled commit seq for a key so stale remote events are ignored. */
-  markSettled(key: string, seq: number): void;
-  /** Pulls out-of-bounds windows back into the desktop after a viewport resize. */
-  clampToViewport(bounds: OsDesktopBounds): void;
-  clearSoftCapNotice(): void;
-  /** Clears the desktop for a workspace switch; hydration restarts as pending. */
-  resetForWorkspace(): void;
+export interface OsDesktopRuntime {
+  getState(): OsDesktopRuntimeStore;
+  getInitialState(): OsDesktopRuntimeStore;
+  subscribe(
+    listener: (state: OsDesktopRuntimeStore, previous: OsDesktopRuntimeStore) => void
+  ): () => void;
 }
 
-/** Presentation breakpoint (px); below it the desktop stacks (compact). */
+export interface WindowManagerController extends OsDesktopRuntime {
+  bind(binding: { workspaceId: string; clientId: string }): void;
+  unbind(): void;
+  setClient(client: WindowManagerClientView | null): void;
+  setConnectionStatus(status: WindowManagerConnectionStatus): void;
+  setLoadError(error: Error | null): void;
+  createDesktop(): void;
+  renameDesktop(desktopId: string, name: string): void;
+  reorderDesktop(desktopId: string, order: number): void;
+  switchDesktop(desktopId: string): void;
+  switchDesktopDirection(direction: "previous" | "next"): void;
+  deleteDesktop(desktopId: string, destinationId: string | null): void;
+  moveWindowToDesktop(windowId: string, destinationDesktopId: string): void;
+  tileWindow(windowId: string, edge: SnapSide | SnapCorner): void;
+  applySnapTarget(windowId: string, target: SnapTarget, moveGroup?: boolean): void;
+  focusDirection(direction: FocusDirection): void;
+  undoLayout(): void;
+  redoLayout(): void;
+  balanceFocusedLayout(): void;
+  clearConflict(): void;
+  refreshSnapshot(): void;
+  destroy(): void;
+}
+
 export const OS_COMPACT_BREAKPOINT = 960;
-/** Trailing debounce for rect persistence writes. */
-export const OS_RECT_DEBOUNCE_MS = 250;
-/** Soft open-window guidance threshold (toast, no hard cap). */
-export const OS_WINDOW_SOFT_CAP = 12;
-
-/** Desktop gutters (px) the clamp respects: menubar above, dock strip below. */
-export const OS_DESKTOP_GUTTERS = { top: 4, right: 8, bottom: 120, left: 8 } as const;
-
-/** Window minimum size (px); Rnd resize and derived snap rects clamp to it. */
 export const OS_WINDOW_MIN_WIDTH = 280;
 export const OS_WINDOW_MIN_HEIGHT = 180;
-
-/**
- * Work-area insets (px) inside the win-layer — the "fill the desktop" box both
- * maximized windows and snap fractions derive from (one authority, ADR-009).
- */
-export const OS_WORK_AREA_INSETS = { top: 8, right: 10, bottom: 78, left: 10 } as const;
-
-/** Codec floor for snap fractions: a zone spans ≥10% of the work area per axis. */
-export const OS_SNAP_MIN_FRACTION = 0.1;
-
-/**
- * Gap (px) between adjacent snapped windows: each derived edge NOT on the
- * work-area boundary insets by half of it, so two tiles read as neighbors
- * instead of one fused sheet (macOS "tiled windows have margins" posture).
- */
-export const OS_SNAP_GUTTER = 8;
+export const OS_WINDOW_SOFT_CAP = 12;
 
 export function osWindowId(app: OsAppId, instanceKey?: string | null): string {
   return app === "session" && instanceKey ? `session:${instanceKey}` : `app:${app}`;
-}
-
-/** Desktop-state key for one window (`win:<windowId>`). */
-export function osWindowKey(windowId: string): string {
-  return `win:${windowId}`;
-}
-
-/** Desktop-state key for the desktop-wide prefs doc. */
-export const OS_DESKTOP_KEY = "desktop";
-
-export function windowIdFromKey(key: string): string | null {
-  return key.startsWith("win:") ? key.slice(4) : null;
 }

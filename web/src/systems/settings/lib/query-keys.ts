@@ -23,6 +23,9 @@ export const settingsKeys = {
 
   sections: () => [...settingsKeys.all, "section"] as const,
   section: (section: SettingsSectionKey) => [...settingsKeys.sections(), section] as const,
+  windowManagerLayoutsRoot: () => [...settingsKeys.section("window-manager"), "layouts"] as const,
+  windowManagerLayoutProfiles: () =>
+    [...settingsKeys.windowManagerLayoutsRoot(), "profiles"] as const,
   skillsSection: (filter: SettingsSkillsFilter = {}) =>
     [
       ...settingsKeys.section("skills"),

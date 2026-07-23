@@ -73,6 +73,13 @@ function OsWindowBody({
   );
 }
 
+function targetsWindowChromeControl(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('[data-slot="os-traffic-lights"] button[data-action]') !== null
+  );
+}
+
 export function OsWindowFrame({
   title,
   glyph,
@@ -83,6 +90,7 @@ export function OsWindowFrame({
   presentation = "floating",
   className,
   children,
+  onPointerDownCapture,
   ...props
 }: OsWindowFrameProps) {
   const [scrolled, setScrolled] = React.useState(false);
@@ -105,6 +113,10 @@ export function OsWindowFrame({
             ],
         className
       )}
+      onPointerDownCapture={event => {
+        if (targetsWindowChromeControl(event.target)) return;
+        onPointerDownCapture?.(event);
+      }}
       {...props}
     >
       <TopbarSlotProvider>

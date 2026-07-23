@@ -12,6 +12,7 @@ describe("settings sections metadata", () => {
     expect(SETTINGS_SECTIONS.map(section => section.slug)).toEqual([
       "general",
       "appearance",
+      "layouts",
       "providers",
       "memory",
       "skills",
@@ -26,6 +27,7 @@ describe("settings sections metadata", () => {
   it("provides nested paths rooted under the settings shell", () => {
     expect(SETTINGS_ROOT_PATH).toBe("/settings");
     expect(settingsSectionPath("providers")).toBe("/settings/providers");
+    expect(settingsSectionPath("layouts")).toBe("/settings/layouts");
     expect(settingsSectionPath("hooks")).toBe("/settings/hooks");
     expect(settingsSectionPath("extensions")).toBe("/settings/extensions");
   });

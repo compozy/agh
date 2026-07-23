@@ -121,6 +121,12 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassRestartRequired,
 		},
 		{
+			name:          "Should classify window-manager behavior as live",
+			path:          "window_manager.snap.repeat_ratios",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
 			name:    "Should reject unknown paths",
 			path:    "unknown.path",
 			wantErr: true,
@@ -238,4 +244,16 @@ func TestNextActionForLifecycle(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDiffClassForRoot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should classify the window-manager settings section as live", func(t *testing.T) {
+		t.Parallel()
+
+		if got, want := DiffClassForRoot("window-manager"), DiffClassLive; got != want {
+			t.Fatalf("DiffClassForRoot(window-manager) = %q, want %q", got, want)
+		}
+	})
 }

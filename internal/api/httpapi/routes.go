@@ -22,7 +22,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerBridgeRoutes(api, handlers)
 	registerNotificationRoutes(api, handlers)
 	registerWorkspaceRoutes(api, handlers)
-	registerDesktopStateRoutes(api, handlers)
+	registerWindowManagerRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
 	registerAgentRoutes(api, handlers)
 	registerLogsRoutes(api, handlers)
@@ -383,6 +383,8 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.PATCH("/automation", privileged, handlers.UpdateSettingsAutomation)
 	settings.GET("/network", handlers.GetSettingsNetwork)
 	settings.PATCH("/network", privileged, handlers.UpdateSettingsNetwork)
+	settings.GET("/window-manager", handlers.GetSettingsWindowManager)
+	settings.PATCH("/window-manager", privileged, handlers.UpdateSettingsWindowManager)
 
 	observability := settings.Group("/observability")
 	observability.GET("", handlers.GetSettingsObservability)

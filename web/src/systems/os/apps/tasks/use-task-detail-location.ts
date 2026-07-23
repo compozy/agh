@@ -114,7 +114,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   };
 
   const handleDeleteTask = async (id: string) => {
-    coordinator.userOpen({ app: "tasks", location: { pathname: "/tasks", search: {} } });
+    coordinator.userOpen({ app: "tasks", route: { pathname: "/tasks", search: {} } });
     try {
       await deleteMutation.mutateAsync({ id });
       toast.success("Task deleted.");

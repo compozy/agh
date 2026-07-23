@@ -5,8 +5,6 @@ import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-
 import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
 import { useUserHomeDirStore } from "@/systems/workspace/hooks/use-user-home-dir-store";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
-import { desktopStore } from "@/systems/os/stores/desktop-store";
-import type { OsAppId } from "@/systems/os/lib/os-types";
 
 export function StorybookRouteCanvas() {
   return null;
@@ -14,15 +12,12 @@ export function StorybookRouteCanvas() {
 
 export function StorybookWorkspaceSetup({
   workspaceId = storyDefaultWorkspaceId,
-  initialApp,
 }: {
   workspaceId?: string;
-  initialApp?: OsAppId;
 }) {
   useEffect(() => {
     useActiveWorkspaceStore.getState().setSelectedWorkspaceId(workspaceId);
-    if (initialApp) desktopStore.getState().openOrFocus({ app: initialApp });
-  }, [initialApp, workspaceId]);
+  }, [workspaceId]);
 
   return null;
 }

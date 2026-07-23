@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/heartbeat"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 func newBundleResourceStore(
@@ -39,6 +40,8 @@ func newBundleResourceStore(
 		BundleCodec:     deps.bundleCodec,
 		Activations:     deps.activationStore,
 		ActivationCodec: deps.activationCodec,
+		Layouts:         deps.layoutStore,
+		LayoutCodec:     deps.layoutCodec,
 		Agents:          deps.agentStore,
 		AgentCodec:      deps.agentCodec,
 		Souls:           deps.soulStore,
@@ -67,6 +70,8 @@ type bundleResourceStoreDeps struct {
 	bundleStore     resources.Store[bundlepkg.BundleResourceSpec]
 	activationCodec resources.KindCodec[bundlepkg.ActivationResourceSpec]
 	activationStore resources.Store[bundlepkg.ActivationResourceSpec]
+	layoutCodec     resources.KindCodec[windowmanager.LayoutResource]
+	layoutStore     resources.Store[windowmanager.LayoutResource]
 	agentCodec      resources.KindCodec[aghconfig.AgentDef]
 	agentStore      resources.Store[aghconfig.AgentDef]
 	soulCodec       resources.KindCodec[soul.ResourceSpec]
@@ -99,6 +104,8 @@ func resolveBundleResourceStoreDeps(
 	deps.triggerStore = projectionDeps.triggerStore
 	deps.bridgeCodec = projectionDeps.bridgeCodec
 	deps.bridgeStore = projectionDeps.bridgeStore
+	deps.layoutCodec = projectionDeps.layoutCodec
+	deps.layoutStore = projectionDeps.layoutStore
 	return deps, nil
 }
 
@@ -196,6 +203,15 @@ func resolveBundleProjectionResourceStoreDeps(
 	if err != nil {
 		return bundleResourceStoreDeps{}, err
 	}
+	layoutCodec, layoutStore, err := resolveDaemonResourceStore[windowmanager.LayoutResource](
+		state,
+		raw,
+		windowmanager.WindowLayoutResourceKind,
+		"bundle window layout",
+	)
+	if err != nil {
+		return bundleResourceStoreDeps{}, err
+	}
 	return bundleResourceStoreDeps{
 		jobCodec:     jobCodec,
 		jobStore:     jobStore,
@@ -203,6 +219,8 @@ func resolveBundleProjectionResourceStoreDeps(
 		triggerStore: triggerStore,
 		bridgeCodec:  bridgeCodec,
 		bridgeStore:  bridgeStore,
+		layoutCodec:  layoutCodec,
+		layoutStore:  layoutStore,
 	}, nil
 }
 

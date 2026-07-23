@@ -6,24 +6,25 @@ import "fmt"
 type HookEventFamily string
 
 const (
-	HookEventFamilySession     HookEventFamily = "session"
-	HookEventFamilySandbox     HookEventFamily = "sandbox"
-	HookEventFamilyInput       HookEventFamily = "input"
-	HookEventFamilyPrompt      HookEventFamily = "prompt"
-	HookEventFamilyEvent       HookEventFamily = "event"
-	HookEventFamilyAutomation  HookEventFamily = "automation"
-	HookEventFamilyAgent       HookEventFamily = "agent"
-	HookEventFamilyTurn        HookEventFamily = "turn"
-	HookEventFamilyMessage     HookEventFamily = "message"
-	HookEventFamilyTool        HookEventFamily = "tool"
-	HookEventFamilyPermission  HookEventFamily = "permission"
-	HookEventFamilyContext     HookEventFamily = "context"
-	HookEventFamilyCoordinator HookEventFamily = "coordinator"
-	HookEventFamilyTask        HookEventFamily = "task"
-	HookEventFamilyTaskRun     HookEventFamily = "task.run"
-	HookEventFamilyLoop        HookEventFamily = "loop"
-	HookEventFamilySpawn       HookEventFamily = "spawn"
-	HookEventFamilyNetwork     HookEventFamily = "network"
+	HookEventFamilySession       HookEventFamily = "session"
+	HookEventFamilySandbox       HookEventFamily = "sandbox"
+	HookEventFamilyInput         HookEventFamily = "input"
+	HookEventFamilyPrompt        HookEventFamily = "prompt"
+	HookEventFamilyEvent         HookEventFamily = "event"
+	HookEventFamilyAutomation    HookEventFamily = "automation"
+	HookEventFamilyAgent         HookEventFamily = "agent"
+	HookEventFamilyTurn          HookEventFamily = "turn"
+	HookEventFamilyMessage       HookEventFamily = "message"
+	HookEventFamilyTool          HookEventFamily = "tool"
+	HookEventFamilyPermission    HookEventFamily = "permission"
+	HookEventFamilyContext       HookEventFamily = "context"
+	HookEventFamilyCoordinator   HookEventFamily = "coordinator"
+	HookEventFamilyTask          HookEventFamily = "task"
+	HookEventFamilyTaskRun       HookEventFamily = "task.run"
+	HookEventFamilyLoop          HookEventFamily = "loop"
+	HookEventFamilySpawn         HookEventFamily = "spawn"
+	HookEventFamilyNetwork       HookEventFamily = "network"
+	HookEventFamilyWindowManager HookEventFamily = "window_manager"
 )
 
 // Validate ensures the event family is part of the supported taxonomy.
@@ -46,7 +47,8 @@ func (f HookEventFamily) Validate() error {
 		HookEventFamilyTaskRun,
 		HookEventFamilyLoop,
 		HookEventFamilySpawn,
-		HookEventFamilyNetwork:
+		HookEventFamilyNetwork,
+		HookEventFamilyWindowManager:
 		return nil
 	default:
 		return fmt.Errorf("hooks: invalid hook event family %q", f)
@@ -377,4 +379,4 @@ var hookEventSpecs = mergeHookEventSpecs(map[HookEvent]hookEventSpec{
 		family:       HookEventFamilySpawn,
 		syncEligible: true,
 	},
-}, networkHookEventSpecs())
+}, networkHookEventSpecs(), windowManagerHookEventSpecs())

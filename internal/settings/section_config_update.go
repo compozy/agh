@@ -22,6 +22,8 @@ func (s *service) updateConfigBackedSection(
 		return s.updateAutomationSection(ctx, req)
 	case SectionNetwork:
 		return s.updateNetworkSection(ctx, req)
+	case SectionWindowManager:
+		return s.updateWindowManagerSection(ctx, req)
 	case SectionObservability:
 		return s.updateObservabilitySection(ctx, req)
 	case SectionHooksExtensions:
@@ -98,6 +100,29 @@ func (s *service) updateNetworkSection(
 	changed := diffNetworkSettings(cfg.Network, *req.Network)
 	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
 		return applyNetworkSettings(editor, *req.Network)
+	})
+}
+
+func (s *service) updateWindowManagerSection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if req.WindowManager == nil {
+		return MutationResult{}, validationError(
+			errors.New("settings: window-manager section payload is required"),
+		)
+	}
+	if err := req.WindowManager.Validate(); err != nil {
+		return MutationResult{}, validationError(err)
+	}
+	desired := cloneWindowManagerConfig(*req.WindowManager)
+	changed := diffWindowManagerSettings(cfg.WindowManager, desired)
+	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+		return applyWindowManagerSettings(editor, desired)
 	})
 }
 

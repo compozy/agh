@@ -20,6 +20,7 @@ export type {
   SettingsHooksExtensionsHook,
   SettingsHooksExtensionsInstalled,
   SettingsHooksExtensionsSection,
+  SettingsWindowManagerSection,
   SettingsMCPAuthBeginResponse,
   SettingsMCPAuthBeginRequest,
   SettingsMCPAuthBeginMode,
@@ -65,6 +66,7 @@ export type {
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
+  SettingsUpdateWindowManagerRequest,
   SettingsUpdateNotificationPresetRequest,
   SettingsUpdateMemoryRequest,
   SettingsUpdateNetworkRequest,
@@ -184,9 +186,25 @@ export {
   exchangeSettingsMCPAuth,
   logoutSettingsMCPAuth,
 } from "./adapters/settings-mcp-auth-api";
+export {
+  applyWindowManagerLayout,
+  deleteWindowManagerLayoutProfile,
+  exportWindowManagerLayout,
+  getWindowManagerLayoutState,
+  listWindowManagerLayoutProfiles,
+  previewWindowManagerLayout,
+  putWindowManagerLayoutProfile,
+  updateWindowManagerSettings,
+  validateWindowManagerLayout,
+  WindowManagerLayoutsApiError,
+} from "./adapters/window-manager-layouts-api";
 
 // Query infrastructure
 export { settingsKeys } from "./lib/query-keys";
+export {
+  windowManagerLayoutOptions,
+  windowManagerLayoutProfilesOptions,
+} from "./lib/window-manager-layout-query";
 export {
   SETTINGS_QUERY_INTERVALS,
   settingsAutomationOptions,
@@ -263,6 +281,8 @@ export {
   SettingsSourceBadge,
   SettingsTile,
   SettingsTiles,
+  WindowManagerConfigEditor,
+  WindowManagerLayoutDocumentEditor,
 } from "./components";
 export type { MCPServerEditorProps, ProvidersViewMode } from "./components";
 export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";

@@ -87,7 +87,7 @@ export function useDesktopDock(
     }
     // Tab-bar semantics (compact): tap = switch to, never minimize.
     if (windowStates[appId] === "focused" && presentation === "floating") {
-      coordinator.userMinimize(osWindowId(appId));
+      void coordinator.userMinimize(osWindowId(appId));
       return;
     }
     coordinator.userOpen({ app: appId });

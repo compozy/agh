@@ -1,122 +1,32 @@
-import { m } from "motion/react";
+import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 
-import { cn } from "@/lib/utils";
-
-import { useDesktop } from "../hooks/use-desktop";
-import { useOsReducedMotion } from "../hooks/use-os-reduced-motion";
-import { deriveSnapRect } from "../lib/os-snap-geometry";
-import { OS_SNAP_ZONES } from "../lib/os-snap-zones";
-import type { OsDesktopBounds, OsRect } from "../lib/os-types";
-
-/**
- * FancyZones-class drop overlay (ADR-009 motion contract, Hermes provenance):
- * the container fades in at 80ms linear; ONE dashed accent sheet morphs
- * between targets at 150ms ease-out using Motion's FLIP transform plus
- * background/border/opacity (never a broad property transition — blur interpolation is the most
- * expensive drag paint); backdrop blur applies to the active target only;
- * reduced motion (system preference or in-product toggle) collapses fade and
- * morph while the affordance itself stays visible (US-021.EC-4).
- */
-
-/** Sheet inset from the zone edge (px), so adjacent zone previews read apart. */
-const SHEET_PAD = 6;
-/** Fallback stack position when no dragged window anchors the sheet. */
-const OVERLAY_Z = 9999;
-
-export type OsSnapOverlayState = "eligible" | "active";
-
-export interface OsSnapOverlaySheetProps {
-  /** Preview box in win-layer coordinates (already derived and clamped). */
-  rect: OsRect;
-  /** Win-layer box the longhand insets resolve against. */
-  bounds: OsDesktopBounds;
-  /** `active` = the release target (accent-lit + blur); `eligible` = quiet outline. */
-  state?: OsSnapOverlayState;
-  reducedMotion?: boolean;
-  /**
-   * Stack position: just below the dragged window, above everything else —
-   * the held window stays crisp while the blur fogs the zone under it.
-   */
-  zIndex?: number;
+function previewLabel(kind: string): string {
+  if (kind === "zoom") return "Zoom";
+  if (kind === "stack") return "Add to stack";
+  if (kind === "insert") return "Insert";
+  if (kind === "split") return "Split";
+  return "Tile";
 }
 
-/** Presentational sheet — the story and the connected overlay share it. */
-export function OsSnapOverlaySheet({
-  rect,
-  bounds,
-  state = "active",
-  reducedMotion = false,
-  zIndex = OVERLAY_Z,
-}: OsSnapOverlaySheetProps) {
-  const active = state === "active";
-  const left = rect.x + SHEET_PAD;
-  const top = rect.y + SHEET_PAD;
-  const width = Math.max(0, Math.min(rect.w - SHEET_PAD * 2, bounds.width - left));
-  const height = Math.max(0, Math.min(rect.h - SHEET_PAD * 2, bounds.height - top));
+/** One ephemeral structural preview; it never mutates the authoritative snapshot. */
+export function OsSnapOverlay() {
+  const preview = useWindowManagerGesturePreview();
+  if (preview === null) return null;
   return (
     <div
-      data-slot="os-snap-overlay"
-      data-testid="os-snap-overlay"
-      data-state={state}
-      data-reduced-motion={reducedMotion ? "" : undefined}
-      className="pointer-events-none absolute inset-0"
+      aria-hidden="true"
+      data-slot="window-manager-command-preview"
+      className="pointer-events-none absolute z-50 rounded-md border border-accent bg-accent-tint shadow-inset-accent"
       style={{
-        zIndex,
-        animation: reducedMotion ? undefined : "os-snap-fade 80ms linear both",
+        left: preview.rect.x,
+        top: preview.rect.y,
+        width: preview.rect.w,
+        height: preview.rect.h,
       }}
     >
-      <m.div
-        data-slot="os-snap-overlay-sheet"
-        layout={!reducedMotion}
-        className={cn(
-          "absolute rounded-window border-2 border-dashed",
-          !reducedMotion &&
-            "transition-[background-color,border-color,opacity] duration-150 ease-out",
-          // Blur is a static treatment, not motion — it survives reduced motion.
-          active && "backdrop-blur-[2px]"
-        )}
-        style={{
-          top,
-          left,
-          width,
-          height,
-          // Accent over an elevated wash so the fill dims content on the dark
-          // canvas (a bare accent alpha disappears there) — Hermes formula on
-          // our tokens.
-          background: active
-            ? "color-mix(in srgb, var(--color-accent) 18%, color-mix(in srgb, var(--color-elevated) 55%, transparent))"
-            : "color-mix(in srgb, var(--color-accent) 5%, color-mix(in srgb, var(--color-elevated) 25%, transparent))",
-          borderColor: `color-mix(in srgb, var(--color-accent) ${active ? 75 : 28}%, transparent)`,
-        }}
-        transition={{ layout: { duration: 0.15, ease: "easeOut" } }}
-      />
+      <span className="absolute top-2 left-2 rounded-sm bg-elevated px-2 py-1 text-form-hint font-medium text-fg shadow-elevated">
+        {previewLabel(preview.kind)}
+      </span>
     </div>
-  );
-}
-
-/**
- * Store-connected overlay: renders the active-target sheet for the single
- * published drag hint (one hint per frame — the resolver's contract).
- */
-export function OsSnapOverlay() {
-  const hint = useDesktop(desktop => desktop.snapHint);
-  const bounds = useDesktop(desktop => desktop.desktopBounds);
-  const draggedZ = useDesktop(desktop =>
-    desktop.snapHint === null ? undefined : desktop.windows[desktop.snapHint.windowId]?.z
-  );
-  const reducedMotion = useOsReducedMotion();
-  if (hint === null || bounds === null) return null;
-  // Zone hints derive their preview rect; window-split hints carry the
-  // claimed half computed at resolution time.
-  const rect =
-    hint.kind === "zone" ? deriveSnapRect(OS_SNAP_ZONES[hint.zoneId], bounds) : hint.rect;
-  return (
-    <OsSnapOverlaySheet
-      rect={rect}
-      bounds={bounds}
-      state="active"
-      reducedMotion={reducedMotion}
-      zIndex={draggedZ === undefined ? OVERLAY_Z : Math.max(0, draggedZ - 1)}
-    />
   );
 }

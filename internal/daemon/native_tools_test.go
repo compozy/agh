@@ -44,6 +44,7 @@ import (
 	"github.com/compozy/agh/internal/testutil"
 	toolspkg "github.com/compozy/agh/internal/tools"
 	builtintools "github.com/compozy/agh/internal/tools/builtin"
+	"github.com/compozy/agh/internal/windowmanager"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	skillbundled "github.com/compozy/agh/skills"
 )
@@ -158,6 +159,227 @@ func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionMana
 
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should execute window manager tools through scoped revisioned state", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("workspace-a", "workspace-b"),
+			nil,
+			windowmanager.DefaultConfig(),
+		)
+		if err != nil {
+			t.Fatalf("windowmanager.NewService() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Close(); err != nil {
+				t.Errorf("Manager.Close() error = %v", err)
+			}
+		})
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			WindowManager: manager,
+			Workspaces:    nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{
+			WorkspaceID: "workspace-a",
+			SessionID:   "session-a",
+			AgentName:   "agent-a",
+		}
+
+		createResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDDesktopCreate,
+			Input: json.RawMessage(
+				`{"expected_revision":0,"desktop_id":"desktop-build","name":"Build"}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(desktop_create) error = %v", err)
+		}
+		var created windowManagerCommandResult
+		if err := json.Unmarshal(createResult.Structured, &created); err != nil {
+			t.Fatalf("json.Unmarshal(desktop_create) error = %v", err)
+		}
+		if created.WorkspaceID != "workspace-a" || created.Revision != 1 || !created.Applied {
+			t.Fatalf("desktop_create result = %#v, want applied workspace-a revision 1", created)
+		}
+		got := created.Changes.DesktopIDs
+		want := []windowmanager.DesktopID{"desktop-build"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("desktop_create changed desktops = %v, want %v", got, want)
+		}
+		if len(created.Diagnostics) != 0 {
+			t.Fatalf("desktop_create diagnostics = %v, want none", created.Diagnostics)
+		}
+
+		listResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDDesktopList,
+			Input:  json.RawMessage(`{}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(desktop_list) error = %v", err)
+		}
+		var listed windowManagerDesktopsResult
+		if err := json.Unmarshal(listResult.Structured, &listed); err != nil {
+			t.Fatalf("json.Unmarshal(desktop_list) error = %v", err)
+		}
+		if listed.WorkspaceID != "workspace-a" || listed.Revision != 1 || len(listed.Desktops) != 2 {
+			t.Fatalf("desktop_list result = %#v, want two desktops at workspace-a revision 1", listed)
+		}
+
+		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDLayoutArrange,
+			Input:  json.RawMessage(`{"expected_revision":1,"resource_id":"missing"}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+
+		previewResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDLayoutPreview,
+			Input: json.RawMessage(
+				`{"expected_revision":1,"command_id":"desktop.update","payload":{"desktop_id":"desktop-build","name":"Renamed"}}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(layout_preview) error = %v", err)
+		}
+		var previewed windowManagerPreviewResult
+		if err := json.Unmarshal(previewResult.Structured, &previewed); err != nil {
+			t.Fatalf("json.Unmarshal(layout_preview) error = %v", err)
+		}
+		if !previewed.Changed || previewed.Revision != 2 ||
+			!slices.Equal(previewed.Changes.DesktopIDs, []windowmanager.DesktopID{"desktop-build"}) {
+			t.Fatalf("layout_preview result = %#v, want changed revision 2 for desktop-build", previewed)
+		}
+		persisted, err := manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Manager.Snapshot() error = %v", err)
+		}
+		if persisted.Revision != 1 || persisted.Desktops[1].Name != "Build" {
+			t.Fatalf("persisted snapshot = %#v, want unmodified revision 1", persisted)
+		}
+
+		openResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWindowOpen,
+			Input: json.RawMessage(
+				`{"expected_revision":1,"window_id":"window-tasks","app":"tasks",` +
+					`"desktop_id":"desktop-build","route":{"pathname":"/tasks","search":{}},` +
+					`"floating_rect":{"x":0.1,"y":0.1,"width":0.5,"height":0.5}}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(window_open) error = %v", err)
+		}
+		var opened windowManagerCommandResult
+		if err := json.Unmarshal(openResult.Structured, &opened); err != nil {
+			t.Fatalf("json.Unmarshal(window_open) error = %v", err)
+		}
+		if !opened.Applied || opened.Revision != 2 {
+			t.Fatalf("window_open result = %#v, want applied revision 2", opened)
+		}
+
+		navigateResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWindowNavigate,
+			Input: json.RawMessage(
+				`{"expected_revision":2,"window_id":"window-tasks",` +
+					`"route":{"pathname":"/tasks/detail","search":{"task_id":"task-123"}}}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(window_navigate) error = %v", err)
+		}
+		var navigated windowManagerCommandResult
+		if err := json.Unmarshal(navigateResult.Structured, &navigated); err != nil {
+			t.Fatalf("json.Unmarshal(window_navigate) error = %v", err)
+		}
+		if !navigated.Applied || navigated.Revision != 3 {
+			t.Fatalf("window_navigate result = %#v, want applied revision 3", navigated)
+		}
+		persisted, err = manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Manager.Snapshot() after navigate error = %v", err)
+		}
+		route := persisted.Windows["window-tasks"].Route
+		if route.Pathname != "/tasks/detail" || string(route.Search["task_id"]) != `"task-123"` {
+			t.Fatalf("persisted route = %#v, want task detail", route)
+		}
+
+		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWindowNavigate,
+			Input: json.RawMessage(
+				`{"expected_revision":3,"window_id":"window-tasks",` +
+					`"route":{"pathname":"/tasks","search":[]}}`,
+			),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+
+		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDDesktopUpdate,
+			Input: json.RawMessage(
+				`{"expected_revision":0,"desktop_id":"desktop-build","name":"Stale"}`,
+			),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolConflict, toolspkg.ReasonConflictedID)
+
+		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDDesktopList,
+			Input:  json.RawMessage(`{"workspace_id":"workspace-b"}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+
+		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDDesktopList,
+			Input:  json.RawMessage(`{"unknown":true}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+	})
+
+	t.Run("Should require approval before destructive window manager commands", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
+			nil,
+			windowmanager.DefaultConfig(),
+		)
+		if err != nil {
+			t.Fatalf("windowmanager.NewService() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Close(); err != nil {
+				t.Errorf("Manager.Close() error = %v", err)
+			}
+		})
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			WindowManager: manager,
+			Workspaces:    nativeNetworkTestWorkspaceService(t),
+		}, toolspkg.PolicyInputs{
+			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
+			ApprovalAvailable:    false,
+		})
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "workspace-a", AgentName: "agent-a"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDDesktopDelete,
+				Input: json.RawMessage(
+					`{"expected_revision":0,"desktop_id":"desktop-default"}`,
+				),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
+			t.Fatalf("Registry.Call(desktop_delete approve-reads) error = %v, want ErrToolApprovalRequired", err)
+		}
+		snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Manager.Snapshot() error = %v", err)
+		}
+		if snapshot.Revision != 0 || len(snapshot.Desktops) != 1 {
+			t.Fatalf("snapshot after blocked delete = %#v, want untouched initial state", snapshot)
+		}
+	})
 
 	t.Run("Should page retained tool results only within the caller workspace", func(t *testing.T) {
 		t.Parallel()

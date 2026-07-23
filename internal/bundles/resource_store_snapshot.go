@@ -11,9 +11,11 @@ import (
 	"github.com/compozy/agh/internal/heartbeat"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 type bundleActivationOwnedSnapshot struct {
+	layouts    map[string]resources.Record[windowmanager.LayoutResource]
 	agents     map[string]resources.Record[aghconfig.AgentDef]
 	souls      map[string]resources.Record[soul.ResourceSpec]
 	heartbeats map[string]resources.Record[heartbeat.ResourceSpec]
@@ -25,6 +27,15 @@ type bundleActivationOwnedSnapshot struct {
 func (s *ResourceStore) snapshotOwnedBundleActivationResources(
 	ctx context.Context,
 ) (bundleActivationOwnedSnapshot, error) {
+	layouts, err := listBundleActivationOwnedRecords(
+		ctx,
+		s.layouts,
+		s.actor,
+		windowmanager.WindowLayoutResourceKind,
+	)
+	if err != nil {
+		return bundleActivationOwnedSnapshot{}, err
+	}
 	agents, err := listBundleActivationOwnedRecords(
 		ctx,
 		s.agents,
@@ -80,6 +91,7 @@ func (s *ResourceStore) snapshotOwnedBundleActivationResources(
 		return bundleActivationOwnedSnapshot{}, err
 	}
 	return bundleActivationOwnedSnapshot{
+		layouts:    layouts,
 		agents:     agents,
 		souls:      soulsByID,
 		heartbeats: heartbeatsByID,
@@ -114,6 +126,16 @@ func (s *ResourceStore) restoreOwnedBundleActivationResources(
 	snapshot bundleActivationOwnedSnapshot,
 ) error {
 	var errs []error
+	if err := restoreOwnedBundleActivationRecords(
+		ctx,
+		s.layouts,
+		s.actor,
+		windowmanager.WindowLayoutResourceKind,
+		snapshot.layouts,
+		s.sameLayout,
+	); err != nil {
+		errs = append(errs, err)
+	}
 	if err := restoreOwnedBundleActivationRecords(
 		ctx,
 		s.agents,

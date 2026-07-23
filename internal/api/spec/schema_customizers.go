@@ -15,23 +15,33 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		*schema = *openapi3.NewStringSchema()
 		schema.Format = "binary"
 	},
-	reflect.TypeFor[contract.LoopGraph]():                  customizeLoopGraphSchema,
-	reflect.TypeFor[contract.DesktopStateEntry]():          customizeDesktopStateEntrySchema,
-	reflect.TypeFor[contract.DesktopStateSubscribeFrame](): customizeDesktopStateFrameSchema("sub"),
-	reflect.TypeFor[contract.DesktopStateApplyFrame]():     customizeDesktopStateFrameSchema("apply"),
-	reflect.TypeFor[contract.DesktopStatePingFrame]():      customizeDesktopStateFrameSchema("ping"),
-	reflect.TypeFor[contract.DesktopStateSnapshotFrame]():  customizeDesktopStateFrameSchema("snapshot"),
-	reflect.TypeFor[contract.DesktopStateEventFrame]():     customizeDesktopStateFrameSchema("event"),
-	reflect.TypeFor[contract.DesktopStateAckFrame]():       customizeDesktopStateFrameSchema("ack"),
-	reflect.TypeFor[contract.DesktopStateErrorFrame]():     customizeDesktopStateFrameSchema("error"),
-	reflect.TypeFor[contract.DesktopStatePongFrame]():      customizeDesktopStateFrameSchema("pong"),
-	reflect.TypeFor[contract.DesktopStateSafeNumber](): func(schema *openapi3.Schema) {
+	reflect.TypeFor[contract.LoopGraph](): customizeLoopGraphSchema,
+	reflect.TypeFor[contract.WindowManagerRevision](): func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewIntegerSchema().
 			WithMin(0).
-			WithMax(float64(contract.DesktopStateMaxSafeNumber))
+			WithMax(float64(contract.WindowManagerMaxSafeRevision))
 	},
-	reflect.TypeFor[contract.SettingsMCPSecretInputPayload]():  customizeSettingsMCPSecretInputSchema,
-	reflect.TypeFor[contract.SettingsMCPAuthExchangeRequest](): customizeSettingsMCPAuthExchangeRequestSchema,
+	reflect.TypeFor[contract.WindowManagerSnapshotFrame](): func(schema *openapi3.Schema) {
+		customizeWindowManagerFrameSchema(schema, contract.WindowManagerFrameSnapshot)
+	},
+	reflect.TypeFor[contract.WindowManagerEventFrame](): func(schema *openapi3.Schema) {
+		customizeWindowManagerFrameSchema(schema, contract.WindowManagerFrameEvent)
+	},
+	reflect.TypeFor[contract.WindowManagerClientFrame](): func(schema *openapi3.Schema) {
+		customizeWindowManagerFrameSchema(schema, contract.WindowManagerFrameClient)
+	},
+	reflect.TypeFor[contract.WindowManagerErrorFrame](): func(schema *openapi3.Schema) {
+		customizeWindowManagerFrameSchema(schema, contract.WindowManagerFrameError)
+	},
+	reflect.TypeFor[contract.WindowManagerLayoutNode]():             customizeClosedObjectSchema,
+	reflect.TypeFor[contract.UpdateSettingsWindowManagerRequest]():  customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerResponse]():       customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerConfigPayload]():  customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerGapsPayload]():    customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerSnapPayload]():    customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerBindingPayload](): customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsMCPSecretInputPayload]():       customizeSettingsMCPSecretInputSchema,
+	reflect.TypeFor[contract.SettingsMCPAuthExchangeRequest]():      customizeSettingsMCPAuthExchangeRequestSchema,
 	rawMessageType: func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewSchema()
 	},

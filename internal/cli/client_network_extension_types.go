@@ -107,6 +107,9 @@ type BundleProfileCatalogRecord = contract.BundleProfileCatalogPayload
 // BundleAgentRecord is one agent declared by a bundle profile.
 type BundleAgentRecord = contract.BundleAgentPayload
 
+// BundleLayoutRecord is one window layout declared by a bundle profile.
+type BundleLayoutRecord = contract.BundleLayoutPayload
+
 // BundleJobRecord is one automation job declared by a bundle profile.
 type BundleJobRecord = contract.BundleJobPayload
 

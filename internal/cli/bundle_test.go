@@ -58,6 +58,9 @@ func TestBundleCommands(t *testing.T) {
 		if got, want := len(payload.Agents), 1; got != want {
 			t.Fatalf("len(payload.Agents) = %d, want %d", got, want)
 		}
+		if got, want := len(payload.Layouts), 1; got != want {
+			t.Fatalf("len(payload.Layouts) = %d, want %d", got, want)
+		}
 		if !payload.Agents[0].HasSoul || !payload.Agents[0].HasHeartbeat {
 			t.Fatalf("payload.Agents[0] sidecar flags = %#v", payload.Agents[0])
 		}
@@ -114,7 +117,7 @@ func TestBundleCommands(t *testing.T) {
 		if got, want := payload.ID, "preview_marketing"; got != want {
 			t.Fatalf("payload.ID = %q, want %q", got, want)
 		}
-		if got, want := len(payload.Inventory), 3; got != want {
+		if got, want := len(payload.Inventory), 4; got != want {
 			t.Fatalf("len(payload.Inventory) = %d, want %d", got, want)
 		}
 	})
@@ -128,9 +131,10 @@ func TestBundleCommands(t *testing.T) {
 					ExtensionName: "marketing-team",
 					BundleName:    "marketing",
 					Profiles: []BundleProfileCatalogRecord{{
-						Name:       "default",
-						AgentCount: 1,
-						JobCount:   1,
+						Name:        "default",
+						LayoutCount: 1,
+						AgentCount:  1,
+						JobCount:    1,
 					}},
 				}}, nil
 			},
@@ -141,6 +145,9 @@ func TestBundleCommands(t *testing.T) {
 		}
 		if !strings.Contains(stdout, `"agent_count": 1`) {
 			t.Fatalf("stdout = %s, want agent_count", stdout)
+		}
+		if !strings.Contains(stdout, `"layout_count": 1`) {
+			t.Fatalf("stdout = %s, want layout_count", stdout)
 		}
 	})
 
@@ -171,6 +178,9 @@ func TestBundleCommands(t *testing.T) {
 		if got, want := len(payload.Activations[0].Agents), 1; got != want {
 			t.Fatalf("len(payload.Activations[0].Agents) = %d, want %d", got, want)
 		}
+		if got, want := len(payload.Activations[0].Layouts), 1; got != want {
+			t.Fatalf("len(payload.Activations[0].Layouts) = %d, want %d", got, want)
+		}
 		if !payload.Activations[0].SpecDrift {
 			t.Fatal("payload.Activations[0].SpecDrift = false, want true")
 		}
@@ -200,6 +210,13 @@ func TestBundleCommands(t *testing.T) {
 		}
 		if got, want := payload.ID, "act_marketing"; got != want {
 			t.Fatalf("payload.ID = %q, want %q", got, want)
+		}
+		human, _, err := executeRootCommand(t, deps, "bundle", "get", "act_marketing")
+		if err != nil {
+			t.Fatalf("bundle get human error = %v", err)
+		}
+		if !strings.Contains(human, "Layouts") || !strings.Contains(human, "Marketing two-up") {
+			t.Fatalf("human output = %q, want window layout section", human)
 		}
 	})
 
@@ -354,6 +371,13 @@ func sampleBundleActivationRecord() BundleActivationRecord {
 			Description: "Marketing coordination",
 			Primary:     true,
 		}},
+		Layouts: []BundleLayoutRecord{{
+			ID:               "lay_two_up",
+			DisplayName:      "Marketing two-up",
+			AspectVariant:    "landscape",
+			ParticipantSlots: []string{"marketer", "research"},
+			OverflowPolicy:   "stack",
+		}},
 		Agents: []BundleAgentRecord{{
 			ID:           "agt_marketer",
 			Name:         "marketer",
@@ -383,6 +407,7 @@ func sampleBundleActivationRecord() BundleActivationRecord {
 			DisplayName:   "Linear",
 		}},
 		Inventory: []BundleInventoryRecord{
+			{ResourceKind: "window_layout", ResourceID: "lay_two_up", ResourceName: "Marketing two-up"},
 			{ResourceKind: "agent", ResourceID: "agt_marketer", ResourceName: "marketer"},
 			{ResourceKind: "agent.soul", ResourceID: "sol_marketer", ResourceName: "marketer"},
 			{ResourceKind: "agent.heartbeat", ResourceID: "hbt_marketer", ResourceName: "marketer"},

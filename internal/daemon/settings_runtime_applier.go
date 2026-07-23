@@ -96,6 +96,16 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 	previous *aghconfig.Config,
 	failures []settingspkg.ApplyFailure,
 ) []settingspkg.ApplyFailure {
+	if a.state.windowManager != nil {
+		if err := a.state.windowManager.UpdateDefaults(windowManagerDefaults(previous.WindowManager)); err != nil {
+			failures = append(failures, configApplyFailure(
+				"window_manager_rollback",
+				diagnosticcontract.CategoryConfig,
+				"Window manager rollback failed",
+				err,
+			))
+		}
+	}
 	a.reconcileExtensionMarketplace(previous)
 	if a.state.modelCatalog != nil {
 		if err := a.state.modelCatalog.ReconcileConfig(ctx, previous); err != nil {
@@ -135,6 +145,16 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 	next *aghconfig.Config,
 ) []settingspkg.ApplyFailure {
 	var failures []settingspkg.ApplyFailure
+	if a.state.windowManager != nil {
+		if err := a.state.windowManager.UpdateDefaults(windowManagerDefaults(next.WindowManager)); err != nil {
+			failures = append(failures, configApplyFailure(
+				"window_manager",
+				diagnosticcontract.CategoryConfig,
+				"Window manager sync failed",
+				err,
+			))
+		}
+	}
 	a.reconcileExtensionMarketplace(next)
 	if a.state.modelCatalog != nil {
 		if err := a.state.modelCatalog.ReconcileConfig(ctx, next); err != nil {

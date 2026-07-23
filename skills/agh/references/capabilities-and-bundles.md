@@ -68,6 +68,31 @@ When changing bundle behavior, update resources, registries, config docs, CLI/AP
 
 Activation list and detail payloads expose `spec_drift` by comparing the stored activation spec hash with the current installed bundle profile. Use `agh bundle list -o json` or the activation API to inspect it. Reapply with `agh bundle update <activation-id> -o json`; a successful reapply reconciles current resources, stores the current hash, and clears drift. Activation timestamps are informational and never signal bundle updates.
 
+Bundle profiles can package declarative window layouts by path:
+
+```toml
+[[profiles.layouts]]
+path = "layouts/two-up.json"
+```
+
+Each file is one strict `window_layout` resource JSON document. The path must remain inside the extension root after symlink resolution. Extension load validates the authored resource; preview and activation validate it again in the target scope. Materialization derives an activation-scoped record/spec ID, exposes the layout in activation payloads and inventory, and removes only that activation's owned record during reconciliation or deactivation. Never copy the authored ID directly into storage or bypass the canonical codec.
+
+A subprocess extension that publishes layouts directly must declare the generic Host API methods, resource capabilities, and family:
+
+```toml
+[actions]
+requires = ["resources/list", "resources/get", "resources/snapshot"]
+
+[security]
+capabilities = ["resources.read", "resources.write"]
+
+[resources.publish]
+families = ["window_layouts"]
+max_scope = "workspace"
+```
+
+`window_layouts` grants only kind `window_layout`. `max_scope = "workspace"` requests workspace-scoped publication; use `global` only when the source must also publish global layouts. Source tier, operator policy, and runtime session may narrow it further. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically. The generic Go/TypeScript Host API resource record is the SDK contract; bridges and MCP sidecars receive no special layout mutation path.
+
 ## Extension Install Trust
 
 `agh extension install <slug> -o json` resolves curated extensions through the daemon-owned catalog. The runtime verifies the downloaded archive against the catalog-pinned SHA-256 digest before extraction, then persists separate catalog entry, archive digest, and extracted-tree checksum provenance. Inspect the decision with `agh extension provenance <name> -o json`. A curated digest mismatch is terminal and cannot be bypassed.
@@ -106,6 +131,19 @@ Network participation exposes `network.participation.pre_resolve` for deny-or-na
 widens intent; a hook cannot self-authorize enrollment. Match either event by `workspace_id`,
 `channel`, `participation_mode`, or `participation_source`.
 
+Window-management topology exposes four async observation hooks after a durable commit:
+`window_manager.layout.applied`, `window_manager.desktop.created`,
+`window_manager.desktop.deleted`, and `window_manager.window.moved`. They carry the workspace,
+revision, semantic command, changed entity IDs, actor, origin, and occurrence time. Preview, no-op,
+rejected, presentation-only, and route-navigation commands do not dispatch this hook family.
+
+Declarative `window_layout` resources are data-only topology templates. They are strict, versioned,
+workspace-bound when scoped locally, and support `any`, `landscape`, or `portrait` aspect variants
+plus explicit participant slots and overflow policy. Discover them through the generic resource
+catalog, then apply them through the same preview, revision/CAS, validation, commit, event, and
+history pipeline as an inline `layout.arrange` command. A resource cannot execute code or receive
+pointer events.
+
 ## Config Lifecycle
 
 Any feature or refactor must state whether config.toml keys, defaults, docs, and examples are added, changed, or removed. In greenfield alpha, delete obsolete config paths instead of creating aliases or fallback bridges.
@@ -141,13 +179,20 @@ user sessions after their first persisted assistant response. It is agent-mutabl
 config surfaces and restart-required under the canonical `session.*` lifecycle rule. Explicit names
 win; disabled or failed generation leaves the session unnamed.
 
+`[window_manager]` controls global behavior defaults for new-window placement, small-viewport
+fallback, focus and raise policy, drag-away grouping, bounded history, desktop transitions, gaps,
+snap thresholds and repeat ratios, edge bindings, and shortcuts. Every `window_manager.*` path is
+live-applied only after the complete candidate validates; a failed apply keeps the prior active
+generation. Workspace topology overrides remain part of revisioned layout documents rather than a
+second Settings scope.
+
 ## Settings Apply Lifecycle
 
 `config.toml` is desired state. Runtime truth advances only when `ConfigApplyService` applies that desired change to the daemon active generation or records why it cannot.
 
 Agent-manageable settings changes must surface lifecycle status, not just file writes. The public contract names are:
 
-- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `network`, `observability`, `hooks-extensions`, `providers`, `mcp-servers`, `sandboxes`, and `hooks`.
+- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `network`, `observability`, `hooks-extensions`, `window-manager`, `providers`, `mcp-servers`, `sandboxes`, and `hooks`.
 - `SettingsMutationBehavior`: `applied_now`, `restart_required`, or `action_trigger`.
 - `SettingsApplyLifecycle`: `live`, `live-add`, `live-remove-if-unused`, `restart-required`, or `session-rebind`.
 - `ConfigApplyStatus`: `pending_apply`, `applied`, `blocked`, or `failed`.

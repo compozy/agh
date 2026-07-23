@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/soul"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/windowmanager"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -22,6 +23,7 @@ func TestBundleActivationOwnedKindAllowlist(t *testing.T) {
 	t.Parallel()
 
 	for _, kind := range []resources.ResourceKind{
+		windowmanager.WindowLayoutResourceKind,
 		aghconfig.AgentResourceKind,
 		soul.ResourceKind,
 		heartbeat.ResourceKind,
@@ -73,7 +75,7 @@ func TestBundleActivationBuildComposesTypedBundleDependency(t *testing.T) {
 	if got, want := plan.Revision(), int64(9); got != want {
 		t.Fatalf("plan.Revision() = %d, want %d", got, want)
 	}
-	if got, want := plan.OperationCount(), 6; got != want {
+	if got, want := plan.OperationCount(), 7; got != want {
 		t.Fatalf("plan.OperationCount() = %d, want %d", got, want)
 	}
 	if err := service.Apply(context.Background(), plan); err != nil {

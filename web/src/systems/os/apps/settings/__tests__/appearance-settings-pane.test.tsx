@@ -1,15 +1,14 @@
 // Suite: Appearance settings pane
-// Invariant: the pane binds wallpaper/magnification/reduce-motion to the desktop store with APG
+// Invariant: the pane binds wallpaper/magnification/reduce-motion to the OS controller with APG
 // radio-group semantics, and states the system reduced-motion precedence truthfully (US-015.EC-1).
-// Boundary IN: AppearanceSettingsPane interaction against a real desktop store.
-// Boundary OUT: desktop-doc persistence (binder suite) and visual parity (VC-02 capture).
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../../contexts/os-shell-context";
+import { WindowManagerRuntime } from "../../../hooks/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../../lib/routing-coordinator";
-import { createDesktopStore } from "../../../stores/desktop-store";
 import { AppearanceSettingsPane } from "../appearance-settings-pane";
 
 vi.mock("@/systems/settings", () => ({
@@ -29,20 +28,19 @@ function matchMediaStub(matches: boolean) {
 
 function renderPane({ systemReducedMotion = false } = {}) {
   vi.stubGlobal("matchMedia", matchMediaStub(systemReducedMotion));
-  const store = createDesktopStore();
+  const manager = new WindowManagerRuntime(new QueryClient());
   const port: OsRouterPort = { navigate: () => {}, replace: () => {} };
   const shell: OsShellHandle = {
-    store,
-    coordinator: new RoutingCoordinator(store, port),
-    flushPersistence: () => {},
+    store: manager,
+    manager,
+    coordinator: new RoutingCoordinator(manager, port),
   };
-  store.getState().hydrate([]);
   render(
     <OsShellContext.Provider value={shell}>
       <AppearanceSettingsPane />
     </OsShellContext.Provider>
   );
-  return { store };
+  return { manager };
 }
 
 describe("AppearanceSettingsPane", () => {
@@ -52,33 +50,33 @@ describe("AppearanceSettingsPane", () => {
 
   it("Should select wallpapers as a radio group with pointer and arrow keys", async () => {
     const user = userEvent.setup();
-    const { store } = renderPane();
+    const { manager } = renderPane();
 
     const group = screen.getByRole("radiogroup", { name: "Wallpaper" });
     expect(group).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Ember/ })).toHaveAttribute("aria-checked", "true");
 
     await user.click(screen.getByRole("radio", { name: /Carbon/ }));
-    expect(store.getState().wallpaper).toBe("carbon");
+    expect(manager.getState().wallpaper).toBe("carbon");
     expect(screen.getByRole("radio", { name: /Carbon/ })).toHaveAttribute("aria-checked", "true");
 
     // Arrow keys move AND select (automatic activation), wrapping the group.
     screen.getByRole("radio", { name: /Carbon/ }).focus();
     await user.keyboard("{ArrowRight}");
-    expect(store.getState().wallpaper).toBe("ember");
+    expect(manager.getState().wallpaper).toBe("ember");
     await user.keyboard("{ArrowLeft}");
-    expect(store.getState().wallpaper).toBe("carbon");
+    expect(manager.getState().wallpaper).toBe("carbon");
   });
 
-  it("Should write the magnification and reduce-motion toggles to the desktop doc", async () => {
+  it("Should write magnification and reduce-motion to the OS presentation controller", async () => {
     const user = userEvent.setup();
-    const { store } = renderPane();
+    const { manager } = renderPane();
 
     await user.click(screen.getByTestId("os-appearance-magnify"));
-    expect(store.getState().dockMagnify).toBe(false);
+    expect(manager.getState().dockMagnify).toBe(false);
 
     await user.click(screen.getByTestId("os-appearance-reduce-motion"));
-    expect(store.getState().reduceMotion).toBe(true);
+    expect(manager.getState().reduceMotion).toBe(true);
   });
 
   it("Should state that the system reduced-motion preference wins while it is active (US-015.EC-1)", () => {

@@ -18,6 +18,23 @@ afterAll(() => {
   server.close();
 });
 
+describe("settings shell MSW handlers", () => {
+  it("Should return the current source-build update status", async () => {
+    const response = await fetch(`${API}/api/settings/update`);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      available: false,
+      checked_at: "2026-07-23T04:00:00Z",
+      current_version: "dev",
+      install_method: "source",
+      managed: false,
+      status: "current",
+      supported: true,
+    });
+  });
+});
+
 describe("settings MCP auth MSW handlers", () => {
   it.each([
     {

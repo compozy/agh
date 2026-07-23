@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/soul"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/windowmanager"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -160,12 +161,14 @@ func (s *memoryStore) ApplyBundleActivationResources(
 	}
 	next := plan
 	next.activeActivationIDs = cloneStringSet(plan.activeActivationIDs)
+	next.desiredLayouts = cloneOwnedLayoutResources(plan.desiredLayouts)
 	next.desiredAgents = cloneOwnedAgentResources(plan.desiredAgents)
 	next.desiredSouls = cloneOwnedSoulResources(plan.desiredSouls)
 	next.desiredHeartbeats = cloneOwnedHeartbeatResources(plan.desiredHeartbeats)
 	next.desiredJobs = cloneJobsForBundle(plan.desiredJobs)
 	next.desiredTriggers = cloneTriggersForBundle(plan.desiredTriggers)
 	next.desiredBridges = cloneBridgeInstancesForBundle(plan.desiredBridges)
+	next.layoutOwners = copyStringMap(plan.layoutOwners)
 	next.agentOwners = copyStringMap(plan.agentOwners)
 	next.soulOwners = copyStringMap(plan.soulOwners)
 	next.heartbeatOwners = copyStringMap(plan.heartbeatOwners)
@@ -176,6 +179,15 @@ func (s *memoryStore) ApplyBundleActivationResources(
 	s.applied = append(s.applied, next)
 	s.inventory = make(map[string][]InventoryItem)
 	s.applyDesiredAgentRecords(plan)
+	for _, layout := range plan.desiredLayouts {
+		activationID := strings.TrimSpace(plan.layoutOwners[strings.TrimSpace(layout.ID)])
+		s.inventory[activationID] = append(s.inventory[activationID], InventoryItem{
+			ActivationID: activationID,
+			ResourceKind: string(windowmanager.WindowLayoutResourceKind),
+			ResourceID:   layout.ID,
+			ResourceName: layout.Spec.DisplayName,
+		})
+	}
 	for _, agent := range plan.desiredAgents {
 		activationID := strings.TrimSpace(plan.agentOwners[strings.TrimSpace(agent.ID)])
 		s.inventory[activationID] = append(s.inventory[activationID], InventoryItem{
@@ -311,6 +323,10 @@ func newMarketingExtension() *extensionpkg.Extension {
 						Description: "Primary marketing channel",
 					}},
 				},
+				Layouts: []extensionpkg.BundleLayout{{
+					Path:   "layouts/marketing.json",
+					Layout: bundleTestLayoutResource("marketing-two-up", "Marketing two-up"),
+				}},
 				Agents: []extensionpkg.BundleAgent{{
 					Path: "agents/marketer",
 					Agent: aghconfig.AgentDef{
@@ -358,6 +374,27 @@ func newMarketingExtension() *extensionpkg.Extension {
 				}},
 			}},
 		}},
+	}
+}
+
+func bundleTestLayoutResource(id string, displayName string) windowmanager.LayoutResource {
+	return windowmanager.LayoutResource{
+		Version:        windowmanager.LayoutResourceVersion,
+		ID:             id,
+		DisplayName:    displayName,
+		AspectVariant:  windowmanager.LayoutAspectAny,
+		OverflowPolicy: windowmanager.LayoutOverflowStack,
+		Document: windowmanager.LayoutDocument{
+			Version: windowmanager.SnapshotVersion,
+			Desktops: []windowmanager.Desktop{{
+				ID:       "desktop-default",
+				Name:     "Desktop 1",
+				Purpose:  windowmanager.DesktopPurposeStandard,
+				Groups:   []windowmanager.LayoutGroup{},
+				Floating: []windowmanager.WindowID{},
+			}},
+			Windows: map[windowmanager.WindowID]windowmanager.Window{},
+		},
 	}
 }
 
@@ -477,13 +514,24 @@ func TestServiceActivateMaterializesManagedResources(t *testing.T) {
 		t.Fatalf("Activate() error = %v", err)
 	}
 
-	if got, want := len(preview.Inventory), 6; got != want {
+	if got, want := len(preview.Inventory), 7; got != want {
 		t.Fatalf("len(preview.Inventory) = %d, want %d", got, want)
 	}
 	if got, want := len(store.applied), 1; got != want {
 		t.Fatalf("len(applied plans) = %d, want %d", got, want)
 	}
 	plan := store.applied[0]
+	if got, want := len(plan.desiredLayouts), 1; got != want {
+		t.Fatalf("len(plan.desiredLayouts) = %d, want %d", got, want)
+	}
+	layout := plan.desiredLayouts[0]
+	if layout.ID != layout.Spec.ID {
+		t.Fatalf("layout record/spec IDs = %q/%q, want identical", layout.ID, layout.Spec.ID)
+	}
+	if got, want := layout.ID,
+		stableID("lay", preview.Activation.ID, "marketing-two-up"); got != want {
+		t.Fatalf("layout ID = %q, want %q", got, want)
+	}
 	if got, want := len(plan.desiredAgents), 1; got != want {
 		t.Fatalf("len(plan.desiredAgents) = %d, want %d", got, want)
 	}
@@ -546,7 +594,7 @@ func TestServiceCatalogPreviewListAndGetUseCanonicalResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PreviewActivation() error = %v", err)
 	}
-	if got, want := len(preview.Inventory), 6; got != want {
+	if got, want := len(preview.Inventory), 7; got != want {
 		t.Fatalf("len(preview.Inventory) = %d, want %d", got, want)
 	}
 	activated, err := service.Activate(testutil.Context(t), ActivateRequest{
@@ -569,7 +617,7 @@ func TestServiceCatalogPreviewListAndGetUseCanonicalResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetActivation() error = %v", err)
 	}
-	if got, want := len(loaded.Inventory), 6; got != want {
+	if got, want := len(loaded.Inventory), 7; got != want {
 		t.Fatalf("len(GetActivation().Inventory) = %d, want %d", got, want)
 	}
 }
@@ -1034,6 +1082,9 @@ func TestServiceDeactivateCleansUpManagedResources(t *testing.T) {
 	if got := len(last.activeActivationIDs); got != 0 {
 		t.Fatalf("len(last.activeActivationIDs) = %d, want 0", got)
 	}
+	if got := len(last.desiredLayouts); got != 0 {
+		t.Fatalf("len(last.desiredLayouts) after deactivate = %d, want 0", got)
+	}
 	if got := len(last.desiredAgents); got != 0 {
 		t.Fatalf("len(last.desiredAgents) after deactivate = %d, want 0", got)
 	}
@@ -1305,6 +1356,20 @@ func TestServiceActivateWorkspaceScopedResources(t *testing.T) {
 		t.Fatalf("Activation.WorkspaceID = %q, want %q", got, want)
 	}
 	plan := store.applied[0]
+	if got, want := plan.desiredLayouts[0].Scope.Kind,
+		resources.ResourceScopeKindWorkspace; got != want {
+		t.Fatalf("layout scope kind = %q, want %q", got, want)
+	}
+	if got, want := plan.desiredLayouts[0].Scope.ID, "ws-marketing"; got != want {
+		t.Fatalf("layout scope id = %q, want %q", got, want)
+	}
+	if plan.desiredLayouts[0].ID != plan.desiredLayouts[0].Spec.ID {
+		t.Fatalf(
+			"layout record/spec IDs = %q/%q, want identical",
+			plan.desiredLayouts[0].ID,
+			plan.desiredLayouts[0].Spec.ID,
+		)
+	}
 	if got, want := plan.desiredAgents[0].Scope.Kind, resources.ResourceScopeKindWorkspace; got != want {
 		t.Fatalf("agent scope kind = %q, want %q", got, want)
 	}

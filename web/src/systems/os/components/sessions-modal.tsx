@@ -263,7 +263,7 @@ export function OsSessionsModal({
     coordinator.userOpen({
       app: "session",
       instanceKey: session.id,
-      location: {
+      route: {
         pathname: `/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.id)}`,
         search: {},
       },

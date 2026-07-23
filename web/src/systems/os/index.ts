@@ -6,20 +6,31 @@ export { useOsShell } from "./hooks/use-os-shell";
 export { useDesktop } from "./hooks/use-desktop";
 export { OS_APPS, getOsApp, resolveAppForPath, matchSessionInstance } from "./lib/app-registry";
 export { RoutingCoordinator, type OsRouterPort } from "./lib/routing-coordinator";
-export { OsStateClient, type OsSocket, type OsSocketFactory } from "./lib/os-state-client";
-export { createDesktopPersistence } from "./lib/desktop-persistence";
-export { createDesktopStore, desktopStore, type DesktopStoreApi } from "./stores/desktop-store";
+export { WindowManagerRuntime } from "./hooks/window-manager-runtime";
+export { fetchWindowManagerSnapshot } from "./adapters/window-manager-api";
+export {
+  windowManagerConfigOptions,
+  windowManagerKeys,
+  windowManagerSnapshotOptions,
+} from "./lib/window-manager-query";
+export {
+  type WindowManagerSocket,
+  type WindowManagerSocketFactory,
+} from "./hooks/use-window-manager-stream";
 export {
   OS_COMPACT_BREAKPOINT,
-  OS_RECT_DEBOUNCE_MS,
   OS_WINDOW_SOFT_CAP,
   osWindowId,
-  osWindowKey,
   type OsAppId,
-  type OsDesktopStore,
+  type OsDesktopRuntime,
+  type OsDesktopRuntimeStore,
   type OsRect,
-  type OsStateEntry,
-  type OsStateEvent,
   type OsWindow,
-  type OsWindowLocation,
+  type OsWindowRoute,
+  type WindowManagerController,
 } from "./lib/os-types";
+export type {
+  WindowManagerClientView,
+  WindowManagerConfig,
+  WindowManagerSnapshot,
+} from "./lib/window-manager-types";

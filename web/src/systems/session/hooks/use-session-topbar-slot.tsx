@@ -58,6 +58,7 @@ export function useSessionTopbarSlot({
       type="button"
       variant="ghost"
       size="icon-sm"
+      className="size-11 focus-visible:shadow-focus-inset"
       onClick={onStop}
       disabled={controlsBusy && !isStopping}
       data-testid="stop-button"
@@ -70,6 +71,7 @@ export function useSessionTopbarSlot({
       type="button"
       variant="ghost"
       size="icon-sm"
+      className="size-11 focus-visible:shadow-focus-inset"
       onClick={onResume}
       disabled={controlsBusy && !isResuming}
       data-testid="resume-button"
@@ -86,7 +88,10 @@ export function useSessionTopbarSlot({
       size="icon-sm"
       aria-label={inspectorOpen ? "Close session inspector" : "Open session inspector"}
       aria-pressed={inspectorOpen}
-      className={cn(inspectorOpen ? "bg-elevated text-fg" : null)}
+      className={cn(
+        "size-11 focus-visible:shadow-focus-inset",
+        inspectorOpen ? "bg-elevated text-fg" : null
+      )}
       data-state={inspectorOpen ? "open" : "closed"}
       data-testid="session-inspector-toggle"
       onClick={onInspectorToggle}
@@ -119,7 +124,14 @@ export function useSessionTopbarSlot({
         <DropdownMenuTrigger
           aria-label="More actions"
           data-testid="session-topbar-overflow"
-          render={<Button type="button" variant="ghost" size="icon-sm" />}
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-11 focus-visible:shadow-focus-inset"
+            />
+          }
         >
           <TopbarOverflowIcon aria-hidden="true" className="size-3" />
         </DropdownMenuTrigger>

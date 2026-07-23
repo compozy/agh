@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import { lazy, type ComponentType } from "react";
 
-import type { OsAppId, OsRect } from "./os-types";
+import { OS_WINDOW_MIN_HEIGHT, OS_WINDOW_MIN_WIDTH, type OsAppId, type OsRect } from "./os-types";
+import type { PixelSize } from "./window-manager-types";
 
 export interface OsAppDefinition {
   id: OsAppId;
@@ -28,6 +29,8 @@ export interface OsAppDefinition {
   paths: string[];
   /** App-specific opening geometry; enlarged work surfaces override the prototype cascade. */
   defaultRect: OsRect;
+  /** Optional measured product floor; the shared frame floor is the conservative fallback. */
+  minimumSize?: PixelSize;
   /** Dock strip group, sessions modal toggle, or null for menubar-only settings. */
   dock: { group: 1 | 2 | 3 | 4 } | "sessions-toggle" | null;
   badge?: "sessions" | "tasks";
@@ -293,6 +296,17 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
 
 export function getOsApp(id: OsAppId): OsAppDefinition {
   return OS_APPS[id];
+}
+
+export const OS_WINDOW_CONSERVATIVE_MINIMUM: PixelSize = {
+  width: OS_WINDOW_MIN_WIDTH,
+  height: OS_WINDOW_MIN_HEIGHT,
+};
+
+/** One source for both interactive resize limits and viewport projection minima. */
+export function getOsAppMinimum(id: OsAppId): PixelSize {
+  const minimum = OS_APPS[id].minimumSize ?? OS_WINDOW_CONSERVATIVE_MINIMUM;
+  return { width: minimum.width, height: minimum.height };
 }
 
 /** Dock strip order: group 1..4 in registry order (prototype DOCK_ORDER). */

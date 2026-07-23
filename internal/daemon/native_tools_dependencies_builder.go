@@ -76,6 +76,7 @@ func (d *Daemon) nativeToolsDeps(
 		Loops: func() core.LoopService {
 			return state.deps.Loops
 		},
-		Resources: state.deps.Resources,
+		Resources:     state.deps.Resources,
+		WindowManager: state.windowManager,
 	}
 }

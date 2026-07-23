@@ -205,6 +205,21 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 			},
 		},
 		{
+			name: SectionWindowManager,
+			assert: func(t *testing.T, envelope SectionEnvelope) {
+				t.Helper()
+				if envelope.WindowManager == nil {
+					t.Fatal("WindowManager section = nil")
+				}
+				if got, want := envelope.WindowManager.Config.HistoryLimit, 50; got != want {
+					t.Fatalf("WindowManager history limit = %d, want %d", got, want)
+				}
+				if got, want := envelope.WindowManager.Config.Bindings.TopCenter, "zoom"; got != want {
+					t.Fatalf("WindowManager top-center binding = %q, want %q", got, want)
+				}
+			},
+		},
+		{
 			name: SectionObservability,
 			assert: func(t *testing.T, envelope SectionEnvelope) {
 				t.Helper()
@@ -487,6 +502,68 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	if !strings.Contains(contents, "[redact]") || !strings.Contains(contents, "enabled = false") {
 		t.Fatalf("config contents missing disabled redaction gate:\n%s", contents)
 	}
+}
+
+func TestUpdateSectionWindowManager(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should round-trip the complete validated global config", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		desired := testWindowManagerConfig()
+
+		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionWindowManager},
+			WindowManager:  &desired,
+		})
+		if err != nil {
+			t.Fatalf("UpdateSection(window-manager) error = %v", err)
+		}
+		if got, want := result.Behavior, MutationBehaviorAppliedNow; got != want {
+			t.Fatalf("window-manager behavior = %q, want %q", got, want)
+		}
+		if !result.Applied || result.RestartRequired {
+			t.Fatalf("window-manager result = %#v, want live applied mutation", result)
+		}
+		if got, want := result.WriteTarget, WriteTargetGlobalConfig; got != want {
+			t.Fatalf("window-manager write target = %q, want %q", got, want)
+		}
+
+		loaded, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(updated window-manager) error = %v", err)
+		}
+		if !reflect.DeepEqual(loaded.WindowManager, desired) {
+			t.Fatalf("loaded WindowManager = %#v, want %#v", loaded.WindowManager, desired)
+		}
+	})
+
+	t.Run("Should leave config unchanged when validation fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		before := readFile(t, homePaths.ConfigFile)
+		service := testService(t, homePaths, Dependencies{})
+		invalid := testWindowManagerConfig()
+		invalid.HistoryLimit = 0
+
+		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionWindowManager},
+			WindowManager:  &invalid,
+		})
+		if err == nil {
+			t.Fatal("UpdateSection(invalid window-manager) error = nil, want validation error")
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
 }
 
 func TestUpdateSectionGeneralMemoryReportIntervalRequiresRestart(t *testing.T) {
@@ -5057,6 +5134,42 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("ReadFile(%q) error = %v", path, err)
 	}
 	return string(payload)
+}
+
+func testWindowManagerConfig() aghconfig.WindowManagerConfig {
+	return aghconfig.WindowManagerConfig{
+		NewWindowPolicy:     aghconfig.WindowNewPolicyBesideFocus,
+		SmallViewportPolicy: aghconfig.WindowSmallViewportReject,
+		FocusPolicy:         aghconfig.WindowFocusDirectional,
+		FocusWrap:           true,
+		FocusFollowsPointer: true,
+		RaiseOnFocus:        false,
+		DragAwayPolicy:      aghconfig.WindowDragAwayGroup,
+		GroupMoveModifier:   "control",
+		HistoryLimit:        77,
+		DesktopTransition:   aghconfig.WindowDesktopTransitionCrossfade,
+		Gaps: aghconfig.WindowManagerGapsConfig{
+			Inner:  12,
+			Top:    18,
+			Right:  14,
+			Bottom: 16,
+			Left:   20,
+		},
+		Snap: aghconfig.WindowManagerSnapConfig{
+			EdgeBand:     40,
+			CornerReach:  180,
+			ExitSlack:    20,
+			RepeatRatios: []float64{0.4, 0.7, 0.3},
+		},
+		Bindings: aghconfig.WindowManagerBindingConfig{
+			TopCenter:    "none",
+			BottomCenter: "zoom",
+		},
+		Shortcuts: map[string]string{
+			"desktop.switch.next": "Meta+ArrowRight",
+			"window.focus.left":   "Alt+ArrowLeft",
+		},
+	}
 }
 
 func baseSettingsConfig() string {

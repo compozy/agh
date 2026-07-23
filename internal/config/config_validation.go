@@ -41,7 +41,7 @@ func (c *Config) validateCore() error {
 	if err := c.HTTP.Validate(); err != nil {
 		return err
 	}
-	if err := c.DesktopState.Validate(); err != nil {
+	if err := c.WindowManager.Validate(); err != nil {
 		return err
 	}
 	if err := c.Defaults.Validate(); err != nil {

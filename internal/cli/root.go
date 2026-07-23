@@ -138,7 +138,9 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newMarketplaceCommand(deps))
 	cmd.AddCommand(newBundleCommand(deps))
 	cmd.AddCommand(newWorkspaceCommand(deps))
-	cmd.AddCommand(newDesktopStateCommand(deps))
+	cmd.AddCommand(newDesktopCommand(deps))
+	cmd.AddCommand(newWindowCommand(deps))
+	cmd.AddCommand(newLayoutCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
 	cmd.AddCommand(newExtensionCommand(deps))
 	cmd.AddCommand(newHooksCommand(deps))
@@ -213,11 +215,11 @@ func writeExecutionError(stderr io.Writer, args []string, err error) int {
 }
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
-	if desktopStateErr, ok := errors.AsType[interface {
+	if windowManagerErr, ok := errors.AsType[interface {
 		error
-		desktopStateErrorPayload() contract.DesktopStateErrorPayload
+		windowManagerErrorPayload() contract.WindowManagerErrorPayload
 	}](err); ok {
-		return marshalDesktopStateExecutionError(args, desktopStateErr.desktopStateErrorPayload())
+		return marshalWindowManagerExecutionError(args, windowManagerErr.windowManagerErrorPayload())
 	}
 	if goalErr, ok := errors.AsType[*goalCommandAPIError](err); ok {
 		return marshalGoalCommandExecutionError(args, goalErr)
@@ -250,9 +252,9 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 	}
 }
 
-func marshalDesktopStateExecutionError(
+func marshalWindowManagerExecutionError(
 	args []string,
-	payload contract.DesktopStateErrorPayload,
+	payload contract.WindowManagerErrorPayload,
 ) ([]byte, bool) {
 	switch requestedOutputFormat(args) {
 	case OutputJSON:
@@ -262,10 +264,14 @@ func marshalDesktopStateExecutionError(
 		encoded, err := json.Marshal(payload)
 		return append(encoded, '\n'), err == nil
 	case OutputToon:
+		currentRevision := ""
+		if payload.CurrentRevision != nil {
+			currentRevision = fmt.Sprintf("%d", *payload.CurrentRevision)
+		}
 		return []byte(renderToonObject(
 			"error",
-			[]string{cliCodeKey, cliKeyKey, clientMessageKey},
-			[]string{string(payload.Code), payload.Key, payload.Error},
+			[]string{cliCodeKey, "workspace_id", "current_revision", clientMessageKey},
+			[]string{string(payload.Code), string(payload.WorkspaceID), currentRevision, payload.Error},
 		)), true
 	default:
 		return nil, false

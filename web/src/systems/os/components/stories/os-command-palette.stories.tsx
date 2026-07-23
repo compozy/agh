@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { QueryClient } from "@tanstack/react-query";
 import { HttpResponse } from "msw";
 import { fn } from "storybook/test";
 
@@ -11,8 +12,8 @@ import { storybookMswParameters } from "@/storybook/msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
+import { WindowManagerRuntime } from "../../hooks/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
-import { createDesktopStore } from "../../stores/desktop-store";
 import { OsCommandPalette } from "../os-command-palette";
 import { DesktopShell } from "./_desktop";
 
@@ -21,13 +22,12 @@ const PALETTE_SESSIONS = sessionFixtures.filter(
 );
 
 function createStoryShell(): OsShellHandle {
-  const store = createDesktopStore();
+  const manager = new WindowManagerRuntime(new QueryClient());
   const router: OsRouterPort = { navigate: () => {}, replace: () => {} };
-  store.getState().hydrate([]);
   return {
-    store,
-    coordinator: new RoutingCoordinator(store, router),
-    flushPersistence: () => {},
+    store: manager,
+    manager,
+    coordinator: new RoutingCoordinator(manager, router),
   };
 }
 

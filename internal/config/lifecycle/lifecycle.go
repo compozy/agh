@@ -105,6 +105,7 @@ var Matrix = []Rule{
 	{Pattern: "task.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "network.enabled", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "network.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: "window_manager.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "observability.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "log.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "redact.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
@@ -155,7 +156,7 @@ func ClassifyPaths(paths []string) (Lifecycle, DiffClass, error) {
 // DiffClassForRoot maps a settings section or collection name onto a diff class.
 func DiffClassForRoot(root string) DiffClass {
 	switch strings.TrimSpace(root) {
-	case "skills":
+	case "skills", "window-manager":
 		return DiffClassLive
 	case "sandboxes":
 		return DiffClassSessionRebind

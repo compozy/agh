@@ -160,6 +160,19 @@ func TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeli
 				}},
 			},
 		},
+		{
+			name: "Should reject case-insensitive duplicate window layout IDs",
+			spec: BundleSpec{
+				Name: "marketing",
+				Profiles: []BundleProfile{{
+					Name: "default",
+					Layouts: []BundleLayout{
+						{Path: "layouts/alpha.json", Layout: testBundleLayoutResource("Two-Up")},
+						{Path: "layouts/beta.json", Layout: testBundleLayoutResource("two-up")},
+					},
+				}},
+			},
+		},
 	}
 
 	for _, tc := range testCases {

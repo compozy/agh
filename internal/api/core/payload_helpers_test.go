@@ -159,6 +159,7 @@ func TestBundleCatalogPayloadsAndDeclaredChannels(t *testing.T) {
 							{Name: " secondary ", Description: " Backup channel "},
 						},
 					},
+					Layouts: []extensionpkg.BundleLayout{{Path: "layouts/ops.json"}},
 					Agents: []extensionpkg.BundleAgent{{
 						Path:  "agents/planner",
 						Agent: aghconfig.AgentDef{Name: "planner", Prompt: "Plan work."},
@@ -182,6 +183,9 @@ func TestBundleCatalogPayloadsAndDeclaredChannels(t *testing.T) {
 		}
 		if got, want := catalog[0].Profiles[0].AgentCount, 1; got != want {
 			t.Fatalf("profile.AgentCount = %d, want %d", got, want)
+		}
+		if got, want := catalog[0].Profiles[0].LayoutCount, 1; got != want {
+			t.Fatalf("profile.LayoutCount = %d, want %d", got, want)
 		}
 		if !catalog[0].Profiles[0].Channels[0].Primary || catalog[0].Profiles[0].Channels[1].Primary {
 			t.Fatalf("channel primary flags = %#v", catalog[0].Profiles[0].Channels)

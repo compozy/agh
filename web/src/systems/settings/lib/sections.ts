@@ -4,6 +4,7 @@ import {
   Cpu,
   Network,
   Palette,
+  PanelTop,
   Puzzle,
   SlidersHorizontal,
   Webhook,
@@ -20,7 +21,7 @@ import type {
 export const SETTINGS_ROOT_PATH = "/settings" as const;
 
 /**
- * Nine daemon sections + Appearance, grouped so the nav reads as a mental
+ * Daemon sections + browser Appearance, grouped so the nav reads as a mental
  * model (design system §03): Workspace = "how my work is set up", Runtime =
  * "what my agents can do", System = "how the daemon itself behaves".
  * Keywords feed the sidebar search.
@@ -39,6 +40,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: Palette,
     group: "workspace",
     keywords: "wallpaper theme desktop dock icons",
+  },
+  {
+    slug: "layouts",
+    label: "Layouts",
+    icon: PanelTop,
+    group: "workspace",
+    keywords: "window manager desktops profiles split stack geometry snap focus",
   },
   {
     slug: "providers",

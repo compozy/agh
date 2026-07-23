@@ -29,9 +29,9 @@ vi.mock("@/systems/tasks/hooks/use-task-setup-runtime", () => ({
 import * as taskApi from "@/systems/tasks/adapters/tasks-api";
 import { TaskDetailLocation } from "@/systems/os/apps/tasks/task-detail-location";
 import {
-  createDesktopStore,
   OsShellContext,
   RoutingCoordinator,
+  WindowManagerRuntime,
   type OsRouterPort,
   type OsShellHandle,
 } from "@/systems/os";
@@ -197,12 +197,11 @@ describe("tasks router registration (integration)", () => {
 
 function buildProductionDetailRouter(initialUrl: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const store = createDesktopStore();
+  const manager = new WindowManagerRuntime(queryClient);
   const port: OsRouterPort = { navigate: () => undefined, replace: () => undefined };
-  store.getState().hydrate([]);
-  const coordinator = new RoutingCoordinator(store, port);
+  const coordinator = new RoutingCoordinator(manager, port);
   coordinator.completeHydration();
-  const shell: OsShellHandle = { store, coordinator, flushPersistence: () => undefined };
+  const shell: OsShellHandle = { store: manager, manager, coordinator };
 
   const rootRoute = createRootRoute({
     component: () => (

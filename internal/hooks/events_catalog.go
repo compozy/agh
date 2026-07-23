@@ -79,7 +79,7 @@ var allHookEvents = append([]HookEvent{
 	HookSpawnParentStopped,
 	HookSpawnTTLExpired,
 	HookSpawnReaped,
-}, networkHookEvents()...)
+}, append(networkHookEvents(), windowManagerHookEvents()...)...)
 
 var _ = func() bool {
 	if err := validateHookEventSpecsConsistency(); err != nil {

@@ -10,7 +10,7 @@ const EMPTY_SEARCH: Record<string, unknown> = {};
  * `useSyncExternalStore` under write bursts (the 12-window restore storm).
  */
 export function SandboxWindow({ windowId }: { windowId: string }) {
-  const rawSearch = useDesktop(state => state.windows[windowId]?.location.search ?? EMPTY_SEARCH);
+  const rawSearch = useDesktop(state => state.windows[windowId]?.route.search ?? EMPTY_SEARCH);
   const search = validateSandboxSearch(rawSearch);
   return <SandboxPage search={search} />;
 }

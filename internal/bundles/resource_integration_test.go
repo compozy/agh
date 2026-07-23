@@ -21,6 +21,7 @@ import (
 	storepkg "github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 type bundleResourceIntegrationHarness struct {
@@ -33,6 +34,7 @@ type bundleResourceIntegrationHarness struct {
 	service        *Service
 	bundles        resources.Store[BundleResourceSpec]
 	activations    resources.Store[ActivationResourceSpec]
+	layouts        resources.Store[windowmanager.LayoutResource]
 	agents         resources.Store[aghconfig.AgentDef]
 	souls          resources.Store[soul.ResourceSpec]
 	heartbeats     resources.Store[heartbeat.ResourceSpec]
@@ -59,6 +61,13 @@ func TestBundleResourceIntegrationActivationFanoutWritesCanonicalOwnedRecords(t 
 	}
 
 	owner := ownerForActivation(preview.Activation.ID)
+	layouts := h.listOwnedLayouts(t, owner)
+	if got, want := len(layouts), 1; got != want {
+		t.Fatalf("len(owned layouts) = %d, want %d", got, want)
+	}
+	if layouts[0].ID != layouts[0].Spec.ID {
+		t.Fatalf("layout record/spec IDs = %q/%q, want identical", layouts[0].ID, layouts[0].Spec.ID)
+	}
 	jobs := h.listOwnedJobs(t, owner)
 	if got, want := len(jobs), 1; got != want {
 		t.Fatalf("len(owned jobs) = %d, want %d", got, want)
@@ -87,6 +96,7 @@ func TestBundleResourceIntegrationActivationFanoutWritesCanonicalOwnedRecords(t 
 		t.Fatalf("len(owned bridges) = %d, want %d", got, want)
 	}
 	for _, kind := range []resources.ResourceKind{
+		windowmanager.WindowLayoutResourceKind,
 		aghconfig.AgentResourceKind,
 		soul.ResourceKind,
 		heartbeat.ResourceKind,
@@ -97,6 +107,12 @@ func TestBundleResourceIntegrationActivationFanoutWritesCanonicalOwnedRecords(t 
 		if !slices.Contains(h.triggeredKinds, kind) {
 			t.Fatalf("triggered kinds = %#v, want %q", h.triggeredKinds, kind)
 		}
+	}
+	if err := h.service.Deactivate(h.ctx, preview.Activation.ID); err != nil {
+		t.Fatalf("Deactivate() error = %v", err)
+	}
+	if got := len(h.listOwnedLayouts(t, owner)); got != 0 {
+		t.Fatalf("len(owned layouts after deactivate) = %d, want 0", got)
 	}
 }
 
@@ -172,6 +188,9 @@ func TestBundleResourceIntegrationBootRebuildUsesResourcesWithoutInventoryTable(
 	if got, want := len(h.listOwnedJobs(t, owner)), 1; got != want {
 		t.Fatalf("len(boot rebuilt owned jobs) = %d, want %d", got, want)
 	}
+	if got, want := len(h.listOwnedLayouts(t, owner)), 1; got != want {
+		t.Fatalf("len(boot rebuilt owned layouts) = %d, want %d", got, want)
+	}
 	if got, want := len(h.listOwnedAgents(t, owner)), 1; got != want {
 		t.Fatalf("len(boot rebuilt owned agents) = %d, want %d", got, want)
 	}
@@ -219,6 +238,10 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 	if err != nil {
 		t.Fatalf("NewActivationResourceCodec() error = %v", err)
 	}
+	layoutCodec, err := windowmanager.NewLayoutResourceCodec()
+	if err != nil {
+		t.Fatalf("NewLayoutResourceCodec() error = %v", err)
+	}
 	agentCodec, err := aghconfig.NewAgentResourceCodec()
 	if err != nil {
 		t.Fatalf("NewAgentResourceCodec() error = %v", err)
@@ -248,6 +271,7 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 		func(registry *resources.CodecRegistry) error {
 			return resources.RegisterCodec(registry, activationCodec)
 		},
+		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, layoutCodec) },
 		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, agentCodec) },
 		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, soulCodec) },
 		func(registry *resources.CodecRegistry) error {
@@ -264,6 +288,7 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 
 	bundleStore := mustNewTypedStore(t, kernel, bundleCodec)
 	activationStore := mustNewTypedStore(t, kernel, activationCodec)
+	layoutStore := mustNewTypedStore(t, kernel, layoutCodec)
 	agentStore := mustNewTypedStore(t, kernel, agentCodec)
 	soulStore := mustNewTypedStore(t, kernel, soulCodec)
 	heartbeatStore := mustNewTypedStore(t, kernel, heartbeatCodec)
@@ -279,6 +304,7 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 		actor:       actor,
 		bundles:     bundleStore,
 		activations: activationStore,
+		layouts:     layoutStore,
 		agents:      agentStore,
 		souls:       soulStore,
 		heartbeats:  heartbeatStore,
@@ -291,6 +317,8 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 		BundleCodec:     bundleCodec,
 		Activations:     activationStore,
 		ActivationCodec: activationCodec,
+		Layouts:         layoutStore,
+		LayoutCodec:     layoutCodec,
 		Agents:          agentStore,
 		AgentCodec:      agentCodec,
 		Souls:           soulStore,
@@ -397,6 +425,22 @@ func (h *bundleResourceIntegrationHarness) listOwnedJobs(
 	})
 	if err != nil {
 		t.Fatalf("List(owned jobs) error = %v", err)
+	}
+	return records
+}
+
+func (h *bundleResourceIntegrationHarness) listOwnedLayouts(
+	t *testing.T,
+	owner resources.ResourceOwner,
+) []resources.Record[windowmanager.LayoutResource] {
+	t.Helper()
+
+	records, err := h.layouts.List(h.ctx, h.actor, resources.ResourceFilter{
+		Kind:  windowmanager.WindowLayoutResourceKind,
+		Owner: &owner,
+	})
+	if err != nil {
+		t.Fatalf("List(owned layouts) error = %v", err)
 	}
 	return records
 }

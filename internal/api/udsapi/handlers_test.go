@@ -172,12 +172,16 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/tasks/:id/execution-profile",
 		"DELETE /api/vault/secrets",
 		"DELETE /api/workspaces/:workspace_id",
-		"DELETE /api/workspaces/:workspace_id/desktop-state/:key",
-		"GET /api/workspaces/:workspace_id/desktop-state",
-		"GET /api/workspaces/:workspace_id/desktop-state/:key",
-		"GET /api/workspaces/:workspace_id/desktop-state/stream",
-		"POST /api/workspaces/:workspace_id/desktop-state/apply",
-		"PUT /api/workspaces/:workspace_id/desktop-state/:key",
+		"DELETE /api/workspaces/:workspace_id/window-manager/clients/:client_id",
+		"GET /api/workspaces/:workspace_id/window-manager",
+		"GET /api/workspaces/:workspace_id/window-manager/clients",
+		"GET /api/workspaces/:workspace_id/window-manager/layout",
+		"GET /api/workspaces/:workspace_id/window-manager/stream",
+		"POST /api/workspaces/:workspace_id/window-manager/clients",
+		"POST /api/workspaces/:workspace_id/window-manager/commands",
+		"POST /api/workspaces/:workspace_id/window-manager/layout/validate",
+		"POST /api/workspaces/:workspace_id/window-manager/preview",
+		"PUT /api/workspaces/:workspace_id/window-manager/layout",
 		"GET /api/agents",
 		"GET /api/agents/:name",
 		"GET /api/agents/catalog",
@@ -314,6 +318,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/settings/mcp-servers/:name/auth/logout",
 		"GET /api/settings/memory",
 		"GET /api/settings/network",
+		"GET /api/settings/window-manager",
 		"GET /api/settings/observability",
 		"GET /api/settings/observability/log-tail",
 		"GET /api/settings/providers",
@@ -370,6 +375,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PATCH /api/settings/hooks-extensions",
 		"PATCH /api/settings/memory",
 		"PATCH /api/settings/network",
+		"PATCH /api/settings/window-manager",
 		"PATCH /api/settings/observability",
 		"PATCH /api/settings/skills",
 		"PATCH /api/tasks/:id",
@@ -713,6 +719,18 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 	}
 
 	settingsService := &stubSettingsService{
+		GetSectionFn: func(
+			_ context.Context,
+			req settingspkg.SectionRequest,
+		) (settingspkg.SectionEnvelope, error) {
+			envelope := settingsTestSectionEnvelope(req.Section, req.Scope, req.WorkspaceID)
+			if req.Section == settingspkg.SectionWindowManager {
+				envelope.WindowManager = &settingspkg.WindowManagerSection{
+					Config: aghconfig.DefaultWindowManagerConfig(),
+				}
+			}
+			return envelope, nil
+		},
 		InstallMCPCatalogFn: func(
 			_ context.Context,
 			req settingspkg.MCPCatalogInstallRequest,
@@ -804,6 +822,58 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 						"LastUpdateSectionRequest.General = %#v, want parsed payload",
 						settingsService.LastUpdateSectionRequest.General,
 					)
+				}
+			},
+		},
+		{
+			name:       "Should get window-manager section",
+			method:     http.MethodGet,
+			path:       "/api/settings/window-manager",
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsWindowManagerResponse
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionWindowManager ||
+					response.Config.HistoryLimit != 50 {
+					t.Fatalf("window-manager response = %#v, want default global section", response)
+				}
+				if settingsService.LastGetSectionRequest.Section != settingspkg.SectionWindowManager {
+					t.Fatalf(
+						"LastGetSectionRequest.Section = %q, want %q",
+						settingsService.LastGetSectionRequest.Section,
+						settingspkg.SectionWindowManager,
+					)
+				}
+			},
+		},
+		{
+			name:       "Should patch window-manager section",
+			method:     http.MethodPatch,
+			path:       "/api/settings/window-manager",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.UpdateSettingsWindowManagerRequest{
+				Config: validUDSWindowManagerSettingsPayload(),
+			}),
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsGlobalSectionMutationResult
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionWindowManager {
+					t.Fatalf(
+						"response.Section = %q, want %q",
+						response.Section,
+						contract.SettingsSectionWindowManager,
+					)
+				}
+				request := settingsService.LastUpdateSectionRequest
+				if request.Section != settingspkg.SectionWindowManager ||
+					request.WindowManager == nil ||
+					request.WindowManager.HistoryLimit != 77 ||
+					request.WindowManager.Shortcuts["desktop.switch.next"] != "Meta+ArrowRight" {
+					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed window-manager config", request)
 				}
 			},
 		},
@@ -964,6 +1034,35 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 				tc.assert(t, recorder)
 			}
 		})
+	}
+}
+
+func validUDSWindowManagerSettingsPayload() contract.SettingsWindowManagerConfigPayload {
+	return contract.SettingsWindowManagerConfigPayload{
+		NewWindowPolicy:     contract.SettingsWindowNewPolicyBesideFocus,
+		SmallViewportPolicy: contract.SettingsWindowSmallViewportPolicyReject,
+		FocusPolicy:         contract.SettingsWindowFocusPolicyDirectional,
+		FocusWrap:           true,
+		FocusFollowsPointer: true,
+		RaiseOnFocus:        false,
+		DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyGroup,
+		GroupMoveModifier:   contract.SettingsWindowGroupMoveModifierControl,
+		HistoryLimit:        77,
+		DesktopTransition:   contract.SettingsWindowDesktopTransitionCrossfade,
+		Gaps: contract.SettingsWindowManagerGapsPayload{
+			Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,
+		},
+		Snap: contract.SettingsWindowManagerSnapPayload{
+			EdgeBand:     40,
+			CornerReach:  180,
+			ExitSlack:    20,
+			RepeatRatios: []float64{0.4, 0.7, 0.3},
+		},
+		Bindings: contract.SettingsWindowManagerBindingPayload{
+			TopCenter:    contract.SettingsWindowBindingActionNone,
+			BottomCenter: contract.SettingsWindowBindingActionZoom,
+		},
+		Shortcuts: map[string]string{"desktop.switch.next": "Meta+ArrowRight"},
 	}
 }
 

@@ -159,6 +159,65 @@ describe("RuntimeSelector single-button trigger", () => {
     expect(trigger).toHaveAttribute("data-open", "false");
   });
 
+  it.each([
+    ["Meta", "metaKey"],
+    ["Control", "ctrlKey"],
+  ] as const)(
+    "Should consume %s+J on the focused trigger before an ancestor shortcut boundary",
+    async (_modifierName, modifier) => {
+      const ancestorShortcutBoundary = vi.fn();
+      function Instance() {
+        const [value, setValue] = useState<RuntimeSelectorValue>({
+          provider: "codex",
+          model: "",
+          reasoning_effort: "",
+        });
+        return (
+          <RuntimeSelector
+            value={value}
+            onChange={setValue}
+            providers={[codexProvider]}
+            models={[]}
+            triggerTestId="rt-focused"
+          />
+        );
+      }
+      render(
+        <UIProvider reducedMotion="always">
+          <div
+            onKeyDown={event => {
+              ancestorShortcutBoundary(event.key);
+              event.stopPropagation();
+            }}
+          >
+            <Instance />
+          </div>
+        </UIProvider>
+      );
+
+      const trigger = screen.getByTestId("rt-focused");
+      trigger.focus();
+
+      const unrelatedAccepted = fireEvent.keyDown(trigger, {
+        key: "k",
+        [modifier]: true,
+      });
+      expect(unrelatedAccepted).toBe(true);
+      expect(ancestorShortcutBoundary).toHaveBeenCalledOnce();
+      expect(screen.queryByTestId("runtime-selector-popup")).not.toBeInTheDocument();
+
+      ancestorShortcutBoundary.mockClear();
+      const runtimeAccepted = fireEvent.keyDown(trigger, {
+        key: "j",
+        [modifier]: true,
+      });
+
+      expect(runtimeAccepted).toBe(false);
+      expect(ancestorShortcutBoundary).not.toHaveBeenCalled();
+      await waitFor(() => expect(screen.getByTestId("runtime-selector-popup")).toBeVisible());
+    }
+  );
+
   it("Should show only the model name as visible text — provider name and effort label live in the popup", () => {
     renderSelector({
       value: { provider: "codex", model: "leveled", reasoning_effort: "high" },

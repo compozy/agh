@@ -64,3 +64,5 @@ export type { SettingsApplyRecordsPanelProps } from "./settings-apply-records-pa
 export { SettingsSaveBar } from "./settings-save-bar";
 export { SettingsSourceBadge } from "./settings-source-badge";
 export type { SettingsSource } from "./settings-source-badge";
+export { WindowManagerConfigEditor } from "./window-manager-config-editor";
+export { WindowManagerLayoutDocumentEditor } from "./window-manager-layout-document-editor";

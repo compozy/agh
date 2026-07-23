@@ -7,22 +7,23 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
 import { useOsZoomMenu } from "../hooks/use-os-zoom-menu";
-import { OS_ARRANGE_COMMANDS, OS_SNAP_COMMANDS } from "../lib/os-snap-commands";
-import { OS_SNAP_ZONES } from "../lib/os-snap-zones";
-import type { OsSnapZone } from "../lib/os-types";
+import {
+  WINDOW_ARRANGE_COMMANDS,
+  WINDOW_PLACEMENT_COMMANDS,
+  type WindowPlacementId,
+} from "../lib/window-manager-command-registry";
 
 /**
  * macOS-style zoom-button menu (Sequoia green-button posture): hovering the
  * zoom traffic light opens Move & Resize (halves + quarters as zone glyphs,
- * restore while snapped) and Fill & Arrange (fill, 2-up, grid). Click stays
- * `toggleZoom`; every action here also lives in the palette — the guaranteed
+ * plus Fill & Arrange (fill, 2-up, grid). Click stays zoom; every action here
+ * also lives in the palette — the guaranteed
  * keyboard path — so the menu is discoverability, never the only route.
  * The hidden trigger span only anchors the Radix content; hover intent lives
  * on the wrapper so the real button keeps its own semantics.
@@ -31,7 +32,25 @@ import type { OsSnapZone } from "../lib/os-types";
 const HALF_IDS = ["left", "right", "top", "bottom"] as const;
 const QUARTER_IDS = ["top-left", "top-right", "bottom-left", "bottom-right"] as const;
 
-function ZoneGlyph({ zones, className }: { zones: readonly OsSnapZone[]; className?: string }) {
+interface GlyphZone {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const GLYPH_ZONES: Record<WindowPlacementId, GlyphZone> = {
+  left: { x: 0, y: 0, w: 0.5, h: 1 },
+  right: { x: 0.5, y: 0, w: 0.5, h: 1 },
+  top: { x: 0, y: 0, w: 1, h: 0.5 },
+  bottom: { x: 0, y: 0.5, w: 1, h: 0.5 },
+  "top-left": { x: 0, y: 0, w: 0.5, h: 0.5 },
+  "top-right": { x: 0.5, y: 0, w: 0.5, h: 0.5 },
+  "bottom-left": { x: 0, y: 0.5, w: 0.5, h: 0.5 },
+  "bottom-right": { x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
+};
+
+function ZoneGlyph({ zones, className }: { zones: readonly GlyphZone[]; className?: string }) {
   return (
     <svg
       aria-hidden="true"
@@ -51,10 +70,10 @@ function ZoneGlyph({ zones, className }: { zones: readonly OsSnapZone[]; classNa
       {zones.map((zone, index) => (
         <rect
           key={index}
-          x={1.5 + 13 * zone.fx}
-          y={1.5 + 9 * zone.fy}
-          width={Math.max(13 * zone.fw - 1, 1.5)}
-          height={Math.max(9 * zone.fh - 1, 1.5)}
+          x={1.5 + 13 * zone.x}
+          y={1.5 + 9 * zone.y}
+          width={Math.max(13 * zone.w - 1, 1.5)}
+          height={Math.max(9 * zone.h - 1, 1.5)}
           rx="0.75"
           fill="currentColor"
           fillOpacity={index === 0 ? 0.85 : 0.4}
@@ -72,7 +91,6 @@ export interface OsZoomMenuProps {
 
 export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
   const menu = useOsZoomMenu(windowId);
-  const restore = OS_SNAP_COMMANDS.find(command => command.zoneId === null);
   return (
     <DropdownMenu open={menu.open} onOpenChange={menu.onOpenChange} modal={false}>
       <span
@@ -104,7 +122,7 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
           <DropdownMenuLabel>Move &amp; Resize</DropdownMenuLabel>
           <div className="grid grid-cols-4">
             {[...HALF_IDS, ...QUARTER_IDS].map(zoneId => {
-              const command = OS_SNAP_COMMANDS.find(row => row.zoneId === zoneId);
+              const command = WINDOW_PLACEMENT_COMMANDS.find(row => row.placement === zoneId);
               if (!command) return null;
               return (
                 <DropdownMenuItem
@@ -113,20 +131,20 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
                   title={command.label}
                   data-testid={`os-zoom-menu-${zoneId}`}
                   className="justify-center px-2 py-1.5"
-                  onClick={() => menu.dispatchSnap(command)}
+                  disabled={!menu.placementEnabled}
+                  onClick={() => menu.dispatchPlacement(command)}
                 >
-                  <ZoneGlyph zones={[OS_SNAP_ZONES[zoneId]]} />
+                  <ZoneGlyph zones={[GLYPH_ZONES[zoneId]]} />
                 </DropdownMenuItem>
               );
             })}
           </div>
-          {menu.snapped && restore ? (
+          {!menu.floating ? (
             <DropdownMenuItem
-              data-testid="os-zoom-menu-restore"
-              onClick={() => menu.dispatchSnap(restore)}
+              data-testid="os-zoom-menu-make-floating"
+              onClick={menu.dispatchMakeFloating}
             >
-              {restore.label}
-              {restore.keys ? <DropdownMenuShortcut>{restore.keys}</DropdownMenuShortcut> : null}
+              Make window floating
             </DropdownMenuItem>
           ) : null}
         </DropdownMenuGroup>
@@ -141,9 +159,9 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
               className="justify-center px-2 py-1.5"
               onClick={() => menu.dispatchFill()}
             >
-              <ZoneGlyph zones={[{ fx: 0, fy: 0, fw: 1, fh: 1 }]} />
+              <ZoneGlyph zones={[{ x: 0, y: 0, w: 1, h: 1 }]} />
             </DropdownMenuItem>
-            {OS_ARRANGE_COMMANDS.map(command => (
+            {WINDOW_ARRANGE_COMMANDS.map(command => (
               <DropdownMenuItem
                 key={command.preset}
                 aria-label={command.label}
@@ -156,12 +174,12 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
                 <ZoneGlyph
                   zones={
                     command.preset === "two-up"
-                      ? [OS_SNAP_ZONES.left, OS_SNAP_ZONES.right]
+                      ? [GLYPH_ZONES.left, GLYPH_ZONES.right]
                       : [
-                          OS_SNAP_ZONES["top-left"],
-                          OS_SNAP_ZONES["top-right"],
-                          OS_SNAP_ZONES["bottom-left"],
-                          OS_SNAP_ZONES["bottom-right"],
+                          GLYPH_ZONES["top-left"],
+                          GLYPH_ZONES["top-right"],
+                          GLYPH_ZONES["bottom-left"],
+                          GLYPH_ZONES["bottom-right"],
                         ]
                   }
                 />

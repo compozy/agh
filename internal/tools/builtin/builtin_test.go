@@ -213,9 +213,13 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDResourcesList,
 			toolspkg.ToolIDResourcesInfo,
 			toolspkg.ToolIDResourcesSnapshot,
+		}
+		want = append(want, windowManagerExpectedToolIDs()...)
+		want = append(
+			want,
 			toolspkg.ToolIDMCPStatus,
 			toolspkg.ToolIDMCPAuthStatus,
-		}
+		)
 		if gotLen, wantLen := len(got), len(want); gotLen != wantLen {
 			t.Fatalf("len(NativeDescriptors()) = %d, want %d", gotLen, wantLen)
 		}
@@ -1098,6 +1102,61 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should publish the closed window manager contract with risk and capability gates", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		for _, id := range windowManagerExpectedToolIDs() {
+			descriptor, ok := descriptors[id]
+			if !ok {
+				t.Fatalf("window-manager descriptor %q missing", id)
+			}
+			var inputSchema struct {
+				AdditionalProperties bool `json:"additionalProperties"`
+			}
+			if err := json.Unmarshal(descriptor.InputSchema, &inputSchema); err != nil {
+				t.Fatalf("%s input schema unmarshal error = %v", id, err)
+			}
+			if inputSchema.AdditionalProperties {
+				t.Fatalf("%s input schema allows additional properties", id)
+			}
+			wantCapability := windowManagerWriteCapability
+			if descriptor.ReadOnly {
+				wantCapability = windowManagerReadCapability
+			}
+			if !slices.Contains(descriptor.Backend.RequiresCapabilities, wantCapability) {
+				t.Fatalf(
+					"%s capabilities = %#v, want %q",
+					id,
+					descriptor.Backend.RequiresCapabilities,
+					wantCapability,
+				)
+			}
+			if !bytes.Contains(descriptor.OutputSchema, []byte(`"revision"`)) {
+				t.Fatalf("%s output schema omits revision: %s", id, descriptor.OutputSchema)
+			}
+		}
+
+		destructive := []toolspkg.ToolID{
+			toolspkg.ToolIDDesktopDelete,
+			toolspkg.ToolIDWindowClose,
+			toolspkg.ToolIDLayoutApply,
+		}
+		for _, id := range destructive {
+			requireDescriptorRisk(t, descriptors[id], toolspkg.RiskDestructive, false, true, false)
+		}
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDWindowNavigate],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDLayoutPreview], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDLayoutValidate], toolspkg.RiskRead, true, false, false)
+	})
+
 	t.Run("Should keep network schemas closed and hard-cut vocabulary out of descriptors", func(t *testing.T) {
 		t.Parallel()
 
@@ -1656,6 +1715,14 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("resources toolset expansion = %#v, want plural desired-state resource tools", resourceTools)
 		}
 
+		windowManagerTools, err := catalog.Expand(toolspkg.ToolsetIDWindowManager, universe)
+		if err != nil {
+			t.Fatalf("Expand(window_manager) error = %v", err)
+		}
+		if want := windowManagerExpectedToolIDs(); !slices.Equal(windowManagerTools, want) {
+			t.Fatalf("window-manager expansion = %#v, want %#v", windowManagerTools, want)
+		}
+
 		mcp, err := catalog.Expand(toolspkg.ToolsetIDMCP, universe)
 		if err != nil {
 			t.Fatalf("Expand(mcp) error = %v", err)
@@ -1680,6 +1747,37 @@ func descriptorMap(descriptors []toolspkg.Descriptor) map[toolspkg.ToolID]toolsp
 		values[descriptor.ID] = descriptor
 	}
 	return values
+}
+
+func windowManagerExpectedToolIDs() []toolspkg.ToolID {
+	return []toolspkg.ToolID{
+		toolspkg.ToolIDDesktopClients,
+		toolspkg.ToolIDDesktopCreate,
+		toolspkg.ToolIDDesktopDelete,
+		toolspkg.ToolIDDesktopList,
+		toolspkg.ToolIDDesktopReorder,
+		toolspkg.ToolIDDesktopSwitch,
+		toolspkg.ToolIDDesktopUpdate,
+		toolspkg.ToolIDLayoutApply,
+		toolspkg.ToolIDLayoutArrange,
+		toolspkg.ToolIDLayoutBalance,
+		toolspkg.ToolIDLayoutExport,
+		toolspkg.ToolIDLayoutGet,
+		toolspkg.ToolIDLayoutPreview,
+		toolspkg.ToolIDLayoutRedo,
+		toolspkg.ToolIDLayoutResize,
+		toolspkg.ToolIDLayoutUndo,
+		toolspkg.ToolIDLayoutValidate,
+		toolspkg.ToolIDWindowClose,
+		toolspkg.ToolIDWindowFloat,
+		toolspkg.ToolIDWindowFocus,
+		toolspkg.ToolIDWindowList,
+		toolspkg.ToolIDWindowMove,
+		toolspkg.ToolIDWindowNavigate,
+		toolspkg.ToolIDWindowOpen,
+		toolspkg.ToolIDWindowSwap,
+		toolspkg.ToolIDWindowZoom,
+	}
 }
 
 func requireDescriptorRisk(

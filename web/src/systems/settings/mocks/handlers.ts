@@ -1,7 +1,10 @@
 import { HttpResponse, type HttpHandler } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
 
-import type { SettingsNotificationPresetCollection } from "@/systems/settings";
+import type {
+  SettingsMutationResult,
+  SettingsNotificationPresetCollection,
+} from "@/systems/settings";
 
 import {
   settingsAppliedMutationFixture,
@@ -27,8 +30,15 @@ import {
   settingsRestartStatusFixture,
   settingsSkillsSectionFixture,
 } from "./fixtures";
+import {
+  settingsWindowManagerSectionFixture,
+  windowManagerLayoutDocumentFixture,
+  windowManagerLayoutResourceFixture,
+} from "./window-manager-fixtures";
+import { settingsUpdateStatusFixture } from "./settings-update-fixture";
+import { windowManagerSnapshotFixture, windowManagerStoryDesktopId } from "@/systems/os/mocks";
 
-function mutationResult(section: string, restartRequired = false) {
+function mutationResult(section: SettingsMutationResult["section"], restartRequired = false) {
   return {
     ...(restartRequired ? settingsRestartRequiredMutationFixture : settingsAppliedMutationFixture),
     section,
@@ -73,6 +83,7 @@ export const handlers: HttpHandler[] = [
   aghApiMock.patch("/api/settings/general", () =>
     HttpResponse.json(mutationResult("general", true))
   ),
+  aghApiMock.get("/api/settings/update", () => HttpResponse.json(settingsUpdateStatusFixture)),
 
   aghApiMock.get("/api/settings/memory", () => HttpResponse.json(settingsMemorySectionFixture)),
   aghApiMock.patch("/api/settings/memory", () => HttpResponse.json(mutationResult("memory"))),
@@ -91,6 +102,52 @@ export const handlers: HttpHandler[] = [
   aghApiMock.patch("/api/settings/network", () =>
     HttpResponse.json(mutationResult("network", true))
   ),
+
+  aghApiMock.get("/api/settings/window-manager", () =>
+    HttpResponse.json(settingsWindowManagerSectionFixture)
+  ),
+  aghApiMock.patch("/api/settings/window-manager", () =>
+    HttpResponse.json(mutationResult("window-manager"))
+  ),
+
+  aghApiMock.get("/api/workspaces/{workspace_id}/window-manager/layout", () =>
+    HttpResponse.json(windowManagerLayoutDocumentFixture)
+  ),
+  aghApiMock.put("/api/workspaces/{workspace_id}/window-manager/layout", () =>
+    HttpResponse.json({
+      snapshot: { ...windowManagerSnapshotFixture, revision: 13 },
+      applied: true,
+      changes: {},
+      diagnostics: [],
+    })
+  ),
+  aghApiMock.post("/api/workspaces/{workspace_id}/window-manager/layout/validate", () =>
+    HttpResponse.json({
+      workspace_id: windowManagerLayoutDocumentFixture.workspace_id,
+      valid: true,
+      diagnostics: [],
+    })
+  ),
+  aghApiMock.post("/api/workspaces/{workspace_id}/window-manager/preview", () =>
+    HttpResponse.json({
+      snapshot: windowManagerSnapshotFixture,
+      changed: true,
+      changes: {
+        desktop_ids: [windowManagerStoryDesktopId],
+        window_ids: [],
+      },
+      diagnostics: [],
+    })
+  ),
+  aghApiMock.get("/api/resources/{kind}", ({ params }) =>
+    HttpResponse.json({
+      records: params.kind === "window_layout" ? [windowManagerLayoutResourceFixture] : [],
+    })
+  ),
+  aghApiMock.put("/api/resources/{kind}/{id}", () =>
+    HttpResponse.json({ record: windowManagerLayoutResourceFixture })
+  ),
+  aghApiMock.delete("/api/resources/{kind}/{id}", () => new HttpResponse(null, { status: 204 })),
 
   aghApiMock.get("/api/settings/observability", () =>
     HttpResponse.json(settingsObservabilitySectionFixture)

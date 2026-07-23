@@ -79,7 +79,7 @@ type bootState struct {
 	processRegistry        *toolruntime.Registry
 	sandboxRegistry        *sandbox.Registry
 	workspaceResolver      *workspacepkg.Resolver
-	desktopStateBootState
+	windowManagerBootState
 	sessions              SessionManager
 	hostedMCP             *mcppkg.HostedService
 	providerVault         *vault.Service

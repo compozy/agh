@@ -154,6 +154,9 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"direction":         {},
 		matcherWorkStateKey: {},
 	},
+	HookEventFamilyWindowManager: {
+		matcherWorkspaceIDKey: {},
+	},
 }
 
 var allowedMatcherFieldsByEvent = map[HookEvent]map[string]struct{}{

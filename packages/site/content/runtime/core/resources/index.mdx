@@ -9,8 +9,8 @@ canonical resource records, validates their specs through registered codecs, and
 runtime state.
 
 Use this page when you need to understand why a tool, MCP server, agent definition, package-owned
-agent sidecar, skill, automation job, trigger, bridge instance, or bundle activation can be managed
-through the same control plane.
+agent sidecar, skill, automation job, trigger, window layout, bridge instance, or bundle activation
+can be managed through the same control plane.
 
 <OperatorNote label="Control-plane boundary">
   Resources are an operator and extension surface. They are not the same as session events, memory
@@ -27,7 +27,7 @@ through the same control plane.
     Validate --> Store[(resource_records)]
     Store --> Reconcile[Per-kind reconcile driver]
     Reconcile --> Projectors[Typed projectors]
-    Projectors --> Runtime[Tools, agents, skills, automation, bridges, bundles]
+    Projectors --> Runtime[Tools, agents, skills, automation, layouts, bridges, bundles]
     Runtime --> Observe[Status, health, events, and API reads]`}
   caption="Desired-state resources pass through validation, storage, and reconcile before they affect runtime subsystems."
 />
@@ -46,20 +46,21 @@ through the same control plane.
 
 The daemon registers typed codecs for these resource families at boot:
 
-| Kind                 | Projects into                                                                            |
-| -------------------- | ---------------------------------------------------------------------------------------- |
-| `hook.binding`       | Hook registry bindings.                                                                  |
-| `tool`               | Tool Registry entries.                                                                   |
-| `mcp_server`         | MCP server declarations.                                                                 |
-| `agent`              | Agent catalog definitions.                                                               |
-| `agent.soul`         | Package-owned `SOUL.md` defaults for resource-backed agents.                             |
-| `agent.heartbeat`    | Package-owned `HEARTBEAT.md` defaults for resource-backed agents.                        |
-| `skill`              | Skill catalog entries.                                                                   |
-| `automation.job`     | Scheduled or claimable automation jobs.                                                  |
-| `automation.trigger` | Automation trigger definitions.                                                          |
-| `bridge.instance`    | Bridge runtime instances.                                                                |
-| `bundle`             | Extension-provided bundle catalog entries.                                               |
-| `bundle.activation`  | Active bundle profiles that project agents, sidecars, automation, bridges, and channels. |
+| Kind                 | Projects into                                                                           |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `hook.binding`       | Hook registry bindings.                                                                 |
+| `tool`               | Tool Registry entries.                                                                  |
+| `mcp_server`         | MCP server declarations.                                                                |
+| `agent`              | Agent catalog definitions.                                                              |
+| `agent.soul`         | Package-owned `SOUL.md` defaults for resource-backed agents.                            |
+| `agent.heartbeat`    | Package-owned `HEARTBEAT.md` defaults for resource-backed agents.                       |
+| `skill`              | Skill catalog entries.                                                                  |
+| `automation.job`     | Scheduled or claimable automation jobs.                                                 |
+| `automation.trigger` | Automation trigger definitions.                                                         |
+| `window_layout`      | Strict declarative desktop and tiled-group layout templates.                            |
+| `bridge.instance`    | Bridge runtime instances.                                                               |
+| `bundle`             | Extension-provided bundle catalog entries.                                              |
+| `bundle.activation`  | Active bundle profiles that project agents, sidecars, automation, layouts, and bridges. |
 
 ## Write flow
 

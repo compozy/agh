@@ -5,11 +5,11 @@ import { TaskDetailLocation } from "./task-detail-location";
 import { TaskRunLocation } from "./task-run-location";
 import { TasksCatalogLocation } from "./tasks-catalog-location";
 
+const DEFAULT_TASKS_ROUTE = { pathname: "/tasks", search: {} } as const;
+
 /** Tasks app controller driven exclusively by the logical window's WM location. */
 export function TasksWindow({ windowId }: { windowId: string }) {
-  const location = useDesktop(
-    state => state.windows[windowId]?.location ?? { pathname: "/tasks", search: {} }
-  );
+  const location = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_TASKS_ROUTE);
   const parsed = parseTaskWindowLocation(location);
 
   if (parsed.kind === "create") return <TaskCreateLocation search={parsed.search} />;

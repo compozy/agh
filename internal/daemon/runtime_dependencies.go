@@ -35,7 +35,7 @@ func (d *Daemon) runtimeDeps(
 		DeadEntities:        state.deadEntities,
 		WorkspaceResolver:   state.workspaceResolver,
 		WorkspaceService:    state.workspaceResolver,
-		DesktopState:        state.desktopState,
+		WindowManager:       state.windowManager,
 		ModelCatalog:        state.modelCatalog,
 		MarketplaceCatalog:  state.marketplace,
 		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{

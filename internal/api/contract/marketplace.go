@@ -115,6 +115,7 @@ type MarketplaceSkillDetailPayload struct {
 type MarketplaceBundleProfilePayload struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	Layouts     int    `json:"layouts"`
 	Agents      int    `json:"agents"`
 	Jobs        int    `json:"jobs"`
 	Triggers    int    `json:"triggers"`

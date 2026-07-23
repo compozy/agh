@@ -8,23 +8,24 @@ import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
 import { OsShellContext } from "../contexts/os-shell-context";
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
 import { useDesktopOverlays } from "../hooks/use-desktop-overlays";
+import { useDesktopShellState } from "../hooks/use-desktop-shell-state";
 import { useDesktopShellModel } from "../hooks/use-desktop-shell-model";
-import { useDesktop } from "../hooks/use-desktop";
 import { useOsShortcuts } from "../hooks/use-os-shortcuts";
 import { useOsAttention } from "../hooks/use-os-attention";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopMenubar } from "./desktop-menubar";
 import { DesktopDock } from "./desktop-dock";
+import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
 import { OsAppPreloader } from "./os-app-preloader";
 import { OsCommandPalette } from "./os-command-palette";
-import { OsSpacesOverview } from "./os-spaces-overview";
+import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { OsWinLayer } from "./os-win-layer";
 import { OsSessionsModal } from "./sessions-modal";
 
 /**
  * The desktop shell replaces the AppShell chrome (ADR-001): onboarding gate,
- * menubar, wallpapered win-layer, dock, ⌘K palette, and the desktop-state
+ * menubar, wallpapered win-layer, dock, ⌘K palette, and the window-manager
  * sync lifecycle. Route matches render through the (invisible) Outlet as
  * sync-controllers; windows render in the layer.
  */
@@ -58,29 +59,23 @@ function DesktopChrome() {
           openDialog={model.agentCreate.openDialog}
           openForDuplicate={model.agentCreate.openForDuplicate}
         >
-          <DesktopShellBody model={model} wallpaper={chrome.wallpaper} />
+          <DesktopShellBody model={model} />
         </AgentCreateHostProvider>
       </SessionCreateProvider>
     </OsShellContext.Provider>
   );
 }
 
-function DesktopShellBody({
-  model,
-  wallpaper,
-}: {
-  model: ReturnType<typeof useDesktopShellModel>;
-  wallpaper: "ember" | "mesh" | "carbon";
-}) {
+function DesktopShellBody({ model }: { model: ReturnType<typeof useDesktopShellModel> }) {
   const desktopRef = useRef<HTMLDivElement>(null);
-  const windows = useDesktop(state => state.windows);
+  const desktop = useDesktopShellState();
   const overlays = useDesktopOverlays();
   const attention = useOsAttention(model.activeWorkspace, model.sessionCatalogStreamStatus);
 
   useOsShortcuts({
     onPalette: () => overlays.toggleOverlay("palette"),
     onNewSession: () => model.sessionCreate.openForAgent(""),
-    onSpaces: () => overlays.toggleOverlay("spaces"),
+    onDesktops: () => overlays.toggleOverlay("desktops"),
     onEscape: () => {
       if (overlays.activeOverlay !== null) return;
       if (document.querySelector('[data-slot="dialog-content"]')) return;
@@ -102,17 +97,19 @@ function DesktopShellBody({
         onAddWorkspace={model.openWorkspaceSetup}
         onNewSession={() => model.sessionCreate.openForAgent("")}
         onOpenPalette={() => overlays.setOverlayOpen("palette", true)}
-        onOpenSpaces={() => overlays.setOverlayOpen("spaces", true)}
+        onOpenDesktops={() => overlays.setOverlayOpen("desktops", true)}
+        onOpenWorkspaces={() => overlays.setOverlayOpen("workspaces", true)}
         activeOverlay={overlays.activeOverlay}
         onOverlayOpenChange={overlays.setOverlayOpen}
         attention={attention}
       />
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
-        <OsWallpaper wallpaper={wallpaper} />
-        {Object.keys(windows).map(windowId => (
+        <OsWallpaper wallpaper={desktop.wallpaper} />
+        {Object.keys(desktop.windows).map(windowId => (
           <OsAppPreloader key={windowId} windowId={windowId} />
         ))}
         <OsWinLayer />
+        <DesktopManagerSurfaces />
         <DesktopDock
           onNewSession={() => model.sessionCreate.openForAgent("")}
           badges={attention.badges}
@@ -125,7 +122,7 @@ function DesktopShellBody({
       <OsCommandPalette
         open={overlays.activeOverlay === "palette"}
         onOpenChange={open => overlays.setOverlayOpen("palette", open)}
-        onOpenSpaces={() => overlays.setOverlayOpen("spaces", true)}
+        onOpenDesktops={() => overlays.setOverlayOpen("desktops", true)}
         onToggleSessions={() => overlays.toggleOverlay("sessions")}
       />
       <OsSessionsModal
@@ -134,13 +131,13 @@ function DesktopShellBody({
         sessions={attention.sessions}
         disconnected={attention.sessionsDisconnected}
       />
-      <OsSpacesOverview
-        open={overlays.activeOverlay === "spaces"}
-        onOpenChange={open => overlays.setOverlayOpen("spaces", open)}
+      <OsWorkspacesOverview
+        open={overlays.activeOverlay === "workspaces"}
+        onOpenChange={open => overlays.setOverlayOpen("workspaces", open)}
         workspaces={model.workspaces}
         activeWorkspaceId={model.activeWorkspaceId}
         onSelectWorkspace={model.setActiveWorkspaceId}
-        onNewSpace={model.openWorkspaceSetup}
+        onNewWorkspace={model.openWorkspaceSetup}
       />
       <WorkspaceSetupDialog
         open={model.isWorkspaceSetupOpen}

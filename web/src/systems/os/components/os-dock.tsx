@@ -16,7 +16,7 @@ export type { OsDockEntry, OsDockItemData, OsDockSeparator } from "./os-dock-typ
 /**
  * The dock: a centered glass strip of app launchers floating over the desktop,
  * with an optional detached New Session control in its own glass segment
- * (OpenDesign `dock-zone` anatomy). Presentational — WM wiring is Task 04.
+ * (OpenDesign `dock-zone` anatomy). DesktopDock owns the runtime wiring.
  */
 
 export interface OsDockProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
@@ -236,13 +236,16 @@ function OsDockNewSession({ onNewSession, className, ...props }: OsDockNewSessio
  */
 export function OsDockZone({
   items,
+  leading,
   onSelect,
   onNewSession,
   magnify = true,
   className,
+  style,
   ...props
 }: {
   items: OsDockEntry[];
+  leading?: React.ReactNode;
   onSelect?: (id: string) => void;
   onNewSession?: () => void;
   magnify?: boolean;
@@ -252,14 +255,29 @@ export function OsDockZone({
     <div
       data-slot="os-dock-zone"
       className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-2.5 z-10 flex items-end gap-2.5 px-4",
+        "pointer-events-none absolute inset-x-0 z-10 flex items-center gap-2.5",
         className
       )}
+      style={{
+        bottom: "calc(var(--spacing) * 2.5 + env(safe-area-inset-bottom, 0px))",
+        paddingInline:
+          "calc(var(--spacing) * 4 + max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px)))",
+        ...style,
+      }}
       {...props}
     >
-      <span className="min-w-0 flex-1" aria-hidden="true" />
-      <OsDock items={items} onSelect={onSelect} magnify={magnify} className="pointer-events-auto" />
-      <OsDockNewSession onNewSession={onNewSession} className="pointer-events-auto" />
+      <div className="pointer-events-auto flex min-w-0 flex-1 items-center justify-start overflow-hidden">
+        {leading}
+      </div>
+      <div className="flex shrink-0 items-center gap-2.5">
+        <OsDock
+          items={items}
+          onSelect={onSelect}
+          magnify={magnify}
+          className="pointer-events-auto"
+        />
+        <OsDockNewSession onNewSession={onNewSession} className="pointer-events-auto" />
+      </div>
       <span className="min-w-0 flex-1" aria-hidden="true" />
     </div>
   );

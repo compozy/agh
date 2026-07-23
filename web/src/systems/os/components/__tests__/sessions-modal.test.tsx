@@ -1,17 +1,18 @@
 // Suite: OS sessions modal
-// Invariant: the modal filters catalog truth, persists group state, and dismisses via Dialog.
-// Boundary IN: OsSessionsModal, desktop store, and routing coordinator.
+// Invariant: the modal filters catalog truth, retains group state, and dismisses via Dialog.
+// Boundary IN: OsSessionsModal, OS controller, and routing coordinator.
 // Boundary OUT: session catalog transport and full browser window journeys.
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
+import { WindowManagerRuntime } from "../../hooks/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
-import { createDesktopStore } from "../../stores/desktop-store";
 import { OsSessionsModal } from "../sessions-modal";
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
@@ -39,12 +40,11 @@ const SESSIONS: SessionPayload[] = [
 ];
 
 function createShell(): OsShellHandle {
-  const store = createDesktopStore();
+  const manager = new WindowManagerRuntime(new QueryClient());
   const port: OsRouterPort = { navigate: () => {}, replace: () => {} };
-  store.getState().hydrate([]);
-  const coordinator = new RoutingCoordinator(store, port);
+  const coordinator = new RoutingCoordinator(manager, port);
   coordinator.completeHydration();
-  return { store, coordinator, flushPersistence: () => {} };
+  return { store: manager, manager, coordinator };
 }
 
 function renderModal(shell: OsShellHandle, open = true) {

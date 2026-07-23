@@ -221,7 +221,7 @@ func (h *BaseHandlers) bundleMarketplaceEntry(
 		profiles = append(profiles, contract.MarketplaceBundleProfilePayload{
 			Name: profile.Name, Description: profile.Description, Agents: len(profile.Agents),
 			Jobs: len(profile.Jobs), Triggers: len(profile.Triggers), Bridges: len(profile.Bridges),
-			Channels: len(profile.Channels.Items),
+			Channels: len(profile.Channels.Items), Layouts: len(profile.Layouts),
 		})
 	}
 	return contract.MarketplaceEntryResponse{

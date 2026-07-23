@@ -109,6 +109,7 @@ export function RuntimeSelector({
         popupId={popup.popupId}
         ariaLabelledby={ariaLabelledby}
         onPress={popup.handleTriggerPress}
+        onKeyDown={popup.handleTriggerKeyDown}
       />
       <PopoverContent
         align="start"

@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useWindowManagerActions, useWindowManagerOverlay } from "./use-window-manager-store";
+
 export type DesktopOverlay =
   | "workspace-menu"
   | "session-menu"
@@ -7,26 +9,36 @@ export type DesktopOverlay =
   | "help-menu"
   | "bell"
   | "palette"
-  | "spaces"
+  | "workspaces"
+  | "desktops"
   | "sessions";
 
-/**
- * Single owner for shell popovers and desktop-level overlays. Opening one
- * surface closes the previous owner; stale close events cannot dismiss the
- * surface that replaced it.
- */
+type LocalDesktopOverlay = Exclude<DesktopOverlay, "desktops">;
+
+/** One owner for shell overlays; Desktops Overview lives in the WM interaction store. */
 export function useDesktopOverlays() {
-  const [activeOverlay, setActiveOverlay] = useState<DesktopOverlay | null>(null);
+  const [localOverlay, setLocalOverlay] = useState<LocalDesktopOverlay | null>(null);
+  const windowManagerOverlay = useWindowManagerOverlay();
+  const actions = useWindowManagerActions();
+  const activeOverlay: DesktopOverlay | null =
+    windowManagerOverlay?.kind === "desktops-overview" ? "desktops" : localOverlay;
 
   const setOverlayOpen = (overlay: DesktopOverlay, open: boolean) => {
-    setActiveOverlay(current => {
+    if (overlay === "desktops") {
+      setLocalOverlay(null);
+      if (open) actions.openOverlay({ kind: "desktops-overview" });
+      else actions.closeOverlay();
+      return;
+    }
+    if (open) actions.closeOverlay();
+    setLocalOverlay(current => {
       if (open) return overlay;
       return current === overlay ? null : current;
     });
   };
 
   const toggleOverlay = (overlay: DesktopOverlay) => {
-    setActiveOverlay(current => (current === overlay ? null : overlay));
+    setOverlayOpen(overlay, activeOverlay !== overlay);
   };
 
   return { activeOverlay, setOverlayOpen, toggleOverlay };

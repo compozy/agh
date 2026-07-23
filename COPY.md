@@ -236,14 +236,16 @@ Use those words only when discussing external systems or historical migration co
 
 ### OS Shell Terms
 
-The web UI presents as a desktop. These terms are runtime-true — each names a real surface or projection, never an aspirational one. `workspace` stays the runtime object; the shell only rearranges how its surfaces are shown.
+The web UI presents as a desktop environment. These terms are runtime-true — each names a real surface or projection, never an aspirational one. A `workspace` remains the project/runtime scope; each workspace owns one or more persistent visual `desktops`.
 
-- `space`: the per-workspace desktop arrangement — open windows, geometry, focus, wallpaper. Switching workspaces switches spaces. A space is presentation state, not a new runtime scope.
-- `desktop`: the wallpapered canvas behind the windows in the current space. Not a runtime object.
-- `window`: a floating frame hosting one app's route subtree; the views inside are the same views the routes render.
+- `workspace`: the project root and scoped runtime context. The Workspaces surface switches runtime scope; it does not manage visual desktops.
+- `desktop`: one persistent virtual arrangement inside a workspace. It owns its tiled groups and floating-window order. Switching desktops does not switch runtime scope.
+- `window`: a frame hosting one app's durably resumed route subtree; the views inside are the same views the routes render. A window belongs to exactly one desktop and may be tiled, stacked, or floating.
+- `tiled group`: one non-overlapping arrangement tree inside a desktop. A desktop may contain multiple tiled groups alongside floating windows.
+- `desktop pager`: the minimal lower-left horizontal dot control for switching desktops, aligned with the Dock centerline. Full create, rename, reorder, transfer, and delete actions live in Desktops Overview.
 - `dock`: the bottom strip of app launchers, with running/minimized indicators and badges bound to runtime projections.
 - `menubar`: the top bar — workspace trigger, app menus, the approvals bell, the ⌘K palette, Settings.
-- `desktop state`: the persisted presentation state of a space (open windows, rects/z/focus/minimized, wallpaper, shell prefs), stored daemon-side per workspace. Keep it unconfusable with `memory`: desktop state is _presentation_ (where windows sit); `memory` is _agent_ knowledge. They never mix.
+- `window manager`: the daemon-authoritative, workspace-scoped topology and command surface for desktops and windows. Browser focus and the active desktop are client-local projections. This presentation data never contains agent `memory`.
 
 ### Burned-Out Marketing Phrases
 

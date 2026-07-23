@@ -42,9 +42,6 @@ func validateWorkspaceConfigOverlay(path string, overlay *configOverlay) error {
 	if overlay.Marketplace != nil {
 		return fmt.Errorf("workspace config %q: marketplace catalog settings are global-only", path)
 	}
-	if overlay.DesktopState.configured() {
-		return fmt.Errorf("workspace config %q: desktop-state limits are global-only", path)
-	}
 	return nil
 }
 

@@ -19,13 +19,13 @@ type daemonAPIError struct {
 	payload    contract.ErrorPayload
 }
 
-type desktopStateAPIError struct {
+type windowManagerAPIError struct {
 	statusCode int
 	status     string
-	payload    contract.DesktopStateErrorPayload
+	payload    contract.WindowManagerErrorPayload
 }
 
-func (e *desktopStateAPIError) Error() string {
+func (e *windowManagerAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
 	}
@@ -35,16 +35,16 @@ func (e *desktopStateAPIError) Error() string {
 	return strings.TrimSpace(e.status)
 }
 
-func (e *desktopStateAPIError) cliExitCode() int {
+func (e *windowManagerAPIError) cliExitCode() int {
 	if e == nil {
 		return 1
 	}
 	return (&daemonAPIError{statusCode: e.statusCode}).cliExitCode()
 }
 
-func (e *desktopStateAPIError) desktopStateErrorPayload() contract.DesktopStateErrorPayload {
+func (e *windowManagerAPIError) windowManagerErrorPayload() contract.WindowManagerErrorPayload {
 	if e == nil {
-		return contract.DesktopStateErrorPayload{}
+		return contract.WindowManagerErrorPayload{}
 	}
 	return e.payload
 }
@@ -95,14 +95,14 @@ func readAPIError(response *http.Response) error {
 }
 
 func readAPIErrorBody(statusCode int, status string, body []byte) error {
-	var desktopStatePayload contract.DesktopStateErrorPayload
-	if len(body) > 0 && json.Unmarshal(body, &desktopStatePayload) == nil &&
-		desktopStatePayload.Code != "" {
-		desktopStatePayload.Error = redactToolDiagnostic(desktopStatePayload.Error)
-		return &desktopStateAPIError{
+	var windowManagerPayload contract.WindowManagerErrorPayload
+	if len(body) > 0 && json.Unmarshal(body, &windowManagerPayload) == nil &&
+		windowManagerPayload.Code != "" {
+		windowManagerPayload.Error = redactToolDiagnostic(windowManagerPayload.Error)
+		return &windowManagerAPIError{
 			statusCode: statusCode,
 			status:     status,
-			payload:    desktopStatePayload,
+			payload:    windowManagerPayload,
 		}
 	}
 	var payload contract.ErrorPayload

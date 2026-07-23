@@ -13,18 +13,20 @@ func bundleProfileNames(item BundleCatalogRecord) []string {
 	return names
 }
 
-func bundleCatalogCounts(item BundleCatalogRecord) (int, int, int, int) {
+func bundleCatalogCounts(item BundleCatalogRecord) (int, int, int, int, int) {
+	var layouts int
 	var agents int
 	var jobs int
 	var triggers int
 	var bridges int
 	for _, profile := range item.Profiles {
+		layouts += profile.LayoutCount
 		agents += profile.AgentCount
 		jobs += profile.JobCount
 		triggers += profile.TriggerCount
 		bridges += profile.BridgeCount
 	}
-	return agents, jobs, triggers, bridges
+	return layouts, agents, jobs, triggers, bridges
 }
 
 func bundleChannelsTable(items []BundleChannelRecord) string {
@@ -48,6 +50,14 @@ func bundleAgentsTable(items []BundleAgentRecord) string {
 		"Agents",
 		[]string{bundleNameValue, agentKernelProviderValue, bundleModelValue, "Soul", "Heartbeat"},
 		bundleAgentRows(items),
+	)
+}
+
+func bundleLayoutsTable(items []BundleLayoutRecord) string {
+	return renderHumanTable(
+		"Layouts",
+		[]string{bundleNameValue, "Aspect", "Slots", "Overflow", "Participant Slots"},
+		bundleLayoutRows(items),
 	)
 }
 

@@ -59,6 +59,7 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 	return aghconfig.Config{
 		Daemon:        src.Daemon,
 		HTTP:          src.HTTP,
+		WindowManager: cloneWindowManagerConfig(src.WindowManager),
 		Defaults:      src.Defaults,
 		Agents:        src.Agents,
 		Limits:        src.Limits,
@@ -101,6 +102,13 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		},
 		Network: src.Network,
 	}
+}
+
+func cloneWindowManagerConfig(src aghconfig.WindowManagerConfig) aghconfig.WindowManagerConfig {
+	cloned := src
+	cloned.Snap.RepeatRatios = append([]float64(nil), src.Snap.RepeatRatios...)
+	cloned.Shortcuts = maps.Clone(src.Shortcuts)
+	return cloned
 }
 
 func cloneMemoryConfig(src *aghconfig.MemoryConfig) aghconfig.MemoryConfig {

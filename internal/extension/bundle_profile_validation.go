@@ -43,6 +43,9 @@ func (p BundleProfile) Validate(bundleName string, manifest *Manifest) error {
 	if err := p.validateAgents(bundleName); err != nil {
 		return err
 	}
+	if err := p.validateLayouts(bundleName); err != nil {
+		return err
+	}
 	if err := p.validateJobs(bundleName, channelNames); err != nil {
 		return err
 	}
@@ -50,6 +53,44 @@ func (p BundleProfile) Validate(bundleName string, manifest *Manifest) error {
 		return err
 	}
 	return p.validateBridges(bundleName, manifest)
+}
+
+func (p BundleProfile) validateLayouts(bundleName string) error {
+	seenLayouts := make(map[string]struct{}, len(p.Layouts))
+	for idx, layout := range p.Layouts {
+		path := strings.TrimSpace(layout.Path)
+		if path == "" {
+			return fmt.Errorf(
+				"%w: bundle %q profile %q layouts[%d].path is required",
+				ErrBundleInvalid,
+				bundleName,
+				p.Name,
+				idx,
+			)
+		}
+		id := strings.TrimSpace(layout.Layout.ID)
+		if id == "" {
+			return fmt.Errorf(
+				"%w: bundle %q profile %q layout %q id is required",
+				ErrBundleInvalid,
+				bundleName,
+				p.Name,
+				path,
+			)
+		}
+		key := bundleLookupKey(id)
+		if _, exists := seenLayouts[key]; exists {
+			return fmt.Errorf(
+				"%w: bundle %q profile %q layout %q is duplicated",
+				ErrBundleInvalid,
+				bundleName,
+				p.Name,
+				id,
+			)
+		}
+		seenLayouts[key] = struct{}{}
+	}
+	return nil
 }
 
 func (p BundleProfile) validateChannels(bundleName string) (map[string]struct{}, error) {
