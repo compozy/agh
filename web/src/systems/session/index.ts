@@ -164,6 +164,10 @@ export {
   useSessionTranscriptThreadState,
 } from "./hooks/use-session-transcript-thread-messages";
 export { useSessionTopbarSlot } from "./hooks/use-session-topbar-slot";
+export {
+  useSessionInspectorState,
+  type UseSessionInspectorStateResult,
+} from "./hooks/use-session-inspector-state";
 export type {
   SessionTranscriptThreadState,
   SessionTranscriptThreadStatus,

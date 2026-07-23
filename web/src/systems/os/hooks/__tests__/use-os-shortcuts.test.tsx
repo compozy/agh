@@ -51,8 +51,8 @@ describe("useOsShortcuts", () => {
     fireEvent.keyDown(input, { key: "k", metaKey: true });
     expect(onPalette).toHaveBeenCalledTimes(2);
 
-    // ⌘J belongs to the RuntimeSelector's composer scope, never the palette
-    // (its composer-scoped behavior is covered by the runtime-selector suite).
+    // ⌘J is not a shell shortcut (the RuntimeSelector opens only through its
+    // trigger button), so the palette must never react to it.
     fireEvent.keyDown(document.body, { key: "j", metaKey: true });
     expect(onPalette).toHaveBeenCalledTimes(2);
     expect(onNewSession).not.toHaveBeenCalled();

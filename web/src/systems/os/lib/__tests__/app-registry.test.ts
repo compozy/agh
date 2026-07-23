@@ -26,4 +26,15 @@ describe("app registry", () => {
     expect(resolveAppForPath("/")?.app.id).toBe("dashboard");
     expect(resolveAppForPath("/tasks")?.app.id).toBe("tasks");
   });
+
+  it("Should open cramped dock work surfaces at enlarged default geometry", () => {
+    expect(OS_APPS.agents.defaultRect).toMatchObject({ w: 920, h: 640 });
+    expect(OS_APPS.loops.defaultRect).toMatchObject({ w: 920, h: 640 });
+    expect(OS_APPS.jobs.defaultRect).toMatchObject({ w: 920, h: 640 });
+    expect(OS_APPS.dashboard.defaultRect).toMatchObject({ w: 960, h: 680 });
+    expect(OS_APPS.session.defaultRect).toMatchObject({ w: 860, h: 680 });
+    expect(OS_APPS.network.defaultRect).toMatchObject({ w: 1200, h: 720 });
+    expect(OS_APPS.tasks.defaultRect).toMatchObject({ w: 1160, h: 720 });
+    expect(OS_APPS.settings.defaultRect).toMatchObject({ w: 1080, h: 680 });
+  });
 });

@@ -18,8 +18,15 @@ export function SessionWindowContent({
   onDeleteSuccess: () => void;
 }) {
   const page = useSessionWindowController({ sessionId, session, onDeleteSuccess });
-  const { controls, inspectorMemory, inspectorUsage, sessionVault, deleteDialog, clearDialog } =
-    page;
+  const {
+    controls,
+    inspector,
+    inspectorMemory,
+    inspectorUsage,
+    sessionVault,
+    deleteDialog,
+    clearDialog,
+  } = page;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -55,15 +62,23 @@ export function SessionWindowContent({
           onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
         />
       </div>
-      <SessionInspector
-        messages={controls.messages}
-        sessionId={sessionId}
-        usage={inspectorUsage}
-        memory={inspectorMemory}
-        vaultSecrets={sessionVault.data ?? []}
-        vaultIsLoading={sessionVault.isLoading}
-        vaultError={sessionVault.error}
-      />
+      {inspector.open ? (
+        <SessionInspector
+          messages={controls.messages}
+          sessionId={sessionId}
+          usage={inspectorUsage}
+          memory={inspectorMemory}
+          vaultSecrets={sessionVault.data ?? []}
+          vaultIsLoading={sessionVault.isLoading}
+          vaultError={sessionVault.error}
+          drawerOpen
+          onDrawerOpenChange={open => {
+            if (!open) {
+              inspector.close();
+            }
+          }}
+        />
+      ) : null}
       <SessionDeleteDialog
         open={deleteDialog.open}
         onOpenChange={deleteDialog.setOpen}

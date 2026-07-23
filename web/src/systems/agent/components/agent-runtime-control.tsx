@@ -8,15 +8,20 @@ import { useAgentRuntimeEditor } from "../hooks/use-agent-runtime-editor";
 export interface AgentRuntimeControlProps {
   agent: AgentPayload;
   workspaceId: string | null;
+  /**
+   * id of a visible caption that names the selector. When omitted, an
+   * sr-only "Agent runtime" label is rendered for standalone mounts.
+   */
+  labelledBy?: string;
 }
 
 /**
- * Topbar runtime editor for the agent detail route. Owns the immediate
- * Provider · Model · Reasoning mutation and surfaces pending/conflict/error
- * feedback inline beside the selector so the topbar stays single-line.
+ * Immediate Provider · Model · Reasoning editor for agent detail. Surfaces
+ * pending/conflict/error feedback above the selector inside the Runtime card.
  */
-export function AgentRuntimeControl({ agent, workspaceId }: AgentRuntimeControlProps) {
+export function AgentRuntimeControl({ agent, workspaceId, labelledBy }: AgentRuntimeControlProps) {
   const runtime = useAgentRuntimeEditor({ agent, workspaceId });
+  const labelId = labelledBy ?? "agent-detail-runtime-label";
   const statusMessage = runtime.isPending
     ? { tone: "muted" as const, testId: "agent-detail-runtime-pending", text: "Updating runtime…" }
     : runtime.conflictMessage
@@ -42,36 +47,39 @@ export function AgentRuntimeControl({ agent, workspaceId }: AgentRuntimeControlP
             : null;
 
   return (
-    <div className="flex min-w-0 items-center gap-2" data-testid="agent-detail-runtime">
-      {statusMessage ? (
-        <span
-          className={
-            statusMessage.tone === "danger"
-              ? "max-w-[24ch] truncate text-small-body text-danger"
-              : statusMessage.tone === "warning"
-                ? "max-w-[24ch] truncate text-small-body text-warning"
-                : "max-w-[24ch] truncate text-small-body text-muted"
-          }
-          data-testid={statusMessage.testId}
-          role={statusMessage.tone === "danger" ? "alert" : "status"}
-          title={statusMessage.text}
-        >
-          {statusMessage.text}
-        </span>
-      ) : null}
-      {runtime.providerSourceError ? (
-        <Button
-          data-testid="agent-detail-runtime-providers-retry"
-          onClick={runtime.onRetryProviderSource}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          Retry providers
-        </Button>
+    <div className="flex min-w-0 flex-col items-start gap-2" data-testid="agent-detail-runtime">
+      {statusMessage || runtime.providerSourceError ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {statusMessage ? (
+            <span
+              className={
+                statusMessage.tone === "danger"
+                  ? "text-small-body text-danger"
+                  : statusMessage.tone === "warning"
+                    ? "text-small-body text-warning"
+                    : "text-small-body text-muted"
+              }
+              data-testid={statusMessage.testId}
+              role={statusMessage.tone === "danger" ? "alert" : "status"}
+            >
+              {statusMessage.text}
+            </span>
+          ) : null}
+          {runtime.providerSourceError ? (
+            <Button
+              data-testid="agent-detail-runtime-providers-retry"
+              onClick={runtime.onRetryProviderSource}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Retry providers
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       <RuntimeSelector
-        ariaLabelledby="agent-detail-runtime-label"
+        ariaLabelledby={labelId}
         catalogLoaded={runtime.modelCatalogLoaded}
         disabled={
           runtime.providersLoading || runtime.providerOptions.length === 0 || runtime.isPending
@@ -88,9 +96,11 @@ export function AgentRuntimeControl({ agent, workspaceId }: AgentRuntimeControlP
         value={runtime.value}
         variant="default"
       />
-      <span className="sr-only" id="agent-detail-runtime-label">
-        Agent runtime
-      </span>
+      {labelledBy ? null : (
+        <span className="sr-only" id={labelId}>
+          Agent runtime
+        </span>
+      )}
     </div>
   );
 }

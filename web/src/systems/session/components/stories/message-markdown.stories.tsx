@@ -20,9 +20,7 @@ type Story = StoryObj<typeof meta>;
 function MarkdownFrame({ children }: { children: ReactNode }) {
   return (
     <CenteredSurface>
-      <div className="w-full max-w-(--width-thread-column) rounded-md border border-line bg-canvas-soft p-6">
-        {children}
-      </div>
+      <div className="w-full rounded-md border border-line bg-canvas-soft p-6">{children}</div>
     </CenteredSurface>
   );
 }

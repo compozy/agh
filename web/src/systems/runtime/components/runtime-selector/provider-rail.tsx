@@ -120,13 +120,13 @@ export function ProviderRail({
         aria-disabled={searching || undefined}
         onKeyDown={handleKeyDown}
         className={cn(
-          "flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto py-1.5 transition-opacity",
+          "flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto py-2 transition-opacity",
           searching && "opacity-45"
         )}
       >
         {railRadio("all", "All models", <LayoutGrid aria-hidden="true" className="size-4" />)}
         {railRadio("fav", "Favorites", <Star aria-hidden="true" className="size-4" />)}
-        <span aria-hidden="true" className="mx-2.5 my-1 h-px shrink-0 bg-line-soft" />
+        <span aria-hidden="true" className="mx-2.5 my-0.5 h-px shrink-0 bg-line-soft" />
         {providers.map(provider =>
           railRadio(
             provider.id,

@@ -482,9 +482,6 @@
   --width-modal-md: 720px;
   --width-modal-lg: 880px;
   --width-modal-xl: 1180px;
-  /* Session thread reading column — consumed as max-w-(--width-thread-column).
-     Kept out of @theme: --width-* only generates w-*, not max-w-*. */
-  --width-thread-column: 46rem;
   --size-catalog-logo: 1.5rem;
   --size-provider-logo-well: 2.5rem;
   --size-pill-group-badge: 14px;

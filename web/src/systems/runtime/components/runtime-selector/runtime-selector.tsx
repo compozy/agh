@@ -68,17 +68,15 @@ export function RuntimeSelector({
   className,
 }: RuntimeSelectorProps) {
   const controller = useRuntimeSelector({ value, onChange, providers, models, catalogLoaded });
-  const triggerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const popup = useRuntimeSelectorPopup({
     controller,
     providers,
-    value,
     disabled: disabled || readOnly,
     triggerRef,
     searchRef,
-    popupRef,
   });
   const modelName = controller.selectedModel?.name ?? value.model;
 
@@ -110,7 +108,7 @@ export function RuntimeSelector({
         modelPlaceholder={modelPlaceholder}
         popupId={popup.popupId}
         ariaLabelledby={ariaLabelledby}
-        onSegment={popup.handleSegment}
+        onPress={popup.handleTriggerPress}
       />
       <PopoverContent
         align="start"

@@ -105,17 +105,6 @@ const models: RuntimeModelOption[] = [
   }),
 ];
 
-const fiveRateModels: RuntimeModelOption[] = models.map(model =>
-  model.provider === "codex" && model.id === "gpt-5.6-sol"
-    ? {
-        ...model,
-        cost_cache_read: 0.5,
-        cost_cache_write: 8,
-        cost_reasoning: 40,
-      }
-    : model
-);
-
 function ControlledRuntimeSelector({ value: initial, ...props }: RuntimeSelectorProps) {
   const [value, setValue] = useState<RuntimeSelectorValue>(initial);
   return (
@@ -148,7 +137,7 @@ const meta: Meta<typeof RuntimeSelector> = {
     docs: {
       description: {
         component:
-          "Unified provider · model · reasoning selector. Closed it reads as a button group; open it is a named dialog with a provider-filter radiogroup, a models listbox (combobox/activedescendant), and a reasoning footer. Options arrive via props (data-agnostic). Fixtures are a truthful aggregate `view=all` set — including one canonical id shared across two providers.",
+          "Unified provider · model · reasoning selector. Closed it is a single button (provider mark, model name, reasoning meter); open it is a named dialog with a provider-filter radiogroup, a models listbox (combobox/activedescendant), and a reasoning slider footer. Options arrive via props (data-agnostic). Fixtures are a truthful aggregate `view=all` set — including one canonical id shared across two providers.",
       },
     },
   },
@@ -165,13 +154,9 @@ const meta: Meta<typeof RuntimeSelector> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-async function openPopup(canvasElement: HTMLElement, segment: "provider" | "model" | "reasoning") {
+async function openPopup(canvasElement: HTMLElement) {
   const canvas = within(canvasElement);
-  const trigger = canvas.getByRole("button", {
-    name:
-      segment === "provider" ? /^Provider:/ : segment === "reasoning" ? /^Reasoning:/ : /^Model:/,
-  });
-  await userEvent.click(trigger);
+  await userEvent.click(canvas.getByRole("button", { name: /^Runtime:/ }));
   const body = within(canvasElement.ownerDocument.body);
   await expect(await body.findByTestId("runtime-selector-popup")).toBeInTheDocument();
   return body;
@@ -221,7 +206,7 @@ export const Default: Story = {
       },
       {
         label: "No selectable effort",
-        description: "Reasoning segment is absent",
+        description: "Reasoning meter is absent",
         value: {
           provider: "claude",
           model: "claude-haiku-4-5-20251001",
@@ -256,36 +241,34 @@ export const Default: Story = {
 
 // --- Open popup states ------------------------------------------------------
 
-/** Open browse state exposing all five independent per-million pricing buckets. */
-export const PopupFiveRatePricing: Story = {
+/** Open browse state: single-line rows plus the reasoning slider footer. */
+export const PopupReasoningSlider: Story = {
   args: {
-    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
-    models: fiveRateModels,
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
   },
   parameters: {
     docs: {
       description: {
         story:
-          "Open popup with one model carrying explicit input, output, cache-read, cache-write, and reasoning rates.",
+          "Open popup. Rows are single-line (bare provider mark, name, brain indicator); the footer slider shows only the model's real levels — `none` is filtered out, there is no Default stop, and the model default (medium) renders pre-selected while the wire value stays empty.",
       },
     },
   },
   play: async ({ canvasElement }) => {
-    const body = await openPopup(canvasElement, "model");
-    // Await the complete five-rate row + levels footer before capture.
+    const body = await openPopup(canvasElement);
+    // Single-line row: the selected model renders with the neutral tint + check.
     const list = within(await body.findByTestId("runtime-selector-list"));
     const modelName = await list.findByText("GPT-5.6 Sol");
     const modelRow = modelName.closest<HTMLElement>('[role="option"]');
-    if (!modelRow) throw new Error("five-rate model row was not rendered as a listbox option");
-    await expect(modelRow).toHaveTextContent("input $5/M");
-    await expect(modelRow).toHaveTextContent("output $30/M");
-    await expect(modelRow).toHaveTextContent("cache read $0.5/M");
-    await expect(modelRow).toHaveTextContent("cache write $8/M");
-    await expect(modelRow).toHaveTextContent("reasoning $40/M");
-    await expect(await body.findByTestId("runtime-selector-reasoning")).toHaveAttribute(
-      "data-reasoning-mode",
-      "levels"
-    );
+    if (!modelRow) throw new Error("model row was not rendered as a listbox option");
+    await expect(modelRow).toHaveAttribute("data-selected", "true");
+    // Slider footer settled: levels mode, none/Default absent, default pre-marked.
+    const footer = await body.findByTestId("runtime-selector-reasoning");
+    await expect(footer).toHaveAttribute("data-reasoning-mode", "levels");
+    const track = await body.findByTestId("runtime-selector-reasoning-track");
+    await expect(track).toHaveAttribute("aria-valuetext", "Medium (model default)");
+    await expect(within(footer).queryByText("None")).not.toBeInTheDocument();
+    await expect(within(footer).queryByText("Default")).not.toBeInTheDocument();
   },
 };
 
@@ -300,7 +283,7 @@ export const PopupSearch: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    const body = await openPopup(canvasElement, "model");
+    const body = await openPopup(canvasElement);
     await userEvent.type(body.getByTestId("runtime-selector-search"), "gpt");
     // Assert the filter actually settled before capture: the non-curated gpt row is
     // revealed and every non-matching Claude row is gone (no stale rows in the shot).
@@ -322,7 +305,7 @@ export const PopupReasoningProviderDecides: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    const body = await openPopup(canvasElement, "model");
+    const body = await openPopup(canvasElement);
     // The 'provider decides' footer settled: supported-nolevels mode + the note text.
     const footer = await body.findByTestId("runtime-selector-reasoning");
     await expect(footer).toHaveAttribute("data-reasoning-mode", "supported-nolevels");
@@ -349,7 +332,7 @@ export const PopupFavoritesRail: Story = {
     return () => window.localStorage.removeItem(FAVORITES_STORAGE_KEY);
   },
   play: async ({ canvasElement }) => {
-    const body = await openPopup(canvasElement, "model");
+    const body = await openPopup(canvasElement);
     await userEvent.click(body.getByRole("radio", { name: "Favorites" }));
     // Await the pinned cross-provider favorites inside the list before capture.
     const list = within(await body.findByTestId("runtime-selector-list"));

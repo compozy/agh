@@ -1,87 +1,14 @@
-import { Brain, Check, Star, Wrench } from "lucide-react";
-import { Fragment, type ReactElement } from "react";
+import { Brain, Check, Star } from "lucide-react";
 
 import { cn, KindIcon, providerKindIconRegistry } from "@agh/ui";
 
 import type { RuntimeModelOption } from "./types";
 
-function formatContext(tokens: number | null | undefined): string | null {
-  if (tokens == null) return null;
-  if (tokens >= 1_000_000) return `${tokens / 1_000_000}M`;
-  if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`;
-  return String(tokens);
-}
-
-type CostRateKey =
-  | "cost_input"
-  | "cost_output"
-  | "cost_cache_read"
-  | "cost_cache_write"
-  | "cost_reasoning";
-
-const COST_RATES = [
-  { key: "cost_input", label: "input" },
-  { key: "cost_output", label: "output" },
-  { key: "cost_cache_read", label: "cache read" },
-  { key: "cost_cache_write", label: "cache write" },
-  { key: "cost_reasoning", label: "reasoning" },
-] as const satisfies ReadonlyArray<{ key: CostRateKey; label: string }>;
-
-function DotSep() {
-  return <span aria-hidden="true" className="size-0.5 shrink-0 rounded-full bg-faint" />;
-}
-
-function buildChips(model: RuntimeModelOption): ReactElement[] {
-  const chips: ReactElement[] = [];
-  const ctx = formatContext(model.context_window);
-  if (ctx)
-    chips.push(
-      <span key="ctx" className="font-mono text-badge text-subtle tabular-nums">
-        {ctx}
-      </span>
-    );
-  for (const { key, label } of COST_RATES) {
-    const rate = model[key];
-    if (rate == null) continue;
-    chips.push(
-      <span key={key} className="font-mono text-badge text-subtle tabular-nums">
-        {label} ${rate}/M
-      </span>
-    );
-  }
-  if (model.supports_tools) {
-    chips.push(
-      <span key="tools" className="inline-flex items-center gap-1 font-mono text-badge text-subtle">
-        <Wrench aria-hidden="true" className="size-3 text-faint" />
-        tools
-      </span>
-    );
-  }
-  if (model.efforts.length > 0) {
-    chips.push(
-      <span
-        key="rz"
-        className="inline-flex items-center gap-1 font-mono text-badge text-accent-strong"
-      >
-        <Brain aria-hidden="true" className="size-3 text-accent-strong" />
-        {model.efforts.length} levels
-      </span>
-    );
-  } else if (model.supports_reasoning) {
-    chips.push(
-      <span key="rz" className="inline-flex items-center gap-1 font-mono text-badge text-subtle">
-        <Brain aria-hidden="true" className="size-3 text-faint" />
-        reasoning
-      </span>
-    );
-  }
-  return chips;
-}
-
 export interface ModelRowProps {
   /** DOM id used for the combobox `aria-activedescendant` relationship. */
   id: string;
   model: RuntimeModelOption;
+  /** Provider display name — spoken (sr-only) so same-id rows stay distinct. */
   providerName: string;
   /** Icon key from the owning provider option (`runtime_provider` or id). */
   iconKind: string;
@@ -94,16 +21,15 @@ export interface ModelRowProps {
 }
 
 /**
- * One `role="option"` in the models listbox. A listbox option MUST NOT wrap a
- * focusable/interactive control, nor carry `aria-keyshortcuts` (that belongs on
- * the real external favorite button), so this row is pure: selection is its only
- * option-level action. The favorite star is a NON-interactive `aria-hidden`,
- * pointer-inert indicator — it shows favorite state visually but is never
- * clickable and never a fake `role="button"` span. Favoriting is a real external
- * control (the footer favorite button + its `Alt+F` shortcut) acting on the
- * active row; the option's accessible name still carries the current state via
- * the visually-hidden "Favorited" text. Pointer hover activates the row so that
- * external control targets whatever the cursor is over.
+ * One `role="option"` in the models listbox — a single line: bare provider
+ * mark, model name, and a faint brain glyph when the model reasons. Context,
+ * cost, and tool metadata deliberately do not render here; the catalog is a
+ * picker, not a spec sheet. A listbox option MUST NOT wrap a focusable or
+ * interactive control, so the row stays pure: selection is its only action.
+ * The favorite star is a NON-interactive `aria-hidden` indicator — the real
+ * favorite control is the footer button (+ Alt+F) acting on the active row,
+ * and pointer hover activates the row so that control targets whatever the
+ * cursor is over.
  */
 export function ModelRow({
   id,
@@ -117,7 +43,7 @@ export function ModelRow({
   onHover,
 }: ModelRowProps) {
   const disabled = Boolean(model.disabled);
-  const chips = buildChips(model);
+  const reasons = model.efforts.length > 0 || Boolean(model.supports_reasoning);
 
   return (
     <div
@@ -133,10 +59,10 @@ export function ModelRow({
       data-highlighted={highlighted ? "true" : "false"}
       data-favorite={favorite ? "true" : "false"}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors",
+        "group flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors",
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-row-hover",
         highlighted && !disabled && "bg-row-hover ring-1 ring-line-strong ring-inset",
-        selected && "bg-accent-tint"
+        selected && "bg-row-selected"
       )}
       onMouseEnter={disabled ? undefined : onHover}
       onClick={event => {
@@ -145,35 +71,27 @@ export function ModelRow({
         onSelect(model.provider, model.id);
       }}
     >
-      <span
-        className={cn(
-          "grid size-7 shrink-0 place-items-center overflow-hidden rounded-sm bg-elevated p-[5px] ring-1 ring-inset",
-          selected ? "ring-accent-dim" : "ring-line-soft"
-        )}
-      >
-        <KindIcon
-          kind={iconKind}
-          registry={providerKindIconRegistry}
-          size="sm"
-          tone="default"
-          className="size-full"
-        />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-small-body font-medium text-fg-strong">{model.name}</span>
-          {favorite ? <span className="sr-only">, Favorited</span> : null}
-        </span>
-        <span className="mt-0.5 flex flex-wrap items-center gap-2 text-badge text-faint">
-          <span className="text-subtle">{providerName}</span>
-          {chips.length > 0 ? <DotSep /> : null}
-          {chips.map((chip, index) => (
-            <Fragment key={chip.key}>
-              {index > 0 ? <DotSep /> : null}
-              {chip}
-            </Fragment>
-          ))}
-        </span>
+      <KindIcon
+        kind={iconKind}
+        registry={providerKindIconRegistry}
+        size="md"
+        tone="default"
+        className="shrink-0"
+      />
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="truncate text-small-body font-medium text-fg-strong">{model.name}</span>
+        <span className="sr-only">from {providerName}</span>
+        {reasons ? (
+          <span
+            data-reasoning-indicator="true"
+            title="Supports reasoning"
+            className="grid shrink-0 place-items-center text-faint"
+          >
+            <Brain aria-hidden="true" className="size-3.5" />
+            <span className="sr-only">, supports reasoning</span>
+          </span>
+        ) : null}
+        {favorite ? <span className="sr-only">, favorited</span> : null}
       </span>
       <span className="flex shrink-0 items-center gap-2.5">
         {disabled ? (
@@ -181,7 +99,7 @@ export function ModelRow({
             {model.disabled_reason ?? "Unavailable"}
           </span>
         ) : null}
-        {/* Non-color structural cue for selection (in addition to aria-selected + tint). */}
+        {/* Non-color structural cue for selection (in addition to aria-selected + row tint). */}
         {selected ? (
           <Check
             aria-hidden="true"

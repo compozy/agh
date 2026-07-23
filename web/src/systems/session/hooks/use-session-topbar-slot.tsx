@@ -1,7 +1,8 @@
-import { Eraser, Play, Square, Trash2 } from "lucide-react";
+import { Eraser, PanelRight, Play, Square, Trash2 } from "lucide-react";
 
 import {
   Button,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -23,6 +24,8 @@ interface UseSessionTopbarSlotInput {
   isResuming: boolean;
   isClearing: boolean;
   canClear: boolean;
+  inspectorOpen: boolean;
+  onInspectorToggle: () => void;
   onDelete: () => void;
   onStop: () => void;
   onResume: () => void;
@@ -37,6 +40,8 @@ export function useSessionTopbarSlot({
   isResuming,
   isClearing,
   canClear,
+  inspectorOpen,
+  onInspectorToggle,
   onDelete,
   onStop,
   onResume,
@@ -72,7 +77,23 @@ export function useSessionTopbarSlot({
     >
       {isResuming ? <Spinner className="size-3" /> : <Play className="size-3" />}
     </Button>
-  ) : undefined;
+  ) : null;
+
+  const inspectorToggle = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={inspectorOpen ? "Close session inspector" : "Open session inspector"}
+      aria-pressed={inspectorOpen}
+      className={cn(inspectorOpen ? "bg-elevated text-fg" : null)}
+      data-state={inspectorOpen ? "open" : "closed"}
+      data-testid="session-inspector-toggle"
+      onClick={onInspectorToggle}
+    >
+      <PanelRight aria-hidden="true" className="size-3" />
+    </Button>
+  );
 
   useTopbarSlot({
     glyph: (
@@ -87,7 +108,12 @@ export function useSessionTopbarSlot({
     glyphPresentation: "state",
     crumb: getSessionDisplayTitle(session),
     status: <SessionStatusLine session={session} showState={false} />,
-    actions: primaryAction,
+    actions: (
+      <>
+        {primaryAction}
+        {inspectorToggle}
+      </>
+    ),
     overflow: (
       <DropdownMenu>
         <DropdownMenuTrigger

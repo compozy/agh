@@ -111,6 +111,11 @@ export interface RuntimeReasoningState {
  * without levels renders the "provider decides" note; a selected model with
  * neither renders the "no reasoning" note. `no-model` and `none` are kept
  * distinct so the footer never claims "this model…" when nothing is selected.
+ *
+ * `none` is not a selectable stop: turning reasoning off is not something the
+ * selector offers, so the slider starts at the lowest real level. A model
+ * advertising only `none` therefore has no selectable levels at all, and a
+ * `default_effort` outside the filtered set collapses to "" (provider default).
  */
 export function resolveReasoningState(
   model: RuntimeModelOption | undefined
@@ -118,11 +123,13 @@ export function resolveReasoningState(
   if (!model) {
     return { mode: "no-model", levels: [], defaultEffort: "", source: "catalog" };
   }
-  if (model.efforts.length > 0) {
+  const levels: ReasoningEffort[] = model.efforts.filter(effort => effort !== "none");
+  if (levels.length > 0) {
+    const fallback = model.default_effort ?? "";
     return {
       mode: "levels",
-      levels: model.efforts,
-      defaultEffort: model.default_effort ?? "",
+      levels,
+      defaultEffort: fallback !== "" && levels.includes(fallback) ? fallback : "",
       source: model.reasoning_source ?? "catalog",
     };
   }
