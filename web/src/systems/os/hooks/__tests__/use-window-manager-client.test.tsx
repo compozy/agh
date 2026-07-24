@@ -111,4 +111,26 @@ describe("useWindowManagerClient", () => {
     expect(registerWindowManagerClient).toHaveBeenCalledTimes(2);
     expect(result.current.clientId).toBe("client:stable");
   });
+
+  it("Should hide a registered client immediately when the workspace changes", async () => {
+    let resolveNext!: (view: WindowManagerClientView) => void;
+    vi.mocked(registerWindowManagerClient)
+      .mockResolvedValueOnce(client())
+      .mockImplementationOnce(() => new Promise(resolve => (resolveNext = resolve)));
+    const onClientChange = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ workspaceId }: { workspaceId: string }) =>
+        useWindowManagerClient(workspaceId, onClientChange),
+      { initialProps: { workspaceId: "workspace:test" } }
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("registered"));
+    rerender({ workspaceId: "workspace:next" });
+
+    expect(result.current.client).toBeNull();
+    expect(result.current.status).toBe("registering");
+
+    resolveNext({ ...client(2), workspaceId: "workspace:next" });
+    await waitFor(() => expect(result.current.client?.workspaceId).toBe("workspace:next"));
+  });
 });

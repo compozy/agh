@@ -14,6 +14,7 @@ export function effectiveWindowManagerConfig(
     raiseOnFocus: workspace.raiseOnFocus ?? global.raiseOnFocus,
     dragAwayPolicy: workspace.dragAwayPolicy ?? global.dragAwayPolicy,
     groupMoveModifier: workspace.groupMoveModifier ?? global.groupMoveModifier,
+    swapModifier: workspace.swapModifier ?? global.swapModifier,
     historyLimit: workspace.historyLimit ?? global.historyLimit,
     desktopTransition: workspace.desktopTransition ?? global.desktopTransition,
     gaps: { ...(workspace.gaps ?? global.gaps) },

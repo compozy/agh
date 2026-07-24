@@ -1,7 +1,8 @@
 // Suite: pure progressive snap-target resolution
-// Invariant: WM-WEB-004 — targets are contained in the captured work area; sides/corners,
-// progressive ratios, structural occupied drops, zoom, Dock reservation, and hysteresis resolve once.
-// Boundary IN: pointer + captured work area + structural candidates.
+// Invariant: WM-WEB-004 — targets are contained in the captured work area; overshoot clamps
+// to the nearest edge and keeps it armed; sides/corners, progressive ratios, structural
+// occupied drops, swap-modifier drops, zoom, Dock reservation, and hysteresis resolve once.
+// Boundary IN: pointer + captured work area + structural candidates + swap modifier state.
 // Boundary OUT: gesture lifecycle and daemon command execution.
 import { describe, expect, it } from "vitest";
 
@@ -30,12 +31,47 @@ function resolve(input: Omit<ResolveSnapTargetInput, "config">) {
 
 describe("resolveSnapTarget", () => {
   it.each([
-    { name: "left", point: { x: AREA.x - 1, y: 400 } },
-    { name: "right", point: { x: AREA.x + AREA.w + 1, y: 400 } },
-    { name: "top", point: { x: 600, y: AREA.y - 1 } },
-    { name: "bottom", point: { x: 600, y: AREA.y + AREA.h + 1 } },
-  ])("Should resolve no target outside the $name work-area edge", ({ point }) => {
-    expect(resolve({ point, workArea: AREA })).toBeNull();
+    { name: "left", point: { x: AREA.x - 40, y: 400 }, edge: "left" },
+    { name: "right", point: { x: AREA.x + AREA.w + 40, y: 400 }, edge: "right" },
+  ])("Should keep the $name edge armed when the pointer overshoots it", ({ point, edge }) => {
+    const target = resolve({ point, workArea: AREA });
+    expect(target).toMatchObject({ kind: "tile", edge });
+  });
+
+  it("Should resolve zoom when the pointer overshoots the top-center band", () => {
+    expect(resolve({ point: { x: 600, y: AREA.y - 40 }, workArea: AREA })).toMatchObject({
+      kind: "zoom",
+    });
+  });
+
+  it("Should keep the reserved bottom-center approach strip above the Dock blocked on overshoot", () => {
+    expect(resolve({ point: { x: 600, y: AREA.y + AREA.h + 40 }, workArea: AREA })).toBeNull();
+  });
+
+  it("Should resolve a whole-window swap over a candidate while the modifier is held", () => {
+    const target = resolve({
+      point: { x: 500, y: 370 },
+      workArea: AREA,
+      candidates: [CANDIDATE],
+      swapModifierActive: true,
+    });
+    expect(target).toEqual({
+      kind: "swap",
+      id: "swap:leaf:target",
+      targetWindowId: "window:target",
+      targetNodeId: "leaf:target",
+      rect: { x: 300, y: 220, w: 400, h: 300 },
+    });
+  });
+
+  it("Should keep structural occupied drops when the swap modifier is released", () => {
+    const target = resolve({
+      point: { x: 500, y: 370 },
+      workArea: AREA,
+      candidates: [CANDIDATE],
+      swapModifierActive: false,
+    });
+    expect(target?.kind).toBe("stack");
   });
 
   it.each([
@@ -83,7 +119,7 @@ describe("resolveSnapTarget", () => {
     expect(top.rect.y + top.rect.h).toBe(bottom.rect.y);
   });
 
-  it("Should reserve bottom-center for the Dock and map top-center to zoom", () => {
+  it("Should block the reserved bottom-center approach strip above the Dock and map top-center to zoom", () => {
     const zoom = resolve({ point: { x: 600, y: 21 }, workArea: AREA });
     const dock = resolve({ point: { x: 600, y: 819 }, workArea: AREA });
 

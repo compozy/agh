@@ -176,7 +176,7 @@ type Commit struct {
 // Repository stores the complete aggregate atomically.
 type Repository interface {
 	Load(ctx context.Context, workspaceID WorkspaceID) (Snapshot, error)
-	Commit(ctx context.Context, commit Commit) error
+	Commit(ctx context.Context, commit *Commit) error
 	DeleteWorkspace(ctx context.Context, workspaceID WorkspaceID) error
 }
 

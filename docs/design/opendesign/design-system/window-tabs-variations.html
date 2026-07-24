@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGH DS · Window tabs — three directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<link rel="stylesheet" href="ds-shell.css">
+<style>
+/* ---- page chrome (same skeleton as os-shell.html) ---- */
+body{background:var(--canvas);overflow-y:auto}
+.doc{max-width:1080px;margin:0 auto;padding:0 32px 120px}
+.docnav{
+  position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:2px;
+  margin:0 -32px 40px;padding:10px 32px;
+  background:color-mix(in srgb,var(--canvas) 86%,transparent);
+  backdrop-filter:blur(14px);border-bottom:1px solid var(--line);
+}
+.docnav__brand{display:flex;align-items:center;gap:8px;margin-right:14px;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
+.docnav__brand i{width:16px;height:16px;border-radius:5px;background:var(--accent);display:inline-block}
+.docnav a{font-size:12px;font-weight:500;color:var(--muted);padding:5px 9px;border-radius:var(--radius);text-decoration:none}
+.docnav a:hover{color:var(--fg);background:var(--row-hover)}
+.docnav a[aria-current="page"]{color:var(--fg-strong);background:var(--row-selected)}
+.hero{padding:48px 0 8px}
+.hero .eyebrow{color:var(--accent-strong);letter-spacing:.1em}
+.hero h1{font-size:26px;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);margin:8px 0 10px}
+.hero p{font-size:13.5px;line-height:1.6;color:var(--muted);max-width:74ch}
+.sec{margin-top:56px}
+.sec__head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.sec__num{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+.sec__head h2{font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
+.sec__head .pill{margin-left:2px}
+.sec>p{font-size:13px;line-height:1.6;color:var(--muted);max-width:78ch;margin-bottom:16px}
+.spec{width:100%;border-collapse:collapse;font-size:12.5px}
+.spec th{text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+.spec td{padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--muted);vertical-align:top}
+.spec td:first-child{color:var(--fg);white-space:nowrap}
+.spec code{font-size:11px;color:var(--fg);background:var(--badge-fill);border-radius:3px;padding:1px 5px}
+.rule-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+.rule{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:12px 16px;border-top:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+.rule:first-child{border-top:0}
+.rule i{font-family:var(--font-mono);font-size:10px;color:var(--accent-strong);padding-top:2px;font-style:normal}
+.rule i[data-good]{color:var(--success)}
+.rule b{color:var(--fg-strong);font-weight:600}
+.demo{position:relative;padding:22px;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(700px 420px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(640px 380px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.demo .win{position:relative;resize:none;animation:none;min-width:0}
+.demo .win + .win{margin-top:18px}
+.demo-note{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin:10px 2px 0}
+.measure{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0}
+.measure span{font-family:var(--font-mono);font-size:10px;color:var(--subtle);border:1px solid var(--line);border-radius:var(--radius-sm);padding:2px 7px;background:var(--canvas-soft)}
+
+/* ============================================================
+   SHARED TAB VOCABULARY (all three directions)
+   ============================================================ */
+.wt-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wt-glyph{width:13px;height:13px;flex:none;color:var(--subtle)}
+.is-on .wt-glyph{color:var(--muted)}
+.wt-x{
+  width:16px;height:16px;flex:none;margin-left:1px;
+  border-radius:var(--radius-xs);display:grid;place-items:center;
+  color:var(--faint);opacity:0;transition:opacity var(--dur),background var(--dur),color var(--dur);
+}
+.wt-x svg{width:9px;height:9px}
+.wt-x:hover{background:var(--btn-fill);color:var(--fg-strong)}
+[data-tab]:hover .wt-x,[data-tab].is-on .wt-x{opacity:1}
+.wt-add{
+  width:24px;height:24px;flex:none;border-radius:7px;
+  display:grid;place-items:center;color:var(--subtle);
+  transition:background var(--dur),color var(--dur);
+}
+.wt-add svg{width:12px;height:12px}
+.wt-add:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.wt-badge{
+  min-width:14px;height:14px;padding:0 4px;border-radius:7px;flex:none;
+  background:var(--accent);color:var(--accent-ink);
+  font-family:var(--font-mono);font-size:9px;font-weight:700;line-height:14px;text-align:center;
+}
+[data-tab]{cursor:pointer}
+
+/* ============================================================
+   A · FUSED — the tabs ARE the 44px head
+   ============================================================ */
+.va .win-head{gap:8px}
+.ft-tabs{display:flex;align-items:center;gap:3px;min-width:0;flex:0 1 auto;max-width:58%}
+.ft-tab{
+  position:relative;display:inline-flex;align-items:center;gap:7px;
+  height:30px;padding:0 10px;border-radius:var(--radius-md);
+  font-size:12.5px;font-weight:500;color:var(--subtle);
+  flex:0 1 auto;min-width:72px;max-width:150px;
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.ft-tab:hover{background:var(--row-hover);color:var(--fg)}
+.ft-tab.is-on{
+  background:var(--elevated);color:var(--fg-strong);
+  font-size:13px;font-weight:600;box-shadow:var(--highlight);
+  max-width:240px;flex-shrink:0;
+}
+.ft-tab .w2-count{margin-left:-1px}
+.ft-back{
+  width:16px;height:16px;flex:none;display:none;place-items:center;
+  border-radius:var(--radius-xs);color:var(--muted);margin-left:-3px;
+}
+.ft-back svg{width:11px;height:11px}
+.ft-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.ft-tab.is-on .ft-back{display:grid}
+/* single-tab: chrome melts — the remaining tab reads as today's plain identity */
+.va[data-single] .ft-tab{background:transparent;box-shadow:none;pointer-events:none;padding-left:2px}
+.va[data-single] .ft-tab .wt-x{display:none}
+
+/* ============================================================
+   B · DECK — thin tab row above the classic head (cmux model)
+   ============================================================ */
+.deck{
+  flex:none;height:37px;display:flex;align-items:flex-end;gap:2px;
+  padding:0 10px;background:var(--rail);
+  box-shadow:inset 0 -1px 0 var(--line);
+  cursor:grab;user-select:none;
+}
+.deck:active{cursor:grabbing}
+.deck .win-controls{align-self:center;margin-right:6px}
+.deck-tabs{display:flex;align-items:flex-end;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.deck-tabs::-webkit-scrollbar{display:none}
+.deck-tab{
+  position:relative;display:inline-flex;align-items:center;gap:7px;
+  height:30px;padding:0 10px;min-width:96px;max-width:180px;flex:0 1 auto;
+  border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;
+  font-size:12.5px;font-weight:500;color:var(--subtle);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.deck-tab:hover{background:var(--canvas-soft);color:var(--fg)}
+.deck-tab.is-on{
+  background:var(--canvas);color:var(--fg-strong);font-weight:600;
+  border-color:var(--line);
+  box-shadow:0 1px 0 var(--canvas); /* fuses the active tab with the head below */
+}
+.deck .wt-add{align-self:center;margin-left:2px}
+.deck .w2-flex{cursor:grab}
+/* multi-tab: controls live in the deck; the head shows them only when single */
+.vb .win-head [data-ctl="head"]{display:none}
+.vb[data-single] .deck{display:none}
+.vb[data-single] .win-head [data-ctl="head"]{display:flex}
+
+/* ============================================================
+   C · RAIL — vertical documents column (Zed model), adaptive
+   ============================================================ */
+.vc{container-type:inline-size}
+.wr-layout{display:flex;flex:1;min-height:0}
+.wr{
+  width:208px;flex:none;display:flex;flex-direction:column;
+  background:var(--rail);border-right:1px solid var(--line);
+}
+.wr-head{display:flex;align-items:center;gap:4px;padding:9px 10px 5px}
+.wr-head .eyebrow{flex:1;min-width:0;overflow:hidden;white-space:nowrap}
+.wr-min{
+  width:22px;height:22px;flex:none;border-radius:var(--radius);
+  display:grid;place-items:center;color:var(--faint);
+}
+.wr-min svg{width:11px;height:11px;transition:transform var(--dur) var(--ease)}
+.wr-min:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.wr-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px;padding:2px 6px 8px}
+.wr-row{
+  position:relative;display:flex;align-items:center;gap:8px;
+  min-height:30px;padding:0 8px;border-radius:var(--radius);
+  font-size:12.5px;color:var(--muted);text-align:left;min-width:0;
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.wr-row:hover{background:var(--row-hover);color:var(--fg)}
+.wr-row.is-on{background:var(--row-selected);color:var(--fg-strong);font-weight:500;box-shadow:inset 2px 0 0 var(--accent)}
+.wr-row .wt-label{flex:1}
+.wr-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.wr-main .win-body{flex:1}
+.vc[data-single] .wr{display:none}
+/* collapsed rail — manual (data-rail-min) or automatic below 600px window width */
+.vc[data-rail-min] .wr{width:46px}
+.vc[data-rail-min] .wr .wt-label,.vc[data-rail-min] .wr .w2-count,.vc[data-rail-min] .wr .wt-x,
+.vc[data-rail-min] .wr .wt-badge,.vc[data-rail-min] .wr-head .eyebrow{display:none}
+.vc[data-rail-min] .wr-row{justify-content:center;padding:0;gap:0}
+.vc[data-rail-min] .wr-head{flex-direction:column;align-items:center;gap:2px;padding:8px 0 4px}
+.vc[data-rail-min] .wr-min svg{transform:rotate(180deg)}
+@container (max-width:599px){
+  .wr{width:46px}
+  .wr .wt-label,.wr .w2-count,.wr .wt-x,.wr .wt-badge,.wr-head .eyebrow{display:none}
+  .wr-row{justify-content:center;padding:0;gap:0}
+  .wr-head{flex-direction:column;align-items:center;gap:2px;padding:8px 0 4px}
+  .wr-min svg{transform:rotate(180deg)}
+}
+
+/* ---- mini window content used by the demos ---- */
+.minilist{padding:4px 16px 8px}
+.minilog{padding:12px 18px;font-family:var(--font-mono);font-size:11px;line-height:2;color:var(--muted)}
+.minilog time{color:var(--subtle);margin-right:8px}
+.minilog b{color:var(--fg);font-weight:500}
+.blankpane{display:grid;place-items:center;height:100%;min-height:120px;font-size:12px;color:var(--subtle);text-align:center;line-height:1.6}
+.blankpane kbd{border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:1px 5px;background:var(--badge-fill);color:var(--muted)}
+.composer-send{background:var(--accent);color:var(--accent-ink)}
+.composer-send:hover{background:var(--accent-hover)}
+</style>
+</head>
+<body>
+<div class="doc" data-od-id="ds-window-tabs">
+  <nav class="docnav" data-od-id="ds-nav">
+    <span class="docnav__brand"><i></i>AGH DS</span>
+    <a href="index.html">Overview</a>
+    <a href="foundations.html">01 Foundations</a>
+    <a href="os-shell.html">02 OS Shell</a>
+    <a href="components.html">03 Components</a>
+    <a href="patterns.html">04 Patterns</a>
+    <a href="window-tabs-variations.html" aria-current="page">↳ Window tabs · exploration</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">AGH Design System · Exploration — pick one</p>
+    <h1>Window tabs — three directions</h1>
+    <p>cmux proves the model: splits divide the desktop, and <b>each surface still holds its own tab
+    row</b>, so one window multiplexes many terminals. AGH windows can't do this today — the 44px head
+    hosts exactly one identity (S1) and two bars maximum (S2). This file proposes three anatomies that
+    add per-window tabs able to host <em>any</em> surface — a route, a drilled-in state, a live session
+    document — while keeping the existing head vocabulary. All demos are live: <b>click tabs to switch,
+    × to close, + to add</b>. In every direction a single-tab window renders exactly today's chrome —
+    tabs cost nothing until the second tab exists. The winner gets folded into
+    <code class="mono">02 · OS Shell §02</code> and <code class="mono">os/os-v2</code>.</p>
+  </header>
+
+  <!-- ============ 00 THE CONSTRAINT ============ -->
+  <section class="sec" id="problem" data-od-id="sec-problem">
+    <div class="sec__head"><span class="sec__num">00</span><h2>What has to survive</h2></div>
+    <p>Whatever anatomy wins, the existing contracts still apply per surface: identity renders once
+    (glyph + 13px/600 title, or breadcrumb at depth, or pulsing dot for documents) · route tabs sit
+    after the title · status chip + ≤2 actions on the trail · optional 38px tools strip · a guaranteed
+    drag gutter. The three directions differ only in <b>where the tab switcher lives</b> and what each
+    placement costs.</p>
+  </section>
+
+  <!-- ============ 01 VARIATION A ============ -->
+  <section class="sec" id="var-a" data-od-id="sec-var-a">
+    <div class="sec__head"><span class="sec__num">01</span><h2>A · Fused — tabs are the head</h2><span class="pill">Safari / Arc compact</span></div>
+    <p>No new bar. Tab segments live inside the 44px head itself; <b>the active tab is the window
+    identity</b> — it carries the glyph, the 13px/600 title and the count, reusing the
+    <code class="mono">.w2-tab</code> selection vocabulary at 30px. Trail status and actions swap with
+    the active tab. Cheapest chrome of the three, and the tightest fit: route tabs relocate to the
+    strip, and the drill-in trail compresses to a back chevron inside the tab.</p>
+
+    <div class="demo" data-od-id="demo-a-main">
+      <section class="win is-focused va" data-tabwin data-od-id="win-a-main" style="width:100%">
+        <header class="win-head">
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="ft-tabs" role="tablist" aria-label="Open tabs">
+            <div class="ft-tab is-on" role="tab" aria-selected="true" tabindex="0" data-tab="t1" title="Tasks">
+              <svg class="wt-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span class="wt-label">Tasks</span><span class="w2-count mono">6</span>
+              <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+            </div>
+            <div class="ft-tab" role="tab" aria-selected="false" tabindex="0" data-tab="t2" title="Tasks / Nightly triage / Run #418">
+              <button class="ft-back" aria-label="Back (⌘[)" title="Pops this tab's stack — Tasks / Nightly triage"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <span class="wt-label">Run #418</span>
+              <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+            </div>
+            <div class="ft-tab" role="tab" aria-selected="false" tabindex="0" data-tab="t3" title="Polish checkout flow — live session">
+              <span class="d d--run d--pulse" aria-hidden="true"></span>
+              <span class="wt-label">Polish checkout flow</span>
+              <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+            </div>
+            <div class="ft-tab" role="tab" aria-selected="false" tabindex="0" data-tab="new" hidden>
+              <span class="wt-label">New tab</span>
+              <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+            </div>
+          </div>
+          <button class="wt-add" data-add aria-label="New tab (⌘T)"><svg viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail" data-trail="t1">
+            <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>2 running</span>
+            <span class="w2-vsep"></span>
+            <div class="w2-actions"><button class="btn btn--primary btn--sm">New task</button><button class="btn btn--sm btn--icon" aria-label="More">···</button></div>
+          </div>
+          <div class="win-trail" data-trail="t2" hidden>
+            <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>Running</span>
+            <span class="w2-vsep"></span>
+            <div class="w2-actions"><button class="btn btn--sm">Stop run</button></div>
+          </div>
+          <div class="win-trail" data-trail="t3" hidden>
+            <span class="w2-status"><span class="agent-chip">WG</span>webgen</span>
+            <span class="w2-meta mono">claude-fable-5</span>
+            <span class="w2-vsep"></span>
+            <span class="w2-meta mono">12:41</span>
+          </div>
+          <div class="win-trail" data-trail="new" hidden></div>
+        </header>
+        <div class="win-toolbar" data-strip="t1">
+          <div class="app-toolbar">
+            <div class="pill-group" role="group" aria-label="Task views">
+              <button class="pill-group__item is-on">List</button>
+              <button class="pill-group__item">Kanban</button>
+            </div>
+            <div class="pill-group" role="group" aria-label="Task filter">
+              <button class="pill-group__item is-on">All <span class="mono">6</span></button>
+              <button class="pill-group__item">Running <span class="mono">2</span></button>
+            </div>
+            <span class="w2-flex" aria-hidden="true"></span>
+            <div class="pill-group" role="group" aria-label="View mode">
+              <button class="pill-group__item is-on">Rows</button>
+              <button class="pill-group__item">Cards</button>
+            </div>
+          </div>
+        </div>
+        <div class="win-body" data-panel="t1">
+          <ul class="list minilist">
+            <li><span class="d d--run d--pulse"></span><span class="row-title">Nightly triage</span><span class="row-meta">running · 12m</span></li>
+            <li><span class="d d--needs"></span><span class="row-title">Rotate vault keys</span><span class="row-meta">needs you</span></li>
+            <li><span class="d d--ok"></span><span class="row-title">Sync marketplace index</span><span class="row-meta">2h ago</span></li>
+          </ul>
+        </div>
+        <div class="win-body" data-panel="t2" hidden>
+          <div class="minilog">
+            <div><time>12:41:22</time><b>step 4/6</b> · apply fixes — 3 files changed</div>
+            <div><time>12:40:57</time>tool <b>Edit</b> · internal/loop/action.go</div>
+            <div><time>12:40:31</time>tool <b>Read</b> · internal/loop/registry.go</div>
+          </div>
+        </div>
+        <div class="win-body" data-panel="t3" hidden>
+          <div class="transcript" style="padding:14px 18px 10px">
+            <div class="msg-user"><div class="msg-role">You</div><div class="msg-text">Tighten the summary card spacing on mobile.</div></div>
+            <div><div class="msg-role">webgen</div><div class="msg-text">Adjusting the checkout summary grid — collapsing to a single column under 480px<span class="caret"></span></div></div>
+          </div>
+          <div class="composer"><input placeholder="Message webgen…" aria-label="Message"><button class="composer-send" aria-label="Send"><svg viewBox="0 0 16 16"><path d="M2.5 8h10M8.5 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+        </div>
+        <div class="win-body" data-panel="new" hidden>
+          <div class="blankpane"><span>Empty tab — open any route or session<br><kbd>⌘K</kbd> to pick a destination</span></div>
+        </div>
+      </section>
+    </div>
+    <p class="demo-note">live — switch tabs and watch the trail + strip swap · close down to one tab: the chrome melts back into today's plain head · + reopens a tab</p>
+
+    <table class="spec" style="margin-top:18px">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Tab segment</td><td>30px · radius 8 · gap 3 · inactive 12.5/500 subtle, max 150px · hover row-hover</td></tr>
+      <tr><td>Active tab</td><td>elevated + highlight (same selection vocabulary as <code>.w2-tab.is-on</code>) · 13/600 fg-strong · carries glyph 13 / pulsing dot + count · max 240px</td></tr>
+      <tr><td>Drill-in</td><td>back chevron 16px renders <em>inside</em> the active tab · title = leaf · full trail in tooltip + ⌘[ — parent crumbs are not clickable</td></tr>
+      <tr><td>Route tabs</td><td>relocate to the strip as the first pill-group (S2/S3 amendment — strip is no longer tools-only)</td></tr>
+      <tr><td>Trail / strip</td><td>status + ≤2 actions and the strip swap with the active tab</td></tr>
+      <tr><td>Drag</td><td>tabs cap at 58% of head width · the gutter always keeps ≥48px of drag</td></tr>
+    </table>
+    <div class="measure"><span>head 44 · unchanged</span><span>tab 30 · radius 8</span><span>active max 240</span><span>inactive 72–150</span><span>ceiling ~4–5 tabs</span></div>
+
+    <div class="rule-list" style="margin-top:14px">
+      <div class="rule"><i data-good>W1</i><span><b>Zero added chrome.</b> Two bars stay two bars; S1 holds — the active tab <em>is</em> the single identity.</span></div>
+      <div class="rule"><i data-good>W2</i><span><b>Quietest possible reading</b> for 2–3 tabs; ideal for small windows.</span></div>
+      <div class="rule"><i>C1</i><span><b>Route tabs lose their slot</b> — List | Kanban moves into the strip, diluting the "strip is tools only" rule (S2/S3 amendment required).</span></div>
+      <div class="rule"><i>C2</i><span><b>The breadcrumb trail is sacrificed</b> at depth — back-only navigation inside the tab, parents reachable via ⌘[ only. Conflicts with the drill-in contract.</span></div>
+      <div class="rule"><i>C3</i><span><b>Hard ceiling.</b> Identity, tabs, status and actions compete for one bar; ~5 tabs in, labels are unreadable.</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 02 VARIATION B ============ -->
+  <section class="sec" id="var-b" data-od-id="sec-var-b">
+    <div class="sec__head"><span class="sec__num">02</span><h2>B · Deck — a thin tab row above the head</h2><span class="pill" data-tone="accent">closest to the cmux reference</span></div>
+    <p>The cmux model, translated to AGH chrome: a 37px deck on the window's rail-dark edge holds the
+    window controls, the tabs and the drag region; <b>the 44px head below belongs entirely to the
+    active tab</b> — identity, route tabs, breadcrumb at depth, status and actions all unchanged from
+    today's contract. The active tab fuses with the head surface, browser-style. With one tab the deck
+    vanishes and controls return to the head: exactly today's window.</p>
+
+    <div class="demo" data-od-id="demo-b-main">
+      <section class="win is-focused vb" data-tabwin data-od-id="win-b-main" style="width:100%">
+        <div class="deck">
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="deck-tabs" role="tablist" aria-label="Open tabs">
+            <div class="deck-tab is-on" role="tab" aria-selected="true" tabindex="0" data-tab="t1" title="Tasks">
+              <svg class="wt-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span class="wt-label">Tasks</span><span class="w2-count mono">6</span>
+              <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+            </div>
+            <div class="deck-tab" role="tab" aria-selected="false" tabindex="0" data-tab="t2" title="Tasks / Nightly triage / Run #418">
+              <svg class="wt-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h2.6l1.8-4 2.8 8 1.8-4H14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="wt-label">Run #418</span>
+              <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+            </div>
+            <div class="deck-tab" role="tab" aria-selected="false" tabindex="0" data-tab="t3" title="Polish checkout flow — live session">
+              <span class="d d--run d--pulse" aria-hidden="true"></span>
+              <span class="wt-label">Polish checkout flow</span>
+              <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+            </div>
+            <div class="deck-tab" role="tab" aria-selected="false" tabindex="0" data-tab="new" hidden>
+              <span class="wt-label">New tab</span>
+              <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+            </div>
+          </div>
+          <button class="wt-add" data-add aria-label="New tab (⌘T)"><svg viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          <span class="w2-flex" aria-hidden="true"></span>
+        </div>
+        <header class="win-head" data-head="t1">
+          <div class="win-controls" data-ctl="head"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="w2-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+            <span class="w2-title">Tasks</span>
+            <span class="w2-count mono">6</span>
+          </div>
+          <div class="w2-tabs" role="tablist" aria-label="Task views">
+            <button class="w2-tab is-on" role="tab" aria-selected="true">List</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Kanban</button>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>2 running</span>
+            <span class="w2-vsep"></span>
+            <div class="w2-actions"><button class="btn btn--primary btn--sm">New task</button><button class="btn btn--sm btn--icon" aria-label="More">···</button></div>
+          </div>
+        </header>
+        <header class="win-head" data-head="t2" hidden>
+          <div class="win-controls" data-ctl="head"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id" style="max-width:70%">
+            <button class="w2-back" aria-label="Back"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <span class="w2-crumbs">
+              <button class="w2-crumb">Tasks</button><span class="w2-sep">/</span>
+              <button class="w2-crumb">Nightly triage</button><span class="w2-sep">/</span>
+            </span>
+            <span class="w2-title">Run #418</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>Running</span>
+            <span class="w2-vsep"></span>
+            <div class="w2-actions"><button class="btn btn--sm">Stop run</button></div>
+          </div>
+        </header>
+        <header class="win-head" data-head="t3" hidden>
+          <div class="win-controls" data-ctl="head"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="d d--run d--pulse" aria-hidden="true"></span>
+            <span class="w2-title">Polish checkout flow</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status"><span class="agent-chip">WG</span>webgen</span>
+            <span class="w2-meta mono">claude-fable-5</span>
+            <span class="w2-vsep"></span>
+            <span class="w2-meta mono">12:41</span>
+          </div>
+        </header>
+        <header class="win-head" data-head="new" hidden>
+          <div class="win-controls" data-ctl="head"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id"><span class="w2-title" style="color:var(--muted)">New tab</span></div>
+          <span class="w2-flex" aria-hidden="true"></span>
+        </header>
+        <div class="win-toolbar" data-strip="t1">
+          <div class="app-toolbar">
+            <div class="pill-group" role="group" aria-label="Task filter">
+              <button class="pill-group__item is-on">All <span class="mono">6</span></button>
+              <button class="pill-group__item">Running <span class="mono">2</span></button>
+              <button class="pill-group__item">Needs you <span class="mono">1</span></button>
+            </div>
+            <span class="w2-flex" aria-hidden="true"></span>
+            <div class="pill-group" role="group" aria-label="View mode">
+              <button class="pill-group__item is-on">Rows</button>
+              <button class="pill-group__item">Cards</button>
+            </div>
+          </div>
+        </div>
+        <div class="win-body" data-panel="t1">
+          <ul class="list minilist">
+            <li><span class="d d--run d--pulse"></span><span class="row-title">Nightly triage</span><span class="row-meta">running · 12m</span></li>
+            <li><span class="d d--needs"></span><span class="row-title">Rotate vault keys</span><span class="row-meta">needs you</span></li>
+            <li><span class="d d--ok"></span><span class="row-title">Sync marketplace index</span><span class="row-meta">2h ago</span></li>
+          </ul>
+        </div>
+        <div class="win-body" data-panel="t2" hidden>
+          <div class="minilog">
+            <div><time>12:41:22</time><b>step 4/6</b> · apply fixes — 3 files changed</div>
+            <div><time>12:40:57</time>tool <b>Edit</b> · internal/loop/action.go</div>
+            <div><time>12:40:31</time>tool <b>Read</b> · internal/loop/registry.go</div>
+          </div>
+        </div>
+        <div class="win-body" data-panel="t3" hidden>
+          <div class="transcript" style="padding:14px 18px 10px">
+            <div class="msg-user"><div class="msg-role">You</div><div class="msg-text">Tighten the summary card spacing on mobile.</div></div>
+            <div><div class="msg-role">webgen</div><div class="msg-text">Adjusting the checkout summary grid — collapsing to a single column under 480px<span class="caret"></span></div></div>
+          </div>
+          <div class="composer"><input placeholder="Message webgen…" aria-label="Message"><button class="composer-send" aria-label="Send"><svg viewBox="0 0 16 16"><path d="M2.5 8h10M8.5 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+        </div>
+        <div class="win-body" data-panel="new" hidden>
+          <div class="blankpane"><span>Empty tab — open any route or session<br><kbd>⌘K</kbd> to pick a destination</span></div>
+        </div>
+      </section>
+    </div>
+    <p class="demo-note">live — the whole 44px head swaps per tab (root head · breadcrumb head · document head) · close to one tab and the deck vanishes, controls return to the head</p>
+
+    <div class="demo" data-od-id="demo-b-density" style="margin-top:14px">
+      <section class="win is-focused vb" data-od-id="win-b-density" style="width:100%">
+        <div class="deck">
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="deck-tabs" role="tablist" aria-label="Open tabs">
+            <div class="deck-tab" role="tab" aria-selected="false" tabindex="0"><svg class="wt-glyph" viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="wt-label">Tasks</span></div>
+            <div class="deck-tab" role="tab" aria-selected="false" tabindex="0"><span class="d d--run d--pulse"></span><span class="wt-label">Polish checkout flow</span></div>
+            <div class="deck-tab is-on" role="tab" aria-selected="true" tabindex="0"><span class="d d--run d--pulse"></span><span class="wt-label">Refactor billing plans</span><button class="wt-x" aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></div>
+            <div class="deck-tab" role="tab" aria-selected="false" tabindex="0"><span class="d d--needs"></span><span class="wt-label">Deploy docs preview</span><span class="wt-badge">1</span></div>
+            <div class="deck-tab" role="tab" aria-selected="false" tabindex="0"><span class="d d--idle"></span><span class="wt-label">Sweep flaky tests</span></div>
+            <div class="deck-tab" role="tab" aria-selected="false" tabindex="0"><svg class="wt-glyph" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.6 13c.7-2.4 2.3-3.6 4.4-3.6s3.7 1.2 4.4 3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="wt-label">Agents</span></div>
+            <div class="deck-tab" role="tab" aria-selected="false" tabindex="0"><svg class="wt-glyph" viewBox="0 0 16 16"><path d="M3 5.5 8 2.8l5 2.7v5l-5 2.7-5-2.7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span class="wt-label">Marketplace</span></div>
+          </div>
+          <button class="wt-add" aria-label="New tab (⌘T)"><svg viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          <span class="w2-flex" aria-hidden="true"></span>
+        </div>
+        <header class="win-head">
+          <div class="w2-id">
+            <span class="d d--run d--pulse" aria-hidden="true"></span>
+            <span class="w2-title">Refactor billing plans</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status"><span class="agent-chip">HM</span>hermes</span>
+            <span class="w2-meta mono">gpt-5.4</span>
+          </div>
+        </header>
+        <div class="win-body" style="height:64px;display:grid;place-items:center;color:var(--faint);font-size:11px">density state — 7 tabs · segments compress to 96px, then the row scrolls · dots + badge carry state</div>
+      </section>
+    </div>
+    <p class="demo-note">density — tabs shrink to 96px minimum before horizontal scroll; attention badge (accent count) marks a tab waiting on you; routes and sessions mix freely</p>
+
+    <table class="spec" style="margin-top:18px">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Deck</td><td>37px on <code>--rail</code> (one step darker than the head) · inset 1px bottom line · holds controls, tabs, +, drag gutter · <em>rendered only with ≥2 tabs</em></td></tr>
+      <tr><td>Tab</td><td>30px · radius 8 8 0 0 · 12.5/500 subtle · glyph 13 or state dot · 96–180px · hover canvas-soft</td></tr>
+      <tr><td>Active tab</td><td>canvas fill fuses with the head below (12.5/600 fg-strong) · 1px line border, open bottom edge</td></tr>
+      <tr><td>Head</td><td>the full 44px contract per active tab — identity / breadcrumb / doc title, route tabs, status, ≤2 actions. Controls live in the deck while it exists</td></tr>
+      <tr><td>Overflow</td><td>compress to 96px min → horizontal scroll (hidden scrollbar) · attention badge stays visible</td></tr>
+      <tr><td>Single-tab</td><td>deck unmounts, controls return to the head — byte-identical to today's window</td></tr>
+    </table>
+    <div class="measure"><span>deck 37</span><span>tab 30 · radius 8 8 0 0</span><span>min 96 · max 180</span><span>head 44 unchanged</span><span>ceiling ~8–10 then scroll</span></div>
+
+    <div class="rule-list" style="margin-top:14px">
+      <div class="rule"><i data-good>W1</i><span><b>Today's head survives 100%</b> — breadcrumbs, route tabs, doc titles, status and actions keep their exact contract, now scoped per tab.</span></div>
+      <div class="rule"><i data-good>W2</i><span><b>The cmux mental model</b> — same anatomy as the reference: thin tab row on top, full surface below; scales to ~10 tabs, degrades by scrolling.</span></div>
+      <div class="rule"><i data-good>W3</i><span><b>Clean split story</b> — in a split window each pane carries its own deck, exactly like cmux panes.</span></div>
+      <div class="rule"><i>C1</i><span><b>S2 amendment:</b> "two bars maximum" becomes "head + strip, plus the deck while the window holds ≥2 tabs" — up to 119px of chrome fully loaded.</span></div>
+      <div class="rule"><i>C2</i><span><b>Mild identity echo</b> — the active tab label and the head title repeat when the tab is at its root (they diverge at depth and on documents).</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 03 VARIATION C ============ -->
+  <section class="sec" id="var-c" data-od-id="sec-var-c">
+    <div class="sec__head"><span class="sec__num">03</span><h2>C · Rail — a documents column</h2><span class="pill">Zed / Arc sidebar</span></div>
+    <p>Tabs project vertically: a 208px rail on the window's left edge lists every open surface as a
+    30px row — state dot or glyph, label, attention badge, × on hover — with the active row marked by
+    the same inset accent bar the ⌘K palette uses. The head keeps today's full contract for the active
+    tab. Built for session-heavy work: dozens of tabs stay readable. The rail collapses to a 46px icon
+    strip — manually, or automatically when the window is narrower than 600px (the same
+    row ⇄ sidebar adaptation contracted for route tabs).</p>
+
+    <div class="demo" data-od-id="demo-c-main">
+      <section class="win is-focused vc" data-tabwin data-od-id="win-c-main" style="width:100%">
+        <header class="win-head" data-head="t1">
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="w2-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+            <span class="w2-title">Tasks</span>
+            <span class="w2-count mono">6</span>
+          </div>
+          <div class="w2-tabs" role="tablist" aria-label="Task views">
+            <button class="w2-tab is-on" role="tab" aria-selected="true">List</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Kanban</button>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>2 running</span>
+            <span class="w2-vsep"></span>
+            <div class="w2-actions"><button class="btn btn--primary btn--sm">New task</button><button class="btn btn--sm btn--icon" aria-label="More">···</button></div>
+          </div>
+        </header>
+        <header class="win-head" data-head="t2" hidden>
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id" style="max-width:70%">
+            <button class="w2-back" aria-label="Back"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <span class="w2-crumbs">
+              <button class="w2-crumb">Tasks</button><span class="w2-sep">/</span>
+              <button class="w2-crumb">Nightly triage</button><span class="w2-sep">/</span>
+            </span>
+            <span class="w2-title">Run #418</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>Running</span>
+            <span class="w2-vsep"></span>
+            <div class="w2-actions"><button class="btn btn--sm">Stop run</button></div>
+          </div>
+        </header>
+        <header class="win-head" data-head="t3" hidden>
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="d d--run d--pulse" aria-hidden="true"></span>
+            <span class="w2-title">Polish checkout flow</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status"><span class="agent-chip">WG</span>webgen</span>
+            <span class="w2-meta mono">claude-fable-5</span>
+            <span class="w2-vsep"></span>
+            <span class="w2-meta mono">12:41</span>
+          </div>
+        </header>
+        <header class="win-head" data-head="t4" hidden>
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="d d--needs" aria-hidden="true"></span>
+            <span class="w2-title">Deploy docs preview</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status" data-tone="needs"><span class="d d--needs"></span>Needs you</span>
+            <span class="w2-vsep"></span>
+            <div class="w2-actions"><button class="btn btn--primary btn--sm">Review approval</button></div>
+          </div>
+        </header>
+        <header class="win-head" data-head="t5" hidden>
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="d d--idle" aria-hidden="true"></span>
+            <span class="w2-title">Sweep flaky tests</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status"><span class="agent-chip">HM</span>hermes</span>
+            <span class="w2-meta mono">idle · 38m</span>
+          </div>
+        </header>
+        <header class="win-head" data-head="new" hidden>
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id"><span class="w2-title" style="color:var(--muted)">New tab</span></div>
+          <span class="w2-flex" aria-hidden="true"></span>
+        </header>
+        <div class="wr-layout">
+          <aside class="wr">
+            <div class="wr-head">
+              <span class="eyebrow">Tabs · <span class="mono" data-count>5</span></span>
+              <button class="wt-add" data-add aria-label="New tab (⌘T)"><svg viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+              <button class="wr-min" data-collapse aria-label="Collapse rail"><svg viewBox="0 0 16 16"><path d="m9.8 3.8-4 4.2 4 4.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+            <div class="wr-list" role="tablist" aria-label="Open tabs" aria-orientation="vertical">
+              <div class="wr-row is-on" role="tab" aria-selected="true" tabindex="0" data-tab="t1" title="Tasks">
+                <svg class="wt-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <span class="wt-label">Tasks</span><span class="w2-count mono">6</span>
+                <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+              </div>
+              <div class="wr-row" role="tab" aria-selected="false" tabindex="0" data-tab="t2" title="Tasks / Nightly triage / Run #418">
+                <svg class="wt-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h2.6l1.8-4 2.8 8 1.8-4H14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="wt-label">Run #418</span>
+                <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+              </div>
+              <div class="wr-row" role="tab" aria-selected="false" tabindex="0" data-tab="t3" title="Polish checkout flow — live session">
+                <span class="d d--run d--pulse" aria-hidden="true"></span>
+                <span class="wt-label">Polish checkout flow</span>
+                <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+              </div>
+              <div class="wr-row" role="tab" aria-selected="false" tabindex="0" data-tab="t4" title="Deploy docs preview — waiting on you">
+                <span class="d d--needs" aria-hidden="true"></span>
+                <span class="wt-label">Deploy docs preview</span><span class="wt-badge">1</span>
+                <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+              </div>
+              <div class="wr-row" role="tab" aria-selected="false" tabindex="0" data-tab="t5" title="Sweep flaky tests — idle session">
+                <span class="d d--idle" aria-hidden="true"></span>
+                <span class="wt-label">Sweep flaky tests</span>
+                <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+              </div>
+              <div class="wr-row" role="tab" aria-selected="false" tabindex="0" data-tab="new" hidden>
+                <span class="wt-label">New tab</span>
+                <button class="wt-x" data-close aria-label="Close tab"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+              </div>
+            </div>
+          </aside>
+          <div class="wr-main">
+            <div class="win-toolbar" data-strip="t1">
+              <div class="app-toolbar">
+                <div class="pill-group" role="group" aria-label="Task filter">
+                  <button class="pill-group__item is-on">All <span class="mono">6</span></button>
+                  <button class="pill-group__item">Running <span class="mono">2</span></button>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="pill-group" role="group" aria-label="View mode">
+                  <button class="pill-group__item is-on">Rows</button>
+                  <button class="pill-group__item">Cards</button>
+                </div>
+              </div>
+            </div>
+            <div class="win-body" data-panel="t1">
+              <ul class="list minilist">
+                <li><span class="d d--run d--pulse"></span><span class="row-title">Nightly triage</span><span class="row-meta">running · 12m</span></li>
+                <li><span class="d d--needs"></span><span class="row-title">Rotate vault keys</span><span class="row-meta">needs you</span></li>
+                <li><span class="d d--ok"></span><span class="row-title">Sync marketplace index</span><span class="row-meta">2h ago</span></li>
+              </ul>
+            </div>
+            <div class="win-body" data-panel="t2" hidden>
+              <div class="minilog">
+                <div><time>12:41:22</time><b>step 4/6</b> · apply fixes — 3 files changed</div>
+                <div><time>12:40:57</time>tool <b>Edit</b> · internal/loop/action.go</div>
+                <div><time>12:40:31</time>tool <b>Read</b> · internal/loop/registry.go</div>
+              </div>
+            </div>
+            <div class="win-body" data-panel="t3" hidden>
+              <div class="transcript" style="padding:14px 18px 10px">
+                <div class="msg-user"><div class="msg-role">You</div><div class="msg-text">Tighten the summary card spacing on mobile.</div></div>
+                <div><div class="msg-role">webgen</div><div class="msg-text">Adjusting the checkout summary grid<span class="caret"></span></div></div>
+              </div>
+              <div class="composer"><input placeholder="Message webgen…" aria-label="Message"><button class="composer-send" aria-label="Send"><svg viewBox="0 0 16 16"><path d="M2.5 8h10M8.5 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+            </div>
+            <div class="win-body" data-panel="t4" hidden>
+              <div class="blankpane"><span>Approval detail — <kbd>docs.agh.network</kbd> deploy waiting on review</span></div>
+            </div>
+            <div class="win-body" data-panel="t5" hidden>
+              <div class="blankpane"><span>Idle session — last activity 38m ago</span></div>
+            </div>
+            <div class="win-body" data-panel="new" hidden>
+              <div class="blankpane"><span>Empty tab — open any route or session<br><kbd>⌘K</kbd> to pick a destination</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <p class="demo-note">live — five surfaces in one window: route, drilled run, two sessions, one approval (badge) · « collapses the rail to a 46px icon strip · the head swaps per row</p>
+
+    <div class="demo" data-od-id="demo-c-narrow" style="margin-top:14px">
+      <section class="win is-focused vc" data-od-id="win-c-narrow" style="width:460px;margin:0 auto">
+        <header class="win-head">
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="d d--run d--pulse" aria-hidden="true"></span>
+            <span class="w2-title">Polish checkout flow</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail"><span class="w2-status"><span class="agent-chip">WG</span>webgen</span></div>
+        </header>
+        <div class="wr-layout">
+          <aside class="wr">
+            <div class="wr-head">
+              <span class="eyebrow">Tabs</span>
+              <button class="wt-add" aria-label="New tab (⌘T)"><svg viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+            </div>
+            <div class="wr-list" role="tablist" aria-label="Open tabs" aria-orientation="vertical">
+              <div class="wr-row" role="tab" aria-selected="false" tabindex="0" title="Tasks"><svg class="wt-glyph" viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="wt-label">Tasks</span></div>
+              <div class="wr-row is-on" role="tab" aria-selected="true" tabindex="0" title="Polish checkout flow"><span class="d d--run d--pulse"></span><span class="wt-label">Polish checkout flow</span></div>
+              <div class="wr-row" role="tab" aria-selected="false" tabindex="0" title="Deploy docs preview"><span class="d d--needs"></span><span class="wt-label">Deploy docs preview</span></div>
+            </div>
+          </aside>
+          <div class="wr-main">
+            <div class="win-body" style="height:132px;display:grid;place-items:center;color:var(--faint);font-size:11px;text-align:center">window &lt; 600px —<br>the rail auto-collapses to icons</div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <p class="demo-note">narrow state — pure @container query, no JS: below 600px the rail becomes a 46px icon strip; dots and glyphs keep carrying state</p>
+
+    <table class="spec" style="margin-top:18px">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Rail</td><td>208px on <code>--rail</code> · 1px right line · header: eyebrow count · + · « collapse · <em>rendered only with ≥2 tabs</em></td></tr>
+      <tr><td>Row</td><td>30px · radius 6 · 12.5px · glyph 13 or state dot · label truncates · × on hover · attention badge</td></tr>
+      <tr><td>Active row</td><td>row-selected + inset 2px accent bar (⌘K palette vocabulary) · 12.5/500 fg-strong</td></tr>
+      <tr><td>Collapsed</td><td>46px icon strip — manual toggle or automatic <code>@container (max-width:599px)</code>; same adaptation contract as route tabs (row ⇄ sidebar)</td></tr>
+      <tr><td>Head</td><td>today's full 44px contract per active tab, controls included — untouched</td></tr>
+      <tr><td>Splits</td><td>a rail per pane is too wide — in splits C degrades to B's deck (the deck is the canonical compact form)</td></tr>
+    </table>
+    <div class="measure"><span>rail 208 · collapsed 46</span><span>row 30 · radius 6</span><span>accent bar inset 2</span><span>head 44 unchanged</span><span>ceiling: dozens (scroll)</span></div>
+
+    <div class="rule-list" style="margin-top:14px">
+      <div class="rule"><i data-good>W1</i><span><b>Scales furthest</b> — dozens of surfaces stay readable with full labels, states and badges; built for parallel-session power use.</span></div>
+      <div class="rule"><i data-good>W2</i><span><b>Head untouched, S2 intact</b> — the rail is a column, not a bar; two horizontal bars stay two.</span></div>
+      <div class="rule"><i data-good>W3</i><span><b>Adaptive by contract</b> — row ⇄ sidebar at a container breakpoint, echoing the route-tabs adaptation already agreed.</span></div>
+      <div class="rule"><i>C1</i><span><b>Steepest width cost</b> — 208px (46 collapsed) leaves a 400px-min window with ~192px of content; small windows live collapsed.</span></div>
+      <div class="rule"><i>C2</i><span><b>Unfamiliar as a default</b> — vertical tabs read as a power-user layout; casual users expect a horizontal row.</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 04 DECISION ============ -->
+  <section class="sec" id="decision" data-od-id="sec-decision">
+    <div class="sec__head"><span class="sec__num">04</span><h2>Side by side + shared behaviors</h2></div>
+    <table class="spec" data-od-id="compare-table">
+      <tr><th>Aspect</th><th>A · Fused</th><th>B · Deck</th><th>C · Rail</th></tr>
+      <tr><td>Added chrome</td><td>none — same 44px head</td><td>+37px deck row</td><td>+208px column (46 collapsed)</td></tr>
+      <tr><td>Today's head</td><td>absorbed — active tab is the identity</td><td>intact per tab; controls move to the deck</td><td>intact per tab, controls included</td></tr>
+      <tr><td>Route tabs (List | Kanban)</td><td>relocate to the strip — S2/S3 amendment</td><td>stay in the head</td><td>stay in the head</td></tr>
+      <tr><td>Drill-in trail</td><td>back-only inside the tab; trail sacrificed</td><td>full breadcrumb in the head</td><td>full breadcrumb in the head</td></tr>
+      <tr><td>Comfortable ceiling</td><td>~4–5 tabs</td><td>~8–10, then scroll</td><td>dozens, list scrolls</td></tr>
+      <tr><td>In splits</td><td>fused bar per pane</td><td>deck per pane (cmux)</td><td>degrades to the deck</td></tr>
+      <tr><td>Feels like</td><td>Safari / Arc compact</td><td>Chrome / cmux</td><td>Zed / Arc sidebar</td></tr>
+    </table>
+
+    <div class="rule-list" style="margin-top:18px" data-od-id="shared-behaviors">
+      <div class="rule"><i>T1</i><span><b>Tabs cost nothing until the second one.</b> Every direction renders a single-tab window exactly as today's anatomy; tab chrome mounts at the second tab (⌘T) and unmounts back.</span></div>
+      <div class="rule"><i>T2</i><span><b>A tab hosts any surface.</b> Routes, drilled-in states and session documents mix freely in one window; each tab keeps its own navigation stack, strip and trail. Glyphs identify routes; state dots + badges identify live work (S9 holds — selection is neutral, accent only for state, badges and the primary action).</span></div>
+      <div class="rule"><i>T3</i><span><b>Drag out, drop in.</b> Dragging a tab off the switcher births a normal window at the pointer; dropping a tab onto another window's deck/head merges it. Open decision: a mixed window shows the active tab's glyph, and each app's dock dot lights while any window holds one of its tabs.</span></div>
+      <div class="rule"><i>T4</i><span><b>Keyboard.</b> ⌘T new tab · ⌘W closes the tab (the window when it's the last) · ⌃Tab / ⌃⇧Tab cycle · ⌘1–9 jump · ⌘[ back inside the active tab. All reachable via ⌘K.</span></div>
+      <div class="rule"><i>T5</i><span><b>State persists per space</b> — tab set, order and active index join window rects in desktop-state (S11).</span></div>
+      <div class="rule"><i>T6</i><span><b>Splits compose.</b> Each split pane owns its tab set, cmux-style; the window head follows the focused pane. The deck is the canonical compact form — A and C both degrade to it where space runs out.</span></div>
+    </div>
+
+    <p style="font-size:13px;line-height:1.6;color:var(--muted);max-width:78ch;margin-top:18px" data-od-id="recommendation">
+    <b style="color:var(--fg-strong)">Recommendation — B · Deck.</b> It is the cmux model you pointed at,
+    it preserves the entire existing head contract per tab (breadcrumbs and route tabs included, which
+    A sacrifices), and it scales to a realistic ceiling with a graceful overflow. C is the strongest
+    <em>future</em> layer — same data model projected vertically, worth shipping later as a rail toggle
+    on top of B for session-heavy windows; its narrow fallback is already B's deck. A is a density mode,
+    not a foundation: two contract amendments for a ~5-tab ceiling.</p>
+  </section>
+</div>
+
+<script>
+document.querySelectorAll('[data-tabwin]').forEach(win=>{
+  const q=s=>[...win.querySelectorAll(s)];
+  const groups=['data-panel','data-head','data-strip','data-trail'];
+  const visTabs=()=>q('[data-tab]').filter(t=>!t.hidden);
+  const sync=()=>{
+    win.toggleAttribute('data-single',visTabs().length<2);
+    q('[data-count]').forEach(c=>c.textContent=visTabs().length);
+  };
+  const activate=id=>{
+    q('[data-tab]').forEach(t=>{
+      const on=t.dataset.tab===id;
+      t.classList.toggle('is-on',on);
+      t.setAttribute('aria-selected',on?'true':'false');
+    });
+    groups.forEach(g=>q('['+g+']').forEach(el=>{el.hidden=el.getAttribute(g)!==id}));
+  };
+  const closeTab=t=>{
+    if(!t||visTabs().length<2)return;
+    const id=t.dataset.tab,wasOn=t.classList.contains('is-on');
+    if(id==='new'){t.hidden=true}
+    else{
+      t.remove();
+      groups.forEach(g=>q('['+g+'="'+id+'"]').forEach(el=>el.remove()));
+    }
+    if(wasOn){const first=visTabs()[0];if(first)activate(first.dataset.tab)}
+    sync();
+  };
+  win.addEventListener('click',e=>{
+    const x=e.target.closest('[data-close]');
+    if(x){closeTab(x.closest('[data-tab]'));return}
+    if(e.target.closest('[data-add]')){
+      const nt=win.querySelector('[data-tab="new"]');
+      if(nt){nt.hidden=false;activate('new');sync()}
+      return;
+    }
+    if(e.target.closest('[data-collapse]')){win.toggleAttribute('data-rail-min');return}
+    const t=e.target.closest('[data-tab]');
+    if(t&&!t.hidden)activate(t.dataset.tab);
+  });
+  win.addEventListener('keydown',e=>{
+    if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-tab]')){
+      e.preventDefault();activate(e.target.dataset.tab);
+    }
+  });
+  sync();
+});
+</script>
+</body>
+</html>

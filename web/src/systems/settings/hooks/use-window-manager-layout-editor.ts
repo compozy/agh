@@ -1,17 +1,14 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { windowManagerKeys } from "@/systems/os";
 
+import { applyWindowManagerLayout } from "../adapters/window-manager-layouts-api";
+import { parseWindowManagerLayoutDocument } from "../lib/window-manager-layout-schema";
 import {
-  applyWindowManagerLayout,
-  previewWindowManagerLayout,
-  validateWindowManagerLayout,
-} from "../adapters/window-manager-layouts-api";
-import {
-  parseWindowManagerLayoutDocument,
-  windowManagerLayoutDocumentToWire,
-} from "../lib/window-manager-layout-schema";
+  windowManagerLayoutFingerprint,
+  windowManagerLayoutReviewOptions,
+} from "../lib/window-manager-layout-query";
 import type {
   WindowManagerLayoutDocument,
   WindowManagerLayoutPreview,
@@ -24,58 +21,30 @@ interface ReviewedLayout {
   preview: WindowManagerLayoutPreview;
 }
 
-function fingerprint(document: WindowManagerLayoutDocument): string {
-  return JSON.stringify(windowManagerLayoutDocumentToWire(document));
-}
-
 export function useWindowManagerLayoutEditor(
   workspaceId: string,
   initial: WindowManagerLayoutState
 ) {
   const queryClient = useQueryClient();
-  const importInput = useRef<HTMLInputElement | null>(null);
   const [revision, setRevision] = useState(initial.revision);
   const [baseline, setBaseline] = useState(initial.document);
   const [draft, setDraft] = useState(initial.document);
-  const draftFingerprint = useRef(fingerprint(initial.document));
-  const [reviewed, setReviewed] = useState<ReviewedLayout | null>(null);
-  const [validation, setValidation] = useState<WindowManagerLayoutValidation | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const currentFingerprint = fingerprint(draft);
-  const dirty = currentFingerprint !== fingerprint(baseline);
-  const reviewCurrent = reviewed?.fingerprint === currentFingerprint;
+  const currentFingerprint = windowManagerLayoutFingerprint(draft);
+  const dirty = currentFingerprint !== windowManagerLayoutFingerprint(baseline);
 
   const updateDraft = (next: WindowManagerLayoutDocument) => {
-    draftFingerprint.current = fingerprint(next);
     setDraft(next);
-    setReviewed(null);
-    setValidation(null);
   };
 
-  const review = useMutation({
-    mutationFn: async () => {
-      const candidate = structuredClone(draft);
-      const candidateFingerprint = fingerprint(candidate);
-      const checked = await validateWindowManagerLayout(workspaceId, candidate);
-      if (!checked.valid) {
-        return { checked, fingerprint: candidateFingerprint, preview: null };
-      }
-      const preview = await previewWindowManagerLayout(workspaceId, revision, candidate);
-      return { checked, fingerprint: candidateFingerprint, preview };
-    },
-    onSuccess: result => {
-      if (result.fingerprint !== draftFingerprint.current) return;
-      setValidation(result.checked);
-      setReviewed(
-        result.preview === null
-          ? null
-          : {
-              fingerprint: result.fingerprint,
-              preview: result.preview,
-            }
-      );
-    },
-  });
+  const review = useQuery(windowManagerLayoutReviewOptions(workspaceId, revision, draft));
+  const reviewResult = review.data?.fingerprint === currentFingerprint ? review.data : null;
+  const validation: WindowManagerLayoutValidation | null = reviewResult?.validation ?? null;
+  const reviewed: ReviewedLayout | null =
+    reviewResult?.preview == null
+      ? null
+      : { fingerprint: reviewResult.fingerprint, preview: reviewResult.preview };
+  const reviewCurrent = reviewed?.fingerprint === currentFingerprint;
 
   const apply = useMutation({
     mutationFn: async () => {
@@ -86,8 +55,6 @@ export function useWindowManagerLayoutEditor(
     onSuccess: async ({ candidate, result }) => {
       setRevision(result.revision);
       setBaseline(candidate);
-      setReviewed(null);
-      setValidation(null);
       await queryClient.invalidateQueries({
         queryKey: windowManagerKeys.snapshot(workspaceId),
       });
@@ -138,7 +105,6 @@ export function useWindowManagerLayoutEditor(
     draft,
     importDocument,
     importError,
-    importInput,
     mutationError: review.error ?? apply.error,
     reset: () => updateDraft(structuredClone(baseline)),
     review,

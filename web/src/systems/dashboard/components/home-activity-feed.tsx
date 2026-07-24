@@ -1,4 +1,5 @@
 import { AlertTriangle, ChevronRight } from "lucide-react";
+import { useState } from "react";
 
 import {
   Collapsible,
@@ -106,7 +107,7 @@ export function HomeActivityFeed({
   const { loud, quiet } = partitionActivity(events);
   const loudVisible = loud.slice(0, LOUD_EVENT_LIMIT);
 
-  const now = Date.now();
+  const [now] = useState(Date.now);
   const separatorIndex = loudVisible.findIndex(event => {
     const at = Date.parse(event.timestamp);
     return !Number.isNaN(at) && now - at > RECENT_WINDOW_MS;

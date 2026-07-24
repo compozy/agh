@@ -1,5 +1,6 @@
 import { getOsApp, getOsAppMinimum, OS_APPS, OS_WINDOW_CONSERVATIVE_MINIMUM } from "./app-registry";
 import { projectLayout } from "./layout-projection";
+import { applySeamPreviewToDesktop, type SeamPreview } from "./seam-preview";
 import type { SnapTargetConfig } from "./snap-targets";
 import type { OsAppId, OsRect, OsWindow, OsWindowRoute } from "./os-types";
 import type {
@@ -68,24 +69,47 @@ export function normalizedRectToWire(rect: NormalizedRect): Record<string, numbe
   return { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
 }
 
+/** Projects one desktop, re-projecting against the unadjusted seam when a live preview is active. */
+function projectDesktopWithSeamPreview(
+  input: Parameters<typeof projectLayout>[0],
+  seamPreview: SeamPreview | null
+): LayoutProjection {
+  const projection = projectLayout(input);
+  if (seamPreview === null) return projection;
+  const seam = projection.seams.find(
+    candidate =>
+      candidate.splitId === seamPreview.splitId &&
+      candidate.boundaryIndex === seamPreview.boundaryIndex
+  );
+  if (seam === undefined) return projection;
+  return projectLayout({
+    ...input,
+    desktop: applySeamPreviewToDesktop(input.desktop, seam, seamPreview.deltaPx),
+  });
+}
+
 export function buildWindowManagerProjections(
   snapshot: WindowManagerSnapshot | null,
   client: WindowManagerClientView | null,
   workArea: PixelRect,
-  config: WindowManagerConfig | null
+  config: WindowManagerConfig | null,
+  seamPreview: SeamPreview | null = null
 ): Readonly<Record<string, LayoutProjection>> {
   if (snapshot === null || config === null) return {};
   const projections: Record<string, LayoutProjection> = {};
   const minimums = buildWindowManagerMinimums(snapshot);
   for (const desktop of snapshot.desktops) {
-    projections[desktop.id] = projectLayout({
-      revision: snapshot.revision,
-      desktop,
-      workArea,
-      gaps: config.gaps,
-      minimums,
-      focusedWindowId: client?.activeDesktopId === desktop.id ? client.focusedWindowId : null,
-    });
+    projections[desktop.id] = projectDesktopWithSeamPreview(
+      {
+        revision: snapshot.revision,
+        desktop,
+        workArea,
+        gaps: config.gaps,
+        minimums,
+        focusedWindowId: client?.activeDesktopId === desktop.id ? client.focusedWindowId : null,
+      },
+      seamPreview
+    );
   }
   return projections;
 }

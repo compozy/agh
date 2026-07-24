@@ -78,6 +78,9 @@ func insertAtAnchor(
 	fallback *WindowID,
 	generate idGenerator,
 ) error {
+	if rejoinAnchorStack(snapshot, windowID, anchor) {
+		return nil
+	}
 	inserted, err := insertAtStructuralAnchor(snapshot, windowID, anchor, generate)
 	if err != nil || inserted {
 		return err
@@ -88,6 +91,54 @@ func insertAtAnchor(
 		}
 	}
 	return appendFloating(snapshot, windowID)
+}
+
+// rejoinAnchorStack returns a window to its original stack when that stack still exists.
+func rejoinAnchorStack(snapshot *Snapshot, windowID WindowID, anchor *ReturnAnchor) bool {
+	if anchor == nil || anchor.SourceGroup == nil {
+		return false
+	}
+	stackID, found := sourceGroupStackID(anchor.SourceGroup.Root, windowID)
+	if !found {
+		return false
+	}
+	desktopIndex, exists := desktopIndexByID(snapshot, anchor.DesktopID)
+	if !exists {
+		return false
+	}
+	desktop := &snapshot.Desktops[desktopIndex]
+	for groupIndex := range desktop.Groups {
+		node, ok := findNode(&desktop.Groups[groupIndex].Root, stackID)
+		if !ok || node.Kind != NodeKindStack || containsWindowID(node.WindowIDs, windowID) {
+			continue
+		}
+		node.WindowIDs = append(node.WindowIDs, windowID)
+		active := windowID
+		node.ActiveID = &active
+		window := snapshot.Windows[windowID]
+		window.DesktopID = anchor.DesktopID
+		window.Placement = WindowPlacementStacked
+		snapshot.Windows[windowID] = window
+		return true
+	}
+	return false
+}
+
+func sourceGroupStackID(node LayoutNode, windowID WindowID) (NodeID, bool) {
+	switch node.Kind {
+	case NodeKindStack:
+		if containsWindowID(node.WindowIDs, windowID) {
+			return node.ID, true
+		}
+	case NodeKindSplit:
+		for _, child := range node.Children {
+			if id, found := sourceGroupStackID(child, windowID); found {
+				return id, true
+			}
+		}
+	case NodeKindLeaf:
+	}
+	return "", false
 }
 
 func insertAtStructuralAnchor(

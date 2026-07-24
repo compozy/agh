@@ -54,14 +54,14 @@ func (r *windowManagerRepository) Load(
 	return decodeWindowManagerSnapshot(entry.Value, workspaceID)
 }
 
-func (r *windowManagerRepository) Commit(ctx context.Context, commit windowmanager.Commit) error {
+func (r *windowManagerRepository) Commit(ctx context.Context, commit *windowmanager.Commit) error {
+	if err := validateWindowManagerCommit(commit); err != nil {
+		return err
+	}
 	lock := r.lockFor(commit.WorkspaceID)
 	lock.Lock()
 	defer lock.Unlock()
 
-	if err := validateWindowManagerCommit(commit); err != nil {
-		return err
-	}
 	current, entryRevision, exists, err := r.loadCurrent(ctx, commit.WorkspaceID)
 	if err != nil {
 		return err
@@ -183,7 +183,10 @@ func (r *windowManagerRepository) forgetWorkspace(workspaceID windowmanager.Work
 	r.mu.Unlock()
 }
 
-func validateWindowManagerCommit(commit windowmanager.Commit) error {
+func validateWindowManagerCommit(commit *windowmanager.Commit) error {
+	if commit == nil {
+		return fmt.Errorf("daemon: window-manager commit is required: %w", windowmanager.ErrInvalidTopology)
+	}
 	if commit.WorkspaceID == "" ||
 		commit.Snapshot.WorkspaceID != commit.WorkspaceID ||
 		commit.Event.WorkspaceID != commit.WorkspaceID {

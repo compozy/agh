@@ -415,6 +415,8 @@
   --duration-shell-base: 240ms;
   --duration-shell-slow: 320ms;
   --ease-spring: cubic-bezier(0.32, 0.72, 0.28, 1);
+  /* Desktop-switch slide amplitude shared by the os-desk slide keyframes. */
+  --distance-desk-slide: 4%;
 
   /* Shell chrome geometry. */
   --height-menubar: 44px;
@@ -428,6 +430,19 @@
   --size-menubar-logo: 17px;
   --size-workspace-avatar: 18px;
   --size-dock-new-icon: 18px;
+  /* Reserved bottom band that keeps the window work area clear of the Dock:
+     dock resting strip (item + 2× pad + 2×1px border) plus a zone offset and
+     clearance. Consumers add env(safe-area-inset-bottom) at the use site. */
+  --size-dock-zone-offset: 10px;
+  --size-dock-clearance: 10px;
+  /* oxfmt-ignore */
+  --size-dock-band: calc(
+    var(--size-dock-item)
+      + (2 * var(--spacing-dock-pad))
+      + 2px
+      + var(--size-dock-zone-offset)
+      + var(--size-dock-clearance)
+  );
   /* `--spacing-*` (not `--space-*`) so Tailwind v4 emits gap/p utilities. */
   --spacing-dock-gap: 4px;
   --spacing-dock-pad: 7px;

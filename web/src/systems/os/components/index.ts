@@ -23,7 +23,6 @@ export { DesktopMenubar, type DesktopMenubarProps } from "./desktop-menubar";
 export { DesktopDock, type DesktopDockProps } from "./desktop-dock";
 export { DesktopGate } from "./desktop-gate";
 export { OsCommandPalette, type OsCommandPaletteProps } from "./os-command-palette";
-export { OsCompactStack } from "./os-compact-stack";
 export { OsRouteNotFound } from "./os-route-not-found";
 export { createOsRouteSync } from "./os-route-sync";
 export { OsWinLayer } from "./os-win-layer";

@@ -11,6 +11,7 @@ type windowManagerOverlay struct {
 	RaiseOnFocus        *bool                       `toml:"raise_on_focus"`
 	DragAwayPolicy      *string                     `toml:"drag_away_policy"`
 	GroupMoveModifier   *string                     `toml:"group_move_modifier"`
+	SwapModifier        *string                     `toml:"swap_modifier"`
 	HistoryLimit        *int                        `toml:"history_limit"`
 	DesktopTransition   *string                     `toml:"desktop_transition"`
 	Gaps                windowManagerGapsOverlay    `toml:"gaps"`
@@ -48,6 +49,7 @@ func (o windowManagerOverlay) Apply(dst *WindowManagerConfig) {
 	applyBoolPointer(o.RaiseOnFocus, &dst.RaiseOnFocus)
 	applyStringPointer(o.DragAwayPolicy, &dst.DragAwayPolicy)
 	applyStringPointer(o.GroupMoveModifier, &dst.GroupMoveModifier)
+	applyStringPointer(o.SwapModifier, &dst.SwapModifier)
 	applyIntPointer(o.HistoryLimit, &dst.HistoryLimit)
 	applyStringPointer(o.DesktopTransition, &dst.DesktopTransition)
 	o.Gaps.Apply(&dst.Gaps)

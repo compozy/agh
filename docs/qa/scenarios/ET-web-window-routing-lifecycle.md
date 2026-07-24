@@ -18,4 +18,4 @@ overlaps: ET-web-desktop-shell-lifecycle; ET-window-manager-public-parity; ET-wi
 
 story: As a builder, I can arrange persistent desktops and trust every surface to observe one semantic topology while my focus remains client-local.
 
-qa-impact: 2026-07-22 window-management hard cut replaced independent window documents with semantic commands, structural return anchors, durable route intent, and revisioned convergence. Flag only; the next QA cycle owns live retesting.
+qa-impact: 2026-07-22 window-management hard cut replaced independent window documents with semantic commands, structural return anchors, durable route intent, and revisioned convergence; 2026-07-24 explicit `window.focus` and minimized-window restore now activate the window's desktop for the issuing client (dock activation follows a cross-desktop window instead of failing silently). Flag only; the next QA cycle owns live retesting.

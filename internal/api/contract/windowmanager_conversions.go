@@ -223,6 +223,7 @@ func cloneWindowManagerWorkspaceConfig(config windowmanager.WorkspaceConfig) win
 	cloned.RaiseOnFocus = cloneWindowManagerPointer(config.RaiseOnFocus)
 	cloned.DragAwayPolicy = cloneWindowManagerPointer(config.DragAwayPolicy)
 	cloned.GroupMoveModifier = cloneWindowManagerPointer(config.GroupMoveModifier)
+	cloned.SwapModifier = cloneWindowManagerPointer(config.SwapModifier)
 	cloned.HistoryLimit = cloneWindowManagerPointer(config.HistoryLimit)
 	cloned.DesktopTransition = cloneWindowManagerPointer(config.DesktopTransition)
 	cloned.Gaps = cloneWindowManagerPointer(config.Gaps)

@@ -40,3 +40,59 @@
     opacity 0.28s ease;
   pointer-events: none;
 }
+
+/* Desktop switch slide/crossfade. Keyframes (not transitions) so the motion
+   fires even when the transition intent and the active-desktop flip land in
+   one render — zoom, cross-desktop focus, and remote switches arrive that way. */
+@keyframes os-desk-in-later {
+  from {
+    transform: translateX(var(--distance-desk-slide));
+    opacity: 0;
+  }
+}
+
+@keyframes os-desk-in-earlier {
+  from {
+    transform: translateX(calc(-1 * var(--distance-desk-slide)));
+    opacity: 0;
+  }
+}
+
+/* Out keyframes carry explicit `from` blocks: the leaving desktop's base
+   style is already opacity 0 (inactive), so the implicit from would hide it. */
+@keyframes os-desk-out-later {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(calc(-1 * var(--distance-desk-slide)));
+    opacity: 0;
+  }
+}
+
+@keyframes os-desk-out-earlier {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(var(--distance-desk-slide));
+    opacity: 0;
+  }
+}
+
+@keyframes os-desk-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes os-desk-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

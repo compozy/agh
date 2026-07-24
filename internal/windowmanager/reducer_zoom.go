@@ -96,11 +96,13 @@ func (r *reducer) restoreZoomedWindow(snapshot *Snapshot, windowID WindowID, foc
 	window.ReturnAnchor = nil
 	snapshot.Windows[windowID] = window
 	if focusIndex < len(snapshot.Desktops) {
-		focusID := snapshot.Desktops[focusIndex].ID
-		snapshot.Desktops[focusIndex].Groups = []LayoutGroup{}
-		snapshot.Desktops[focusIndex].Floating = []WindowID{}
-		snapshot.Desktops[focusIndex].FocusOwner = nil
-		r.changes.desktop(focusID)
+		focus := &snapshot.Desktops[focusIndex]
+		focus.FocusOwner = nil
+		if len(focus.Groups) > 0 || len(focus.Floating) > 0 {
+			// Co-resident windows stay; graduate so the desktop is not wiped.
+			focus.Purpose = DesktopPurposeStandard
+		}
+		r.changes.desktop(focus.ID)
 	}
 	r.changes.window(windowID)
 	r.changes.desktop(window.DesktopID)

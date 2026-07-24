@@ -12,6 +12,7 @@ import {
   moveWindowCommand,
   openWindowCommand,
   restoreWindowCommand,
+  swapWindowsCommand,
 } from "../lib/window-manager-command-builders";
 import { effectiveWindowManagerConfig } from "../lib/window-manager-config";
 import { arrangePeerWindows, directionalFocusTarget } from "../lib/window-manager-navigation";
@@ -21,6 +22,7 @@ import type {
   OsDesktopBounds,
   OsDesktopRuntime,
   OsDesktopRuntimeStore,
+  OsFloatingDrop,
   OsOpenTarget,
   OsRect,
   OsWindowRoute,
@@ -70,12 +72,10 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       payload: { desktop_id: desktopId },
     });
     if (accepted.accepted && current !== null && current !== desktopId && config !== null) {
-      const fromOrder = this.view.desktops.find(desktop => desktop.id === current)?.order ?? 0;
-      const toOrder = this.view.desktops.find(desktop => desktop.id === desktopId)?.order ?? 0;
       windowManagerStore.getState().actions.setTransitionIntent({
         fromDesktopId: current,
         toDesktopId: desktopId,
-        direction: toOrder >= fromOrder ? "later" : "earlier",
+        direction: this.desktopTransitionDirection(this.view.desktops, current, desktopId),
         mode: this.reduceMotion ? "instant" : config.desktopTransition,
       });
     }
@@ -137,6 +137,10 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       .actions.trackPlacementTarget(windowId, target.kind === "tile" ? target.edge : null);
     if (target.kind === "zoom") {
       this.zoomWindow(windowId);
+      return;
+    }
+    if (target.kind === "swap") {
+      this.dispatch(swapWindowsCommand(windowId, target.targetWindowId));
       return;
     }
     if (target.kind === "tile") {
@@ -209,7 +213,14 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       snapshot && globalConfig
         ? effectiveWindowManagerConfig(globalConfig, snapshot.overrides)
         : null;
-    const projections = buildWindowManagerProjections(snapshot, this.client, area, config);
+    const { seamPreview, connectionStatus, workArea } = windowManagerStore.getState();
+    const projections = buildWindowManagerProjections(
+      snapshot,
+      this.client,
+      area,
+      config,
+      seamPreview
+    );
     const windows = buildWindowManagerWindows({
       snapshot: config ? snapshot : null,
       client: this.client,
@@ -217,7 +228,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       projections,
       raiseOnFocus: config?.raiseOnFocus ?? false,
     });
-    const connectionStatus = windowManagerStore.getState().connectionStatus;
+    const workAreaOrigin = workArea?.origin ?? { x: 0, y: 0 };
     const loadError = this.currentLoadError();
     const hydration =
       snapshot !== null && config !== null
@@ -250,7 +261,11 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       viewportState: viewportRejected ? "rejected" : "ready",
       hydration,
       connectionStatus,
-      desktopBounds: { width: area.w, height: area.h },
+      desktopBounds: {
+        width: area.w,
+        height: area.h,
+        origin: workAreaOrigin,
+      },
       openOrFocus: this.openOrFocus,
       closeWindow: this.closeWindow,
       focusWindow: this.focusWindow,
@@ -346,11 +361,16 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     if (command !== null) this.dispatch(command);
   };
 
-  private commitFloatingRect = (id: string, rect: OsRect): void => {
+  private commitFloatingRect = (id: string, rect: OsRect, drop?: OsFloatingDrop): void => {
     const window = this.view.windows[id];
     if (!window) return;
     const area = this.workArea();
-    const clamped = clampFloatingRect({ proposedRect: rect, workArea: area });
+    const clamped = clampFloatingRect({
+      proposedRect: rect,
+      workArea: area,
+      pointer: drop?.pointer,
+      grabOffset: drop?.grabOffset,
+    });
     this.moveWindow(id, {
       destinationDesktopId: window.desktopId,
       placement: "floating",
@@ -358,8 +378,12 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     });
   };
 
-  private resizeLayout = (splitId: string, boundaryIndex: number, delta: number): void => {
-    this.dispatch({
+  private resizeLayout = (
+    splitId: string,
+    boundaryIndex: number,
+    delta: number
+  ): WindowManagerCommandOutcome => {
+    return this.dispatch({
       commandId: "layout.resize",
       payload: { split_id: splitId, boundary_index: boundaryIndex, delta },
       rebase: { splitId, boundaryIndex },
@@ -411,6 +435,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     if (bounds.width <= 0 || bounds.height <= 0) return;
     windowManagerStore.getState().actions.setWorkArea({
       rect: { x: 0, y: 0, w: bounds.width, h: bounds.height },
+      origin: { x: bounds.origin.x, y: bounds.origin.y },
     });
   };
 }

@@ -42,6 +42,7 @@ func classifyWindowManagerMutationPath(path []string) (configSetValueKind, bool)
 			"focus_policy",
 			"drag_away_policy",
 			"group_move_modifier",
+			"swap_modifier",
 			"desktop_transition":
 			return configSetString, true
 		case "focus_wrap", "focus_follows_pointer", "raise_on_focus":

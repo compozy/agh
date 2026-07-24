@@ -9,10 +9,10 @@ import (
 const shortcutWindowMinimizeAction = "window.minimize"
 
 var shortcutModifierOrder = []string{
-	groupMoveModifierMeta,
-	groupMoveModifierControl,
-	groupMoveModifierAlt,
-	groupMoveModifierShift,
+	dragModifierMeta,
+	dragModifierControl,
+	dragModifierAlt,
+	dragModifierShift,
 }
 
 // CanonicalShortcuts validates action IDs and returns canonical, conflict-free chords.
@@ -94,7 +94,7 @@ func canonicalShortcutChord(chord string) (string, error) {
 
 func isShortcutModifier(token string) bool {
 	switch token {
-	case groupMoveModifierMeta, groupMoveModifierControl, groupMoveModifierAlt, groupMoveModifierShift:
+	case dragModifierMeta, dragModifierControl, dragModifierAlt, dragModifierShift:
 		return true
 	default:
 		return false

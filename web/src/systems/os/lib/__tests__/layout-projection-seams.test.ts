@@ -72,6 +72,9 @@ describe("projected structural seams", () => {
       value: 500,
       minValue: 284,
       maxValue: 716,
+      axisSpan: 992,
+      leadingWeight: 0.5,
+      trailingWeight: 0.5,
       leadingWindowIds: ["window:left"],
       trailingWindowIds: ["window:top-right", "window:bottom-right"],
     });

@@ -20,8 +20,9 @@ export function useHomeWorkingNow(scope: HomeScope, enabled: boolean): HomeWorki
     { enabled }
   );
 
-  const nowMs = Date.now();
-  const nowSeconds = Math.floor(nowMs / 1000);
+  const sessionsAtMs = sessionsQuery.dataUpdatedAt;
+  const dashboardAtMs = dashboardQuery.dataUpdatedAt;
+  const sessionsAtSeconds = Math.floor(sessionsAtMs / 1000);
   const cards: HomeRunCardModel[] = [];
 
   const sessions = sessionsQuery.data ?? [];
@@ -37,10 +38,10 @@ export function useHomeWorkingNow(scope: HomeScope, enabled: boolean): HomeWorki
         ? `Running ${activity.current_tool}`
         : "Working on the current turn",
       elapsedBaseSeconds: elapsedSecondsSince(
-        nowSeconds,
+        sessionsAtSeconds,
         activity?.turn_started_at ?? session.created_at ?? ""
       ),
-      baseAtMs: nowMs,
+      baseAtMs: sessionsAtMs,
       sessionLink: { agentName: session.agent_name, sessionId: session.id },
     });
   }
@@ -57,7 +58,7 @@ export function useHomeWorkingNow(scope: HomeScope, enabled: boolean): HomeWorki
       title: run.task_title,
       subtitle: `Run ${run.run_status}`,
       elapsedBaseSeconds: Math.max(0, Math.floor(run.age_ms / 1000)),
-      baseAtMs: nowMs,
+      baseAtMs: dashboardAtMs,
       runLink: { taskId: run.task_id, runId: run.run_id },
     });
   }

@@ -345,6 +345,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"raise_on_focus",
 			"drag_away_policy",
 			"group_move_modifier",
+			"swap_modifier",
 			"history_limit",
 			"desktop_transition",
 			"gaps",
@@ -379,6 +380,15 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertEnumValues(
 			t,
 			propertySchema(t, windowManagerConfigSchema, "group_move_modifier"),
+			"alt",
+			"control",
+			"meta",
+			"none",
+			"shift",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, windowManagerConfigSchema, "swap_modifier"),
 			"alt",
 			"control",
 			"meta",

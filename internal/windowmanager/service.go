@@ -220,7 +220,7 @@ func (m *Manager) Preview(ctx context.Context, request CommandRequest) (Preview,
 			return Preview{}, err
 		}
 		working.Revision = nextRevision
-		projectedClient, err = m.previewDurableClient(working, request)
+		projectedClient, err = m.previewDurableClient(snapshot, working, request)
 		if err != nil {
 			return Preview{}, err
 		}

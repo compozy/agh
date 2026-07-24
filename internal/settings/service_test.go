@@ -5159,6 +5159,7 @@ func testWindowManagerConfig() aghconfig.WindowManagerConfig {
 		RaiseOnFocus:        false,
 		DragAwayPolicy:      aghconfig.WindowDragAwayGroup,
 		GroupMoveModifier:   "control",
+		SwapModifier:        "meta",
 		HistoryLimit:        77,
 		DesktopTransition:   aghconfig.WindowDesktopTransitionCrossfade,
 		Gaps: aghconfig.WindowManagerGapsConfig{

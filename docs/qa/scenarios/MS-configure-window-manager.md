@@ -18,4 +18,4 @@ overlaps: ET-window-manager-layout-recovery; ET-window-manager-layout-gestures
 
 story: As an operator, I can tune window behavior and layouts without accepting a partial or internally conflicting runtime configuration.
 
-qa-impact: 2026-07-22 replaced storage-limit settings with validated behavior defaults, shortcuts, bindings, gaps, snap thresholds, and declarative layout editing. Flag only; the next QA cycle owns live retesting.
+qa-impact: 2026-07-22 replaced storage-limit settings with validated behavior defaults, shortcuts, bindings, gaps, snap thresholds, and declarative layout editing; 2026-07-24 added `window_manager.swap_modifier` (default `shift`) across config.toml, settings PATCH, Settings UI, and web gesture resolution. Flag only; the next QA cycle owns live retesting.

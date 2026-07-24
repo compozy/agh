@@ -77,6 +77,14 @@ export interface OsOpenTarget {
 export interface OsDesktopBounds {
   width: number;
   height: number;
+  /** Viewport offset of the win-layer origin; converts client to layer coordinates. */
+  origin: { x: number; y: number };
+}
+
+/** Pointer context for a floating drop, in layer coordinates. */
+export interface OsFloatingDrop {
+  pointer: { x: number; y: number };
+  grabOffset: { x: number; y: number };
 }
 
 export interface MoveWindowInput {
@@ -127,8 +135,8 @@ export interface OsDesktopRuntimeStore {
   toggleFloating(id: string): void;
   moveWindow(id: string, input: MoveWindowInput): void;
   arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
-  commitFloatingRect(id: string, rect: OsRect): void;
-  resizeLayout(splitId: string, boundaryIndex: number, delta: number): void;
+  commitFloatingRect(id: string, rect: OsRect, drop?: OsFloatingDrop): void;
+  resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
   balanceLayout(groupId?: string, splitId?: string): void;
   navigateWindow(id: string, route: OsWindowRoute): WindowManagerCommandOutcome;
   toggleRailGroup(agentId: string): void;
@@ -172,7 +180,6 @@ export interface WindowManagerController extends OsDesktopRuntime {
 export const OS_COMPACT_BREAKPOINT = 960;
 export const OS_WINDOW_MIN_WIDTH = 280;
 export const OS_WINDOW_MIN_HEIGHT = 180;
-export const OS_WINDOW_SOFT_CAP = 12;
 
 export function osWindowId(app: OsAppId, instanceKey?: string | null): string {
   return app === "session" && instanceKey ? `session:${instanceKey}` : `app:${app}`;

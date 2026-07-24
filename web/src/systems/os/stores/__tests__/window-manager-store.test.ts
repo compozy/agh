@@ -78,7 +78,7 @@ describe("window manager store", () => {
     const actions = store.getState().actions;
     actions.bindClient({ workspaceId: "workspace:alpha", clientId: "client:one" });
     actions.setConnectionStatus("connected");
-    actions.setWorkArea({ rect: { x: 0, y: 0, w: 1440, h: 820 } });
+    actions.setWorkArea({ rect: { x: 0, y: 0, w: 1440, h: 820 }, origin: { x: 0, y: 0 } });
     actions.requestOverviewSegment({
       direction: "later",
       hiddenDesktopIds: ["desktop:three", "desktop:four"],
@@ -110,6 +110,7 @@ describe("window manager store", () => {
     expect(selectWindowManagerConnectionStatus(state)).toBe("disconnected");
     expect(selectWindowManagerWorkArea(state)).toEqual({
       rect: { x: 0, y: 0, w: 1440, h: 820 },
+      origin: { x: 0, y: 0 },
     });
     expect(selectWindowManagerOverlay(state)).toBeNull();
     expect(selectDesktopOverviewSegmentRequest(state)).toBeNull();
@@ -136,6 +137,7 @@ describe("window manager store", () => {
     expect(selectWindowManagerConnectionStatus(unbound)).toBe("disconnected");
     expect(selectWindowManagerWorkArea(unbound)).toEqual({
       rect: { x: 0, y: 0, w: 1440, h: 820 },
+      origin: { x: 0, y: 0 },
     });
     expect(selectWindowManagerOverlay(unbound)).toBeNull();
     expect(unbound.placementCycles).toEqual({});
@@ -220,10 +222,10 @@ describe("window manager store", () => {
       mode: "slide" as const,
     };
 
-    actions.setWorkArea({ rect });
+    actions.setWorkArea({ rect, origin: { x: 0, y: 44 } });
     const ownedWorkArea = selectWindowManagerWorkArea(store.getState());
     notifications = 0;
-    actions.setWorkArea({ rect: { x: 10, y: 20, w: 1200, h: 760 } });
+    actions.setWorkArea({ rect: { x: 10, y: 20, w: 1200, h: 760 }, origin: { x: 0, y: 44 } });
     expect(selectWindowManagerWorkArea(store.getState())).toBe(ownedWorkArea);
     expect(notifications).toBe(0);
     actions.setTransitionIntent(transition);
@@ -232,6 +234,7 @@ describe("window manager store", () => {
 
     expect(selectWindowManagerWorkArea(store.getState())).toEqual({
       rect: { x: 10, y: 20, w: 1200, h: 760 },
+      origin: { x: 0, y: 44 },
     });
     expect(selectDesktopTransitionIntent(store.getState())).toEqual({
       fromDesktopId: "desktop:one",

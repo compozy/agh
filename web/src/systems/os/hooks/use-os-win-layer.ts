@@ -53,17 +53,30 @@ export function useOsWinLayer(): OsWinLayerModel {
   useEffect(() => {
     const layer = layerRef.current;
     if (!layer) return;
+    const measure = (size?: { width: number; height: number }) => {
+      const bounds = layer.getBoundingClientRect();
+      store.getState().setDesktopBounds({
+        width: size?.width ?? bounds.width,
+        height: size?.height ?? bounds.height,
+        origin: { x: bounds.left, y: bounds.top },
+      });
+    };
     const observer = new ResizeObserver(entries => {
       const entry = entries[0];
       if (!entry) return;
-      store.getState().setDesktopBounds({
-        width: entry.contentRect.width,
-        height: entry.contentRect.height,
-      });
+      measure(entry.contentRect);
     });
+    const refreshOrigin = () => measure();
     observer.observe(layer);
-    return () => observer.disconnect();
-  }, [store]);
+    measure();
+    window.addEventListener("resize", refreshOrigin);
+    window.addEventListener("orientationchange", refreshOrigin);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", refreshOrigin);
+      window.removeEventListener("orientationchange", refreshOrigin);
+    };
+  }, [presentation, store, viewportState]);
 
   return {
     layerRef,

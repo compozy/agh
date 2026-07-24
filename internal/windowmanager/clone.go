@@ -134,6 +134,7 @@ func cloneWorkspaceConfig(config WorkspaceConfig) WorkspaceConfig {
 	config.RaiseOnFocus = clonePointer(config.RaiseOnFocus)
 	config.DragAwayPolicy = clonePointer(config.DragAwayPolicy)
 	config.GroupMoveModifier = clonePointer(config.GroupMoveModifier)
+	config.SwapModifier = clonePointer(config.SwapModifier)
 	config.HistoryLimit = clonePointer(config.HistoryLimit)
 	config.DesktopTransition = clonePointer(config.DesktopTransition)
 	config.Gaps = clonePointer(config.Gaps)

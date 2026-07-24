@@ -636,7 +636,7 @@ func TestMemoryAdapters(t *testing.T) {
 			invalid.Revision = 1
 			if err := repository.Commit(
 				t.Context(),
-				Commit{
+				&Commit{
 					WorkspaceID:      "workspace-a",
 					ExpectedRevision: 0,
 					Snapshot:         invalid,
@@ -650,7 +650,7 @@ func TestMemoryAdapters(t *testing.T) {
 			}
 			if err := repository.Commit(
 				t.Context(),
-				Commit{
+				&Commit{
 					WorkspaceID:      "workspace-a",
 					ExpectedRevision: 0,
 					Snapshot:         invalid,
@@ -668,7 +668,7 @@ func TestMemoryAdapters(t *testing.T) {
 				Snapshot:         invalid,
 				Event:            Event{WorkspaceID: "workspace-a", Revision: 1},
 			}
-			if err := repository.Commit(t.Context(), commit); err != nil {
+			if err := repository.Commit(t.Context(), &commit); err != nil {
 				t.Fatalf("Commit(valid) error = %v", err)
 			}
 			commit.Snapshot.Desktops[0].Name = "Tampered"
@@ -681,7 +681,7 @@ func TestMemoryAdapters(t *testing.T) {
 			if err != nil || again.Desktops[0].Name == "Also tampered" {
 				t.Fatal("repository Load() result aliases stored state")
 			}
-			if err := repository.Commit(t.Context(), commit); !errors.Is(err, ErrRevisionConflict) {
+			if err := repository.Commit(t.Context(), &commit); !errors.Is(err, ErrRevisionConflict) {
 				t.Fatalf("Commit(stale) error = %v", err)
 			}
 			if err := repository.DeleteWorkspace(t.Context(), "workspace-a"); err != nil {
@@ -712,7 +712,7 @@ func TestMemoryAdapters(t *testing.T) {
 		}
 		if err := repository.Commit(
 			t.Context(),
-			commit,
+			&commit,
 		); !errors.Is(err, ErrTopologyRevisionExhausted) {
 			t.Fatalf("Commit(wrapped revision) error = %v", err)
 		}

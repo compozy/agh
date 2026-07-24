@@ -210,8 +210,14 @@ func (m *Manager) applyPresentation(
 			return ClientView{}, false, ChangeSet{}, focusErr
 		}
 		if focused != "" {
+			// Focusing a window on another desktop activates that desktop for the client.
+			if window, exists := snapshot.Windows[focused]; exists &&
+				window.DesktopID != view.ActiveDesktopID {
+				view.ActiveDesktopID = window.DesktopID
+			}
 			view.FocusedWindowID = &focused
 			view.FocusOrder = prependFocus(view.FocusOrder, focused)
+			view = repairClientView(view, snapshot)
 		}
 	default:
 		return ClientView{}, false, ChangeSet{}, fmt.Errorf(
@@ -248,9 +254,9 @@ func resolveFocusTarget(view ClientView, snapshot Snapshot, command FocusWindowC
 		if !exists {
 			return "", fmt.Errorf("window %q: %w", *command.WindowID, ErrWindowNotFound)
 		}
-		if window.DesktopID != view.ActiveDesktopID || window.Minimized {
+		if window.Minimized {
 			return "", fmt.Errorf(
-				"window %q is not focusable on active desktop: %w",
+				"window %q is not focusable while minimized: %w",
 				*command.WindowID,
 				ErrInvalidCommand,
 			)

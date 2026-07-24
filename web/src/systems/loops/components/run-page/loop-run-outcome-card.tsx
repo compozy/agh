@@ -1,4 +1,5 @@
 import { Check, RotateCcw } from "lucide-react";
+import { useState } from "react";
 
 import { Button, StatusCard, type StatusCardTone } from "@agh/ui";
 
@@ -119,6 +120,7 @@ function outcomeView(
  * run" re-posts the same inputs as a fresh run.
  */
 export function LoopRunOutcomeCard(props: LoopRunOutcomeCardProps) {
+  const [renderedAt] = useState(Date.now);
   const { run, failure, fromStatus, terminalAt, repeatedIssueIds, onStartNewRun, isStartPending } =
     props;
   if (run.status === "no-op") {
@@ -128,7 +130,7 @@ export function LoopRunOutcomeCard(props: LoopRunOutcomeCardProps) {
       </LoopRunQuietNote>
     );
   }
-  const elapsedSeconds = terminalRunElapsedSeconds(run, terminalAt, Date.now());
+  const elapsedSeconds = terminalRunElapsedSeconds(run, terminalAt, renderedAt);
   const durationLabel = formatClockDuration(elapsedSeconds);
   const view = outcomeView(props, elapsedSeconds, durationLabel);
   if (!view) return null;

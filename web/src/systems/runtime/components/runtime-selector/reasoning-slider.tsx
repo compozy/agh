@@ -1,5 +1,6 @@
 import { type ReasoningEffort } from "@/lib/api-contract";
 import { cn } from "@agh/ui";
+import { useRef } from "react";
 
 import { reasoningEffortLabel } from "./types";
 import {
@@ -41,6 +42,7 @@ export function ReasoningSlider({
   labelId,
   onSelect,
 }: ReasoningSliderProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
   const slider = useReasoningSlider({ levels, value, defaultEffort, onSelect });
 
   return (
@@ -72,7 +74,7 @@ export function ReasoningSlider({
               style={edge === undefined ? { left: stopLeft(index, slider.last) } : undefined}
               onClick={() => {
                 slider.commit(index);
-                slider.trackRef.current?.focus();
+                trackRef.current?.focus();
               }}
             >
               {reasoningEffortLabel(effort)}
@@ -81,7 +83,7 @@ export function ReasoningSlider({
         })}
       </div>
       <div
-        ref={slider.trackRef}
+        ref={trackRef}
         role="slider"
         tabIndex={0}
         aria-orientation="horizontal"
@@ -95,7 +97,10 @@ export function ReasoningSlider({
         className="relative h-11 cursor-pointer rounded-md outline-none focus-visible:shadow-focus-ring"
         onPointerDown={slider.handlePointerDown}
         onPointerMove={slider.handlePointerMove}
-        onPointerUp={slider.handlePointerUp}
+        onPointerUp={event => {
+          slider.handlePointerUp(event);
+          trackRef.current?.focus();
+        }}
         onPointerCancel={slider.handlePointerCancel}
         onKeyDown={slider.handleKeyDown}
       >

@@ -19,6 +19,11 @@ vi.mock("../../adapters/window-manager-api", async importOriginal => {
   return { ...actual, executeWindowManagerCommand: vi.fn() };
 });
 
+/** Settles one microtask so the runtime's command serializer starts the queued runCommand. */
+async function flushCommandQueue(): Promise<void> {
+  await Promise.resolve();
+}
+
 const CONFIG: WindowManagerConfig = {
   newWindowPolicy: "floating",
   smallViewportPolicy: "stack",
@@ -28,6 +33,7 @@ const CONFIG: WindowManagerConfig = {
   raiseOnFocus: true,
   dragAwayPolicy: "window",
   groupMoveModifier: "alt",
+  swapModifier: "shift",
   historyLimit: 50,
   desktopTransition: "slide",
   gaps: { inner: 8, top: 0, right: 0, bottom: 0, left: 0 },
@@ -137,7 +143,7 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
-  it("Should not retain a desktop transition when another command owns the serializer", () => {
+  it("Should discard the optimistic transition when a queued switch cannot begin", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
     queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
@@ -161,9 +167,191 @@ describe("WindowManagerRuntime", () => {
     ).toBe(true);
 
     runtime.switchDesktop("desktop:two");
+    await flushCommandQueue();
 
     expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toBeNull();
     expect(executeWindowManagerCommand).not.toHaveBeenCalled();
+    runtime.stop();
+  });
+
+  it("Should run queued commands in order instead of dropping rapid interactions", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: SNAPSHOT,
+      applied: true,
+      changes: { desktopIds: [], windowIds: [], groupIds: [], nodeIds: [], clientIds: [] },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const first = runtime.getState().focusWindow("app:first");
+    const second = runtime.getState().focusWindow("app:second");
+    expect(first.accepted).toBe(true);
+    expect(second.accepted).toBe(true);
+    await Promise.all([first.completion, second.completion]);
+
+    expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2);
+    const windowIds = vi
+      .mocked(executeWindowManagerCommand)
+      .mock.calls.map(call => (call[3].payload as { window_id: string }).window_id);
+    expect(windowIds).toEqual(["app:first", "app:second"]);
+    runtime.stop();
+  });
+
+  it("Should reject a queued command after the runtime binding changes", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    let resolveFirst!: (result: {
+      snapshot: WindowManagerSnapshot;
+      applied: boolean;
+      changes: {
+        desktopIds: string[];
+        windowIds: string[];
+        groupIds: string[];
+        nodeIds: string[];
+        clientIds: string[];
+      };
+      diagnostics: [];
+      client: null;
+      rebasedFrom: null;
+    }) => void;
+    vi.mocked(executeWindowManagerCommand).mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveFirst = resolve;
+      })
+    );
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const first = runtime.getState().focusWindow("app:first");
+    const stale = runtime.getState().focusWindow("app:stale");
+    await flushCommandQueue();
+
+    const nextSnapshot = { ...SNAPSHOT, workspaceId: "workspace:next" };
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:next"), nextSnapshot);
+    runtime.bind({ workspaceId: "workspace:next", clientId: "client:next" });
+    runtime.setClient({
+      workspaceId: "workspace:next",
+      clientId: "client:next",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    resolveFirst({
+      snapshot: SNAPSHOT,
+      applied: true,
+      changes: { desktopIds: [], windowIds: [], groupIds: [], nodeIds: [], clientIds: [] },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+
+    await expect(first.completion).resolves.toBe(true);
+    await expect(stale.completion).resolves.toBe(false);
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+    runtime.stop();
+  });
+
+  it("Should synthesize a slide transition when reconciliation changes the active desktop", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toBeNull();
+
+    // A zoom or cross-desktop focus arrives as a reconciled client frame with
+    // no locally staged intent; the runtime supplies the transition itself.
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 2,
+      activeDesktopId: "desktop:two",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toEqual({
+      fromDesktopId: "desktop:one",
+      toDesktopId: "desktop:two",
+      direction: "later",
+      mode: "slide",
+    });
+    runtime.stop();
+  });
+
+  it("Should keep a staged optimistic transition when an intermediate client result lands", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    // Rapid pager clicks: the latest queued switch staged its own intent; the
+    // earlier switch's result must not replace it with a synthesized one.
+    const staged = {
+      fromDesktopId: "desktop:one",
+      toDesktopId: "desktop:three",
+      direction: "later",
+      mode: "slide",
+    } as const;
+    windowManagerStore.getState().actions.setTransitionIntent(staged);
+
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 2,
+      activeDesktopId: "desktop:two",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toEqual(staged);
     runtime.stop();
   });
 
@@ -236,7 +424,7 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
-  it("Should focus an existing same-route window instead of navigating without a route change", () => {
+  it("Should focus an existing same-route window instead of navigating without a route change", async () => {
     const queryClient = new QueryClient();
     const snapshot: WindowManagerSnapshot = {
       ...SNAPSHOT,
@@ -284,8 +472,7 @@ describe("WindowManagerRuntime", () => {
         search: { panel: "activity", filters: { state: "open", owner: "me" } },
       },
     });
-
-    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledOnce());
     expect(executeWindowManagerCommand).toHaveBeenCalledWith("workspace:test", "client:web", 7, {
       commandId: "window.focus",
       payload: { window_id: "app:tasks", direction: "" },
@@ -293,7 +480,7 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
-  it("Should normalize a tile command against the same gap-inset area used by its preview", () => {
+  it("Should normalize a tile command against the same gap-inset area used by its preview", async () => {
     const queryClient = new QueryClient();
     const snapshot: WindowManagerSnapshot = {
       ...SNAPSHOT,
@@ -320,7 +507,9 @@ describe("WindowManagerRuntime", () => {
     };
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
     queryClient.setQueryData(windowManagerKeys.config(), config);
-    windowManagerStore.getState().actions.setWorkArea({ rect: { x: 10, y: 20, w: 1200, h: 800 } });
+    windowManagerStore
+      .getState()
+      .actions.setWorkArea({ rect: { x: 10, y: 20, w: 1200, h: 800 }, origin: { x: 0, y: 0 } });
     vi.mocked(executeWindowManagerCommand).mockReturnValue(
       new Promise<Awaited<ReturnType<typeof executeWindowManagerCommand>>>(() => {})
     );
@@ -337,6 +526,7 @@ describe("WindowManagerRuntime", () => {
     });
 
     runtime.tileWindow("app:tasks", "left");
+    await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalled());
 
     expect(executeWindowManagerCommand).toHaveBeenCalledWith(
       "workspace:test",

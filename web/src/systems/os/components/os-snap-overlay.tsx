@@ -12,6 +12,8 @@ function previewLabel(kind: SnapTarget["kind"]): string {
       return "Insert";
     case "split":
       return "Split";
+    case "swap":
+      return "Swap windows";
   }
 }
 

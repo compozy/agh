@@ -131,8 +131,8 @@ func daemonWindowManagerSnapshot(
 func daemonWindowManagerCommit(
 	snapshot windowmanager.Snapshot,
 	expected windowmanager.Revision,
-) windowmanager.Commit {
-	return windowmanager.Commit{
+) *windowmanager.Commit {
+	return &windowmanager.Commit{
 		WorkspaceID: snapshot.WorkspaceID, ExpectedRevision: expected, Snapshot: snapshot,
 		Event: windowmanager.Event{
 			WorkspaceID: snapshot.WorkspaceID, Revision: snapshot.Revision,

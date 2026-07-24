@@ -17,8 +17,8 @@ func withSettingsWindowManagerSchemaEnumValues(
 		settingsWindowFocusPolicyValues()
 	values[reflect.TypeFor[contract.SettingsWindowDragAwayPolicy]()] =
 		settingsWindowDragAwayPolicyValues()
-	values[reflect.TypeFor[contract.SettingsWindowGroupMoveModifier]()] =
-		settingsWindowGroupMoveModifierValues()
+	values[reflect.TypeFor[contract.SettingsWindowDragModifier]()] =
+		settingsWindowDragModifierValues()
 	values[reflect.TypeFor[contract.SettingsWindowDesktopTransition]()] =
 		settingsWindowDesktopTransitionValues()
 	values[reflect.TypeFor[contract.SettingsWindowBindingAction]()] =
@@ -54,13 +54,13 @@ func settingsWindowDragAwayPolicyValues() []string {
 	}
 }
 
-func settingsWindowGroupMoveModifierValues() []string {
+func settingsWindowDragModifierValues() []string {
 	return []string{
-		string(contract.SettingsWindowGroupMoveModifierAlt),
-		string(contract.SettingsWindowGroupMoveModifierControl),
-		string(contract.SettingsWindowGroupMoveModifierMeta),
-		string(contract.SettingsWindowGroupMoveModifierShift),
-		string(contract.SettingsWindowGroupMoveModifierNone),
+		string(contract.SettingsWindowDragModifierAlt),
+		string(contract.SettingsWindowDragModifierControl),
+		string(contract.SettingsWindowDragModifierMeta),
+		string(contract.SettingsWindowDragModifierShift),
+		string(contract.SettingsWindowDragModifierNone),
 	}
 }
 

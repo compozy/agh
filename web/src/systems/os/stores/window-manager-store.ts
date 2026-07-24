@@ -11,6 +11,7 @@ import {
   type GestureDecision,
   type LayoutGestureSession,
 } from "../lib/layout-gesture-session";
+import type { SeamPreview } from "../lib/seam-preview";
 import type { SnapCorner, SnapSide, SnapTarget } from "../lib/snap-targets";
 import type {
   DesktopId,
@@ -30,6 +31,8 @@ export interface WindowManagerBinding {
 
 export interface WindowManagerWorkArea {
   readonly rect: PixelRect;
+  /** Viewport offset of the layer origin — converts client to layer coordinates. */
+  readonly origin: PixelPoint;
 }
 
 export type WindowManagerOverlay =
@@ -97,6 +100,8 @@ export interface WindowManagerActions {
   setTransitionIntent: (intent: DesktopTransitionIntent | null) => void;
   nextPlacementCycle: (windowId: string, edge: SnapSide | SnapCorner) => number;
   trackPlacementTarget: (windowId: string, edge: SnapSide | SnapCorner | null) => void;
+  setSeamPreview: (preview: SeamPreview) => void;
+  clearSeamPreview: () => void;
   beginGesture: (input: BeginLayoutGestureInput) => LayoutGestureSession;
   previewGesture: (
     point: PixelPoint,
@@ -127,6 +132,8 @@ export interface WindowManagerStoreState {
   readonly transitionIntent: DesktopTransitionIntent | null;
   readonly placementCycles: Readonly<Record<string, WindowPlacementCycle>>;
   readonly gesture: LayoutGestureSession | null;
+  /** Live seam-drag preview applied to the projection until commit or cancel. */
+  readonly seamPreview: SeamPreview | null;
   readonly commandState: WindowManagerCommandState;
   readonly actions: WindowManagerActions;
 }
@@ -140,7 +147,7 @@ function copyBinding(binding: WindowManagerBinding): WindowManagerBinding {
 }
 
 function copyWorkArea(workArea: WindowManagerWorkArea): WindowManagerWorkArea {
-  return { rect: { ...workArea.rect } };
+  return { rect: { ...workArea.rect }, origin: { ...workArea.origin } };
 }
 
 function sameWorkArea(
@@ -152,7 +159,9 @@ function sameWorkArea(
     left.rect.x === right.rect.x &&
     left.rect.y === right.rect.y &&
     left.rect.w === right.rect.w &&
-    left.rect.h === right.rect.h
+    left.rect.h === right.rect.h &&
+    left.origin.x === right.origin.x &&
+    left.origin.y === right.origin.y
   );
 }
 
@@ -203,6 +212,7 @@ function bindingScopedState(binding: WindowManagerBinding | null): BindingScoped
     transitionIntent: null,
     placementCycles: {},
     gesture: null,
+    seamPreview: null,
     commandState: idleCommandState(),
   };
 }
@@ -287,6 +297,30 @@ export function createWindowManagerStore(): WindowManagerStoreApi {
             [windowId]: { edge, nextStep: 1 },
           },
         });
+      },
+
+      setSeamPreview: preview => {
+        const current = get().seamPreview;
+        if (
+          current !== null &&
+          current.splitId === preview.splitId &&
+          current.boundaryIndex === preview.boundaryIndex &&
+          current.deltaPx === preview.deltaPx
+        ) {
+          return;
+        }
+        set({
+          seamPreview: {
+            splitId: preview.splitId,
+            boundaryIndex: preview.boundaryIndex,
+            deltaPx: preview.deltaPx,
+          },
+        });
+      },
+
+      clearSeamPreview: () => {
+        if (get().seamPreview === null) return;
+        set({ seamPreview: null });
       },
 
       beginGesture: input => {
@@ -391,79 +425,18 @@ export function createWindowManagerStore(): WindowManagerStoreApi {
 
 export const windowManagerStore = createWindowManagerStore();
 
-export function selectWindowManagerBinding(
-  state: WindowManagerStoreState
-): WindowManagerBinding | null {
-  return state.binding;
-}
-
-export function selectWindowManagerConnectionStatus(
-  state: WindowManagerStoreState
-): WindowManagerConnectionStatus {
-  return state.connectionStatus;
-}
-
-export function selectWindowManagerWorkArea(
-  state: WindowManagerStoreState
-): WindowManagerWorkArea | null {
-  return state.workArea;
-}
-
-export function selectWindowManagerOverlay(
-  state: WindowManagerStoreState
-): WindowManagerOverlay | null {
-  return state.activeOverlay;
-}
-
-export function selectDesktopOverviewSegmentRequest(
-  state: WindowManagerStoreState
-): DesktopOverviewSegmentRequest | null {
-  return state.overviewSegmentRequest;
-}
-
-export function selectDesktopTransitionIntent(
-  state: WindowManagerStoreState
-): DesktopTransitionIntent | null {
-  return state.transitionIntent;
-}
-
-export function selectWindowManagerGesture(
-  state: WindowManagerStoreState
-): LayoutGestureSession | null {
-  return state.gesture;
-}
-
-export function selectWindowManagerGestureActive(
-  state: WindowManagerStoreState,
-  windowId: string
-): boolean {
-  return state.gesture?.status === "active" && state.gesture.source.windowId === windowId;
-}
-
-export function selectWindowManagerGesturePreview(
-  state: WindowManagerStoreState
-): SnapTarget | null {
-  return state.gesture?.status === "active" ? state.gesture.preview : null;
-}
-
-export function selectPendingWindowManagerCommand(
-  state: WindowManagerStoreState
-): PendingWindowManagerCommand | null {
-  return state.commandState.status === "pending" ? state.commandState.command : null;
-}
-
-export function selectWindowManagerConflict(
-  state: WindowManagerStoreState
-): WindowManagerRevisionConflict | null {
-  return state.commandState.status === "conflict" ? state.commandState.conflict : null;
-}
-
-export function selectWindowManagerDiagnostic(
-  state: WindowManagerStoreState
-): WindowManagerDiagnostic | null {
-  return state.commandState.diagnostic;
-}
-
-export function selectWindowManagerActions(state: WindowManagerStoreState): WindowManagerActions {
-  return state.actions;
-}
+export {
+  selectDesktopOverviewSegmentRequest,
+  selectDesktopTransitionIntent,
+  selectPendingWindowManagerCommand,
+  selectWindowManagerActions,
+  selectWindowManagerBinding,
+  selectWindowManagerConflict,
+  selectWindowManagerConnectionStatus,
+  selectWindowManagerDiagnostic,
+  selectWindowManagerGesture,
+  selectWindowManagerGestureActive,
+  selectWindowManagerGesturePreview,
+  selectWindowManagerOverlay,
+  selectWindowManagerWorkArea,
+} from "./window-manager-store-selectors";

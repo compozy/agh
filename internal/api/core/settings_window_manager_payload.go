@@ -35,7 +35,8 @@ func settingsWindowManagerConfigPayload(
 		FocusFollowsPointer: cfg.FocusFollowsPointer,
 		RaiseOnFocus:        cfg.RaiseOnFocus,
 		DragAwayPolicy:      contract.SettingsWindowDragAwayPolicy(cfg.DragAwayPolicy),
-		GroupMoveModifier:   contract.SettingsWindowGroupMoveModifier(cfg.GroupMoveModifier),
+		GroupMoveModifier:   contract.SettingsWindowDragModifier(cfg.GroupMoveModifier),
+		SwapModifier:        contract.SettingsWindowDragModifier(cfg.SwapModifier),
 		HistoryLimit:        cfg.HistoryLimit,
 		DesktopTransition:   contract.SettingsWindowDesktopTransition(cfg.DesktopTransition),
 		Gaps: contract.SettingsWindowManagerGapsPayload{
@@ -77,6 +78,7 @@ func windowManagerConfigFromPayload(
 		RaiseOnFocus:        payload.RaiseOnFocus,
 		DragAwayPolicy:      strings.TrimSpace(string(payload.DragAwayPolicy)),
 		GroupMoveModifier:   strings.TrimSpace(string(payload.GroupMoveModifier)),
+		SwapModifier:        strings.TrimSpace(string(payload.SwapModifier)),
 		HistoryLimit:        payload.HistoryLimit,
 		DesktopTransition:   strings.TrimSpace(string(payload.DesktopTransition)),
 		Gaps: aghconfig.WindowManagerGapsConfig{

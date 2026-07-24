@@ -1,6 +1,9 @@
 package windowmanager
 
-import "slices"
+import (
+	"math"
+	"slices"
+)
 
 func restoreExactSourceGroup(snapshot *Snapshot, windowID WindowID, anchor *ReturnAnchor) bool {
 	if anchor == nil || anchor.SourceGroup == nil {
@@ -134,7 +137,7 @@ func layoutNodesEqual(left, right LayoutNode) bool {
 		left.Kind != right.Kind ||
 		!pointerValuesEqual(left.WindowID, right.WindowID) ||
 		!pointerValuesEqual(left.Axis, right.Axis) ||
-		!slices.Equal(left.Weights, right.Weights) ||
+		!weightVectorsEqual(left.Weights, right.Weights) ||
 		!slices.Equal(left.WindowIDs, right.WindowIDs) ||
 		!pointerValuesEqual(left.ActiveID, right.ActiveID) ||
 		len(left.Children) != len(right.Children) {
@@ -142,6 +145,19 @@ func layoutNodesEqual(left, right LayoutNode) bool {
 	}
 	for index := range left.Children {
 		if !layoutNodesEqual(left.Children[index], right.Children[index]) {
+			return false
+		}
+	}
+	return true
+}
+
+// weightVectorsEqual treats sub-tolerance weight drift as unchanged.
+func weightVectorsEqual(left, right []float64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if math.Abs(left[index]-right[index]) > weightTolerance {
 			return false
 		}
 	}

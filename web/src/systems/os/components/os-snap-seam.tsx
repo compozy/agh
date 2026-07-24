@@ -1,50 +1,22 @@
-import { useRef, type KeyboardEvent, type PointerEvent } from "react";
-
 import { cn } from "@agh/ui";
 
+import { useLayoutSeam } from "../hooks/use-layout-seam";
 import type { LayoutProjection, ProjectedSeam } from "../lib/window-manager-types";
 
-function seamSpan(seam: ProjectedSeam, width: number, height: number): number {
-  return seam.orientation === "vertical" ? width : height;
-}
-
-function resizeKeyDelta(event: KeyboardEvent<HTMLElement>): number | null {
-  if (event.key === "ArrowLeft" || event.key === "ArrowUp") return -0.02;
-  if (event.key === "ArrowRight" || event.key === "ArrowDown") return 0.02;
-  return null;
-}
+export type SeamGestureHandlers = {
+  onResize: (splitId: string, boundaryIndex: number, delta: number) => void;
+  onSeamPreview: (seam: ProjectedSeam, deltaPx: number) => void;
+  onSeamPreviewEnd: () => void;
+};
 
 function LayoutSeam({
   seam,
-  width,
-  height,
   onResize,
-}: {
-  seam: ProjectedSeam;
-  width: number;
-  height: number;
-  onResize: (splitId: string, boundaryIndex: number, delta: number) => void;
-}) {
-  const start = useRef<{ coordinate: number; pointerId: number } | null>(null);
+  onSeamPreview,
+  onSeamPreviewEnd,
+}: { seam: ProjectedSeam } & SeamGestureHandlers) {
+  const model = useLayoutSeam(seam, onResize, onSeamPreview, onSeamPreviewEnd);
   const vertical = seam.orientation === "vertical";
-
-  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    start.current = {
-      coordinate: vertical ? event.clientX : event.clientY,
-      pointerId: event.pointerId,
-    };
-  };
-  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
-    const gesture = start.current;
-    start.current = null;
-    if (!gesture || gesture.pointerId !== event.pointerId) return;
-    const deltaPixels = (vertical ? event.clientX : event.clientY) - gesture.coordinate;
-    const span = seamSpan(seam, width, height);
-    if (span > 0) {
-      onResize(seam.splitId, seam.boundaryIndex, deltaPixels / span);
-    }
-  };
 
   return (
     <div
@@ -61,6 +33,7 @@ function LayoutSeam({
         "absolute z-30 touch-none rounded-pill outline-none",
         "before:absolute before:rounded-pill before:bg-line-strong",
         "hover:before:bg-accent focus-visible:shadow-focus-ring focus-visible:before:bg-accent",
+        model.dragging && "before:bg-accent",
         vertical
           ? "w-3 cursor-col-resize before:top-0 before:bottom-0 before:left-1/2 before:w-px before:-translate-x-1/2"
           : "h-3 cursor-row-resize before:top-1/2 before:right-0 before:left-0 before:h-px before:-translate-y-1/2"
@@ -71,17 +44,12 @@ function LayoutSeam({
         width: vertical ? 12 : seam.rect.w,
         height: vertical ? seam.rect.h : 12,
       }}
-      onPointerDown={handlePointerDown}
-      onPointerCancel={() => {
-        start.current = null;
-      }}
-      onPointerUp={handlePointerUp}
-      onKeyDown={event => {
-        const delta = resizeKeyDelta(event);
-        if (delta === null) return;
-        event.preventDefault();
-        onResize(seam.splitId, seam.boundaryIndex, delta);
-      }}
+      onPointerDown={model.handlePointerDown}
+      onPointerMove={model.handlePointerMove}
+      onPointerCancel={model.handlePointerCancel}
+      onLostPointerCapture={model.handleLostPointerCapture}
+      onPointerUp={model.handlePointerUp}
+      onKeyDown={model.handleKeyDown}
     />
   );
 }
@@ -90,10 +58,9 @@ function LayoutSeam({
 export function OsSnapSeamLayer({
   projection,
   onResize,
-}: {
-  projection: LayoutProjection | undefined;
-  onResize: (splitId: string, boundaryIndex: number, delta: number) => void;
-}) {
+  onSeamPreview,
+  onSeamPreviewEnd,
+}: { projection: LayoutProjection | undefined } & SeamGestureHandlers) {
   if (!projection) return null;
   return (
     <>
@@ -101,9 +68,9 @@ export function OsSnapSeamLayer({
         <LayoutSeam
           key={seam.id}
           seam={seam}
-          width={projection.workArea.w}
-          height={projection.workArea.h}
           onResize={onResize}
+          onSeamPreview={onSeamPreview}
+          onSeamPreviewEnd={onSeamPreviewEnd}
         />
       ))}
     </>

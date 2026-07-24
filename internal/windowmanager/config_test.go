@@ -23,7 +23,8 @@ func TestEffectiveConfig(t *testing.T) {
 		focusFollowsPointer := true
 		raiseOnFocus := false
 		dragAwayPolicy := DragAwayGroup
-		groupMoveModifier := groupMoveModifierMeta
+		groupMoveModifier := dragModifierMeta
+		swapModifier := dragModifierControl
 		historyLimit := 7
 		desktopTransition := DesktopTransitionInstant
 		gaps := GapsConfig{Inner: 1, Top: 2, Right: 3, Bottom: 4, Left: 5}
@@ -36,6 +37,7 @@ func TestEffectiveConfig(t *testing.T) {
 			FocusPolicy: &focusPolicy, FocusWrap: &focusWrap,
 			FocusFollowsPointer: &focusFollowsPointer, RaiseOnFocus: &raiseOnFocus,
 			DragAwayPolicy: &dragAwayPolicy, GroupMoveModifier: &groupMoveModifier,
+			SwapModifier: &swapModifier,
 			HistoryLimit: &historyLimit, DesktopTransition: &desktopTransition,
 			Gaps: &gaps, Snap: &snap,
 			Bindings: &bindings, Shortcuts: shortcuts,
@@ -48,7 +50,8 @@ func TestEffectiveConfig(t *testing.T) {
 			effective.FocusPolicy != FocusDirectional || !effective.FocusWrap || !effective.FocusFollowsPointer ||
 			effective.RaiseOnFocus ||
 			effective.DragAwayPolicy != DragAwayGroup ||
-			effective.GroupMoveModifier != groupMoveModifierMeta ||
+			effective.GroupMoveModifier != dragModifierMeta ||
+			effective.SwapModifier != dragModifierControl ||
 			effective.HistoryLimit != 7 || effective.DesktopTransition != DesktopTransitionInstant {
 			t.Fatalf("effective behavioral config = %+v", effective)
 		}
@@ -224,6 +227,11 @@ func TestConfigValidation(t *testing.T) {
 			name:      "Should reject an unknown group modifier",
 			mutate:    func(config *Config) { config.GroupMoveModifier = "command" },
 			wantError: `group move modifier "command": window manager invalid command`,
+		},
+		{
+			name:      "Should reject an unknown swap modifier",
+			mutate:    func(config *Config) { config.SwapModifier = "command" },
+			wantError: `swap modifier "command": window manager invalid command`,
 		},
 		{
 			name:      "Should reject a negative gap",

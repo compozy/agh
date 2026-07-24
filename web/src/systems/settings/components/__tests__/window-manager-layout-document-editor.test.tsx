@@ -172,7 +172,9 @@ describe("WindowManagerLayoutDocumentEditor", () => {
     expect(apiMocks.preview).toHaveBeenCalledWith(
       "workspace-a",
       7,
-      expect.objectContaining({ workspaceId: "workspace-a" })
+      expect.objectContaining({ workspaceId: "workspace-a" }),
+      undefined,
+      expect.any(AbortSignal)
     );
     expect(applyButton).toBeEnabled();
 

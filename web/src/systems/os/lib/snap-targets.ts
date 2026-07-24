@@ -80,12 +80,21 @@ export interface StackSnapTarget {
   rect: PixelRect;
 }
 
+export interface SwapSnapTarget {
+  kind: "swap";
+  id: string;
+  targetWindowId: WindowId;
+  targetNodeId: LayoutNodeId;
+  rect: PixelRect;
+}
+
 export type SnapTarget =
   | TileSnapTarget
   | ZoomSnapTarget
   | InsertSnapTarget
   | SplitSnapTarget
-  | StackSnapTarget;
+  | StackSnapTarget
+  | SwapSnapTarget;
 
 export interface OccupiedSnapCandidate {
   windowId: WindowId;
@@ -102,6 +111,8 @@ export interface ResolveSnapTargetInput {
   candidates?: readonly OccupiedSnapCandidate[];
   currentTarget?: SnapTarget | null;
   config: SnapTargetConfig;
+  /** Occupied drops resolve to a whole-window swap while the configured swap modifier is held. */
+  swapModifierActive?: boolean;
 }
 
 type EdgeResolution =
@@ -133,6 +144,13 @@ function containsPoint(rect: PixelRect, point: PixelPoint): boolean {
     point.y >= rect.y &&
     point.y <= rect.y + rect.h
   );
+}
+
+function clampPointToRect(point: PixelPoint, rect: PixelRect): PixelPoint {
+  return {
+    x: Math.min(rect.x + rect.w, Math.max(rect.x, finite(point.x))),
+    y: Math.min(rect.y + rect.h, Math.max(rect.y, finite(point.y))),
+  };
 }
 
 function intersectRect(rect: PixelRect, boundary: PixelRect): PixelRect | null {
@@ -319,12 +337,22 @@ function occupiedTarget(
   point: PixelPoint,
   area: PixelRect,
   candidates: readonly OccupiedSnapCandidate[],
-  gap: number
+  gap: number,
+  swapModifierActive: boolean
 ): SnapTarget | null {
   const ordered = [...candidates].sort((a, b) => b.z - a.z || a.windowId.localeCompare(b.windowId));
   for (const candidate of ordered) {
     const candidateRect = intersectRect(normalizedRect(candidate.rect), area);
     if (candidateRect === null || !containsPoint(candidateRect, point)) continue;
+    if (swapModifierActive) {
+      return {
+        kind: "swap",
+        id: `swap:${candidate.nodeId}`,
+        targetWindowId: candidate.windowId,
+        targetNodeId: candidate.nodeId,
+        rect: candidateRect,
+      };
+    }
     const side = sideFromCandidate(point, candidateRect);
     if (side === null) {
       return {
@@ -364,6 +392,7 @@ function occupiedTarget(
 
 function heldTarget(
   input: ResolveSnapTargetInput,
+  point: PixelPoint,
   area: PixelRect,
   tileArea: PixelRect,
   config: SnapTargetConfig
@@ -371,7 +400,7 @@ function heldTarget(
   const current = input.currentTarget;
   if (current === undefined || current === null) return null;
   const expanded = edgeTarget(
-    input.point,
+    point,
     area,
     tileArea,
     config.edgeBand + config.exitSlack,
@@ -394,15 +423,20 @@ function heldTarget(
     : null;
 }
 
-/** Resolves one preview target. Coordinates outside the work area never arm a target. */
+/**
+ * Resolves one preview target. Overshoot clamps to the work area, so pushing
+ * the pointer past an edge keeps that edge armed instead of dropping the
+ * target; reserved edge-center bands still block.
+ */
 export function resolveSnapTarget(input: ResolveSnapTargetInput): SnapTarget | null {
   const area = normalizedRect(input.workArea);
-  if (area.w <= 0 || area.h <= 0 || !containsPoint(area, input.point)) return null;
+  if (area.w <= 0 || area.h <= 0) return null;
+  const point = clampPointToRect(input.point, area);
   const config = configFrom(input);
   const tileArea = windowManagerLayoutArea(area, config.outerGaps);
   const cycleStep = input.cycleStep ?? 0;
   const edge = edgeTarget(
-    input.point,
+    point,
     area,
     tileArea,
     config.edgeBand,
@@ -414,9 +448,15 @@ export function resolveSnapTarget(input: ResolveSnapTargetInput): SnapTarget | n
   );
   if (edge.state === "target") return edge.target;
   if (edge.state === "blocked") return null;
-  const occupied = occupiedTarget(input.point, area, input.candidates ?? [], config.innerGap);
+  const occupied = occupiedTarget(
+    point,
+    area,
+    input.candidates ?? [],
+    config.innerGap,
+    input.swapModifierActive === true
+  );
   if (occupied !== null) return occupied;
-  return heldTarget(input, area, tileArea, config);
+  return heldTarget(input, point, area, tileArea, config);
 }
 
 export function snapTargetIsContained(target: SnapTarget, workArea: PixelRect): boolean {

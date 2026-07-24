@@ -80,6 +80,19 @@ export function moveWindowCommand(
   };
 }
 
+export function swapWindowsCommand(
+  firstWindowId: string,
+  secondWindowId: string
+): WindowManagerCommandInput {
+  return {
+    commandId: "window.swap",
+    payload: {
+      first_window_id: firstWindowId,
+      second_window_id: secondWindowId,
+    },
+  };
+}
+
 export function arrangeLayoutCommand(
   anchor: OsWindow,
   peers: readonly OsWindow[],

@@ -2,6 +2,7 @@ package windowmanager
 
 import (
 	"cmp"
+	"math"
 	"slices"
 )
 
@@ -184,17 +185,24 @@ func claimNodeWindow(
 
 func normalizeWeights(weights []float64) {
 	total := 0.0
+	repaired := false
 	for index, weight := range weights {
 		if !finite(weight) || weight <= 0 {
 			weights[index] = 1
+			repaired = true
 		}
 		total += weights[index]
 	}
 	if total <= 0 || !finite(total) {
 		total = float64(len(weights))
+		repaired = true
 		for index := range weights {
 			weights[index] = 1
 		}
+	}
+	// An already-normalized vector stays byte-identical so repeated normalization never drifts weights.
+	if !repaired && math.Abs(total-1) <= weightTolerance {
+		return
 	}
 	for index := range weights {
 		weights[index] /= total
