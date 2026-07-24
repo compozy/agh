@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
 overlaps: RT-045, RT-058, TA-089
 ---
 
-story: As an operator I can trust that every message I authored remains in its original place when live agent output arrives and when I reload the session later.
+story: As a returning user I can trust that every message I authored remains in its original place when live agent output arrives and when I reload the session later.
 
 The 2026-07-13 live replay first reproduced duplicate/reordered ordinary prompts and a `/goal` command that disappeared after reload. The same-persona post-fix replay used a fresh Cursor/Grok 4.5 session, completed two ordinary turns plus a two-turn approved Goal, then reloaded the exact permalink. All three authored inputs remained present exactly once and in strict request/response chronology.
 

@@ -73,7 +73,7 @@ type DaytonaProfile struct {
 type Config struct {
 	Daemon        DaemonConfig              `toml:"daemon"`
 	HTTP          HTTPConfig                `toml:"http"`
-	DesktopState  DesktopStateConfig        `toml:"desktop_state"`
+	WindowManager WindowManagerConfig       `toml:"window_manager"`
 	Defaults      DefaultsConfig            `toml:"defaults"`
 	Agents        AgentsConfig              `toml:"agents"`
 	Limits        LimitsConfig              `toml:"limits"`

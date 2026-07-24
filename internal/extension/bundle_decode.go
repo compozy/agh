@@ -104,6 +104,7 @@ func (p bundleRawProfile) toBundleProfile(ctx context.Context, rootDir string) (
 			Items:   normalizeBundleChannels(p.Channels.Items),
 		},
 		Agents:   make([]BundleAgent, 0, len(p.Agents)),
+		Layouts:  make([]BundleLayout, 0, len(p.Layouts)),
 		Jobs:     make([]BundleJob, 0, len(p.Jobs)),
 		Triggers: make([]BundleTrigger, 0, len(p.Triggers)),
 		Bridges:  normalizeBundleBridges(p.Bridges),
@@ -114,6 +115,13 @@ func (p bundleRawProfile) toBundleProfile(ctx context.Context, rootDir string) (
 			return BundleProfile{}, err
 		}
 		profile.Agents = append(profile.Agents, loaded)
+	}
+	for _, layout := range p.Layouts {
+		loaded, err := loadBundleLayout(ctx, rootDir, layout.Path)
+		if err != nil {
+			return BundleProfile{}, err
+		}
+		profile.Layouts = append(profile.Layouts, loaded)
 	}
 	for _, job := range p.Jobs {
 		profile.Jobs = append(profile.Jobs, job.toBundleJob())

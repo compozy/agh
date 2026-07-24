@@ -33,7 +33,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {},
   parameters: appRouteParameters("/"),
-  render: () => <StorybookWorkspaceSetup initialApp="dashboard" />,
+  render: () => <StorybookWorkspaceSetup />,
 };
 
 /**
@@ -61,7 +61,7 @@ export const Degraded: Story = {
       ],
     }),
   },
-  render: () => <StorybookWorkspaceSetup initialApp="dashboard" />,
+  render: () => <StorybookWorkspaceSetup />,
 };
 
 /**
@@ -80,7 +80,7 @@ export const Disconnected: Story = {
       ],
     }),
   },
-  render: () => <StorybookWorkspaceSetup initialApp="dashboard" />,
+  render: () => <StorybookWorkspaceSetup />,
 };
 
 /**
@@ -111,7 +111,7 @@ export const Loading: Story = {
       ],
     }),
   },
-  render: () => <StorybookWorkspaceSetup initialApp="dashboard" />,
+  render: () => <StorybookWorkspaceSetup />,
 };
 
 /**

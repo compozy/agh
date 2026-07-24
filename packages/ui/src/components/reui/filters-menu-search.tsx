@@ -57,7 +57,7 @@ function FiltersMenuSearchInput<T = unknown>({
           placeholder={i18n.searchFields}
           className={cn(
             "h-8 rounded-none border-0 bg-transparent! px-2 shadow-none",
-            "focus-visible:border-border focus-visible:ring-0 focus-visible:ring-offset-0",
+            "focus-visible:border-line-strong focus-visible:shadow-focus-inset",
             activeMenu === "root" && "placeholder:text-foreground"
           )}
           value={menuSearchInput}

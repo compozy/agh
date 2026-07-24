@@ -1,88 +1,79 @@
-// Suite: zoom-menu markup + open path (component)
-// Invariant: hover intent opens the menu with every section rendered inside
-// its Base UI Menu.Group (a GroupLabel outside a Group throws — regression
-// caught live 2026-07-21), zone items dispatch fractions against THIS window
-// through the real store, and arrange items disable without a second visible
-// window. Timing/dispatch semantics live in the use-os-zoom-menu hook suite.
-// Boundary IN: rendered menu markup + hover-open path against the real store.
-// Boundary OUT: hover timing math (hook suite), Radix/Base positioning px.
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// Suite: OS zoom menu
+// Invariant: each visible menu action dispatches its semantic command for the owning window.
+// Owning layer: the current OsZoomMenu component.
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
-import { OS_SNAP_ZONES } from "../../lib/os-snap-zones";
-import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
-import { createDesktopStore } from "../../stores/desktop-store";
-import { OS_ZOOM_MENU_OPEN_DELAY_MS } from "../../hooks/use-os-zoom-menu";
+import { useOsZoomMenu, type OsZoomMenuModel } from "../../hooks/use-os-zoom-menu";
 import { OsZoomMenu } from "../os-zoom-menu";
 
-function createHarness() {
-  const store = createDesktopStore();
-  const port: OsRouterPort = { navigate: () => {}, replace: () => {} };
-  const coordinator = new RoutingCoordinator(store, port);
-  store.getState().hydrate([]);
-  coordinator.completeHydration();
-  const shell: OsShellHandle = { store, coordinator, flushPersistence: () => {} };
-  return { store, shell };
+vi.mock("../../hooks/use-os-zoom-menu", () => ({ useOsZoomMenu: vi.fn() }));
+
+function menuModel(overrides: Partial<OsZoomMenuModel> = {}): OsZoomMenuModel {
+  return {
+    open: true,
+    onOpenChange: vi.fn(),
+    onHoverEnter: vi.fn(),
+    onHoverLeave: vi.fn(),
+    onContentEnter: vi.fn(),
+    floating: false,
+    placementEnabled: true,
+    arrangeEnabled: true,
+    dispatchPlacement: vi.fn(),
+    dispatchMakeFloating: vi.fn(),
+    dispatchFill: vi.fn(),
+    dispatchArrange: vi.fn(),
+    ...overrides,
+  };
 }
 
-function renderMenu(shell: OsShellHandle, windowId: string) {
-  return render(
-    <OsShellContext.Provider value={shell}>
-      <OsZoomMenu windowId={windowId}>
-        <button type="button" data-action="zoom" aria-label="Zoom window" />
-      </OsZoomMenu>
-    </OsShellContext.Provider>
-  );
-}
-
-function hoverOpen(container: HTMLElement) {
-  const anchor = container.querySelector('[data-slot="os-zoom-menu-anchor"]');
-  if (!(anchor instanceof HTMLElement)) throw new Error("zoom-menu anchor must render");
-  fireEvent.pointerOver(anchor, { pointerType: "mouse" });
-  act(() => {
-    vi.advanceTimersByTime(OS_ZOOM_MENU_OPEN_DELAY_MS);
-  });
-}
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("OsZoomMenu", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
+  it("Should dispatch placement, floating, fill, and arrange actions for its window", () => {
+    const model = menuModel();
+    vi.mocked(useOsZoomMenu).mockReturnValue(model);
+
+    render(
+      <OsZoomMenu windowId="window:tasks">
+        <button type="button">Zoom</button>
+      </OsZoomMenu>
+    );
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Tile left half" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Make window floating" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fill window" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Arrange left & right" }));
+
+    expect(useOsZoomMenu).toHaveBeenCalledWith("window:tasks");
+    expect(model.dispatchPlacement).toHaveBeenCalledWith({
+      id: "window.tile.left",
+      placement: "left",
+      label: "Tile left half",
+    });
+    expect(model.dispatchMakeFloating).toHaveBeenCalledOnce();
+    expect(model.dispatchFill).toHaveBeenCalledOnce();
+    expect(model.dispatchArrange).toHaveBeenCalledWith("two-up");
   });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
 
-  it("Should open on hover with both sections rendered and dispatch a zone against this window", () => {
-    const { store, shell } = createHarness();
-    const id = store.getState().openOrFocus({ app: "tasks" });
-    store.getState().openOrFocus({ app: "vault" });
-    store.getState().clampToViewport({ width: 1440, height: 900 });
+  it("Should disable placement and arrangement controls when their actions are unavailable", () => {
+    vi.mocked(useOsZoomMenu).mockReturnValue(
+      menuModel({ placementEnabled: false, arrangeEnabled: false })
+    );
 
-    const { container } = renderMenu(shell, id);
-    hoverOpen(container);
+    render(
+      <OsZoomMenu windowId="window:tasks">
+        <button type="button">Zoom</button>
+      </OsZoomMenu>
+    );
 
-    // Both group labels render (GroupLabel requires an enclosing Group —
-    // the missing-context crash regression this suite exists for).
-    expect(screen.getByTestId("os-zoom-menu")).toBeInTheDocument();
-    expect(screen.getByText("Move & Resize")).toBeInTheDocument();
-    expect(screen.getByText("Fill & Arrange")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("os-zoom-menu-left"));
-    expect(store.getState().windows[id].snap).toEqual(OS_SNAP_ZONES.left);
-  });
-
-  it("Should disable arrange presets without a second visible window", () => {
-    const { store, shell } = createHarness();
-    const id = store.getState().openOrFocus({ app: "tasks" });
-    store.getState().clampToViewport({ width: 1440, height: 900 });
-
-    const { container } = renderMenu(shell, id);
-    hoverOpen(container);
-
-    expect(screen.getByTestId("os-zoom-menu-two-up")).toHaveAttribute("data-disabled");
-    expect(screen.getByTestId("os-zoom-menu-grid")).toHaveAttribute("data-disabled");
-    // Fill stays available — it only needs this window.
-    expect(screen.getByTestId("os-zoom-menu-fill")).not.toHaveAttribute("data-disabled");
+    expect(screen.getByRole("menuitem", { name: "Tile left half" })).toHaveAttribute(
+      "data-disabled"
+    );
+    expect(screen.getByRole("menuitem", { name: "Arrange left & right" })).toHaveAttribute(
+      "data-disabled"
+    );
   });
 });

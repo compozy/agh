@@ -150,6 +150,7 @@ const (
 	configSetFloat
 	configSetDuration
 	configSetStringSlice
+	configSetFloatSlice
 )
 
 var (

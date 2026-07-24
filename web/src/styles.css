@@ -31,16 +31,6 @@
   animation: marketplace-card-flash var(--duration-slow) var(--ease-out);
 }
 
-/* Snap drop-overlay entry (ADR-009 motion contract: 80ms linear, Hermes ramp). */
-@keyframes os-snap-fade {
-  from {
-    opacity: 0.001;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 /* Genie minimize (os-v2.css `.win.is-minimizing` verbatim): the window folds
    into its dock item before the minimize commits. Reduced motion (system OR
    in-product toggle) skips the class entirely — minimize is instant. */

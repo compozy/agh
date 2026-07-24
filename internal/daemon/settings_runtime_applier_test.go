@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/providers"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 func TestDaemonSettingsRuntimeApplier(t *testing.T) {
@@ -104,6 +105,79 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 				availability.enabled,
 				availability.updatedBy,
 			)
+		}
+	})
+
+	t.Run("Should hot-apply and rollback window-manager defaults with the active config", func(t *testing.T) {
+		t.Parallel()
+		previous := aghconfig.Config{
+			Network:       aghconfig.DefaultNetworkConfig(),
+			WindowManager: aghconfig.DefaultWindowManagerConfig(),
+		}
+		next := previous
+		next.WindowManager.HistoryLimit = 1
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
+			nil,
+			windowManagerDefaults(previous.WindowManager),
+		)
+		if err != nil {
+			t.Fatalf("windowmanager.NewService() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := manager.Close(); closeErr != nil {
+				t.Errorf("Manager.Close() error = %v", closeErr)
+			}
+		})
+		state := &bootState{
+			cfg: previous, windowManagerBootState: windowManagerBootState{windowManager: manager},
+			toolMCPResources: &recordingToolMCPPublisher{errors: []error{errors.New("sync boom"), nil}},
+		}
+		failures := daemonSettingsRuntimeApplier{daemon: &Daemon{}, state: state}.
+			ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 1 || failures[0].Subsystem != "mcp" {
+			t.Fatalf("ApplyActiveConfig(failed) failures = %#v", failures)
+		}
+		first, err := manager.Execute(t.Context(), windowmanager.CommandRequest{
+			WorkspaceID: "workspace-a",
+			Payload: windowmanager.CreateDesktopCommand{
+				DesktopID: "desktop-two", Name: "Two",
+			},
+		})
+		if err != nil {
+			t.Fatalf("Execute(first) error = %v", err)
+		}
+		second, err := manager.Execute(t.Context(), windowmanager.CommandRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: first.Snapshot.Revision,
+			Payload: windowmanager.CreateDesktopCommand{
+				DesktopID: "desktop-three", Name: "Three",
+			},
+		})
+		if err != nil {
+			t.Fatalf("Execute(after rollback) error = %v", err)
+		}
+		if len(second.Snapshot.History.Undo) != 2 {
+			t.Fatalf("Execute(after rollback) history = %d, want 2", len(second.Snapshot.History.Undo))
+		}
+
+		state.toolMCPResources = nil
+		failures = daemonSettingsRuntimeApplier{daemon: &Daemon{}, state: state}.
+			ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 0 {
+			t.Fatalf("ApplyActiveConfig(success) failures = %#v", failures)
+		}
+		third, err := manager.Execute(t.Context(), windowmanager.CommandRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: second.Snapshot.Revision,
+			Payload: windowmanager.CreateDesktopCommand{
+				DesktopID: "desktop-four", Name: "Four",
+			},
+		})
+		if err != nil {
+			t.Fatalf("Execute(after hot apply) error = %v", err)
+		}
+		if len(third.Snapshot.History.Undo) != 1 {
+			t.Fatalf("Execute(after hot apply) history = %d, want 1", len(third.Snapshot.History.Undo))
 		}
 	})
 

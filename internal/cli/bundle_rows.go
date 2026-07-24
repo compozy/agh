@@ -1,5 +1,24 @@
 package cli
 
+import (
+	"strconv"
+	"strings"
+)
+
+func bundleLayoutRows(items []BundleLayoutRecord) [][]string {
+	rows := make([][]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, []string{
+			stringOrDash(item.DisplayName),
+			stringOrDash(item.AspectVariant),
+			strconv.Itoa(len(item.ParticipantSlots)),
+			stringOrDash(item.OverflowPolicy),
+			strings.Join(item.ParticipantSlots, "|"),
+		})
+	}
+	return rows
+}
+
 func bundleAgentRows(items []BundleAgentRecord) [][]string {
 	rows := make([][]string, 0, len(items))
 	for _, item := range items {

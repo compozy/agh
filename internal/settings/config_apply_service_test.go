@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -158,6 +159,78 @@ cost_reasoning_per_million = 30
 		}
 		if provider.SessionMCP == nil || !*provider.SessionMCP {
 			t.Fatalf("second session_mcp = %#v, want true", provider.SessionMCP)
+		}
+	})
+
+	t.Run("Should live-apply window-manager config without sharing nested state", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := WithMutationSource(context.Background(), "http")
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		applier := &fakeConfigRuntimeApplier{}
+		service := testService(t, homePaths, Dependencies{
+			RuntimeApplier: applier,
+			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		desired := testWindowManagerConfig()
+
+		result, err := service.ApplySection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionWindowManager},
+			WindowManager:  &desired,
+		})
+		if err != nil {
+			t.Fatalf("ApplySection(window-manager) error = %v", err)
+		}
+		if !result.Applied || result.RestartRequired {
+			t.Fatalf("ApplySection(window-manager) = %#v, want live applied result", result)
+		}
+		if got, want := result.Record.Lifecycle, lifecycle.Live; got != want {
+			t.Fatalf("Lifecycle = %q, want %q", got, want)
+		}
+		if got, want := result.Record.Status, lifecycle.StatusApplied; got != want {
+			t.Fatalf("Status = %q, want %q", got, want)
+		}
+		if got, want := result.Record.Generation, int64(1); got != want {
+			t.Fatalf("Generation = %d, want %d", got, want)
+		}
+		if got, want := applier.calls, 1; got != want {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
+		}
+		if got, want := len(applier.snapshots), 1; got != want {
+			t.Fatalf("runtime snapshots = %d, want %d", got, want)
+		}
+		if got := applier.snapshots[0].WindowManager; !reflect.DeepEqual(got, desired) {
+			t.Fatalf("runtime WindowManager = %#v, want %#v", got, desired)
+		}
+
+		desired.Snap.RepeatRatios[0] = 0.9
+		desired.Shortcuts["desktop.switch.next"] = "Meta+ArrowDown"
+		first, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(first) error = %v", err)
+		}
+		first.WindowManager.Snap.RepeatRatios[0] = 0.8
+		first.WindowManager.Shortcuts["desktop.switch.next"] = "Meta+ArrowUp"
+		second, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(second) error = %v", err)
+		}
+		if got, want := second.WindowManager.Snap.RepeatRatios[0], 0.4; got != want {
+			t.Fatalf("active repeat ratio = %v, want %v", got, want)
+		}
+		if got, want := second.WindowManager.Shortcuts["desktop.switch.next"], "Meta+ArrowRight"; got != want {
+			t.Fatalf("active desktop.switch.next shortcut = %q, want %q", got, want)
 		}
 	})
 
@@ -759,6 +832,22 @@ func TestReloadChangedPaths(t *testing.T) {
 		}
 		if got := classifyReloadLifecycle(current, &desired); got != lifecycle.RestartRequired {
 			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.RestartRequired)
+		}
+	})
+
+	t.Run("Should emit a live window manager path", func(t *testing.T) {
+		t.Parallel()
+
+		current := &aghconfig.Config{WindowManager: aghconfig.DefaultWindowManagerConfig()}
+		desired := *current
+		desired.WindowManager.HistoryLimit++
+
+		want := []string{"window_manager.history_limit"}
+		if got := reloadChangedPaths(current, &desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(current, &desired); got != lifecycle.Live {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)
 		}
 	})
 }

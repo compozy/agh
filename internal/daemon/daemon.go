@@ -38,6 +38,7 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/toolruntime"
 	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/agh/internal/windowmanager"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -142,22 +143,23 @@ type observerRetentionStopper interface {
 }
 
 type resourceReconcileDriverDeps struct {
-	Config           aghconfig.Config
-	Logger           *slog.Logger
-	Registry         Registry
-	ResourceStore    resources.RawStore
-	CodecRegistry    *resources.CodecRegistry
-	Hooks            *hookspkg.Hooks
-	AgentCatalog     *resourceCatalog[aghconfig.AgentDef]
-	SoulCatalog      *resourceCatalog[soul.ResourceSpec]
-	HeartbeatCatalog *resourceCatalog[heartbeat.ResourceSpec]
-	ToolCatalog      *resourceCatalog[toolspkg.Tool]
-	MCPServerCatalog *resourceCatalog[aghconfig.MCPServer]
-	LoopCatalog      *resourceCatalog[looppkg.ResourceSpec]
-	SkillsRegistry   *skills.Registry
-	Automation       automationResourceProjectorTarget
-	Bridges          bridgeResourceProjectorTarget
-	Bundles          resources.BundleActivationProjector[bundlepkg.ActivationResourceSpec, bundlepkg.BundleResourceSpec]
+	Config              aghconfig.Config
+	Logger              *slog.Logger
+	Registry            Registry
+	ResourceStore       resources.RawStore
+	CodecRegistry       *resources.CodecRegistry
+	Hooks               *hookspkg.Hooks
+	AgentCatalog        *resourceCatalog[aghconfig.AgentDef]
+	SoulCatalog         *resourceCatalog[soul.ResourceSpec]
+	HeartbeatCatalog    *resourceCatalog[heartbeat.ResourceSpec]
+	ToolCatalog         *resourceCatalog[toolspkg.Tool]
+	MCPServerCatalog    *resourceCatalog[aghconfig.MCPServer]
+	LoopCatalog         *resourceCatalog[looppkg.ResourceSpec]
+	WindowLayoutCatalog *resourceCatalog[windowmanager.LayoutResource]
+	SkillsRegistry      *skills.Registry
+	Automation          automationResourceProjectorTarget
+	Bridges             bridgeResourceProjectorTarget
+	Bundles             resources.BundleActivationProjector[bundlepkg.ActivationResourceSpec, bundlepkg.BundleResourceSpec]
 }
 
 type extensionRuntime interface {
@@ -279,7 +281,7 @@ type Daemon struct {
 	dreamRuntime                 *consolidation.Runtime
 	workspaceResolver            workspacepkg.RuntimeResolver
 	sandboxRegistry              *sandbox.Registry
-	desktopStateRuntime
+	windowManagerRuntime
 	skillsRegistry   *skills.Registry
 	modelCatalog     *modelCatalogRuntime
 	marketplace      *marketplaceRuntime

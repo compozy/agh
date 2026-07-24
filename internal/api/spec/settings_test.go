@@ -34,6 +34,16 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			{path: "/api/settings/automation", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/network", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/network", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
+			{
+				path:       "/api/settings/window-manager",
+				method:     "GET",
+				transports: []Transport{TransportHTTP, TransportUDS},
+			},
+			{
+				path:       "/api/settings/window-manager",
+				method:     "PATCH",
+				transports: []Transport{TransportHTTP, TransportUDS},
+			},
 			{path: "/api/settings/observability", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{
 				path:       "/api/settings/observability",
@@ -163,7 +173,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		}
 
 		for _, operation := range operations {
-			t.Run(operation.method+" "+operation.path, func(t *testing.T) {
+			t.Run("Should register "+operation.method+" "+operation.path, func(t *testing.T) {
 				t.Parallel()
 
 				op := operationFor(t, doc, operation.path, operation.method)
@@ -317,6 +327,118 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"restart-required",
 			"session-rebind",
 		)
+
+		updateWindowManager := operationFor(t, doc, "/api/settings/window-manager", "PATCH")
+		windowManagerRequestSchema := jsonRequestSchema(t, updateWindowManager)
+		assertRequired(t, windowManagerRequestSchema, "config")
+		assertSchemaHasAdditionalProperties(t, windowManagerRequestSchema, false)
+		windowManagerConfigSchema := propertySchema(t, windowManagerRequestSchema, "config")
+		assertSchemaHasAdditionalProperties(t, windowManagerConfigSchema, false)
+		assertRequired(
+			t,
+			windowManagerConfigSchema,
+			"new_window_policy",
+			"small_viewport_policy",
+			"focus_policy",
+			"focus_wrap",
+			"focus_follows_pointer",
+			"raise_on_focus",
+			"drag_away_policy",
+			"group_move_modifier",
+			"history_limit",
+			"desktop_transition",
+			"gaps",
+			"snap",
+			"bindings",
+			"shortcuts",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, windowManagerConfigSchema, "new_window_policy"),
+			"beside_focus",
+			"floating",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, windowManagerConfigSchema, "small_viewport_policy"),
+			"reject",
+			"stack",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, windowManagerConfigSchema, "focus_policy"),
+			"click_directional",
+			"directional",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, windowManagerConfigSchema, "drag_away_policy"),
+			"group",
+			"window",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, windowManagerConfigSchema, "group_move_modifier"),
+			"alt",
+			"control",
+			"meta",
+			"none",
+			"shift",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, windowManagerConfigSchema, "desktop_transition"),
+			"crossfade",
+			"instant",
+			"slide",
+		)
+		gapsSchema := propertySchema(t, windowManagerConfigSchema, "gaps")
+		assertRequired(t, gapsSchema, "inner", "top", "right", "bottom", "left")
+		assertSchemaHasAdditionalProperties(t, gapsSchema, false)
+		snapSchema := propertySchema(t, windowManagerConfigSchema, "snap")
+		assertRequired(t, snapSchema, "edge_band", "corner_reach", "exit_slack", "repeat_ratios")
+		assertSchemaHasAdditionalProperties(t, snapSchema, false)
+		bindingsSchema := propertySchema(t, windowManagerConfigSchema, "bindings")
+		assertRequired(t, bindingsSchema, "top_center", "bottom_center")
+		assertSchemaHasAdditionalProperties(t, bindingsSchema, false)
+		assertEnumValues(
+			t,
+			propertySchema(t, bindingsSchema, "top_center"),
+			"none",
+			"reserved",
+			"zoom",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, bindingsSchema, "bottom_center"),
+			"none",
+			"reserved",
+			"zoom",
+		)
+		shortcutsSchema := propertySchema(t, windowManagerConfigSchema, "shortcuts")
+		if shortcutsSchema.AdditionalProperties.Schema == nil ||
+			shortcutsSchema.AdditionalProperties.Schema.Value == nil {
+			t.Fatal("window-manager shortcuts additionalProperties schema = nil")
+		}
+		assertSchemaHasAdditionalProperties(t, shortcutsSchema, true)
+		assertAdditionalPropertiesSchemaIncludesType(t, shortcutsSchema, openapi3.TypeString)
+		for _, status := range []int{200, 400, 403, 409, 500} {
+			assertResponseStatus(t, updateWindowManager, status)
+		}
+
+		getWindowManager := operationFor(t, doc, "/api/settings/window-manager", "GET")
+		windowManagerResponseSchema := jsonResponseSchema(t, getWindowManager, 200)
+		assertSchemaHasAdditionalProperties(t, windowManagerResponseSchema, false)
+		assertRequired(
+			t,
+			windowManagerResponseSchema,
+			"section",
+			"scope",
+			"available_scopes",
+			"config",
+		)
+		assertNotRequired(t, windowManagerResponseSchema, "workspace_id", "agent_name")
+		assertEnumValues(t, propertySchema(t, windowManagerResponseSchema, "scope"), "global")
 
 		reloadSettings := operationFor(t, doc, "/api/settings/reload", "POST")
 		assertOperationTransports(t, reloadSettings, TransportHTTP, TransportUDS)

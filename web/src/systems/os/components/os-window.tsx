@@ -11,13 +11,8 @@ import {
   useOsWindow,
 } from "../hooks/use-os-window";
 import { useDesktop } from "../hooks/use-desktop";
-import { getOsApp } from "../lib/app-registry";
-import {
-  OS_WINDOW_MIN_HEIGHT,
-  OS_WINDOW_MIN_WIDTH,
-  OS_WORK_AREA_INSETS,
-  type OsWindow as OsWindowState,
-} from "../lib/os-types";
+import { getOsApp, getOsAppMinimum } from "../lib/app-registry";
+import type { OsWindow as OsWindowState } from "../lib/os-types";
 import { OsWindowErrorBoundary } from "./os-window-error-boundary";
 import { OsWindowFrame } from "./os-window-frame";
 import { OsZoomMenu } from "./os-zoom-menu";
@@ -26,29 +21,18 @@ export interface OsWindowProps {
   windowId: string;
 }
 
-/**
- * One floating window: controlled `react-rnd` geometry under the WM store
- * (ADR-003 — transient gesture positions stay inside the drag mechanism; the
- * store commits at gesture end), the per-window overlay container (Modal &
- * Overlay Policy), and the minimize=unmount posture with the open-dialog
- * exemption (Safety Invariant 18). Maximized and snapped windows render the
- * same Rnd path with a locally derived rect (ADR-009, invariant 19) so they
- * stay resizable — dragging remains floating-only; the drag-away ghost moves
- * the same Rnd node so pointer capture and content identity survive every
- * state transition. Behavior lives in `useOsWindow`.
- */
+/** One daemon-managed window rendered from the current client projection. */
 export function OsWindow({ windowId }: OsWindowProps) {
   const {
     win,
     focused,
     keepMounted,
-    derivedRect,
-    ghostRect,
-    minimizeTransform,
+    rect,
     rndRef,
     overlayHost,
     setOverlayHost,
     handleTrafficLight,
+    handlePointerEnter,
     handlePointerDownCapture,
     handleFocusCapture,
     handleDragStart,
@@ -62,9 +46,9 @@ export function OsWindow({ windowId }: OsWindowProps) {
   const frame = (
     <WindowFrame
       focused={focused}
-      minimizeTransform={minimizeTransform}
       onFocusCapture={handleFocusCapture}
       onOverlayHost={setOverlayHost}
+      onPointerEnter={handlePointerEnter}
       onPointerDownCapture={handlePointerDownCapture}
       onTrafficLight={handleTrafficLight}
       overlayHost={overlayHost}
@@ -80,28 +64,9 @@ export function OsWindow({ windowId }: OsWindowProps) {
     return (
       <div
         className="absolute inset-0"
-        style={{ zIndex: win.z, display: win.minimized ? "none" : undefined }}
-      >
-        {frame}
-      </div>
-    );
-  }
-
-  // Pre-measure maximized fallback: before the win-layer reports bounds the
-  // CSS insets fill the work area without any px math (never painted after
-  // the first layout effect lands bounds).
-  if (win.maximized && derivedRect === null) {
-    const { top, right, bottom, left } = OS_WORK_AREA_INSETS;
-    return (
-      <div
-        className="absolute"
         style={{
-          left,
-          top,
-          right,
-          bottom,
-          zIndex: win.z,
-          display: win.minimized ? "none" : undefined,
+          zIndex: win.layer,
+          display: win.minimized || !win.stackActive ? "none" : undefined,
         }}
       >
         {frame}
@@ -109,20 +74,18 @@ export function OsWindow({ windowId }: OsWindowProps) {
     );
   }
 
-  // One Rnd across floating/snapped/maximized keeps the frame's element
-  // identity stable — snap, unsnap, and zoom never remount window content,
-  // and the drag-away ghost (ghostRect) moves the same node the pointer
-  // capture lives on.
-  const rect = ghostRect ?? derivedRect ?? win.rect;
+  if (rect === null) return null;
+  const minimum = getOsAppMinimum(win.app);
   return (
     <Rnd
       ref={rndRef}
       position={{ x: rect.x, y: rect.y }}
       size={{ width: rect.w, height: rect.h }}
-      minWidth={OS_WINDOW_MIN_WIDTH}
-      minHeight={OS_WINDOW_MIN_HEIGHT}
+      minWidth={minimum.width}
+      minHeight={minimum.height}
       bounds="parent"
-      disableDragging={win.maximized || win.snap !== null}
+      disableDragging={!win.stackActive}
+      enableResizing={win.placement === "floating"}
       resizeHandleClasses={{ bottomRight: "os-window-resize-handle" }}
       dragHandleClassName={OS_WINDOW_DRAG_HANDLE_CLASS}
       cancel={OS_WINDOW_DRAG_CANCEL_SELECTOR}
@@ -130,7 +93,10 @@ export function OsWindow({ windowId }: OsWindowProps) {
       onDrag={handleDrag}
       onDragStop={handleDragStop}
       onResizeStop={handleResizeStop}
-      style={{ zIndex: win.z, display: win.minimized ? "none" : undefined }}
+      style={{
+        zIndex: win.layer,
+        display: win.minimized || !win.stackActive ? "none" : undefined,
+      }}
     >
       {frame}
     </Rnd>
@@ -139,9 +105,9 @@ export function OsWindow({ windowId }: OsWindowProps) {
 
 function WindowFrame({
   focused,
-  minimizeTransform,
   onFocusCapture,
   onOverlayHost,
+  onPointerEnter,
   onPointerDownCapture,
   onTrafficLight,
   overlayHost,
@@ -150,9 +116,9 @@ function WindowFrame({
   windowId,
 }: {
   focused: ReturnType<typeof useOsWindow>["focused"];
-  minimizeTransform: ReturnType<typeof useOsWindow>["minimizeTransform"];
   onFocusCapture: ReturnType<typeof useOsWindow>["handleFocusCapture"];
   onOverlayHost: ReturnType<typeof useOsWindow>["setOverlayHost"];
+  onPointerEnter: ReturnType<typeof useOsWindow>["handlePointerEnter"];
   onPointerDownCapture: ReturnType<typeof useOsWindow>["handlePointerDownCapture"];
   onTrafficLight: ReturnType<typeof useOsWindow>["handleTrafficLight"];
   overlayHost: ReturnType<typeof useOsWindow>["overlayHost"];
@@ -174,19 +140,17 @@ function WindowFrame({
       }
       presentation={presentation}
       headClassName={cn(
-        !compact &&
-          !win.maximized &&
-          `${OS_WINDOW_DRAG_HANDLE_CLASS} cursor-grab active:cursor-grabbing`
+        !compact && `${OS_WINDOW_DRAG_HANDLE_CLASS} cursor-grab active:cursor-grabbing`
       )}
-      className={cn("relative h-full w-full", minimizeTransform !== null && "os-window-minimizing")}
-      style={minimizeTransform !== null ? { transform: minimizeTransform, opacity: 0 } : undefined}
+      className="relative h-full w-full"
       // Named region landmark per window: assistive tech can jump between
       // windows the way sighted users scan the desktop (WCAG landmarks).
       aria-label={`${app.title} window`}
       data-testid={`os-window-${windowId}`}
       data-app={win.app}
       data-minimized={win.minimized ? "" : undefined}
-      data-snapped={win.snap !== null ? "" : undefined}
+      data-window-placement={win.placement}
+      onPointerEnter={onPointerEnter}
       onPointerDownCapture={onPointerDownCapture}
       onFocusCapture={onFocusCapture}
     >

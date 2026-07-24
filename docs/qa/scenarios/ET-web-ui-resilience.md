@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /tmp/agh-ui-screenshot.EdZjtp/evidence; /tmp/agh-ui-screenshot.batch-d.X6X6Rq/out
 last_report:
-overlaps: TA-039; NB-045; ET-web-loop-editor-topbar; ET-web-marketplace-landing-browse; ET-web-window-snap-v2; ET-web-settings-hooks; ET-web-vault-opendesign-listing; RT-021
+overlaps: TA-039; NB-045; ET-web-loop-editor-topbar; ET-web-marketplace-landing-browse; ET-window-manager-layout-gestures; ET-web-settings-hooks; ET-web-vault-opendesign-listing; RT-021
 ---
 
 Added by the 2026-07-21 full frontend systems audit. Flag only: the next QA cycle owns live

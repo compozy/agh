@@ -7,6 +7,7 @@ type BundleProfileCatalogPayload struct {
 	Description    string                 `json:"description,omitempty"`
 	PrimaryChannel string                 `json:"primary_channel,omitempty"`
 	Channels       []BundleChannelPayload `json:"channels,omitempty"`
+	LayoutCount    int                    `json:"layout_count,omitempty"`
 	AgentCount     int                    `json:"agent_count,omitempty"`
 	JobCount       int                    `json:"job_count,omitempty"`
 	TriggerCount   int                    `json:"trigger_count,omitempty"`
@@ -34,6 +35,14 @@ type BundleAgentPayload struct {
 	CategoryPath []string `json:"category_path,omitempty"`
 	HasSoul      bool     `json:"has_soul,omitempty"`
 	HasHeartbeat bool     `json:"has_heartbeat,omitempty"`
+}
+
+type BundleLayoutPayload struct {
+	ID               string   `json:"id"`
+	DisplayName      string   `json:"display_name"`
+	AspectVariant    string   `json:"aspect_variant"`
+	ParticipantSlots []string `json:"participant_slots,omitempty"`
+	OverflowPolicy   string   `json:"overflow_policy"`
 }
 
 type BundleJobPayload struct {
@@ -86,6 +95,7 @@ type BundleActivationPayload struct {
 	NetworkRequirementConfirmedBy string                   `json:"network_requirement_confirmed_by,omitempty"`
 	NetworkRequirementConfirmedAt string                   `json:"network_requirement_confirmed_at,omitempty"`
 	Channels                      []BundleChannelPayload   `json:"channels,omitempty"`
+	Layouts                       []BundleLayoutPayload    `json:"layouts,omitempty"`
 	Agents                        []BundleAgentPayload     `json:"agents,omitempty"`
 	Jobs                          []BundleJobPayload       `json:"jobs,omitempty"`
 	Triggers                      []BundleTriggerPayload   `json:"triggers,omitempty"`

@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/agh/internal/situation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/agh/internal/windowmanager"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -74,6 +75,6 @@ type RuntimeDeps struct {
 	Extensions          udsapi.ExtensionService
 	Bundles             core.BundleService
 	Resources           core.ResourceService
-	DesktopState        core.DesktopStateService
+	WindowManager       windowmanager.Service
 	StartedAt           time.Time
 }

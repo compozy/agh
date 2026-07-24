@@ -98,11 +98,9 @@ async function reachAccessStep() {
   const user = await reachRuntimeStep();
   // Open the unified selector and pick a Codex model; selecting the row adopts
   // codex as the runtime provider (the rail is filter-only). The selector trigger
-  // group carries id="agent-create-runtime-trigger" (distinct from the step's
-  // data-testid="agent-create-runtime"); scope the query to it.
-  await user.click(
-    document.querySelector<HTMLElement>('#agent-create-runtime-trigger button[data-focus="model"]')!
-  );
+  // is a single button carrying id="agent-create-runtime-trigger" (distinct from
+  // the step's data-testid="agent-create-runtime").
+  await user.click(document.querySelector<HTMLElement>("#agent-create-runtime-trigger")!);
   await screen.findByTestId("runtime-selector-popup");
   await user.click(
     document.querySelector<HTMLElement>('[data-provider="codex"][data-model="gpt-5.6-sol"]')!

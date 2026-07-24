@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/memory/consolidation"
 	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 type shutdownTargets struct {
@@ -44,7 +45,8 @@ type shutdownTargets struct {
 	goalOutboxCancel    context.CancelFunc
 	goalOutboxDone      chan struct{}
 	retention           observerRetentionStopper
-	desktopState        *clientstate.Engine
+	windowManagerStore  *clientstate.Engine
+	windowManager       *windowmanager.Manager
 }
 
 func (d *Daemon) detachShutdownTargets() shutdownTargets {
@@ -84,6 +86,8 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 		loopsDone:           d.loopsDone,
 		goalOutboxCancel:    d.goalOutboxCancel,
 		goalOutboxDone:      d.goalOutboxDone,
+		windowManagerStore:  d.windowManagerStore,
+		windowManager:       d.windowManager,
 	}
 	if stopper, ok := d.observer.(observerRetentionStopper); ok {
 		targets.retention = stopper
@@ -125,7 +129,8 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.closeLogger = func() error { return nil }
 	d.dreamRuntime = nil
 	d.workspaceResolver = nil
-	d.desktopState = nil
+	d.windowManagerStore = nil
+	d.windowManager = nil
 	d.sandboxRegistry = nil
 	d.skillsCancel = nil
 	d.skillsDone = nil

@@ -373,7 +373,7 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 	sdkSpawnCreatePatchValue: {Name: sdkSpawnCreatePatchValue, Value: hooks.SpawnCreatePatch{}},
 	"SpawnObservationPatch":  {Name: "SpawnObservationPatch", Value: hooks.SpawnObservationPatch{}},
 	sdkAutonomyMatcherValue:  {Name: sdkAutonomyMatcherValue, Value: hooks.AutonomyMatcher{}},
-}, networkParticipationNamedHookTypes())
+}, networkParticipationNamedHookTypes(), windowManagerNamedHookTypes())
 
 func namedHookType(name string) (NamedType, error) {
 	namedType, ok := namedHookTypes[name]

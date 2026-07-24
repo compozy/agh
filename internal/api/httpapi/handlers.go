@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/store"
 	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/agh/internal/windowmanager"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -31,7 +32,7 @@ type handlerConfig struct {
 	observer           core.Observer
 	schemaStreams      core.SchemaStreamStatusReader
 	resources          core.ResourceService
-	desktopState       core.DesktopStateService
+	windowManager      windowmanager.Service
 	automation         core.AutomationManager
 	loops              core.LoopService
 	bridges            core.BridgeService
@@ -138,7 +139,7 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		Observer:                     cfg.observer,
 		SchemaStreams:                cfg.schemaStreams,
 		Resources:                    cfg.resources,
-		DesktopState:                 cfg.desktopState,
+		WindowManager:                cfg.windowManager,
 		Extensions:                   cfg.extensions,
 		Automation:                   cfg.automation,
 		Loops:                        cfg.loops,

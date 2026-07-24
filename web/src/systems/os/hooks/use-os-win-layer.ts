@@ -1,27 +1,54 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { useShallow } from "zustand/shallow";
 
-import type { OsPresentation } from "../lib/os-types";
+import type { LayoutDesktop, LayoutProjection } from "../lib/window-manager-types";
+import type { OsPresentation, OsViewportState } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
 
-export interface OsWinLayerModel {
-  layerRef: RefObject<HTMLDivElement | null>;
-  windowIds: string[];
-  presentation: OsPresentation;
+export interface DesktopLayerModel {
+  desktop: LayoutDesktop;
+  windowIds: readonly string[];
+  active: boolean;
   anyVisible: boolean;
 }
 
-/**
- * Win-layer state + viewport re-clamping: shrinking the viewport pulls
- * windows back into reach; growing it never moves them (US-002.EC-1/EC-2).
- */
+export interface OsWinLayerModel {
+  layerRef: RefObject<HTMLDivElement | null>;
+  desktops: readonly DesktopLayerModel[];
+  presentation: OsPresentation;
+  viewportState: OsViewportState;
+  activeProjection: LayoutProjection | undefined;
+}
+
+/** Measures one shared work area and groups the Query projection by desktop. */
 export function useOsWinLayer(): OsWinLayerModel {
   const { store } = useOsShell();
   const layerRef = useRef<HTMLDivElement | null>(null);
-  const windowIds = useDesktop(useShallow(state => Object.keys(state.windows)));
   const presentation = useDesktop(state => state.presentation);
-  const anyVisible = useDesktop(state => Object.values(state.windows).some(win => !win.minimized));
+  const viewportState = useDesktop(state => state.viewportState);
+  const projection = useDesktop(
+    useShallow(state => ({
+      activeDesktopId: state.activeDesktopId,
+      desktops: state.desktops,
+      projections: state.projections,
+      windows: state.windows,
+    }))
+  );
+  const windowIdsByDesktop = new Map<string, string[]>();
+  for (const window of Object.values(projection.windows)) {
+    const windowIds = windowIdsByDesktop.get(window.desktopId) ?? [];
+    windowIds.push(window.id);
+    windowIdsByDesktop.set(window.desktopId, windowIds);
+  }
+  const desktops = projection.desktops.map(desktop => ({
+    desktop,
+    active: desktop.id === projection.activeDesktopId,
+    windowIds: windowIdsByDesktop.get(desktop.id) ?? [],
+    anyVisible: (windowIdsByDesktop.get(desktop.id) ?? []).some(
+      windowId => !projection.windows[windowId]?.minimized
+    ),
+  }));
 
   useEffect(() => {
     const layer = layerRef.current;
@@ -29,7 +56,7 @@ export function useOsWinLayer(): OsWinLayerModel {
     const observer = new ResizeObserver(entries => {
       const entry = entries[0];
       if (!entry) return;
-      store.getState().clampToViewport({
+      store.getState().setDesktopBounds({
         width: entry.contentRect.width,
         height: entry.contentRect.height,
       });
@@ -38,5 +65,13 @@ export function useOsWinLayer(): OsWinLayerModel {
     return () => observer.disconnect();
   }, [store]);
 
-  return { layerRef, windowIds, presentation, anyVisible };
+  return {
+    layerRef,
+    desktops,
+    presentation,
+    viewportState,
+    activeProjection: projection.activeDesktopId
+      ? projection.projections[projection.activeDesktopId]
+      : undefined,
+  };
 }

@@ -138,6 +138,10 @@ func matchNetwork(matcher HookMatcher, payload NetworkPayload) bool {
 	return matcher.MatchesNetwork(payload)
 }
 
+func matchWindowManager(matcher HookMatcher, payload WindowManagerPayload) bool {
+	return matchStringField(matcher.WorkspaceID, payload.WorkspaceID)
+}
+
 func matchToolPreCall(matcher HookMatcher, payload ToolPreCallPayload) bool {
 	return matcher.MatchesToolPreCall(payload)
 }

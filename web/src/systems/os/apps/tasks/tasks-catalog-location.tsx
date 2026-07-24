@@ -31,7 +31,7 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
   const { coordinator } = useOsShell();
   const page = useTasksPage({ mode });
   const navigate = (pathname: string, search: Record<string, unknown> = {}) =>
-    coordinator.userOpen({ app: "tasks", location: { pathname, search } });
+    void coordinator.userOpen({ app: "tasks", route: { pathname, search } });
   const openCreate = () => navigate("/tasks/new");
   const modeNav = (
     <RouteNav aria-label="Tasks views" data-testid="tasks-mode-nav">

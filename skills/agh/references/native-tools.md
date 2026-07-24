@@ -5,6 +5,7 @@
 - Operating rule
 - Discovery and catalog toolsets
 - Runtime and workspace tools
+- Window management tools
 - Skills and memory tools
 - Network tools
 - Task and autonomy tools
@@ -68,6 +69,27 @@ Provider model tools: `agh__provider_models_list`, `agh__provider_models_curate`
 `agh__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `agh provider models list` and `agh provider models list --all`. `agh__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and `default_effort`. Its CLI fallback is `agh provider models set`. Treat `model_not_found` and `reasoning_effort_unsupported` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
 Model-list and curation results may include a `cost` object with independent `input_per_million`, `output_per_million`, `cache_read_per_million`, `cache_write_per_million`, and `reasoning_per_million` fields. A missing field means that bucket is unpriced; never infer it from another field.
+
+## Window Management Tools
+
+Toolset `agh__window_manager` requires `window_manager.read` for reads and `window_manager.write`
+for mutations. Resolve descriptors, pass the workspace, and use the current revision.
+
+- Desktops: `agh__desktop_list`, `agh__desktop_create`, `agh__desktop_update`,
+  `agh__desktop_reorder`, `agh__desktop_switch`, `agh__desktop_delete`,
+  `agh__desktop_clients`.
+- Windows: `agh__window_list`, `agh__window_open`, `agh__window_close`, `agh__window_focus`,
+  `agh__window_move`, `agh__window_swap`, `agh__window_float`, `agh__window_zoom`,
+  `agh__window_navigate`.
+- Layouts: `agh__layout_get`, `agh__layout_preview`, `agh__layout_arrange`,
+  `agh__layout_resize`, `agh__layout_balance`, `agh__layout_undo`, `agh__layout_redo`,
+  `agh__layout_export`, `agh__layout_validate`, `agh__layout_apply`.
+
+`desktop_switch`, `window_focus`, and `window_zoom` require a connected `client_id`.
+`window_navigate` changes presentation only when given one. Preview/validate never write;
+desktop delete, window close, and layout apply carry destructive risk. Discover `window_layout`
+resources with `agh__resources_list`; `resource_id` is exclusive with inline arrange fields. CLI
+fallbacks are `agh desktop|window|layout`; read `window-management.md` for multi-step changes.
 
 ## Skills And Memory Tools
 

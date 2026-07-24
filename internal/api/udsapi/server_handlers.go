@@ -36,7 +36,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Observer:                     cfg.observer,
 		SchemaStreams:                cfg.schemaStreams,
 		Resources:                    cfg.resources,
-		DesktopState:                 cfg.desktopState,
+		WindowManager:                cfg.windowManager,
 		Extensions:                   cfg.extensions,
 		Automation:                   cfg.automation,
 		Loops:                        cfg.loops,

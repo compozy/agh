@@ -237,6 +237,26 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		})
 	}
 
+	windowManagerDescriptors := map[HookEvent]string{
+		HookWindowManagerLayoutApplied:  "WindowManagerLayoutAppliedPayload",
+		HookWindowManagerDesktopCreated: "WindowManagerDesktopCreatedPayload",
+		HookWindowManagerDesktopDeleted: "WindowManagerDesktopDeletedPayload",
+		HookWindowManagerWindowMoved:    "WindowManagerWindowMovedPayload",
+	}
+	for event, wantPayload := range windowManagerDescriptors {
+		t.Run("Should describe "+string(event), func(t *testing.T) {
+			t.Parallel()
+
+			descriptor := byEvent[event]
+			if descriptor.Family != HookEventFamilyWindowManager ||
+				descriptor.SyncEligible ||
+				descriptor.PayloadSchema != wantPayload ||
+				descriptor.PatchSchema != "WindowManagerObservationPatch" {
+				t.Fatalf("%s descriptor = %#v, want async window-manager payload=%q", event, descriptor, wantPayload)
+			}
+		})
+	}
+
 	t.Run("Should describe network.participation.pre_resolve as sync", func(t *testing.T) {
 		t.Parallel()
 

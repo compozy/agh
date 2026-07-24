@@ -1,10 +1,16 @@
+// Suite: OS window frame chrome
+// Invariant: each inactive-window chrome activation dispatches once without stealing the
+// pointer sequence, while body pointers and keyboard focus still activate the window.
+// Boundary IN: OsWindowFrame + real traffic-light DOM events; OUT: daemon command transport.
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { useState, type ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
 
 import { useTopbarSlot } from "@agh/ui";
 
 import { OsWindowFrame } from "../os-window-frame";
+import type { OsTrafficLightAction } from "../os-traffic-lights";
 
 function CatalogPublisher({ title, toolbar }: { title: string; toolbar?: ReactNode }) {
   useTopbarSlot({ crumb: title, toolbar });
@@ -23,7 +29,92 @@ function ScrollBody() {
   );
 }
 
+const CHROME_ACTIONS: ReadonlyArray<{
+  action: OsTrafficLightAction;
+  label: string;
+}> = [
+  { action: "close", label: "Close window" },
+  { action: "minimize", label: "Minimize window" },
+  { action: "zoom", label: "Zoom window" },
+];
+
+function BackgroundFrameHarness({
+  onTrafficLight,
+  onWindowActivation,
+}: {
+  onTrafficLight: (action: OsTrafficLightAction) => void;
+  onWindowActivation: () => void;
+}) {
+  const [activationEpoch, setActivationEpoch] = useState(0);
+  const activateWindow = () => {
+    onWindowActivation();
+    setActivationEpoch(current => current + 1);
+  };
+
+  return (
+    <OsWindowFrame
+      key={activationEpoch}
+      title="Tasks"
+      focused={activationEpoch > 0}
+      onTrafficLight={onTrafficLight}
+      onPointerDownCapture={activateWindow}
+      onFocusCapture={activateWindow}
+    >
+      <p>Tasks content</p>
+    </OsWindowFrame>
+  );
+}
+
 describe("OsWindowFrame", () => {
+  it.each(CHROME_ACTIONS)(
+    "Should dispatch background $action exactly once through a focus rerender",
+    async ({ action, label }) => {
+      const user = userEvent.setup();
+      const onTrafficLight = vi.fn();
+      const onWindowActivation = vi.fn();
+      render(
+        <BackgroundFrameHarness
+          onTrafficLight={onTrafficLight}
+          onWindowActivation={onWindowActivation}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: label }));
+
+      expect(onTrafficLight).toHaveBeenCalledOnce();
+      expect(onTrafficLight).toHaveBeenCalledWith(action);
+      expect(onWindowActivation).not.toHaveBeenCalled();
+    }
+  );
+
+  it("Should preserve body pointer activation and native keyboard chrome activation", async () => {
+    const user = userEvent.setup();
+    const onPointerDownCapture = vi.fn();
+    const onFocusCapture = vi.fn();
+    const onTrafficLight = vi.fn();
+    render(
+      <OsWindowFrame
+        title="Tasks"
+        onTrafficLight={onTrafficLight}
+        onPointerDownCapture={onPointerDownCapture}
+        onFocusCapture={onFocusCapture}
+      >
+        <button type="button">Body action</button>
+      </OsWindowFrame>
+    );
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Body action" }));
+    expect(onPointerDownCapture).toHaveBeenCalledOnce();
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Close window" })).toHaveFocus();
+    expect(onFocusCapture).toHaveBeenCalledOnce();
+
+    await user.keyboard("{Enter}");
+    expect(onTrafficLight).toHaveBeenCalledOnce();
+    expect(onTrafficLight).toHaveBeenCalledWith("close");
+  });
+
   it("Should render identity once in the head with no body page-head (UT-090)", () => {
     render(
       <OsWindowFrame title="Fallback" data-testid="frame">

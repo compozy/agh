@@ -9,6 +9,7 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
 	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 type fakeBundleActivationProjector struct{}
@@ -88,7 +89,8 @@ func TestBundleProjectorRegistrationsKeepActivationCycleFree(t *testing.T) {
 	}
 	if slices.Contains(deps, automationpkg.JobResourceKind) ||
 		slices.Contains(deps, automationpkg.TriggerResourceKind) ||
-		slices.Contains(deps, bridgepkg.BridgeInstanceResourceKind) {
+		slices.Contains(deps, bridgepkg.BridgeInstanceResourceKind) ||
+		slices.Contains(deps, windowmanager.WindowLayoutResourceKind) {
 		t.Fatalf("bundle.activation DependsOn() includes downstream fan-out kinds: %#v", deps)
 	}
 }

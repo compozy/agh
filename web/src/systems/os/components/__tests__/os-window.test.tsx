@@ -1,169 +1,109 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+// Suite: OS window runtime component
+// Invariant: the live OsWindow mounts safely in StrictMode and remains mounted across minimized/compact presentation.
+// Owning layer: the current OsWindow + react-rnd integration.
+import { render, screen } from "@testing-library/react";
+import { createRef, StrictMode } from "react";
+import type { Rnd } from "react-rnd";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("react-rnd", () => ({
-  Rnd: ({ children, cancel }: { children: ReactNode; cancel?: string }) => (
-    <div data-testid="rnd-window" data-drag-cancel={cancel}>
-      {children}
-    </div>
-  ),
-}));
-
-vi.mock("../../lib/app-registry", async importOriginal => {
-  const actual = await importOriginal<typeof import("../../lib/app-registry")>();
-  return {
-    ...actual,
-    getOsApp: (id: Parameters<typeof actual.getOsApp>[0]) => ({
-      ...actual.getOsApp(id),
-      Controller: () => <div data-testid="os-pending-app" />,
-    }),
-  };
-});
-
-import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
-import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
-import { createDesktopStore } from "../../stores/desktop-store";
+import { useDesktop } from "../../hooks/use-desktop";
+import { useOsWindow, type OsWindowModel } from "../../hooks/use-os-window";
+import type { OsDesktopRuntimeStore, OsWindow as OsWindowState } from "../../lib/os-types";
 import { OsWindow } from "../os-window";
 
-function createHarness() {
-  const store = createDesktopStore();
-  const pushes: string[] = [];
-  const port: OsRouterPort = {
-    navigate: location => pushes.push(location.pathname),
-    replace: location => pushes.push(location.pathname),
+vi.mock("../../hooks/use-desktop", () => ({ useDesktop: vi.fn() }));
+vi.mock("../../hooks/use-os-window", () => ({
+  OS_WINDOW_DRAG_CANCEL_SELECTOR: "[data-slot='test-cancel']",
+  OS_WINDOW_DRAG_HANDLE_CLASS: "test-drag-handle",
+  useOsWindow: vi.fn(),
+}));
+vi.mock("../../lib/app-registry", () => ({
+  getOsApp: () => ({ title: "Tasks", Controller: () => <div>Tasks controller</div> }),
+  getOsAppMinimum: () => ({ width: 280, height: 180 }),
+}));
+vi.mock("../os-zoom-menu", () => ({
+  OsZoomMenu: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+function windowState(overrides: Partial<OsWindowState> = {}): OsWindowState {
+  return {
+    id: "window:tasks",
+    app: "tasks",
+    instanceKey: null,
+    route: { pathname: "/tasks", search: {} },
+    desktopId: "desktop:main",
+    placement: "floating",
+    rect: { x: 40, y: 50, w: 720, h: 480 },
+    layer: 2,
+    minimized: false,
+    groupId: null,
+    nodeId: null,
+    stackId: null,
+    stackActive: true,
+    parentAxis: null,
+    ...overrides,
   };
-  const coordinator = new RoutingCoordinator(store, port);
-  store.getState().hydrate([]);
-  coordinator.completeHydration();
-  const shell: OsShellHandle = { store, coordinator, flushPersistence: () => {} };
-  return { store, coordinator, shell, pushes };
 }
 
-function renderWindows(shell: OsShellHandle, ids: string[]) {
-  return render(
-    <OsShellContext.Provider value={shell}>
-      {ids.map(id => (
-        <OsWindow key={id} windowId={id} />
-      ))}
-    </OsShellContext.Provider>
-  );
+function windowModel(win: OsWindowState): OsWindowModel {
+  return {
+    win,
+    focused: true,
+    keepMounted: true,
+    rect: win.rect,
+    rndRef: createRef<Rnd>(),
+    overlayHost: null,
+    setOverlayHost: vi.fn(),
+    handleTrafficLight: vi.fn(),
+    handlePointerEnter: vi.fn(),
+    handlePointerDownCapture: vi.fn(),
+    handleFocusCapture: vi.fn(),
+    handleDragStart: vi.fn(),
+    handleDrag: vi.fn(),
+    handleDragStop: vi.fn(),
+    handleResizeStop: vi.fn(),
+  };
 }
+
+let presentation: OsDesktopRuntimeStore["presentation"];
+let model: OsWindowModel;
+
+beforeEach(() => {
+  presentation = "floating";
+  model = windowModel(windowState());
+  vi.mocked(useOsWindow).mockImplementation(() => model);
+  vi.mocked(useDesktop).mockImplementation(selector =>
+    selector({ presentation } as OsDesktopRuntimeStore)
+  );
+});
 
 describe("OsWindow", () => {
-  it("Should focus an unfocused window on keyboard activation exactly like pointer (UT-081, rule 5)", async () => {
-    const { store, coordinator, shell, pushes } = createHarness();
-    coordinator.userOpen({ app: "sandbox" });
-    coordinator.userOpen({ app: "vault" });
-    pushes.length = 0;
-
-    renderWindows(shell, ["app:sandbox", "app:vault"]);
-    await screen.findAllByTestId("os-pending-app");
-
-    // Keyboard: focus lands on a control inside the unfocused sandbox window.
-    const sandboxWindow = screen.getByTestId("os-window-app:sandbox");
-    const closeButton = sandboxWindow.querySelector<HTMLButtonElement>('[data-action="close"]');
-    expect(closeButton).not.toBeNull();
-    fireEvent.focus(closeButton as HTMLButtonElement);
-
-    expect(store.getState().focusedId).toBe("app:sandbox");
-    expect(pushes).toEqual(["/sandbox"]);
-
-    // Pointer parity: pointerdown into the (now unfocused) vault window.
-    const vaultWindow = screen.getByTestId("os-window-app:vault");
-    fireEvent.pointerDown(vaultWindow);
-    expect(store.getState().focusedId).toBe("app:vault");
-    expect(pushes).toEqual(["/sandbox", "/vault"]);
-  });
-
-  it("Should keep a minimized window mounted while its dialog is open and unmount after it closes (UT-086, invariant 18)", async () => {
-    const { store, coordinator, shell } = createHarness();
-    coordinator.userOpen({ app: "vault" });
-
-    renderWindows(shell, ["app:vault"]);
-    await screen.findByTestId("os-pending-app");
-
-    // A window-scoped dialog portals into the window's overlay host — the
-    // same seam `OverlayContainerContext` gives the @agh/ui Dialog.
-    const host = screen
-      .getByTestId("os-window-app:vault")
-      .querySelector('[data-slot="os-window-overlays"]') as HTMLElement;
-    expect(host).not.toBeNull();
-    const dialogNode = document.createElement("div");
-    dialogNode.setAttribute("role", "dialog");
-    dialogNode.textContent = "unsaved form";
-    await act(async () => {
-      host.appendChild(dialogNode);
-    });
-    await waitFor(() => expect(host.childElementCount).toBe(1));
-
-    act(() => store.getState().minimizeWindow("app:vault"));
-    // Hidden but mounted: the frame stays in the DOM with its dialog intact.
-    await waitFor(() => {
-      const frame = screen.getByTestId("os-window-app:vault");
-      expect(frame).toHaveAttribute("data-minimized");
-    });
-    expect(screen.getByText("unsaved form")).toBeInTheDocument();
-
-    // Restore before close: the dialog is exactly as left.
-    act(() => store.getState().restoreWindow("app:vault"));
-    await waitFor(() =>
-      expect(screen.getByTestId("os-window-app:vault")).not.toHaveAttribute("data-minimized")
+  it("Should mount the react-rnd window under StrictMode", () => {
+    render(
+      <StrictMode>
+        <OsWindow windowId="window:tasks" />
+      </StrictMode>
     );
-    expect(screen.getByText("unsaved form")).toBeInTheDocument();
 
-    // Minimize again, then close the dialog: the unmount completes.
-    act(() => store.getState().minimizeWindow("app:vault"));
-    await act(async () => {
-      dialogNode.remove();
-    });
-    await waitFor(() => expect(screen.queryByTestId("os-window-app:vault")).toBeNull());
+    expect(screen.getByRole("region", { name: "Tasks window" })).toBeInTheDocument();
+    expect(screen.getByTestId("os-window-window:tasks")).toHaveAttribute(
+      "data-window-placement",
+      "floating"
+    );
   });
 
-  it("Should unmount the body outright when minimized without an open dialog (minimize=unmount posture)", async () => {
-    const { store, coordinator, shell } = createHarness();
-    coordinator.userOpen({ app: "vault" });
-    renderWindows(shell, ["app:vault"]);
-    await screen.findByTestId("os-pending-app");
+  it("Should keep minimized windows mounted while hiding floating and compact presentations", () => {
+    model = windowModel(windowState({ minimized: true }));
+    const view = render(<OsWindow windowId="window:tasks" />);
 
-    act(() => store.getState().minimizeWindow("app:vault"));
-    await waitFor(() => expect(screen.queryByTestId("os-window-app:vault")).toBeNull());
+    let window = screen.getByTestId("os-window-window:tasks");
+    expect(window.parentElement).toHaveStyle({ display: "none" });
 
-    // The WM entry survives with its rect (only the body unmounted).
-    expect(store.getState().windows["app:vault"].minimized).toBe(true);
-  });
+    presentation = "compact";
+    view.rerender(<OsWindow windowId="window:tasks" />);
 
-  it("Should exclude every interactive head navigation zone from the drag handle", async () => {
-    const { coordinator, shell } = createHarness();
-    coordinator.userOpen({ app: "tasks" });
-
-    renderWindows(shell, ["app:tasks"]);
-    await screen.findByTestId("os-pending-app");
-
-    const dragCancel = screen.getByTestId("rnd-window").getAttribute("data-drag-cancel") ?? "";
-    expect(dragCancel).toContain('[data-slot="topbar-back"]');
-    expect(dragCancel).toContain('[data-slot="topbar-crumb"]');
-    expect(dragCancel).toContain('[data-slot="topbar-crumb-more"]');
-    expect(dragCancel).toContain('[data-slot="topbar-nav"]');
-  });
-
-  it("Should present compact windows as full-bleed stack surfaces without Rnd, drag, or zoom (US-014.AC-1)", async () => {
-    const { store, coordinator, shell } = createHarness();
-    coordinator.userOpen({ app: "tasks" });
-    act(() => store.getState().setPresentation("compact"));
-
-    renderWindows(shell, ["app:tasks"]);
-    await screen.findByTestId("os-pending-app");
-
-    // No Rnd wrapper — geometry is CSS-forced, never gesture-driven.
-    expect(screen.queryByTestId("rnd-window")).toBeNull();
-    const frame = screen.getByTestId("os-window-app:tasks");
-    expect(frame).toHaveAttribute("data-presentation", "compact");
-    // The zoom control disappears; close/minimize keep their labels.
-    expect(screen.queryByRole("button", { name: "Zoom window" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Close window" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Minimize window" })).toBeInTheDocument();
-    // The head is not a drag handle in the stack.
-    expect(frame.querySelector(".os-window-drag-handle")).toBeNull();
+    window = screen.getByTestId("os-window-window:tasks");
+    expect(window.parentElement).toHaveStyle({ display: "none" });
+    expect(window).toHaveAttribute("data-minimized");
   });
 });

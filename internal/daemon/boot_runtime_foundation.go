@@ -13,6 +13,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 
 	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/windowmanager"
 
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
@@ -134,7 +135,7 @@ func (d *Daemon) bootRegistryState(
 	if state.harnessRecorder != nil {
 		state.harnessRecorder.SetStore(registry)
 	}
-	if err := d.bootDefaultWorkspaceAndClientState(ctx, state, cleanup); err != nil {
+	if err := d.bootDefaultWorkspaceAndWindowManager(ctx, state, cleanup); err != nil {
 		return err
 	}
 	memoryProviders, err := newDaemonMemoryProviderRegistry(ctx, state)
@@ -215,5 +216,8 @@ func (d *Daemon) bootRuntimeResourceGraph(state *bootState) error {
 	state.soulCatalog = newResourceCatalog(cloneSoulResourceSpec)
 	state.heartbeatCatalog = newResourceCatalog(cloneHeartbeatResourceSpec)
 	state.loopCatalog = newResourceCatalog(looppkg.CloneResourceSpec)
+	if state.windowLayoutCatalog == nil {
+		state.windowLayoutCatalog = newResourceCatalog(windowmanager.CloneLayoutResource)
+	}
 	return nil
 }

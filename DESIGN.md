@@ -143,7 +143,7 @@ tokens:
       mono-id: { size: "0.65625rem", tracking: "0" }
       pill-group-badge: { size: "0.5625rem" }
       card-title: { size: "0.875rem", line: "1.4" }
-      space-avatar: { size: "9px" }
+      workspace-avatar: { size: "9px" }
     rounded:
       DEFAULT: "6px"
       xxs: "3px"
@@ -248,6 +248,7 @@ tokens:
       container-settings-page-wide: "960px"
       container-settings-page-description: "72ch"
       spacing-settings-page-bottom: "96px"
+      spacing-layout-node-indent: "12px"
       container-settings-save-bar: "560px"
       size-settings-save-dot: "7px"
       height-modal-md: "760px"
@@ -274,17 +275,15 @@ tokens:
       size-dock-tab-item: "44px"
       size-traffic-light-compact: "15px"
       size-traffic-light-compact-target: "44px"
-      width-space-card: "264px"
-      height-space-thumb: "148px"
-      spacing-spaces-subtitle-gap: "22px"
-      spacing-spaces-row-gap: "18px"
-      spacing-space-thumb-top-offset: "8px"
+      width-workspace-card: "264px"
+      height-workspace-thumb: "148px"
+      spacing-workspaces-subtitle-gap: "22px"
+      spacing-workspaces-row-gap: "18px"
       overlay-blur: "3px"
       width-modal-sm: "560px"
       width-modal-md: "720px"
       width-modal-lg: "880px"
       width-modal-xl: "1180px"
-      width-thread-column: "46rem"
       size-catalog-logo: "1.5rem"
       size-provider-logo-well: "2.5rem"
       size-pill-group-badge: "14px"
@@ -349,10 +348,11 @@ generated token regions by hand. Change the CSS source, then run
 
 ## 1. Visual theme and atmosphere
 
-AGH is a local operator console for long-running agent work. The product should
-feel quiet, dense, and intentional: a warm near-black canvas, restrained text,
-flat depth, and a single action accent. It is not a marketing-gradient system
-and it is not a generic SaaS blue-gray dashboard.
+AGH is an agent operating system for everyone who works with AI agents — not
+an expert-only console. The product should feel quiet, calm, and intentional:
+a warm near-black canvas, restrained text, flat depth, and a single action
+accent. It is not a marketing-gradient system, not a generic SaaS blue-gray
+dashboard, and no longer the dense operator cockpit of its early direction.
 
 The runtime is dark-only. `color-scheme: dark` is part of the product
 contract, not a theme preference. Surfaces must never depend on white
@@ -364,14 +364,16 @@ glass and blur from §5. Content inside window bodies never does.
 The core atmosphere is:
 
 - Warm dark, never cool slate. The neutral ramp leans brown-black so extended
-  operator sessions feel less harsh than pure black or blue-gray.
+  working sessions feel less harsh than pure black or blue-gray.
 - One accent. `--color-accent` means "act" and should usually appear once in a
   viewport as the active CTA or primary identity marker.
 - Flat depth. Hierarchy comes from the surface ramp, translucent hairlines, and
   inset focus rings. Content cards do not cast shadows.
-- Operational density. Runtime screens optimize for repeated scanning,
-  comparison, and state changes. The site can breathe more, but it still uses
-  the same color and motion contract.
+- Calm by default, deep on demand. Default views show few, plainly named
+  things with generous rhythm; scanning depth (event trails, wire views, raw
+  payloads) lives one step away on inspection surfaces. Density is a tool for
+  inspection, never the default posture of a screen. The site can breathe even
+  more, but it still uses the same color and motion contract.
 - Truthful UI. Do not render controls, counts, metrics, or statuses the runtime
   does not expose.
 
@@ -381,6 +383,10 @@ Color carries state. The warm ramp separates shell, page, grouped surfaces, and
 active surfaces without decorative depth. Hairlines use low-alpha white so they
 layer consistently across every ramp step. Signal colors are desaturated and
 usually appear as tint backgrounds plus readable text, not as solid banners.
+Signal color is information, never decoration: it marks the states actually
+present (running, needs attention, failed), not taxonomy. Rows and cards stay
+neutral at rest — a view earns color only from live state, and a screen that
+shows many colors at rest is misusing the palette.
 
 Every production color should resolve through a `--color-*` token. Raw hex is
 acceptable only in the token source, static generated artifacts, or documented
@@ -601,7 +607,7 @@ because they are small.
 | `--text-mono-id`          | `0.65625rem` |            | `0`        |
 | `--text-pill-group-badge` | `0.5625rem`  |            |            |
 | `--text-card-title`       | `0.875rem`   | `1.4`      |            |
-| `--text-space-avatar`     | `9px`        |            |            |
+| `--text-workspace-avatar` | `9px`        |            |            |
 
 <!-- END:tokens:type-ladder -->
 
@@ -629,9 +635,12 @@ is the route's `<Topbar>` with OS window controls injected into its leading
 zone. Detail surfaces may add `<DetailHeader>` inside the window body, but
 list and route pages should not invent body-side page H1s.
 
-The page envelope is dense by default. Route content gets constrained width,
-predictable gutters, and scrollable interior panels. Repeated list rows should
-hold their geometry when hover states, icons, counts, or loading states appear.
+The page envelope is calm by default. Route content gets constrained width,
+predictable gutters, generous row rhythm, and scrollable interior panels.
+Compact geometry belongs to inspection surfaces built for comparison — event
+trails, tables, wire views — never to a route's default read. Repeated list
+rows should hold their geometry when hover states, icons, counts, or loading
+states appear.
 
 Modal anatomy is consistent: scrim, centered panel, ruled header when needed,
 body, and footer. Widths and height ceilings come from the component-size
@@ -662,45 +671,45 @@ widths come from `--site-*` tokens.
 
 <!-- BEGIN:tokens:component-sizes -->
 
-| Token                                 | Value   | Token                                   | Value    | Token                                      | Value    |
-| ------------------------------------- | ------- | --------------------------------------- | -------- | ------------------------------------------ | -------- |
-| `--height-button-xs`                  | `22px`  | `--height-button-sm`                    | `22px`   | `--height-button-default`                  | `26px`   |
-| `--height-button-lg`                  | `30px`  | `--height-button-cta`                   | `36px`   | `--height-button-cta-lg`                   | `44px`   |
-| `--size-button-icon-xs`               | `22px`  | `--size-button-icon-sm`                 | `22px`   | `--size-button-icon-default`               | `26px`   |
-| `--size-button-icon-lg`               | `30px`  | `--height-input`                        | `36px`   | `--height-control-compact`                 | `32px`   |
-| `--height-search`                     | `28px`  | `--height-textarea-min`                 | `84px`   | `--height-switch-default`                  | `18px`   |
-| `--width-switch-default`              | `32px`  | `--height-switch-sm`                    | `14px`   | `--width-switch-sm`                        | `24px`   |
-| `--height-pill-xs`                    | `17px`  | `--height-pill-sm`                      | `19px`   | `--height-pill-md`                         | `22px`   |
-| `--height-sidebar-row`                | `28px`  | `--height-tabs-list`                    | `40px`   | `--height-tab-underline`                   | `1.5px`  |
-| `--spacing-count-chip`                | `19px`  | `--spacing-count-chip-sm`               | `17px`   | `--height-property-row`                    | `26px`   |
-| `--spacing-property-row-y`            | `3px`   | `--size-empty-icon`                     | `38px`   | `--width-menu-sub-min`                     | `96px`   |
-| `--size-icon-well-row`                | `34px`  | `--size-topbar-glyph`                   | `22px`   | `--size-status-dot`                        | `7px`    |
-| `--size-status-dot-sm`                | `6px`   | `--size-avatar-sm`                      | `20px`   | `--size-avatar-default`                    | `24px`   |
-| `--size-avatar-lg`                    | `32px`  | `--height-editor-footer`                | `52px`   | `--width-detail-inspector-inline`          | `320px`  |
-| `--width-kv-label`                    | `140px` | `--width-form-label-col`                | `180px`  | `--width-table-cell-sm`                    | `224px`  |
-| `--width-table-cell-md`               | `288px` | `--width-table-cell-lg`                 | `360px`  | `--container-content-max`                  | `1320px` |
-| `--width-right-rail-default`          | `468px` | `--width-message-bubble-max`            | `640px`  | `--width-wire-card-max`                    | `520px`  |
-| `--width-search-input-min`            | `220px` | `--width-filters-menu-default`          | `200px`  | `--width-filters-menu-stack`               | `220px`  |
-| `--width-settings-nav`                | `264px` | `--container-settings-takeover`         | `56rem`  | `--container-task-detail-rail`             | `64rem`  |
-| `--width-settings-sheet`              | `640px` | `--width-task-properties-rail`          | `320px`  | `--spacing-settings-sheet-viewport-gutter` | `24px`   |
-| `--height-setting-row`                | `54px`  | `--container-setting-description`       | `52ch`   | `--container-settings-page-form`           | `768px`  |
-| `--container-settings-page-wide`      | `960px` | `--container-settings-page-description` | `72ch`   | `--spacing-settings-page-bottom`           | `96px`   |
-| `--container-settings-save-bar`       | `560px` | `--size-settings-save-dot`              | `7px`    | `--height-modal-md`                        | `760px`  |
-| `--height-modal-tall`                 | `900px` | `--height-modal-wizard`                 | `960px`  | `--height-modal-xl`                        | `840px`  |
-| `--height-menubar`                    | `44px`  | `--height-menubar-chip`                 | `26px`   | `--size-dock-item`                         | `46px`   |
-| `--size-dock-icon`                    | `21px`  | `--size-dock-badge`                     | `15px`   | `--size-dock-indicator`                    | `4px`    |
-| `--size-dock-indicator-min`           | `5px`   | `--size-traffic-light`                  | `12px`   | `--size-menubar-logo`                      | `17px`   |
-| `--size-workspace-avatar`             | `18px`  | `--size-dock-new-icon`                  | `18px`   | `--spacing-dock-gap`                       | `4px`    |
-| `--spacing-dock-pad`                  | `7px`   | `--spacing-menubar-workspace-gap`       | `7px`    | `--spacing-traffic-light-gap`              | `7px`    |
-| `--spacing-traffic-light-compact-gap` | `12px`  | `--height-dock-tabbar`                  | `56px`   | `--size-dock-tab-item`                     | `44px`   |
-| `--size-traffic-light-compact`        | `15px`  | `--size-traffic-light-compact-target`   | `44px`   | `--width-space-card`                       | `264px`  |
-| `--height-space-thumb`                | `148px` | `--spacing-spaces-subtitle-gap`         | `22px`   | `--spacing-spaces-row-gap`                 | `18px`   |
-| `--spacing-space-thumb-top-offset`    | `8px`   | `--overlay-blur`                        | `3px`    | `--width-modal-sm`                         | `560px`  |
-| `--width-modal-md`                    | `720px` | `--width-modal-lg`                      | `880px`  | `--width-modal-xl`                         | `1180px` |
-| `--width-thread-column`               | `46rem` | `--size-catalog-logo`                   | `1.5rem` | `--size-provider-logo-well`                | `2.5rem` |
-| `--size-pill-group-badge`             | `14px`  | `--height-pill-group-segment-md`        | `24px`   | `--height-pill-group-segment-sm`           | `20px`   |
-| `--space-pill-group-track-gap`        | `1px`   | `--space-pill-group-track-padding`      | `2px`    | `--space-pill-group-segment-sm-x`          | `8px`    |
-| `--space-pill-group-segment-md-x`     | `10px`  | `--space-pill-group-badge-x`            | `4px`    | `--space-switch-thumb-inset`               | `2px`    |
+| Token                              | Value    | Token                                   | Value    | Token                                      | Value    |
+| ---------------------------------- | -------- | --------------------------------------- | -------- | ------------------------------------------ | -------- |
+| `--height-button-xs`               | `22px`   | `--height-button-sm`                    | `22px`   | `--height-button-default`                  | `26px`   |
+| `--height-button-lg`               | `30px`   | `--height-button-cta`                   | `36px`   | `--height-button-cta-lg`                   | `44px`   |
+| `--size-button-icon-xs`            | `22px`   | `--size-button-icon-sm`                 | `22px`   | `--size-button-icon-default`               | `26px`   |
+| `--size-button-icon-lg`            | `30px`   | `--height-input`                        | `36px`   | `--height-control-compact`                 | `32px`   |
+| `--height-search`                  | `28px`   | `--height-textarea-min`                 | `84px`   | `--height-switch-default`                  | `18px`   |
+| `--width-switch-default`           | `32px`   | `--height-switch-sm`                    | `14px`   | `--width-switch-sm`                        | `24px`   |
+| `--height-pill-xs`                 | `17px`   | `--height-pill-sm`                      | `19px`   | `--height-pill-md`                         | `22px`   |
+| `--height-sidebar-row`             | `28px`   | `--height-tabs-list`                    | `40px`   | `--height-tab-underline`                   | `1.5px`  |
+| `--spacing-count-chip`             | `19px`   | `--spacing-count-chip-sm`               | `17px`   | `--height-property-row`                    | `26px`   |
+| `--spacing-property-row-y`         | `3px`    | `--size-empty-icon`                     | `38px`   | `--width-menu-sub-min`                     | `96px`   |
+| `--size-icon-well-row`             | `34px`   | `--size-topbar-glyph`                   | `22px`   | `--size-status-dot`                        | `7px`    |
+| `--size-status-dot-sm`             | `6px`    | `--size-avatar-sm`                      | `20px`   | `--size-avatar-default`                    | `24px`   |
+| `--size-avatar-lg`                 | `32px`   | `--height-editor-footer`                | `52px`   | `--width-detail-inspector-inline`          | `320px`  |
+| `--width-kv-label`                 | `140px`  | `--width-form-label-col`                | `180px`  | `--width-table-cell-sm`                    | `224px`  |
+| `--width-table-cell-md`            | `288px`  | `--width-table-cell-lg`                 | `360px`  | `--container-content-max`                  | `1320px` |
+| `--width-right-rail-default`       | `468px`  | `--width-message-bubble-max`            | `640px`  | `--width-wire-card-max`                    | `520px`  |
+| `--width-search-input-min`         | `220px`  | `--width-filters-menu-default`          | `200px`  | `--width-filters-menu-stack`               | `220px`  |
+| `--width-settings-nav`             | `264px`  | `--container-settings-takeover`         | `56rem`  | `--container-task-detail-rail`             | `64rem`  |
+| `--width-settings-sheet`           | `640px`  | `--width-task-properties-rail`          | `320px`  | `--spacing-settings-sheet-viewport-gutter` | `24px`   |
+| `--height-setting-row`             | `54px`   | `--container-setting-description`       | `52ch`   | `--container-settings-page-form`           | `768px`  |
+| `--container-settings-page-wide`   | `960px`  | `--container-settings-page-description` | `72ch`   | `--spacing-settings-page-bottom`           | `96px`   |
+| `--spacing-layout-node-indent`     | `12px`   | `--container-settings-save-bar`         | `560px`  | `--size-settings-save-dot`                 | `7px`    |
+| `--height-modal-md`                | `760px`  | `--height-modal-tall`                   | `900px`  | `--height-modal-wizard`                    | `960px`  |
+| `--height-modal-xl`                | `840px`  | `--height-menubar`                      | `44px`   | `--height-menubar-chip`                    | `26px`   |
+| `--size-dock-item`                 | `46px`   | `--size-dock-icon`                      | `21px`   | `--size-dock-badge`                        | `15px`   |
+| `--size-dock-indicator`            | `4px`    | `--size-dock-indicator-min`             | `5px`    | `--size-traffic-light`                     | `12px`   |
+| `--size-menubar-logo`              | `17px`   | `--size-workspace-avatar`               | `18px`   | `--size-dock-new-icon`                     | `18px`   |
+| `--spacing-dock-gap`               | `4px`    | `--spacing-dock-pad`                    | `7px`    | `--spacing-menubar-workspace-gap`          | `7px`    |
+| `--spacing-traffic-light-gap`      | `7px`    | `--spacing-traffic-light-compact-gap`   | `12px`   | `--height-dock-tabbar`                     | `56px`   |
+| `--size-dock-tab-item`             | `44px`   | `--size-traffic-light-compact`          | `15px`   | `--size-traffic-light-compact-target`      | `44px`   |
+| `--width-workspace-card`           | `264px`  | `--height-workspace-thumb`              | `148px`  | `--spacing-workspaces-subtitle-gap`        | `22px`   |
+| `--spacing-workspaces-row-gap`     | `18px`   | `--overlay-blur`                        | `3px`    | `--width-modal-sm`                         | `560px`  |
+| `--width-modal-md`                 | `720px`  | `--width-modal-lg`                      | `880px`  | `--width-modal-xl`                         | `1180px` |
+| `--size-catalog-logo`              | `1.5rem` | `--size-provider-logo-well`             | `2.5rem` | `--size-pill-group-badge`                  | `14px`   |
+| `--height-pill-group-segment-md`   | `24px`   | `--height-pill-group-segment-sm`        | `20px`   | `--space-pill-group-track-gap`             | `1px`    |
+| `--space-pill-group-track-padding` | `2px`    | `--space-pill-group-segment-sm-x`       | `8px`    | `--space-pill-group-segment-md-x`          | `10px`   |
+| `--space-pill-group-badge-x`       | `4px`    | `--space-switch-thumb-inset`            | `2px`    |                                            |          |
 
 <!-- END:tokens:component-sizes -->
 
@@ -782,9 +791,10 @@ a single spring ease. Window-body content keeps the base ladder.
 ## 7. Voice and content
 
 `COPY.md` owns product language. The design-system implication is simple:
-visible text should help operators act or understand state. Avoid hype,
-welcome copy, exclamation marks, emoji, and decorative explanatory text inside
-the product UI.
+visible text should help people act or understand state, in everyday words.
+Runtime jargon belongs on inspection surfaces where precision earns it, not in
+a screen's default read. Avoid hype, welcome copy, exclamation marks, emoji,
+and decorative explanatory text inside the product UI.
 
 Runtime labels should be concrete nouns or verbs. Empty states should state the
 empty condition and provide the next useful action if one exists. Error states
@@ -875,6 +885,10 @@ is listed.
 - Accent overload. Pattern: accent CTA, accent pill, accent tab, accent hover,
   and accent rail in the same viewport. Preserve a single accent target and use
   foreground, neutral, or signal tokens for the rest.
+- Signal overload. Pattern: colored pills, badges, and dots on most rows at
+  rest — the control-room look. Signal tokens mark live state only; taxonomy
+  and metadata stay neutral (`<MonoId>`, neutral pills, muted text), so the
+  states that matter are the only things in color.
 - Decorative depth. Pattern: generic Tailwind shadow utilities on cards,
   popovers, headers, or rows. Use the flat ring/ramp model and the shadow
   whitelist above. The only cast-shadow and glass exception is OS-shell chrome

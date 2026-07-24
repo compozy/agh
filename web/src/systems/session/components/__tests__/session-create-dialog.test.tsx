@@ -117,11 +117,8 @@ function renderDialog(overrides: Partial<SessionCreateDialogProps> = {}) {
 }
 
 async function openRuntimePopup(user: ReturnType<typeof userEvent.setup>) {
-  const segment = document.querySelector<HTMLElement>(
-    '[data-testid="session-create-runtime-select"] button[data-focus="model"]'
-  );
-  if (!segment) throw new Error("Runtime selector model segment not found");
-  await user.click(segment);
+  // The selector trigger is a single button — clicking it toggles the popup.
+  await user.click(screen.getByTestId("session-create-runtime-select"));
   return screen.findByTestId("runtime-selector-popup");
 }
 
@@ -135,7 +132,9 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-dialog").className).not.toContain("sm:max-w-120");
 
     const trigger = screen.getByTestId("session-create-runtime-select");
-    expect(trigger).toHaveTextContent("Claude Code");
+    // The provider renders as its mark only; the selected identity reaches
+    // assistive tech through the composed caption + value accessible name.
+    expect(trigger).toHaveAccessibleName(/Claude Code/);
     expect(trigger).not.toHaveAttribute("aria-disabled", "true");
   });
 
@@ -277,10 +276,8 @@ describe("SessionCreateDialog", () => {
       runtimeValue: { provider: "", model: "", reasoning_effort: "" },
     });
 
-    expect(screen.getByTestId("session-create-runtime-select")).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
+    // The single-button trigger disables natively (not merely aria-disabled).
+    expect(screen.getByTestId("session-create-runtime-select")).toBeDisabled();
     expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
   });
 
@@ -296,10 +293,7 @@ describe("SessionCreateDialog", () => {
       "Select a workspace first"
     );
     expect(screen.queryByTestId("session-create-agent-default")).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-create-runtime-select")).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
+    expect(screen.getByTestId("session-create-runtime-select")).toBeDisabled();
     expect(screen.queryByTestId("session-create-providers-empty")).not.toBeInTheDocument();
   });
 

@@ -2,7 +2,7 @@
 id: MS-provider-detail-modal
 area: MS
 title: Provider detail opens as a centered modal with overlay dismissal
-persona: Operator
+persona: Dora
 journey:
 expected: In Settings → Providers, opening a provider presents a centered modal (width 720px token) with a "Provider" eyebrow header, Overview | Configure lane tabs mapping to inspect/edit, and Cancel / Save provider footer. Clicking the overlay or pressing Esc dismisses it; Configure tab seeds the edit draft and Overview returns to inspect without saving.
 entry_points: web Settings window → Providers → row/card click

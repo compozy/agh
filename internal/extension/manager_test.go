@@ -26,6 +26,7 @@ import (
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/toolruntime"
 	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 const (
@@ -1358,6 +1359,10 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 					Primary: "primary",
 					Items:   []BundleChannel{{Name: "primary", Description: "Primary"}},
 				},
+				Layouts: []BundleLayout{{
+					Path:   "layouts/two-up.json",
+					Layout: testBundleLayoutResource("two-up"),
+				}},
 				Jobs: []BundleJob{{
 					Name:      "job-one",
 					AgentName: "coder",
@@ -1408,6 +1413,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	clone.Skills[0].Hooks[0].SecretEnv["TOKEN"] = "vault:hooks/snapshot-hook/changed"
 	clone.Skills[0].MCPServers[0].Env["ROOT"] = "/tmp/changed"
 	clone.Skills[0].Provenance.Hash = "hash-changed"
+	clone.Bundles[0].Profiles[0].Layouts[0].Layout.ParticipantSlots[0] = "changed"
 	clone.Bundles[0].Profiles[0].Jobs[0].Task.Title = "changed"
 	clone.Bundles[0].Profiles[0].Bridges[0].DisplayName = "changed"
 	clone.GrantedResourceKinds[0] = resources.ResourceKind("changed")
@@ -1450,6 +1456,10 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	}
 	if ext.skills[0].Provenance.Hash != "hash-original" {
 		t.Fatalf("original skill provenance mutated to %#v", ext.skills[0].Provenance)
+	}
+	if got, want := ext.bundles[0].Profiles[0].Layouts[0].Layout.ParticipantSlots[0],
+		windowmanager.WindowID("primary"); got != want {
+		t.Fatalf("original bundle layout participant slot = %q, want %q", got, want)
 	}
 	if ext.bundles[0].Profiles[0].Jobs[0].Task.Title != "Job task" {
 		t.Fatalf("original bundle job task mutated to %#v", ext.bundles[0].Profiles[0].Jobs[0].Task)

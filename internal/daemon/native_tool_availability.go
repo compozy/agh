@@ -42,11 +42,18 @@ type nativeToolAvailabilitySet struct {
 	marketplace         toolspkg.NativeAvailabilityFunc
 	bundles             toolspkg.NativeAvailabilityFunc
 	resources           toolspkg.NativeAvailabilityFunc
+	windowManager       toolspkg.NativeAvailabilityFunc
 	mcpStatus           toolspkg.NativeAvailabilityFunc
 	mcpAuth             toolspkg.NativeAvailabilityFunc
 }
 
 func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
+	availability := n.baseNativeToolAvailability()
+	availability.windowManager = n.windowManagerAvailability()
+	return availability
+}
+
+func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilitySet {
 	configReady := func() bool {
 		return strings.TrimSpace(n.deps.HomePaths.ConfigFile) != ""
 	}

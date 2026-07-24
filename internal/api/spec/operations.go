@@ -21,7 +21,7 @@ func Operations() []OperationSpec {
 	ops = append(ops, settingsMCPAuthOperations()...)
 	ops = append(ops, providerOperations()...)
 	ops = append(ops, networkCoordinationOperations()...)
-	ops = append(ops, desktopStateOperations()...)
+	ops = append(ops, windowManagerOperations()...)
 	ops = applyToolArtifactContract(ops)
 	sort.SliceStable(ops, func(i, j int) bool {
 		if ops[i].Path == ops[j].Path {

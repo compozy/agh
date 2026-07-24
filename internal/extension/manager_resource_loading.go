@@ -118,13 +118,21 @@ func (m *Manager) loadLoopResources(ext *managedExtension) ([]looppkg.ResourceSp
 }
 
 func (m *Manager) loadAgentResources(ext *managedExtension) ([]aghconfig.AgentDef, error) {
-	if ext.manifest == nil || len(ext.manifest.Resources.Agents) == 0 {
+	if ext == nil {
+		return nil, nil
+	}
+	return LoadAgentResources(ext.rootDir, ext.manifest)
+}
+
+// LoadAgentResources discovers the current authored agent definitions for an extension.
+func LoadAgentResources(rootDir string, manifest *Manifest) ([]aghconfig.AgentDef, error) {
+	if manifest == nil || len(manifest.Resources.Agents) == 0 {
 		return nil, nil
 	}
 
 	loaded := make(map[string]aghconfig.AgentDef)
-	for _, resourcePath := range ext.manifest.Resources.Agents {
-		resourceRoot, err := resolveResourcePath(ext.rootDir, resourcePath)
+	for _, resourcePath := range manifest.Resources.Agents {
+		resourceRoot, err := resolveResourcePath(rootDir, resourcePath)
 		if err != nil {
 			return nil, err
 		}

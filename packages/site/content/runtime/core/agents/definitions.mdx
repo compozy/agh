@@ -52,11 +52,11 @@ validation error.
 
 AGH resolves agents from the workspace snapshot attached to the session.
 
-| Scope           | Directory AGH scans                                                   | Applies when                                     |
-| --------------- | --------------------------------------------------------------------- | ------------------------------------------------ |
-| Workspace root  | `<workspace>/.agh/agents/<name>/AGENT.md`                             | The session is created in that workspace.        |
-| Additional root | `<additional-dir>/.agh/agents/<name>/AGENT.md`                        | The workspace has additional roots registered.   |
-| Global home     | `~/.agh/agents/<name>/AGENT.md` or `$AGH_HOME/agents/<name>/AGENT.md` | The agent should be available across workspaces. |
+| Scope           | Directory AGH scans                                                   | Applies when                                                 |
+| --------------- | --------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Workspace root  | `<workspace>/.agh/agents/<name>/AGENT.md`                             | The session is created in that workspace.                    |
+| Additional root | `<additional-dir>/.agh/agents/<name>/AGENT.md`                        | The workspace has additional roots registered.               |
+| Global home     | `~/.agh/agents/<name>/AGENT.md` or `$AGH_HOME/agents/<name>/AGENT.md` | A user-authored agent should be available across workspaces. |
 
 Discovery order is first-wins:
 
@@ -66,6 +66,10 @@ Discovery order is first-wins:
 
 If two definitions use the same `name`, AGH keeps the first one it found. It does not merge or
 inherit from the lower-precedence definition.
+
+Extensions can also provide global agent candidates. Those agents keep their extension-local
+`AGENT.md` as the effective authored definition, so definition updates reconcile the extension file
+into the same catalog used by agent reads.
 
 ## Effective origin and shadowing
 
@@ -128,7 +132,8 @@ agh agent update code-reviewer \
 
 See [`agh agent update`](/runtime/cli-reference/agent/update) for the generated flag reference. The
 HTTP equivalent is `PUT /api/agents/:name` with the full `agent` payload, `workspace`, and
-`expected_digest`.
+`expected_digest`. The same mutation targets an extension-local definition when that definition is
+the effective global winner.
 
 ## Duplicate and delete definitions
 

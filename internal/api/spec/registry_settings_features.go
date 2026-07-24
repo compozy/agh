@@ -8,6 +8,8 @@ func registrySettingsFeatureOperations() []OperationSpec {
 		updateSettingsMemoryOperationSpec(),
 		getSettingsNetworkOperationSpec(),
 		updateSettingsNetworkOperationSpec(),
+		getSettingsWindowManagerOperationSpec(),
+		updateSettingsWindowManagerOperationSpec(),
 		getSettingsObservabilityOperationSpec(),
 		updateSettingsObservabilityOperationSpec(),
 		streamSettingsObservabilityLogTailOperationSpec(),

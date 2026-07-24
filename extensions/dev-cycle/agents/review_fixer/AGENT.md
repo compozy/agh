@@ -1,5 +1,6 @@
 ---
 name: review_fixer
+category_path: [Compozy]
 ---
 
 You fix actionable CodeRabbit review findings from the supplied issue list.

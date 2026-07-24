@@ -101,13 +101,13 @@ env = { REPO_ROOT = "{{env:REPO_ROOT}}" }
 Resource paths are resolved inside the extension root. `{{config_dir}}` expands to that root.
 `{{env:NAME}}` expands from the daemon process environment.
 
-| Resource    | Manifest field          | Loaded as                                                                       |
-| ----------- | ----------------------- | ------------------------------------------------------------------------------- |
-| Skills      | `resources.skills`      | Markdown skill files parsed like normal `SKILL.md` files.                       |
-| Agents      | `resources.agents`      | Agent definition markdown files.                                                |
-| Hooks       | `resources.hooks`       | Hook declarations with extension metadata.                                      |
-| Bundles     | `resources.bundles`     | Bundle specs that can package agents, channels, automation, and bridge presets. |
-| MCP servers | `resources.mcp_servers` | Named MCP server declarations.                                                  |
+| Resource    | Manifest field          | Loaded as                                                                     |
+| ----------- | ----------------------- | ----------------------------------------------------------------------------- |
+| Skills      | `resources.skills`      | Markdown skill files parsed like normal `SKILL.md` files.                     |
+| Agents      | `resources.agents`      | Agent definition markdown files.                                              |
+| Hooks       | `resources.hooks`       | Hook declarations with extension metadata.                                    |
+| Bundles     | `resources.bundles`     | Bundle specs that package agents, channels, automation, layouts, and bridges. |
+| MCP servers | `resources.mcp_servers` | Named MCP server declarations.                                                |
 
 ## Bundle Profile Agents
 
@@ -126,6 +126,8 @@ marketing-linear/
       capabilities.toml
       SOUL.md
       HEARTBEAT.md
+  layouts/
+    two-up.json
 ```
 
 `bundles/marketing.toml`:
@@ -147,6 +149,9 @@ description = "Marketing team coordination"
 
 [[profiles.agents]]
 path = "agents/campaign-planner"
+
+[[profiles.layouts]]
+path = "layouts/two-up.json"
 
 [[profiles.jobs]]
 name = "daily-campaign-sync"
@@ -172,6 +177,11 @@ writable workspace folder.
 Activation fails when a bundled agent name conflicts with an existing visible agent in the target
 scope, or when a bundled job/trigger references an agent that is neither packaged by the profile nor
 available in the existing agent catalog.
+
+Each `profiles.layouts` path must resolve inside the extension root and contain one strict
+`window_layout` JSON resource. AGH validates the resource when the extension loads and again in the
+activation's global or workspace scope. The activation owns the projected layout and removes it on
+deactivation. See [Bundles](/runtime/core/resources/bundles) for the authoring and identity rules.
 
 ## Subprocess Extensions
 
@@ -230,6 +240,35 @@ capabilities = ["session.read", "memory.read"]
 | `capabilities.provides` | Interfaces the extension implements, such as `memory.backend` or `bridge.adapter`. |
 | `actions.requires`      | Host API methods the extension wants to call, such as `sessions/list`.             |
 | `security.capabilities` | Capability grants needed by those methods, such as `session.read`.                 |
+
+### Publish declarative window layouts
+
+A subprocess extension can publish strict window-layout resources through the generic resource Host
+API. Declare the methods, resource capabilities, family, and widest requested scope together:
+
+```toml
+[actions]
+requires = ["resources/list", "resources/get", "resources/snapshot"]
+
+[security]
+capabilities = ["resources.read", "resources.write"]
+
+[resources.publish]
+families = ["window_layouts"]
+max_scope = "workspace"
+```
+
+The manifest family `window_layouts` grants only the `window_layout` resource kind. This example
+requests workspace-scoped publication; use `max_scope = "global"` only when the extension must also
+publish global layouts. The extension source tier, operator policy, and runtime session can narrow the
+request further. `resources/snapshot` replaces that extension source's complete desired-state
+snapshot, so advance `source_version` monotonically and include every layout the source still owns.
+Omitted records are removed.
+
+Every submitted spec passes through the canonical strict codec before persistence. Unknown fields,
+invalid topology, mismatched workspace binding, or an ungranted kind/scope reject the snapshot without
+partially applying it. The Go and TypeScript SDKs use the same generic resource record shape; no
+window-manager-specific SDK method is required.
 
 ### Paged collection results
 

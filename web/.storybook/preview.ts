@@ -21,7 +21,7 @@ import { resetSettingsRestartStore } from "@/systems/settings/stores/use-setting
 import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import { resetAgentMockState } from "@/systems/agent/mocks";
-import { desktopStore } from "@/systems/os/stores/desktop-store";
+import { resetWindowManagerMockState } from "@/systems/os/mocks";
 
 configureStorybookTestingLibrary({ asyncUtilTimeout: 5000 });
 
@@ -217,13 +217,10 @@ export function createStorybookRouter(
 
 export function resetStorybookAppState() {
   resetAgentMockState();
+  resetWindowManagerMockState();
   useActiveWorkspaceStore.getState().clearSelectedWorkspaceId();
   useSessionStore.getState().clearAllDrafts();
   resetSettingsRestartStore();
-  desktopStore.getState().resetForWorkspace();
-  // Storybook has no desktop-state WebSocket. Degraded is the truthful local
-  // fallback and lets route sync apply the story's initial deep link.
-  desktopStore.getState().setHydration("degraded");
 }
 
 function StorybookQueryClientBoundary({ children }: { children: ReactNode }) {

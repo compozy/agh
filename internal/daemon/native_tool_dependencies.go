@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/agh/internal/windowmanager"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -80,4 +81,5 @@ type daemonNativeToolsDeps struct {
 	BundleService              func() core.BundleService
 	Loops                      func() core.LoopService
 	Resources                  core.ResourceService
+	WindowManager              windowmanager.Service
 }

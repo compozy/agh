@@ -21,7 +21,7 @@ Match the task to the row. Read the listed files in full before producing output
 | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Start, inspect, prompt, stop, resume, or debug AGH sessions and daemon state                                               | references/runtime-operations.md                                        |
 | Expose one AGH workspace to an external MCP client with `agh mcp serve`                                                    | references/runtime-operations.md                                        |
-| Inspect, mutate, or watch workspace desktop state through CLI, HTTP, or UDS                                                | references/desktop-state.md                                             |
+| Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS  | references/window-management.md + references/native-tools.md            |
 | Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                              | references/runtime-operations.md                                        |
 | Create or review AGH agent definitions, provider defaults, permissions, or MCP sidecars                                    | references/agent-definitions.md + references/tools-and-skills.md        |
 | Discover or call AGH-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                            | references/tools-and-skills.md + references/native-tools.md             |
@@ -37,7 +37,7 @@ Match the task to the row. Read the listed files in full before producing output
 ## Reference Index
 
 - references/runtime-operations.md - daemon, session, and messaging-bridge operations, lifecycle diagnostics, and runtime troubleshooting.
-- references/desktop-state.md - workspace desktop-state CLI, HTTP/UDS/WS contracts, payload keys, ordering, and deterministic errors.
+- references/window-management.md - daemon-authoritative desktops, windows, layouts, revisions, clients, resources, hooks, recovery, and public surfaces.
 - references/agent-definitions.md - AGENT.md structure, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
 - references/tools-and-skills.md - AGH-native tool discovery, skill view/search, bundled resources, management-surface exceptions, and skill authoring rules.
 - references/native-tools.md - daemon-native toolsets, stable AGH tool IDs, when to inspect descriptors, and CLI fallbacks for agents running inside AGH.

@@ -81,7 +81,7 @@ func ActivationResourceID(
 }
 
 func validateBundleResourceSpec(
-	_ context.Context,
+	ctx context.Context,
 	scope resources.ResourceScope,
 	spec BundleResourceSpec,
 ) (BundleResourceSpec, error) {
@@ -92,6 +92,9 @@ func validateBundleResourceSpec(
 	next := normalizeBundleResourceSpec(spec)
 	if strings.TrimSpace(next.ExtensionName) == "" {
 		return BundleResourceSpec{}, errors.New("bundles: resource extension_name is required")
+	}
+	if err := canonicalizeBundleLayouts(ctx, &next.Bundle); err != nil {
+		return BundleResourceSpec{}, err
 	}
 	manifest := &extensionpkg.Manifest{
 		Name: strings.TrimSpace(next.ExtensionName),

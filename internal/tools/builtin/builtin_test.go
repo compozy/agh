@@ -213,9 +213,13 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDResourcesList,
 			toolspkg.ToolIDResourcesInfo,
 			toolspkg.ToolIDResourcesSnapshot,
+		}
+		want = append(want, windowManagerExpectedToolIDs()...)
+		want = append(
+			want,
 			toolspkg.ToolIDMCPStatus,
 			toolspkg.ToolIDMCPAuthStatus,
-		}
+		)
 		if gotLen, wantLen := len(got), len(want); gotLen != wantLen {
 			t.Fatalf("len(NativeDescriptors()) = %d, want %d", gotLen, wantLen)
 		}
@@ -1098,6 +1102,89 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should publish the closed window manager contract with risk and capability gates", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		type expectation struct {
+			risk        toolspkg.RiskClass
+			readOnly    bool
+			destructive bool
+			capability  string
+		}
+		expectations := map[toolspkg.ToolID]expectation{
+			toolspkg.ToolIDDesktopList:    {toolspkg.RiskRead, true, false, windowManagerReadCapability},
+			toolspkg.ToolIDDesktopCreate:  {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDDesktopUpdate:  {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDDesktopReorder: {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDDesktopSwitch:  {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDDesktopDelete:  {toolspkg.RiskDestructive, false, true, windowManagerWriteCapability},
+			toolspkg.ToolIDDesktopClients: {toolspkg.RiskRead, true, false, windowManagerReadCapability},
+			toolspkg.ToolIDWindowList:     {toolspkg.RiskRead, true, false, windowManagerReadCapability},
+			toolspkg.ToolIDWindowOpen:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowNavigate: {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowClose:    {toolspkg.RiskDestructive, false, true, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowFocus:    {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowMove:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowSwap:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowFloat:    {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowZoom:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDLayoutGet:      {toolspkg.RiskRead, true, false, windowManagerReadCapability},
+			toolspkg.ToolIDLayoutPreview:  {toolspkg.RiskRead, true, false, windowManagerReadCapability},
+			toolspkg.ToolIDLayoutArrange:  {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDLayoutResize:   {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDLayoutBalance:  {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDLayoutUndo:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDLayoutRedo:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDLayoutExport:   {toolspkg.RiskRead, true, false, windowManagerReadCapability},
+			toolspkg.ToolIDLayoutValidate: {toolspkg.RiskRead, true, false, windowManagerReadCapability},
+			toolspkg.ToolIDLayoutApply:    {toolspkg.RiskDestructive, false, true, windowManagerWriteCapability},
+		}
+		for _, id := range windowManagerExpectedToolIDs() {
+			descriptor, ok := descriptors[id]
+			if !ok {
+				t.Fatalf("window-manager descriptor %q missing", id)
+			}
+			var inputSchema struct {
+				AdditionalProperties *bool `json:"additionalProperties"`
+			}
+			if err := json.Unmarshal(descriptor.InputSchema, &inputSchema); err != nil {
+				t.Fatalf("%s input schema unmarshal error = %v", id, err)
+			}
+			if inputSchema.AdditionalProperties == nil || *inputSchema.AdditionalProperties {
+				t.Fatalf(
+					"%s input schema additionalProperties = %#v, want explicit false",
+					id,
+					inputSchema.AdditionalProperties,
+				)
+			}
+			want, ok := expectations[id]
+			if !ok {
+				t.Fatalf("window-manager descriptor %q has no independent contract expectation", id)
+			}
+			requireDescriptorRisk(t, descriptor, want.risk, want.readOnly, want.destructive, false)
+			if !slices.Equal(descriptor.Backend.RequiresCapabilities, []string{want.capability}) {
+				t.Fatalf(
+					"%s capabilities = %#v, want [%q]",
+					id,
+					descriptor.Backend.RequiresCapabilities,
+					want.capability,
+				)
+			}
+			if !bytes.Contains(descriptor.OutputSchema, []byte(`"revision"`)) {
+				t.Fatalf("%s output schema omits revision: %s", id, descriptor.OutputSchema)
+			}
+		}
+
+		assertWindowManagerMoveSchema(t, descriptors[toolspkg.ToolIDWindowMove].InputSchema)
+		assertWindowManagerPreviewSchema(t, descriptors[toolspkg.ToolIDLayoutPreview].InputSchema)
+		assertWindowManagerResultSchemas(
+			t,
+			descriptors[toolspkg.ToolIDDesktopCreate].OutputSchema,
+			descriptors[toolspkg.ToolIDLayoutPreview].OutputSchema,
+		)
+	})
+
 	t.Run("Should keep network schemas closed and hard-cut vocabulary out of descriptors", func(t *testing.T) {
 		t.Parallel()
 
@@ -1304,6 +1391,188 @@ func assertNetworkParticipationSchemaMatchesRuntime(t *testing.T, owner string, 
 	}
 	if err := compiled.Validate(unknown); err == nil {
 		t.Fatalf("%s network_participation schema accepted an unknown field", owner)
+	}
+}
+
+func assertWindowManagerMoveSchema(t *testing.T, raw json.RawMessage) {
+	t.Helper()
+	schemaValue, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("window move schema parse error = %v", err)
+	}
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource("window_move.json", schemaValue); err != nil {
+		t.Fatalf("window move schema add error = %v", err)
+	}
+	compiled, err := compiler.Compile("window_move.json")
+	if err != nil {
+		t.Fatalf("window move schema compile error = %v", err)
+	}
+
+	cases := []struct {
+		name    string
+		payload string
+		valid   bool
+	}{
+		{
+			name: "Should accept structural placement",
+			payload: `{"expected_revision":1,"window_id":"window-a",` +
+				`"destination_desktop_id":"desktop-b","placement":"right"}`,
+			valid: true,
+		},
+		{
+			name: "Should accept exclusive group relocation",
+			payload: `{"expected_revision":1,"window_id":"window-a",` +
+				`"destination_desktop_id":"desktop-b","move_group":true}`,
+			valid: true,
+		},
+		{
+			name: "Should reject missing placement outside group mode",
+			payload: `{"expected_revision":1,"window_id":"window-a",` +
+				`"destination_desktop_id":"desktop-b"}`,
+		},
+		{
+			name: "Should reject group relocation with a target",
+			payload: `{"expected_revision":1,"window_id":"window-a",` +
+				`"destination_desktop_id":"desktop-b","move_group":true,"target_window_id":"window-b"}`,
+		},
+		{
+			name: "Should reject group relocation with placement",
+			payload: `{"expected_revision":1,"window_id":"window-a",` +
+				`"destination_desktop_id":"desktop-b","move_group":true,"placement":"right"}`,
+		},
+		{
+			name: "Should reject group relocation with a floating rectangle",
+			payload: `{"expected_revision":1,"window_id":"window-a",` +
+				`"destination_desktop_id":"desktop-b","move_group":true,` +
+				`"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			instance, err := jsonschema.UnmarshalJSON(strings.NewReader(tc.payload))
+			if err != nil {
+				t.Fatalf("window move instance parse error = %v", err)
+			}
+			err = compiled.Validate(instance)
+			if tc.valid && err != nil {
+				t.Fatalf("window move schema rejected %s: %v", tc.payload, err)
+			}
+			if !tc.valid && err == nil {
+				t.Fatalf("window move schema accepted invalid payload %s", tc.payload)
+			}
+		})
+	}
+}
+
+func assertWindowManagerPreviewSchema(t *testing.T, raw json.RawMessage) {
+	t.Helper()
+	schemaValue, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("layout preview schema parse error = %v", err)
+	}
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource("layout_preview.json", schemaValue); err != nil {
+		t.Fatalf("layout preview schema add error = %v", err)
+	}
+	compiled, err := compiler.Compile("layout_preview.json")
+	if err != nil {
+		t.Fatalf("layout preview schema compile error = %v", err)
+	}
+
+	cases := []struct {
+		name      string
+		commandID string
+		clientID  string
+		valid     bool
+	}{
+		{name: "Should accept a durable command without a client", commandID: "desktop.update", valid: true},
+		{
+			name:      "Should accept a client-local desktop switch with a client",
+			commandID: "desktop.switch",
+			clientID:  "client-a",
+			valid:     true,
+		},
+		{name: "Should reject a client-local desktop switch without a client", commandID: "desktop.switch"},
+		{name: "Should reject a client-local window focus without a client", commandID: "window.focus"},
+		{name: "Should reject a client-local window zoom without a client", commandID: "window.zoom"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			payload := map[string]any{
+				"expected_revision": 1,
+				"command_id":        tc.commandID,
+				"payload":           map[string]any{},
+			}
+			if tc.clientID != "" {
+				payload["client_id"] = tc.clientID
+			}
+			rawPayload, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatalf("json.Marshal(layout preview input) error = %v", err)
+			}
+			instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(rawPayload))
+			if err != nil {
+				t.Fatalf("layout preview instance parse error = %v", err)
+			}
+			err = compiled.Validate(instance)
+			if tc.valid && err != nil {
+				t.Fatalf("layout preview schema rejected %s: %v", rawPayload, err)
+			}
+			if !tc.valid && err == nil {
+				t.Fatalf("layout preview schema accepted invalid payload %s", rawPayload)
+			}
+		})
+	}
+}
+
+func assertWindowManagerResultSchemas(t *testing.T, commandRaw, previewRaw json.RawMessage) {
+	t.Helper()
+	type resultSchema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	}
+	var command resultSchema
+	if err := json.Unmarshal(commandRaw, &command); err != nil {
+		t.Fatalf("window manager command output schema unmarshal error = %v", err)
+	}
+	assertSchemaFields(t, "window manager command output", command, []string{
+		"applied", "changes", "client", "command_id", "diagnostics", "rebased_from", "revision", "workspace_id",
+	}, []string{"applied", "changes", "command_id", "diagnostics", "revision", "workspace_id"})
+
+	var preview resultSchema
+	if err := json.Unmarshal(previewRaw, &preview); err != nil {
+		t.Fatalf("window manager preview output schema unmarshal error = %v", err)
+	}
+	assertSchemaFields(t, "window manager preview output", preview, []string{
+		"changed", "changes", "client", "command_id", "diagnostics", "revision", "snapshot", "workspace_id",
+	}, []string{"changed", "changes", "command_id", "diagnostics", "revision", "snapshot", "workspace_id"})
+}
+
+func assertSchemaFields(
+	t *testing.T,
+	owner string,
+	schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	},
+	wantProperties []string,
+	wantRequired []string,
+) {
+	t.Helper()
+	properties := make([]string, 0, len(schema.Properties))
+	for property := range schema.Properties {
+		properties = append(properties, property)
+	}
+	sort.Strings(properties)
+	sort.Strings(schema.Required)
+	if !slices.Equal(properties, wantProperties) {
+		t.Fatalf("%s properties = %#v, want %#v", owner, properties, wantProperties)
+	}
+	if !slices.Equal(schema.Required, wantRequired) {
+		t.Fatalf("%s required = %#v, want %#v", owner, schema.Required, wantRequired)
 	}
 }
 
@@ -1656,6 +1925,14 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("resources toolset expansion = %#v, want plural desired-state resource tools", resourceTools)
 		}
 
+		windowManagerTools, err := catalog.Expand(toolspkg.ToolsetIDWindowManager, universe)
+		if err != nil {
+			t.Fatalf("Expand(window_manager) error = %v", err)
+		}
+		if want := windowManagerExpectedToolIDs(); !slices.Equal(windowManagerTools, want) {
+			t.Fatalf("window-manager expansion = %#v, want %#v", windowManagerTools, want)
+		}
+
 		mcp, err := catalog.Expand(toolspkg.ToolsetIDMCP, universe)
 		if err != nil {
 			t.Fatalf("Expand(mcp) error = %v", err)
@@ -1680,6 +1957,37 @@ func descriptorMap(descriptors []toolspkg.Descriptor) map[toolspkg.ToolID]toolsp
 		values[descriptor.ID] = descriptor
 	}
 	return values
+}
+
+func windowManagerExpectedToolIDs() []toolspkg.ToolID {
+	return []toolspkg.ToolID{
+		toolspkg.ToolIDDesktopClients,
+		toolspkg.ToolIDDesktopCreate,
+		toolspkg.ToolIDDesktopDelete,
+		toolspkg.ToolIDDesktopList,
+		toolspkg.ToolIDDesktopReorder,
+		toolspkg.ToolIDDesktopSwitch,
+		toolspkg.ToolIDDesktopUpdate,
+		toolspkg.ToolIDLayoutApply,
+		toolspkg.ToolIDLayoutArrange,
+		toolspkg.ToolIDLayoutBalance,
+		toolspkg.ToolIDLayoutExport,
+		toolspkg.ToolIDLayoutGet,
+		toolspkg.ToolIDLayoutPreview,
+		toolspkg.ToolIDLayoutRedo,
+		toolspkg.ToolIDLayoutResize,
+		toolspkg.ToolIDLayoutUndo,
+		toolspkg.ToolIDLayoutValidate,
+		toolspkg.ToolIDWindowClose,
+		toolspkg.ToolIDWindowFloat,
+		toolspkg.ToolIDWindowFocus,
+		toolspkg.ToolIDWindowList,
+		toolspkg.ToolIDWindowMove,
+		toolspkg.ToolIDWindowNavigate,
+		toolspkg.ToolIDWindowOpen,
+		toolspkg.ToolIDWindowSwap,
+		toolspkg.ToolIDWindowZoom,
+	}
 }
 
 func requireDescriptorRisk(

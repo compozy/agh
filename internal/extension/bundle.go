@@ -9,6 +9,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 var (
@@ -29,6 +30,7 @@ type BundleProfile struct {
 	Description string               `toml:"description,omitempty" json:"description,omitempty"`
 	Channels    BundleChannelsConfig `toml:"channels"              json:"channels"`
 	Agents      []BundleAgent        `toml:"agents,omitempty"      json:"agents,omitempty"`
+	Layouts     []BundleLayout       `toml:"layouts,omitempty"     json:"layouts,omitempty"`
 	Jobs        []BundleJob          `toml:"jobs,omitempty"        json:"jobs,omitempty"`
 	Triggers    []BundleTrigger      `toml:"triggers,omitempty"    json:"triggers,omitempty"`
 	Bridges     []BundleBridgePreset `toml:"bridges,omitempty"     json:"bridges,omitempty"`
@@ -46,6 +48,12 @@ type BundleAgent struct {
 type BundleAgentSidecar struct {
 	SourcePath string `toml:"-" json:"source_path"`
 	Body       string `toml:"-" json:"body"`
+}
+
+// BundleLayout stores one immutable declarative window layout loaded from the package.
+type BundleLayout struct {
+	Path   string                       `toml:"path,omitempty" json:"path"`
+	Layout windowmanager.LayoutResource `toml:"-"              json:"layout"`
 }
 
 // BundleChannelsConfig declares the canonical channels packaged by a profile.
@@ -122,12 +130,17 @@ type bundleRawProfile struct {
 	Description string               `toml:"description,omitempty" json:"description,omitempty"`
 	Channels    BundleChannelsConfig `toml:"channels"              json:"channels"`
 	Agents      []bundleRawAgent     `toml:"agents,omitempty"      json:"agents,omitempty"`
+	Layouts     []bundleRawLayout    `toml:"layouts,omitempty"     json:"layouts,omitempty"`
 	Jobs        []bundleRawJob       `toml:"jobs,omitempty"        json:"jobs,omitempty"`
 	Triggers    []bundleRawTrigger   `toml:"triggers,omitempty"    json:"triggers,omitempty"`
 	Bridges     []BundleBridgePreset `toml:"bridges,omitempty"     json:"bridges,omitempty"`
 }
 
 type bundleRawAgent struct {
+	Path string `toml:"path" json:"path"`
+}
+
+type bundleRawLayout struct {
 	Path string `toml:"path" json:"path"`
 }
 

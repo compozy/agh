@@ -9,6 +9,8 @@ import { LoopsCatalogLocation } from "./loops-catalog-location";
 import { validateLoopRunsSearch } from "./use-loop-runs-route";
 import { validateLoopsSearch } from "./use-loops-catalog";
 
+const DEFAULT_LOOPS_ROUTE = { pathname: "/loops", search: {} } as const;
+
 function decodePathSegment(value: string): string {
   try {
     return decodeURIComponent(value);
@@ -19,9 +21,7 @@ function decodePathSegment(value: string): string {
 
 /** Loops and Loop runs controller driven exclusively by the logical WM location. */
 export function LoopsWindow({ windowId }: { windowId: string }) {
-  const location = useDesktop(
-    state => state.windows[windowId]?.location ?? { pathname: "/loops", search: {} }
-  );
+  const location = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_LOOPS_ROUTE);
 
   const runDetail = /^\/loop-runs\/([^/]+)$/.exec(location.pathname);
   if (runDetail) return <LoopRunDetailLocation runId={decodePathSegment(runDetail[1])} />;

@@ -54,3 +54,15 @@ func (s *service) classifyNetworkRequest(ctx context.Context, req SectionUpdateR
 	changed := diffNetworkSettings(cfg.Network, *req.Network)
 	return lifecycleForChangedPaths(changed, lifecycle.RestartRequired)
 }
+
+func (s *service) classifyWindowManagerRequest(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) lifecycle.Lifecycle {
+	cfg, _, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return lifecycle.Live
+	}
+	changed := diffWindowManagerSettings(cfg.WindowManager, *req.WindowManager)
+	return lifecycleForChangedPaths(changed, lifecycle.Live)
+}

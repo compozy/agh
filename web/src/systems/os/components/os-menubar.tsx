@@ -7,9 +7,9 @@ import { cn } from "@/lib/utils";
 /**
  * The desktop menubar: AGH mark, workspace trigger, app menus, the approvals
  * bell, the ⌘K palette chip, and Settings. Glass shell chrome (the sanctioned
- * carve-out). Presentational — popovers, workspace switching, and palette
- * behavior are wired by the shell in Task 04; a control renders as a <button>
- * only when a real callback is supplied, otherwise as truthful presentation.
+ * carve-out). The shell owns popovers, workspace switching, and palette
+ * behavior; a control renders as a <button> only when a real callback is
+ * supplied, otherwise as truthful presentation.
  *
  * The mark uses the official `@agh/ui` `Logo` `symbol` at menubar chrome size.
  */

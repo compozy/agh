@@ -62,7 +62,7 @@ func TestResolveManifestRequestExpandsGlobalScopeToGrantedScopeSet(t *testing.T)
 	t.Parallel()
 
 	request, err := ResolveManifestRequest(
-		[]string{string(FamilyTools), string(FamilyMCPServers)},
+		[]string{string(FamilyTools), string(FamilyMCPServers), string(FamilyWindowLayouts)},
 		resources.ResourceScopeKindGlobal,
 	)
 	if err != nil {
@@ -71,8 +71,9 @@ func TestResolveManifestRequestExpandsGlobalScopeToGrantedScopeSet(t *testing.T)
 	if !slices.Equal(request.Kinds, []resources.ResourceKind{
 		resources.ResourceKind("mcp_server"),
 		resources.ResourceKind("tool"),
+		resources.ResourceKind("window_layout"),
 	}) {
-		t.Fatalf("ResolveManifestRequest().Kinds = %#v, want tool+mcp_server", request.Kinds)
+		t.Fatalf("ResolveManifestRequest().Kinds = %#v, want tool+mcp_server+window_layout", request.Kinds)
 	}
 	if !slices.Equal(request.Scopes, []resources.ResourceScopeKind{
 		resources.ResourceScopeKindGlobal,
@@ -100,8 +101,8 @@ func TestAllAndPublishableKindsReturnClonedStaticRegistry(t *testing.T) {
 	}
 
 	publishable := PublishableKinds()
-	if len(publishable) != 8 {
-		t.Fatalf("PublishableKinds() len = %d, want 8", len(publishable))
+	if len(publishable) != 9 {
+		t.Fatalf("PublishableKinds() len = %d, want 9", len(publishable))
 	}
 }
 

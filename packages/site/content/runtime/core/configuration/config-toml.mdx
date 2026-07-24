@@ -31,6 +31,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.  | `socket = "$AGH_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
 | `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.         | providers `5s`, MCP `10s`, bridges `30s`                                                          |
 | `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                               |
+| `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                             |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                              |
 | `[limits]`                           | Daemon-level concurrently running agent cap.                                         | `max_concurrent_agents = 20`                                                                      |
 | `[session]`                          | Daemon-owned automatic title generation for unnamed user sessions.                   | `auto_title_enabled = true`                                                                       |
@@ -128,6 +129,35 @@ bridges = "30s"
 # HTTP/SSE API bind address.
 host = "localhost"
 port = 2123
+
+[window_manager]
+new_window_policy = "floating"
+small_viewport_policy = "stack"
+focus_policy = "click_directional"
+focus_wrap = false
+focus_follows_pointer = false
+raise_on_focus = true
+drag_away_policy = "window"
+group_move_modifier = "alt"
+history_limit = 50
+desktop_transition = "slide"
+
+[window_manager.gaps]
+inner = 8
+top = 8
+right = 10
+bottom = 8
+left = 10
+
+[window_manager.snap]
+edge_band = 32
+corner_reach = 150
+exit_slack = 16
+repeat_ratios = [0.5, 0.666667, 0.333333]
+
+[window_manager.bindings]
+top_center = "zoom"
+bottom_center = "reserved"
 
 [defaults]
 # Agent name used when a command or API request does not specify one.
@@ -714,6 +744,49 @@ Changing this field is restart-required.
 | ------ | ------- | ----------- | ------------------------------- | --------------------- |
 | `host` | string  | `localhost` | Non-empty host or bind address. | HTTP/SSE server host. |
 | `port` | integer | `2123`      | `1` through `65535`             | HTTP/SSE server port. |
+
+## `[window_manager]`
+
+Window-manager defaults are global desired state and may be overridden by the same typed fields in
+a workspace config overlay. Every field is live-applied as one validated candidate; an invalid
+field writes/applies nothing and leaves the previous active generation in place. Operators can use
+Settings › Layouts, while agents can use `agh config` or the typed
+`GET/PATCH /api/settings/window-manager` surface and inspect config apply history.
+
+| Field                   | Type    | Default             | Valid values                              | Description                                               |
+| ----------------------- | ------- | ------------------- | ----------------------------------------- | --------------------------------------------------------- |
+| `new_window_policy`     | string  | `floating`          | `floating`, `beside_focus`                | Initial structural placement.                             |
+| `small_viewport_policy` | string  | `stack`             | `stack`, `reject`                         | Projection behavior when minimum sizes cannot fit.        |
+| `focus_policy`          | string  | `click_directional` | `click_directional`, `directional`        | Enabled focus inputs.                                     |
+| `focus_wrap`            | boolean | `false`             | `true` or `false`                         | Whether directional focus wraps at a desktop boundary.    |
+| `focus_follows_pointer` | boolean | `false`             | `true` or `false`                         | Whether pointer entry changes client-local focus.         |
+| `raise_on_focus`        | boolean | `true`              | `true` or `false`                         | Whether focusing a floating window raises it.             |
+| `drag_away_policy`      | string  | `window`            | `window`, `group`                         | Default detach scope for a tiled drag.                    |
+| `group_move_modifier`   | string  | `alt`               | `alt`, `control`, `meta`, `shift`, `none` | Modifier that temporarily moves the complete group.       |
+| `history_limit`         | integer | `50`                | `1` through `500`                         | Maximum workspace-scoped layout undo entries.             |
+| `desktop_transition`    | string  | `slide`             | `slide`, `crossfade`, `instant`           | Desktop transition; reduced motion remains authoritative. |
+
+### `[window_manager.gaps]`
+
+`inner`, `top`, `right`, `bottom`, and `left` are integer CSS pixels from `0` through `64`.
+Clients apply them to the measured work area; normalized durable geometry never stores pixels.
+
+### `[window_manager.snap]`
+
+| Field           | Type         | Default                     | Validation                                                   |
+| --------------- | ------------ | --------------------------- | ------------------------------------------------------------ |
+| `edge_band`     | integer      | `32`                        | `4` through `128` pixels.                                    |
+| `corner_reach`  | integer      | `150`                       | `16` through `512` pixels.                                   |
+| `exit_slack`    | integer      | `16`                        | `0` through `64` pixels.                                     |
+| `repeat_ratios` | number array | `[0.5, 0.666667, 0.333333]` | One to eight unique finite ratios, each `0.1` through `0.9`. |
+
+### `[window_manager.bindings]` and shortcuts
+
+`top_center` and `bottom_center` accept `zoom`, `reserved`, or `none`. A target-less `stack` action
+is invalid because stacking requires an occupied target window. `[window_manager.shortcuts]` maps
+window command-registry IDs to unique, non-empty chord strings; conflicting chords reject the whole
+candidate. Named any/landscape/portrait layout profiles are declarative `window_layout` resources,
+not a second config source.
 
 ## `[defaults]`
 

@@ -771,6 +771,12 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	assertJSONRoundTrip(t, "ContextPostCompactPatch", ContextPostCompactPatch{
 		Strategy: &strategy,
 	})
+	assertJSONRoundTrip(
+		t,
+		"WindowManagerPayload",
+		windowManagerDispatchTestPayload(HookWindowManagerLayoutApplied),
+	)
+	assertJSONRoundTrip(t, "WindowManagerObservationPatch", WindowManagerObservationPatch{})
 }
 
 func TestNetworkPayloadExcludesRawMessageMaterial(t *testing.T) {

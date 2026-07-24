@@ -2956,6 +2956,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/window-manager": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the window-manager settings section */
+    get: operations["getSettingsWindowManager"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the window-manager settings section */
+    patch: operations["updateSettingsWindowManager"];
+    trace?: never;
+  };
   "/api/skills": {
     parameters: {
       query?: never;
@@ -4179,76 +4197,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/workspaces/{workspace_id}/desktop-state": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List one workspace desktop-state snapshot */
-    get: operations["listDesktopState"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/workspaces/{workspace_id}/desktop-state/apply": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Atomically mutate workspace desktop state */
-    post: operations["applyDesktopState"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/workspaces/{workspace_id}/desktop-state/stream": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Stream one workspace desktop-state snapshot and deltas */
-    get: operations["streamDesktopState"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/workspaces/{workspace_id}/desktop-state/{key}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Read one workspace desktop-state value */
-    get: operations["getDesktopState"];
-    /** Create or replace one workspace desktop-state value */
-    put: operations["putDesktopState"];
-    post?: never;
-    /** Delete one workspace desktop-state value */
-    delete: operations["deleteDesktopState"];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/workspaces/{workspace_id}/hooks/runs": {
     parameters: {
       query?: never;
@@ -5330,263 +5278,183 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/window-manager": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one workspace window-manager snapshot */
+    get: operations["getWindowManagerSnapshot"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/window-manager/clients": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List connected window-manager clients */
+    get: operations["listWindowManagerClients"];
+    put?: never;
+    /** Register a window-manager client view */
+    post: operations["registerWindowManagerClient"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/window-manager/clients/{client_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Unregister a window-manager client view */
+    delete: operations["unregisterWindowManagerClient"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/window-manager/commands": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Execute one semantic window-manager command */
+    post: operations["executeWindowManagerCommand"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/window-manager/layout": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Export one declarative window layout */
+    get: operations["exportWindowManagerLayout"];
+    /** Replace one declarative window layout */
+    put: operations["replaceWindowManagerLayout"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/window-manager/layout-profiles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List layout profiles visible to one workspace */
+    get: operations["listWindowManagerLayoutProfiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Create or replace one workspace-visible layout profile */
+    put: operations["putWindowManagerLayoutProfile"];
+    post?: never;
+    /** Delete one workspace-visible layout profile */
+    delete: operations["deleteWindowManagerLayoutProfile"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/window-manager/layout/validate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Validate one declarative window layout */
+    post: operations["validateWindowManagerLayout"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/window-manager/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Preview one semantic window-manager command */
+    post: operations["previewWindowManagerCommand"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/window-manager/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream a topology and optional client presentation fence */
+    get: operations["streamWindowManager"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
-    DesktopStateAckFrame: {
-      /** @enum {string} */
-      op: "ack";
-      req: string;
-      results: {
-        key: string;
-        rev: number;
-        seq: number;
-      }[];
-    };
-    DesktopStateAckResult: {
-      key: string;
-      rev: number;
-      seq: number;
-    };
-    DesktopStateApplyFrame: {
-      /** @enum {string} */
-      op: "apply";
-      ops: {
-        if_rev?: number;
-        key: string;
-        /** @enum {string} */
-        kind: "put" | "delete";
-        value?: {
-          [key: string]: unknown;
-        } | null;
-      }[];
-      req: string;
-    };
-    DesktopStateApplyOp: {
-      if_rev?: number;
-      key: string;
-      /** @enum {string} */
-      kind: "put" | "delete";
-      value?: {
-        [key: string]: unknown;
-      } | null;
-    };
-    DesktopStateApplyRequest: {
-      ops: {
-        if_rev?: number;
-        key: string;
-        /** @enum {string} */
-        kind: "put" | "delete";
-        value?: {
-          [key: string]: unknown;
-        } | null;
-      }[];
-    };
-    DesktopStateApplyResponse: {
-      results: {
-        deleted: boolean;
-        key: string;
-        rev: number;
-        seq: number;
-        /** Format: date-time */
-        updated_at: string;
-        value: {
-          [key: string]: unknown;
-        } | null;
-      }[];
-    };
-    DesktopStateEntry: {
-      deleted: boolean;
-      key: string;
-      rev: number;
-      seq: number;
-      /** Format: date-time */
-      updated_at: string;
-      value: {
-        [key: string]: unknown;
-      } | null;
-    };
-    DesktopStateErrorFrame: {
-      /** @enum {string} */
-      code:
-        | "desktop_state_not_found"
-        | "workspace_not_found"
-        | "desktop_state_rev_conflict"
-        | "desktop_state_value_too_large"
-        | "desktop_state_key_quota_exceeded"
-        | "desktop_state_invalid_key"
-        | "desktop_state_invalid_value"
-        | "desktop_state_slow_consumer";
-      key?: string;
-      /** @enum {string} */
-      op: "error";
-      req?: string;
-    };
-    DesktopStateErrorPayload: {
-      /** @enum {string} */
-      code:
-        | "desktop_state_not_found"
-        | "workspace_not_found"
-        | "desktop_state_rev_conflict"
-        | "desktop_state_value_too_large"
-        | "desktop_state_key_quota_exceeded"
-        | "desktop_state_invalid_key"
-        | "desktop_state_invalid_value"
-        | "desktop_state_slow_consumer";
-      error: string;
-      key?: string;
-    };
-    DesktopStateEventFrame: {
-      entry: {
-        deleted: boolean;
-        key: string;
-        rev: number;
-        seq: number;
-        /** Format: date-time */
-        updated_at: string;
-        value: {
-          [key: string]: unknown;
-        } | null;
-      };
-      /** @enum {string} */
-      op: "event";
-      origin: string;
-    };
-    DesktopStateListResponse: {
-      as_of_seq: number;
-      entries: {
-        deleted: boolean;
-        key: string;
-        rev: number;
-        seq: number;
-        /** Format: date-time */
-        updated_at: string;
-        value: {
-          [key: string]: unknown;
-        } | null;
-      }[];
-    };
-    DesktopStatePingFrame: {
-      /** @enum {string} */
-      op: "ping";
-    };
-    DesktopStatePongFrame: {
-      /** @enum {string} */
-      op: "pong";
-    };
-    DesktopStatePutRequest: {
-      if_rev?: number;
-      value: {
-        [key: string]: unknown;
-      };
-    };
-    DesktopStateSnapshotFrame: {
-      as_of_seq: number;
-      entries: {
-        deleted: boolean;
-        key: string;
-        rev: number;
-        seq: number;
-        /** Format: date-time */
-        updated_at: string;
-        value: {
-          [key: string]: unknown;
-        } | null;
-      }[];
-      /** @enum {string} */
-      op: "snapshot";
-    };
-    DesktopStateSubscribeFrame: {
-      /** @enum {string} */
-      op: "sub";
-    };
-    DesktopStateWebSocketContract: {
-      ack: {
-        /** @enum {string} */
-        op: "ack";
-        req: string;
-        results: {
-          key: string;
-          rev: number;
-          seq: number;
-        }[];
-      };
-      apply: {
-        /** @enum {string} */
-        op: "apply";
-        ops: {
-          if_rev?: number;
-          key: string;
-          /** @enum {string} */
-          kind: "put" | "delete";
-          value?: {
-            [key: string]: unknown;
-          } | null;
-        }[];
-        req: string;
-      };
-      error: {
-        /** @enum {string} */
-        code:
-          | "desktop_state_not_found"
-          | "workspace_not_found"
-          | "desktop_state_rev_conflict"
-          | "desktop_state_value_too_large"
-          | "desktop_state_key_quota_exceeded"
-          | "desktop_state_invalid_key"
-          | "desktop_state_invalid_value"
-          | "desktop_state_slow_consumer";
-        key?: string;
-        /** @enum {string} */
-        op: "error";
-        req?: string;
-      };
-      event: {
-        entry: {
-          deleted: boolean;
-          key: string;
-          rev: number;
-          seq: number;
-          /** Format: date-time */
-          updated_at: string;
-          value: {
-            [key: string]: unknown;
-          } | null;
-        };
-        /** @enum {string} */
-        op: "event";
-        origin: string;
-      };
-      ping: {
-        /** @enum {string} */
-        op: "ping";
-      };
-      pong: {
-        /** @enum {string} */
-        op: "pong";
-      };
-      snapshot: {
-        as_of_seq: number;
-        entries: {
-          deleted: boolean;
-          key: string;
-          rev: number;
-          seq: number;
-          /** Format: date-time */
-          updated_at: string;
-          value: {
-            [key: string]: unknown;
-          } | null;
-        }[];
-        /** @enum {string} */
-        op: "snapshot";
-      };
-      subscribe: {
-        /** @enum {string} */
-        op: "sub";
-      };
-    };
     LoopGraph: {
       edges: ({
         from: string;
@@ -5683,6 +5551,4426 @@ export interface components {
       } & {
         [key: string]: unknown;
       })[];
+    };
+    WindowManagerArrangeLayoutPayload: {
+      /** @enum {string} */
+      arrangement: "horizontal" | "vertical" | "grid" | "stack";
+      desktop_id: string;
+      frame: {
+        /** Format: double */
+        height: number;
+        /** Format: double */
+        width: number;
+        /** Format: double */
+        x: number;
+        /** Format: double */
+        y: number;
+      };
+      group_id: string;
+      resource_id?: string;
+      window_ids: string[];
+    };
+    WindowManagerBalanceLayoutPayload: {
+      group_id?: string | null;
+      split_id?: string | null;
+    };
+    WindowManagerClientFrame: {
+      client: {
+        active_desktop_id: string;
+        client_id: string;
+        /** Format: date-time */
+        connected_at: string;
+        focus_order: string[];
+        focused_window_id?: string | null;
+        presentation_revision: number;
+        workspace_id: string;
+      };
+      revision: number;
+      /** @enum {string} */
+      type: "client";
+      workspace_id: string;
+    };
+    WindowManagerClientRegistration: {
+      active_desktop_id?: string;
+      client_id?: string;
+      workspace_id: string;
+    };
+    WindowManagerClientView: {
+      active_desktop_id: string;
+      client_id: string;
+      /** Format: date-time */
+      connected_at: string;
+      focus_order: string[];
+      focused_window_id?: string | null;
+      presentation_revision: number;
+      workspace_id: string;
+    };
+    WindowManagerClientsResponse: {
+      clients: {
+        active_desktop_id: string;
+        client_id: string;
+        /** Format: date-time */
+        connected_at: string;
+        focus_order: string[];
+        focused_window_id?: string | null;
+        presentation_revision: number;
+        workspace_id: string;
+      }[];
+      workspace_id: string;
+    };
+    WindowManagerCloseWindowPayload: {
+      minimize: boolean;
+      window_id: string;
+    };
+    /** @description Semantic window-manager command selected by command_id */
+    WindowManagerCommandRequest:
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "desktop.create";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerCreateDesktopPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "desktop.update";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerUpdateDesktopPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "desktop.reorder";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerReorderDesktopPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id: string;
+          /** @enum {string} */
+          command_id: "desktop.switch";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerSwitchDesktopPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "desktop.delete";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerDeleteDesktopPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "window.open";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerOpenWindowPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "window.navigate";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerNavigateWindowPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "window.close";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerCloseWindowPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id: string;
+          /** @enum {string} */
+          command_id: "window.focus";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerFocusWindowPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "window.move";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerMoveWindowPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "window.swap";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerSwapWindowsPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "window.toggle_floating";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerToggleFloatingPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id: string;
+          /** @enum {string} */
+          command_id: "window.zoom";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerZoomWindowPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "layout.arrange";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerArrangeLayoutPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "layout.resize";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerResizeLayoutPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "layout.balance";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerBalanceLayoutPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "layout.undo";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerUndoLayoutPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "layout.redo";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerRedoLayoutPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        }
+      | {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "layout.replace";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerReplaceLayoutPayload"];
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        };
+    WindowManagerCreateDesktopPayload: {
+      after_id?: string | null;
+      desktop_id: string;
+      focus_owner?: string | null;
+      name: string;
+      /** @enum {string} */
+      purpose: "standard" | "focus";
+    };
+    WindowManagerDeleteDesktopPayload: {
+      desktop_id: string;
+      destination_id?: string | null;
+    };
+    WindowManagerDesktop: {
+      floating: string[];
+      focus_owner?: string | null;
+      groups: {
+        frame: {
+          /** Format: double */
+          height: number;
+          /** Format: double */
+          width: number;
+          /** Format: double */
+          x: number;
+          /** Format: double */
+          y: number;
+        };
+        id: string;
+        root: {
+          active_id?: string | null;
+          /** @enum {string|null} */
+          axis?: "horizontal" | "vertical" | null;
+          children?: components["schemas"]["WindowManagerLayoutNode"][];
+          id: string;
+          /** @enum {string} */
+          kind: "leaf" | "split" | "stack";
+          weights?: number[];
+          window_id?: string | null;
+          window_ids?: string[];
+        };
+      }[];
+      id: string;
+      name: string;
+      order: number;
+      /** @enum {string} */
+      purpose: "standard" | "focus";
+    };
+    WindowManagerErrorFrame: {
+      error: {
+        /** @enum {string} */
+        code:
+          | "window_manager_workspace_not_found"
+          | "window_manager_revision_conflict"
+          | "window_manager_invalid_command"
+          | "window_manager_invalid_topology"
+          | "window_manager_desktop_not_found"
+          | "window_manager_window_not_found"
+          | "window_manager_client_not_found"
+          | "window_manager_destination_required"
+          | "window_manager_final_desktop"
+          | "window_manager_history_boundary"
+          | "window_manager_layout_not_found"
+          | "window_manager_slow_consumer"
+          | "window_manager_unavailable";
+        conflicts?: {
+          code: string;
+          current_id?: string;
+          entity_id?: string;
+        }[];
+        current_revision?: number;
+        diagnostics?: {
+          code: string;
+          message: string;
+          path?: string;
+        }[];
+        error: string;
+        workspace_id: string;
+      };
+      /** @enum {string} */
+      type: "error";
+    };
+    WindowManagerErrorPayload: {
+      /** @enum {string} */
+      code:
+        | "window_manager_workspace_not_found"
+        | "window_manager_revision_conflict"
+        | "window_manager_invalid_command"
+        | "window_manager_invalid_topology"
+        | "window_manager_desktop_not_found"
+        | "window_manager_window_not_found"
+        | "window_manager_client_not_found"
+        | "window_manager_destination_required"
+        | "window_manager_final_desktop"
+        | "window_manager_history_boundary"
+        | "window_manager_layout_not_found"
+        | "window_manager_slow_consumer"
+        | "window_manager_unavailable";
+      conflicts?: {
+        code: string;
+        current_id?: string;
+        entity_id?: string;
+      }[];
+      current_revision?: number;
+      diagnostics?: {
+        code: string;
+        message: string;
+        path?: string;
+      }[];
+      error: string;
+      workspace_id: string;
+    };
+    WindowManagerEventFrame: {
+      event: {
+        actor: {
+          id?: string;
+          kind?: string;
+        };
+        changes: {
+          client_ids?: string[];
+          desktop_ids?: string[];
+          group_ids?: string[];
+          node_ids?: string[];
+          window_ids?: string[];
+        };
+        /** @enum {string} */
+        command_id:
+          | "desktop.create"
+          | "desktop.update"
+          | "desktop.reorder"
+          | "desktop.switch"
+          | "desktop.delete"
+          | "window.open"
+          | "window.navigate"
+          | "window.close"
+          | "window.focus"
+          | "window.move"
+          | "window.swap"
+          | "window.toggle_floating"
+          | "window.zoom"
+          | "layout.arrange"
+          | "layout.resize"
+          | "layout.balance"
+          | "layout.undo"
+          | "layout.redo"
+          | "layout.replace";
+        /** Format: date-time */
+        occurred_at: string;
+        origin?: string;
+        revision: number;
+        workspace_id: string;
+      };
+      revision: number;
+      /** @enum {string} */
+      type: "event";
+      workspace_id: string;
+    };
+    WindowManagerFocusWindowPayload: {
+      /** @enum {string} */
+      direction?: "left" | "right" | "up" | "down";
+      window_id?: string | null;
+    };
+    WindowManagerLayoutDocument: {
+      desktops: {
+        floating: string[];
+        focus_owner?: string | null;
+        groups: {
+          frame: {
+            /** Format: double */
+            height: number;
+            /** Format: double */
+            width: number;
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+          };
+          id: string;
+          root: {
+            active_id?: string | null;
+            /** @enum {string|null} */
+            axis?: "horizontal" | "vertical" | null;
+            children?: components["schemas"]["WindowManagerLayoutNode"][];
+            id: string;
+            /** @enum {string} */
+            kind: "leaf" | "split" | "stack";
+            weights?: number[];
+            window_id?: string | null;
+            window_ids?: string[];
+          };
+        }[];
+        id: string;
+        name: string;
+        order: number;
+        /** @enum {string} */
+        purpose: "standard" | "focus";
+      }[];
+      overrides: {
+        bindings?: {
+          bottom_center: string;
+          top_center: string;
+        } | null;
+        desktop_transition?: string | null;
+        drag_away_policy?: string | null;
+        focus_follows_pointer?: boolean | null;
+        focus_policy?: string | null;
+        focus_wrap?: boolean | null;
+        gaps?: {
+          /** Format: double */
+          bottom: number;
+          /** Format: double */
+          inner: number;
+          /** Format: double */
+          left: number;
+          /** Format: double */
+          right: number;
+          /** Format: double */
+          top: number;
+        } | null;
+        group_move_modifier?: string | null;
+        history_limit?: number | null;
+        new_window_policy?: string | null;
+        raise_on_focus?: boolean | null;
+        shortcuts?: {
+          [key: string]: string;
+        };
+        small_viewport_policy?: string | null;
+        snap?: {
+          /** Format: double */
+          corner_reach: number;
+          /** Format: double */
+          edge_band: number;
+          /** Format: double */
+          exit_slack: number;
+          repeat_ratios: number[];
+        } | null;
+      };
+      version: number;
+      windows: {
+        [key: string]: {
+          app: string;
+          desktop_id: string;
+          floating_rect: {
+            /** Format: double */
+            height: number;
+            /** Format: double */
+            width: number;
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+          };
+          id: string;
+          instance_key?: string | null;
+          minimized: boolean;
+          /** @enum {string} */
+          placement: "tiled" | "stacked" | "floating";
+          return_anchor?: {
+            child_index?: number | null;
+            desktop_id: string;
+            group_id?: string | null;
+            neighbor_ids?: string[];
+            parent_split_id?: string | null;
+            source_group?: {
+              frame: {
+                /** Format: double */
+                height: number;
+                /** Format: double */
+                width: number;
+                /** Format: double */
+                x: number;
+                /** Format: double */
+                y: number;
+              };
+              id: string;
+              root: {
+                active_id?: string | null;
+                /** @enum {string|null} */
+                axis?: "horizontal" | "vertical" | null;
+                children?: components["schemas"]["WindowManagerLayoutNode"][];
+                id: string;
+                /** @enum {string} */
+                kind: "leaf" | "split" | "stack";
+                weights?: number[];
+                window_id?: string | null;
+                window_ids?: string[];
+              };
+            } | null;
+            source_revision: number;
+            /** Format: double */
+            weight?: number | null;
+          } | null;
+          route: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          };
+        };
+      };
+      workspace_id: string;
+    };
+    WindowManagerLayoutGroup: {
+      frame: {
+        /** Format: double */
+        height: number;
+        /** Format: double */
+        width: number;
+        /** Format: double */
+        x: number;
+        /** Format: double */
+        y: number;
+      };
+      id: string;
+      root: {
+        active_id?: string | null;
+        /** @enum {string|null} */
+        axis?: "horizontal" | "vertical" | null;
+        children?: components["schemas"]["WindowManagerLayoutNode"][];
+        id: string;
+        /** @enum {string} */
+        kind: "leaf" | "split" | "stack";
+        weights?: number[];
+        window_id?: string | null;
+        window_ids?: string[];
+      };
+    };
+    WindowManagerLayoutNode: {
+      active_id?: string | null;
+      /** @enum {string|null} */
+      axis?: "horizontal" | "vertical" | null;
+      children?: components["schemas"]["WindowManagerLayoutNode"][];
+      id: string;
+      /** @enum {string} */
+      kind: "leaf" | "split" | "stack";
+      weights?: number[];
+      window_id?: string | null;
+      window_ids?: string[];
+    };
+    WindowManagerLayoutReplaceRequest: {
+      actor: {
+        id?: string;
+        kind?: string;
+      };
+      client_id?: string | null;
+      document: {
+        desktops: {
+          floating: string[];
+          focus_owner?: string | null;
+          groups: {
+            frame: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            root: {
+              active_id?: string | null;
+              /** @enum {string|null} */
+              axis?: "horizontal" | "vertical" | null;
+              children?: components["schemas"]["WindowManagerLayoutNode"][];
+              id: string;
+              /** @enum {string} */
+              kind: "leaf" | "split" | "stack";
+              weights?: number[];
+              window_id?: string | null;
+              window_ids?: string[];
+            };
+          }[];
+          id: string;
+          name: string;
+          order: number;
+          /** @enum {string} */
+          purpose: "standard" | "focus";
+        }[];
+        overrides: {
+          bindings?: {
+            bottom_center: string;
+            top_center: string;
+          } | null;
+          desktop_transition?: string | null;
+          drag_away_policy?: string | null;
+          focus_follows_pointer?: boolean | null;
+          focus_policy?: string | null;
+          focus_wrap?: boolean | null;
+          gaps?: {
+            /** Format: double */
+            bottom: number;
+            /** Format: double */
+            inner: number;
+            /** Format: double */
+            left: number;
+            /** Format: double */
+            right: number;
+            /** Format: double */
+            top: number;
+          } | null;
+          group_move_modifier?: string | null;
+          history_limit?: number | null;
+          new_window_policy?: string | null;
+          raise_on_focus?: boolean | null;
+          shortcuts?: {
+            [key: string]: string;
+          };
+          small_viewport_policy?: string | null;
+          snap?: {
+            /** Format: double */
+            corner_reach: number;
+            /** Format: double */
+            edge_band: number;
+            /** Format: double */
+            exit_slack: number;
+            repeat_ratios: number[];
+          } | null;
+        };
+        version: number;
+        windows: {
+          [key: string]: {
+            app: string;
+            desktop_id: string;
+            floating_rect: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            instance_key?: string | null;
+            minimized: boolean;
+            /** @enum {string} */
+            placement: "tiled" | "stacked" | "floating";
+            return_anchor?: {
+              child_index?: number | null;
+              desktop_id: string;
+              group_id?: string | null;
+              neighbor_ids?: string[];
+              parent_split_id?: string | null;
+              source_group?: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              } | null;
+              source_revision: number;
+              /** Format: double */
+              weight?: number | null;
+            } | null;
+            route: {
+              pathname: string;
+              search: {
+                [key: string]: unknown;
+              };
+            };
+          };
+        };
+        workspace_id: string;
+      };
+      expected_revision: number;
+      origin: string;
+      workspace_id: string;
+    };
+    WindowManagerLayoutValidationRequest: {
+      document: {
+        desktops: {
+          floating: string[];
+          focus_owner?: string | null;
+          groups: {
+            frame: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            root: {
+              active_id?: string | null;
+              /** @enum {string|null} */
+              axis?: "horizontal" | "vertical" | null;
+              children?: components["schemas"]["WindowManagerLayoutNode"][];
+              id: string;
+              /** @enum {string} */
+              kind: "leaf" | "split" | "stack";
+              weights?: number[];
+              window_id?: string | null;
+              window_ids?: string[];
+            };
+          }[];
+          id: string;
+          name: string;
+          order: number;
+          /** @enum {string} */
+          purpose: "standard" | "focus";
+        }[];
+        overrides: {
+          bindings?: {
+            bottom_center: string;
+            top_center: string;
+          } | null;
+          desktop_transition?: string | null;
+          drag_away_policy?: string | null;
+          focus_follows_pointer?: boolean | null;
+          focus_policy?: string | null;
+          focus_wrap?: boolean | null;
+          gaps?: {
+            /** Format: double */
+            bottom: number;
+            /** Format: double */
+            inner: number;
+            /** Format: double */
+            left: number;
+            /** Format: double */
+            right: number;
+            /** Format: double */
+            top: number;
+          } | null;
+          group_move_modifier?: string | null;
+          history_limit?: number | null;
+          new_window_policy?: string | null;
+          raise_on_focus?: boolean | null;
+          shortcuts?: {
+            [key: string]: string;
+          };
+          small_viewport_policy?: string | null;
+          snap?: {
+            /** Format: double */
+            corner_reach: number;
+            /** Format: double */
+            edge_band: number;
+            /** Format: double */
+            exit_slack: number;
+            repeat_ratios: number[];
+          } | null;
+        };
+        version: number;
+        windows: {
+          [key: string]: {
+            app: string;
+            desktop_id: string;
+            floating_rect: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            instance_key?: string | null;
+            minimized: boolean;
+            /** @enum {string} */
+            placement: "tiled" | "stacked" | "floating";
+            return_anchor?: {
+              child_index?: number | null;
+              desktop_id: string;
+              group_id?: string | null;
+              neighbor_ids?: string[];
+              parent_split_id?: string | null;
+              source_group?: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              } | null;
+              source_revision: number;
+              /** Format: double */
+              weight?: number | null;
+            } | null;
+            route: {
+              pathname: string;
+              search: {
+                [key: string]: unknown;
+              };
+            };
+          };
+        };
+        workspace_id: string;
+      };
+      workspace_id: string;
+    };
+    WindowManagerLayoutValidationResponse: {
+      diagnostics?: {
+        code: string;
+        message: string;
+        path?: string;
+      }[];
+      valid: boolean;
+      workspace_id: string;
+    };
+    WindowManagerMoveWindowPayload: {
+      destination_desktop_id: string;
+      floating_rect?: {
+        /** Format: double */
+        height: number;
+        /** Format: double */
+        width: number;
+        /** Format: double */
+        x: number;
+        /** Format: double */
+        y: number;
+      } | null;
+      move_group: boolean;
+      /** @enum {string} */
+      placement: "floating" | "before" | "after" | "left" | "right" | "top" | "bottom" | "center";
+      target_window_id?: string | null;
+      window_id: string;
+    };
+    WindowManagerNavigateWindowPayload: {
+      route: {
+        pathname: string;
+        search: {
+          [key: string]: unknown;
+        };
+      };
+      window_id: string;
+    };
+    WindowManagerOpenWindowPayload: {
+      restore_window_id?: string | null;
+      window: {
+        app: string;
+        desktop_id: string;
+        floating_rect: {
+          /** Format: double */
+          height: number;
+          /** Format: double */
+          width: number;
+          /** Format: double */
+          x: number;
+          /** Format: double */
+          y: number;
+        };
+        id: string;
+        insert_tiled: boolean;
+        instance_key?: string | null;
+        route: {
+          pathname: string;
+          search: {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+    WindowManagerPreview: {
+      changed: boolean;
+      changes: {
+        client_ids?: string[];
+        desktop_ids?: string[];
+        group_ids?: string[];
+        node_ids?: string[];
+        window_ids?: string[];
+      };
+      client?: {
+        active_desktop_id: string;
+        client_id: string;
+        /** Format: date-time */
+        connected_at: string;
+        focus_order: string[];
+        focused_window_id?: string | null;
+        presentation_revision: number;
+        workspace_id: string;
+      } | null;
+      diagnostics?: {
+        code: string;
+        message: string;
+        path?: string;
+      }[];
+      snapshot: {
+        desktops: {
+          floating: string[];
+          focus_owner?: string | null;
+          groups: {
+            frame: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            root: {
+              active_id?: string | null;
+              /** @enum {string|null} */
+              axis?: "horizontal" | "vertical" | null;
+              children?: components["schemas"]["WindowManagerLayoutNode"][];
+              id: string;
+              /** @enum {string} */
+              kind: "leaf" | "split" | "stack";
+              weights?: number[];
+              window_id?: string | null;
+              window_ids?: string[];
+            };
+          }[];
+          id: string;
+          name: string;
+          order: number;
+          /** @enum {string} */
+          purpose: "standard" | "focus";
+        }[];
+        history: {
+          redo: {
+            actor: {
+              id?: string;
+              kind?: string;
+            };
+            after: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            before: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            /** @enum {string} */
+            command_id:
+              | "desktop.create"
+              | "desktop.update"
+              | "desktop.reorder"
+              | "desktop.switch"
+              | "desktop.delete"
+              | "window.open"
+              | "window.navigate"
+              | "window.close"
+              | "window.focus"
+              | "window.move"
+              | "window.swap"
+              | "window.toggle_floating"
+              | "window.zoom"
+              | "layout.arrange"
+              | "layout.resize"
+              | "layout.balance"
+              | "layout.undo"
+              | "layout.redo"
+              | "layout.replace";
+            /** Format: date-time */
+            created_at: string;
+            origin?: string;
+          }[];
+          undo: {
+            actor: {
+              id?: string;
+              kind?: string;
+            };
+            after: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            before: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            /** @enum {string} */
+            command_id:
+              | "desktop.create"
+              | "desktop.update"
+              | "desktop.reorder"
+              | "desktop.switch"
+              | "desktop.delete"
+              | "window.open"
+              | "window.navigate"
+              | "window.close"
+              | "window.focus"
+              | "window.move"
+              | "window.swap"
+              | "window.toggle_floating"
+              | "window.zoom"
+              | "layout.arrange"
+              | "layout.resize"
+              | "layout.balance"
+              | "layout.undo"
+              | "layout.redo"
+              | "layout.replace";
+            /** Format: date-time */
+            created_at: string;
+            origin?: string;
+          }[];
+        };
+        overrides: {
+          bindings?: {
+            bottom_center: string;
+            top_center: string;
+          } | null;
+          desktop_transition?: string | null;
+          drag_away_policy?: string | null;
+          focus_follows_pointer?: boolean | null;
+          focus_policy?: string | null;
+          focus_wrap?: boolean | null;
+          gaps?: {
+            /** Format: double */
+            bottom: number;
+            /** Format: double */
+            inner: number;
+            /** Format: double */
+            left: number;
+            /** Format: double */
+            right: number;
+            /** Format: double */
+            top: number;
+          } | null;
+          group_move_modifier?: string | null;
+          history_limit?: number | null;
+          new_window_policy?: string | null;
+          raise_on_focus?: boolean | null;
+          shortcuts?: {
+            [key: string]: string;
+          };
+          small_viewport_policy?: string | null;
+          snap?: {
+            /** Format: double */
+            corner_reach: number;
+            /** Format: double */
+            edge_band: number;
+            /** Format: double */
+            exit_slack: number;
+            repeat_ratios: number[];
+          } | null;
+        };
+        revision: number;
+        /** Format: date-time */
+        updated_at: string;
+        version: number;
+        windows: {
+          [key: string]: {
+            app: string;
+            desktop_id: string;
+            floating_rect: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            instance_key?: string | null;
+            minimized: boolean;
+            /** @enum {string} */
+            placement: "tiled" | "stacked" | "floating";
+            return_anchor?: {
+              child_index?: number | null;
+              desktop_id: string;
+              group_id?: string | null;
+              neighbor_ids?: string[];
+              parent_split_id?: string | null;
+              source_group?: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              } | null;
+              source_revision: number;
+              /** Format: double */
+              weight?: number | null;
+            } | null;
+            route: {
+              pathname: string;
+              search: {
+                [key: string]: unknown;
+              };
+            };
+          };
+        };
+        workspace_id: string;
+      };
+    };
+    WindowManagerRedoLayoutPayload: unknown;
+    WindowManagerReorderDesktopPayload: {
+      desktop_id: string;
+      order: number;
+    };
+    WindowManagerReplaceLayoutPayload: {
+      document: {
+        desktops: {
+          floating: string[];
+          focus_owner?: string | null;
+          groups: {
+            frame: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            root: {
+              active_id?: string | null;
+              /** @enum {string|null} */
+              axis?: "horizontal" | "vertical" | null;
+              children?: components["schemas"]["WindowManagerLayoutNode"][];
+              id: string;
+              /** @enum {string} */
+              kind: "leaf" | "split" | "stack";
+              weights?: number[];
+              window_id?: string | null;
+              window_ids?: string[];
+            };
+          }[];
+          id: string;
+          name: string;
+          order: number;
+          /** @enum {string} */
+          purpose: "standard" | "focus";
+        }[];
+        overrides: {
+          bindings?: {
+            bottom_center: string;
+            top_center: string;
+          } | null;
+          desktop_transition?: string | null;
+          drag_away_policy?: string | null;
+          focus_follows_pointer?: boolean | null;
+          focus_policy?: string | null;
+          focus_wrap?: boolean | null;
+          gaps?: {
+            /** Format: double */
+            bottom: number;
+            /** Format: double */
+            inner: number;
+            /** Format: double */
+            left: number;
+            /** Format: double */
+            right: number;
+            /** Format: double */
+            top: number;
+          } | null;
+          group_move_modifier?: string | null;
+          history_limit?: number | null;
+          new_window_policy?: string | null;
+          raise_on_focus?: boolean | null;
+          shortcuts?: {
+            [key: string]: string;
+          };
+          small_viewport_policy?: string | null;
+          snap?: {
+            /** Format: double */
+            corner_reach: number;
+            /** Format: double */
+            edge_band: number;
+            /** Format: double */
+            exit_slack: number;
+            repeat_ratios: number[];
+          } | null;
+        };
+        version: number;
+        windows: {
+          [key: string]: {
+            app: string;
+            desktop_id: string;
+            floating_rect: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            instance_key?: string | null;
+            minimized: boolean;
+            /** @enum {string} */
+            placement: "tiled" | "stacked" | "floating";
+            return_anchor?: {
+              child_index?: number | null;
+              desktop_id: string;
+              group_id?: string | null;
+              neighbor_ids?: string[];
+              parent_split_id?: string | null;
+              source_group?: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              } | null;
+              source_revision: number;
+              /** Format: double */
+              weight?: number | null;
+            } | null;
+            route: {
+              pathname: string;
+              search: {
+                [key: string]: unknown;
+              };
+            };
+          };
+        };
+        workspace_id: string;
+      };
+    };
+    WindowManagerResizeLayoutPayload: {
+      boundary_index: number;
+      /** Format: double */
+      delta: number;
+      split_id: string;
+    };
+    WindowManagerResult: {
+      applied: boolean;
+      changes: {
+        client_ids?: string[];
+        desktop_ids?: string[];
+        group_ids?: string[];
+        node_ids?: string[];
+        window_ids?: string[];
+      };
+      client?: {
+        active_desktop_id: string;
+        client_id: string;
+        /** Format: date-time */
+        connected_at: string;
+        focus_order: string[];
+        focused_window_id?: string | null;
+        presentation_revision: number;
+        workspace_id: string;
+      } | null;
+      diagnostics?: {
+        code: string;
+        message: string;
+        path?: string;
+      }[];
+      rebased_from?: number;
+      snapshot: {
+        desktops: {
+          floating: string[];
+          focus_owner?: string | null;
+          groups: {
+            frame: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            root: {
+              active_id?: string | null;
+              /** @enum {string|null} */
+              axis?: "horizontal" | "vertical" | null;
+              children?: components["schemas"]["WindowManagerLayoutNode"][];
+              id: string;
+              /** @enum {string} */
+              kind: "leaf" | "split" | "stack";
+              weights?: number[];
+              window_id?: string | null;
+              window_ids?: string[];
+            };
+          }[];
+          id: string;
+          name: string;
+          order: number;
+          /** @enum {string} */
+          purpose: "standard" | "focus";
+        }[];
+        history: {
+          redo: {
+            actor: {
+              id?: string;
+              kind?: string;
+            };
+            after: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            before: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            /** @enum {string} */
+            command_id:
+              | "desktop.create"
+              | "desktop.update"
+              | "desktop.reorder"
+              | "desktop.switch"
+              | "desktop.delete"
+              | "window.open"
+              | "window.navigate"
+              | "window.close"
+              | "window.focus"
+              | "window.move"
+              | "window.swap"
+              | "window.toggle_floating"
+              | "window.zoom"
+              | "layout.arrange"
+              | "layout.resize"
+              | "layout.balance"
+              | "layout.undo"
+              | "layout.redo"
+              | "layout.replace";
+            /** Format: date-time */
+            created_at: string;
+            origin?: string;
+          }[];
+          undo: {
+            actor: {
+              id?: string;
+              kind?: string;
+            };
+            after: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            before: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            /** @enum {string} */
+            command_id:
+              | "desktop.create"
+              | "desktop.update"
+              | "desktop.reorder"
+              | "desktop.switch"
+              | "desktop.delete"
+              | "window.open"
+              | "window.navigate"
+              | "window.close"
+              | "window.focus"
+              | "window.move"
+              | "window.swap"
+              | "window.toggle_floating"
+              | "window.zoom"
+              | "layout.arrange"
+              | "layout.resize"
+              | "layout.balance"
+              | "layout.undo"
+              | "layout.redo"
+              | "layout.replace";
+            /** Format: date-time */
+            created_at: string;
+            origin?: string;
+          }[];
+        };
+        overrides: {
+          bindings?: {
+            bottom_center: string;
+            top_center: string;
+          } | null;
+          desktop_transition?: string | null;
+          drag_away_policy?: string | null;
+          focus_follows_pointer?: boolean | null;
+          focus_policy?: string | null;
+          focus_wrap?: boolean | null;
+          gaps?: {
+            /** Format: double */
+            bottom: number;
+            /** Format: double */
+            inner: number;
+            /** Format: double */
+            left: number;
+            /** Format: double */
+            right: number;
+            /** Format: double */
+            top: number;
+          } | null;
+          group_move_modifier?: string | null;
+          history_limit?: number | null;
+          new_window_policy?: string | null;
+          raise_on_focus?: boolean | null;
+          shortcuts?: {
+            [key: string]: string;
+          };
+          small_viewport_policy?: string | null;
+          snap?: {
+            /** Format: double */
+            corner_reach: number;
+            /** Format: double */
+            edge_band: number;
+            /** Format: double */
+            exit_slack: number;
+            repeat_ratios: number[];
+          } | null;
+        };
+        revision: number;
+        /** Format: date-time */
+        updated_at: string;
+        version: number;
+        windows: {
+          [key: string]: {
+            app: string;
+            desktop_id: string;
+            floating_rect: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            instance_key?: string | null;
+            minimized: boolean;
+            /** @enum {string} */
+            placement: "tiled" | "stacked" | "floating";
+            return_anchor?: {
+              child_index?: number | null;
+              desktop_id: string;
+              group_id?: string | null;
+              neighbor_ids?: string[];
+              parent_split_id?: string | null;
+              source_group?: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              } | null;
+              source_revision: number;
+              /** Format: double */
+              weight?: number | null;
+            } | null;
+            route: {
+              pathname: string;
+              search: {
+                [key: string]: unknown;
+              };
+            };
+          };
+        };
+        workspace_id: string;
+      };
+    };
+    WindowManagerSnapshot: {
+      desktops: {
+        floating: string[];
+        focus_owner?: string | null;
+        groups: {
+          frame: {
+            /** Format: double */
+            height: number;
+            /** Format: double */
+            width: number;
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+          };
+          id: string;
+          root: {
+            active_id?: string | null;
+            /** @enum {string|null} */
+            axis?: "horizontal" | "vertical" | null;
+            children?: components["schemas"]["WindowManagerLayoutNode"][];
+            id: string;
+            /** @enum {string} */
+            kind: "leaf" | "split" | "stack";
+            weights?: number[];
+            window_id?: string | null;
+            window_ids?: string[];
+          };
+        }[];
+        id: string;
+        name: string;
+        order: number;
+        /** @enum {string} */
+        purpose: "standard" | "focus";
+      }[];
+      history: {
+        redo: {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          after: {
+            desktops: {
+              floating: string[];
+              focus_owner?: string | null;
+              groups: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              }[];
+              id: string;
+              name: string;
+              order: number;
+              /** @enum {string} */
+              purpose: "standard" | "focus";
+            }[];
+            overrides: {
+              bindings?: {
+                bottom_center: string;
+                top_center: string;
+              } | null;
+              desktop_transition?: string | null;
+              drag_away_policy?: string | null;
+              focus_follows_pointer?: boolean | null;
+              focus_policy?: string | null;
+              focus_wrap?: boolean | null;
+              gaps?: {
+                /** Format: double */
+                bottom: number;
+                /** Format: double */
+                inner: number;
+                /** Format: double */
+                left: number;
+                /** Format: double */
+                right: number;
+                /** Format: double */
+                top: number;
+              } | null;
+              group_move_modifier?: string | null;
+              history_limit?: number | null;
+              new_window_policy?: string | null;
+              raise_on_focus?: boolean | null;
+              shortcuts?: {
+                [key: string]: string;
+              };
+              small_viewport_policy?: string | null;
+              snap?: {
+                /** Format: double */
+                corner_reach: number;
+                /** Format: double */
+                edge_band: number;
+                /** Format: double */
+                exit_slack: number;
+                repeat_ratios: number[];
+              } | null;
+            };
+            windows: {
+              [key: string]: {
+                app: string;
+                desktop_id: string;
+                floating_rect: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                instance_key?: string | null;
+                minimized: boolean;
+                /** @enum {string} */
+                placement: "tiled" | "stacked" | "floating";
+                return_anchor?: {
+                  child_index?: number | null;
+                  desktop_id: string;
+                  group_id?: string | null;
+                  neighbor_ids?: string[];
+                  parent_split_id?: string | null;
+                  source_group?: {
+                    frame: {
+                      /** Format: double */
+                      height: number;
+                      /** Format: double */
+                      width: number;
+                      /** Format: double */
+                      x: number;
+                      /** Format: double */
+                      y: number;
+                    };
+                    id: string;
+                    root: {
+                      active_id?: string | null;
+                      /** @enum {string|null} */
+                      axis?: "horizontal" | "vertical" | null;
+                      children?: components["schemas"]["WindowManagerLayoutNode"][];
+                      id: string;
+                      /** @enum {string} */
+                      kind: "leaf" | "split" | "stack";
+                      weights?: number[];
+                      window_id?: string | null;
+                      window_ids?: string[];
+                    };
+                  } | null;
+                  source_revision: number;
+                  /** Format: double */
+                  weight?: number | null;
+                } | null;
+                route: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                };
+              };
+            };
+          };
+          before: {
+            desktops: {
+              floating: string[];
+              focus_owner?: string | null;
+              groups: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              }[];
+              id: string;
+              name: string;
+              order: number;
+              /** @enum {string} */
+              purpose: "standard" | "focus";
+            }[];
+            overrides: {
+              bindings?: {
+                bottom_center: string;
+                top_center: string;
+              } | null;
+              desktop_transition?: string | null;
+              drag_away_policy?: string | null;
+              focus_follows_pointer?: boolean | null;
+              focus_policy?: string | null;
+              focus_wrap?: boolean | null;
+              gaps?: {
+                /** Format: double */
+                bottom: number;
+                /** Format: double */
+                inner: number;
+                /** Format: double */
+                left: number;
+                /** Format: double */
+                right: number;
+                /** Format: double */
+                top: number;
+              } | null;
+              group_move_modifier?: string | null;
+              history_limit?: number | null;
+              new_window_policy?: string | null;
+              raise_on_focus?: boolean | null;
+              shortcuts?: {
+                [key: string]: string;
+              };
+              small_viewport_policy?: string | null;
+              snap?: {
+                /** Format: double */
+                corner_reach: number;
+                /** Format: double */
+                edge_band: number;
+                /** Format: double */
+                exit_slack: number;
+                repeat_ratios: number[];
+              } | null;
+            };
+            windows: {
+              [key: string]: {
+                app: string;
+                desktop_id: string;
+                floating_rect: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                instance_key?: string | null;
+                minimized: boolean;
+                /** @enum {string} */
+                placement: "tiled" | "stacked" | "floating";
+                return_anchor?: {
+                  child_index?: number | null;
+                  desktop_id: string;
+                  group_id?: string | null;
+                  neighbor_ids?: string[];
+                  parent_split_id?: string | null;
+                  source_group?: {
+                    frame: {
+                      /** Format: double */
+                      height: number;
+                      /** Format: double */
+                      width: number;
+                      /** Format: double */
+                      x: number;
+                      /** Format: double */
+                      y: number;
+                    };
+                    id: string;
+                    root: {
+                      active_id?: string | null;
+                      /** @enum {string|null} */
+                      axis?: "horizontal" | "vertical" | null;
+                      children?: components["schemas"]["WindowManagerLayoutNode"][];
+                      id: string;
+                      /** @enum {string} */
+                      kind: "leaf" | "split" | "stack";
+                      weights?: number[];
+                      window_id?: string | null;
+                      window_ids?: string[];
+                    };
+                  } | null;
+                  source_revision: number;
+                  /** Format: double */
+                  weight?: number | null;
+                } | null;
+                route: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                };
+              };
+            };
+          };
+          /** @enum {string} */
+          command_id:
+            | "desktop.create"
+            | "desktop.update"
+            | "desktop.reorder"
+            | "desktop.switch"
+            | "desktop.delete"
+            | "window.open"
+            | "window.navigate"
+            | "window.close"
+            | "window.focus"
+            | "window.move"
+            | "window.swap"
+            | "window.toggle_floating"
+            | "window.zoom"
+            | "layout.arrange"
+            | "layout.resize"
+            | "layout.balance"
+            | "layout.undo"
+            | "layout.redo"
+            | "layout.replace";
+          /** Format: date-time */
+          created_at: string;
+          origin?: string;
+        }[];
+        undo: {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          after: {
+            desktops: {
+              floating: string[];
+              focus_owner?: string | null;
+              groups: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              }[];
+              id: string;
+              name: string;
+              order: number;
+              /** @enum {string} */
+              purpose: "standard" | "focus";
+            }[];
+            overrides: {
+              bindings?: {
+                bottom_center: string;
+                top_center: string;
+              } | null;
+              desktop_transition?: string | null;
+              drag_away_policy?: string | null;
+              focus_follows_pointer?: boolean | null;
+              focus_policy?: string | null;
+              focus_wrap?: boolean | null;
+              gaps?: {
+                /** Format: double */
+                bottom: number;
+                /** Format: double */
+                inner: number;
+                /** Format: double */
+                left: number;
+                /** Format: double */
+                right: number;
+                /** Format: double */
+                top: number;
+              } | null;
+              group_move_modifier?: string | null;
+              history_limit?: number | null;
+              new_window_policy?: string | null;
+              raise_on_focus?: boolean | null;
+              shortcuts?: {
+                [key: string]: string;
+              };
+              small_viewport_policy?: string | null;
+              snap?: {
+                /** Format: double */
+                corner_reach: number;
+                /** Format: double */
+                edge_band: number;
+                /** Format: double */
+                exit_slack: number;
+                repeat_ratios: number[];
+              } | null;
+            };
+            windows: {
+              [key: string]: {
+                app: string;
+                desktop_id: string;
+                floating_rect: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                instance_key?: string | null;
+                minimized: boolean;
+                /** @enum {string} */
+                placement: "tiled" | "stacked" | "floating";
+                return_anchor?: {
+                  child_index?: number | null;
+                  desktop_id: string;
+                  group_id?: string | null;
+                  neighbor_ids?: string[];
+                  parent_split_id?: string | null;
+                  source_group?: {
+                    frame: {
+                      /** Format: double */
+                      height: number;
+                      /** Format: double */
+                      width: number;
+                      /** Format: double */
+                      x: number;
+                      /** Format: double */
+                      y: number;
+                    };
+                    id: string;
+                    root: {
+                      active_id?: string | null;
+                      /** @enum {string|null} */
+                      axis?: "horizontal" | "vertical" | null;
+                      children?: components["schemas"]["WindowManagerLayoutNode"][];
+                      id: string;
+                      /** @enum {string} */
+                      kind: "leaf" | "split" | "stack";
+                      weights?: number[];
+                      window_id?: string | null;
+                      window_ids?: string[];
+                    };
+                  } | null;
+                  source_revision: number;
+                  /** Format: double */
+                  weight?: number | null;
+                } | null;
+                route: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                };
+              };
+            };
+          };
+          before: {
+            desktops: {
+              floating: string[];
+              focus_owner?: string | null;
+              groups: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              }[];
+              id: string;
+              name: string;
+              order: number;
+              /** @enum {string} */
+              purpose: "standard" | "focus";
+            }[];
+            overrides: {
+              bindings?: {
+                bottom_center: string;
+                top_center: string;
+              } | null;
+              desktop_transition?: string | null;
+              drag_away_policy?: string | null;
+              focus_follows_pointer?: boolean | null;
+              focus_policy?: string | null;
+              focus_wrap?: boolean | null;
+              gaps?: {
+                /** Format: double */
+                bottom: number;
+                /** Format: double */
+                inner: number;
+                /** Format: double */
+                left: number;
+                /** Format: double */
+                right: number;
+                /** Format: double */
+                top: number;
+              } | null;
+              group_move_modifier?: string | null;
+              history_limit?: number | null;
+              new_window_policy?: string | null;
+              raise_on_focus?: boolean | null;
+              shortcuts?: {
+                [key: string]: string;
+              };
+              small_viewport_policy?: string | null;
+              snap?: {
+                /** Format: double */
+                corner_reach: number;
+                /** Format: double */
+                edge_band: number;
+                /** Format: double */
+                exit_slack: number;
+                repeat_ratios: number[];
+              } | null;
+            };
+            windows: {
+              [key: string]: {
+                app: string;
+                desktop_id: string;
+                floating_rect: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                instance_key?: string | null;
+                minimized: boolean;
+                /** @enum {string} */
+                placement: "tiled" | "stacked" | "floating";
+                return_anchor?: {
+                  child_index?: number | null;
+                  desktop_id: string;
+                  group_id?: string | null;
+                  neighbor_ids?: string[];
+                  parent_split_id?: string | null;
+                  source_group?: {
+                    frame: {
+                      /** Format: double */
+                      height: number;
+                      /** Format: double */
+                      width: number;
+                      /** Format: double */
+                      x: number;
+                      /** Format: double */
+                      y: number;
+                    };
+                    id: string;
+                    root: {
+                      active_id?: string | null;
+                      /** @enum {string|null} */
+                      axis?: "horizontal" | "vertical" | null;
+                      children?: components["schemas"]["WindowManagerLayoutNode"][];
+                      id: string;
+                      /** @enum {string} */
+                      kind: "leaf" | "split" | "stack";
+                      weights?: number[];
+                      window_id?: string | null;
+                      window_ids?: string[];
+                    };
+                  } | null;
+                  source_revision: number;
+                  /** Format: double */
+                  weight?: number | null;
+                } | null;
+                route: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                };
+              };
+            };
+          };
+          /** @enum {string} */
+          command_id:
+            | "desktop.create"
+            | "desktop.update"
+            | "desktop.reorder"
+            | "desktop.switch"
+            | "desktop.delete"
+            | "window.open"
+            | "window.navigate"
+            | "window.close"
+            | "window.focus"
+            | "window.move"
+            | "window.swap"
+            | "window.toggle_floating"
+            | "window.zoom"
+            | "layout.arrange"
+            | "layout.resize"
+            | "layout.balance"
+            | "layout.undo"
+            | "layout.redo"
+            | "layout.replace";
+          /** Format: date-time */
+          created_at: string;
+          origin?: string;
+        }[];
+      };
+      overrides: {
+        bindings?: {
+          bottom_center: string;
+          top_center: string;
+        } | null;
+        desktop_transition?: string | null;
+        drag_away_policy?: string | null;
+        focus_follows_pointer?: boolean | null;
+        focus_policy?: string | null;
+        focus_wrap?: boolean | null;
+        gaps?: {
+          /** Format: double */
+          bottom: number;
+          /** Format: double */
+          inner: number;
+          /** Format: double */
+          left: number;
+          /** Format: double */
+          right: number;
+          /** Format: double */
+          top: number;
+        } | null;
+        group_move_modifier?: string | null;
+        history_limit?: number | null;
+        new_window_policy?: string | null;
+        raise_on_focus?: boolean | null;
+        shortcuts?: {
+          [key: string]: string;
+        };
+        small_viewport_policy?: string | null;
+        snap?: {
+          /** Format: double */
+          corner_reach: number;
+          /** Format: double */
+          edge_band: number;
+          /** Format: double */
+          exit_slack: number;
+          repeat_ratios: number[];
+        } | null;
+      };
+      revision: number;
+      /** Format: date-time */
+      updated_at: string;
+      version: number;
+      windows: {
+        [key: string]: {
+          app: string;
+          desktop_id: string;
+          floating_rect: {
+            /** Format: double */
+            height: number;
+            /** Format: double */
+            width: number;
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+          };
+          id: string;
+          instance_key?: string | null;
+          minimized: boolean;
+          /** @enum {string} */
+          placement: "tiled" | "stacked" | "floating";
+          return_anchor?: {
+            child_index?: number | null;
+            desktop_id: string;
+            group_id?: string | null;
+            neighbor_ids?: string[];
+            parent_split_id?: string | null;
+            source_group?: {
+              frame: {
+                /** Format: double */
+                height: number;
+                /** Format: double */
+                width: number;
+                /** Format: double */
+                x: number;
+                /** Format: double */
+                y: number;
+              };
+              id: string;
+              root: {
+                active_id?: string | null;
+                /** @enum {string|null} */
+                axis?: "horizontal" | "vertical" | null;
+                children?: components["schemas"]["WindowManagerLayoutNode"][];
+                id: string;
+                /** @enum {string} */
+                kind: "leaf" | "split" | "stack";
+                weights?: number[];
+                window_id?: string | null;
+                window_ids?: string[];
+              };
+            } | null;
+            source_revision: number;
+            /** Format: double */
+            weight?: number | null;
+          } | null;
+          route: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          };
+        };
+      };
+      workspace_id: string;
+    };
+    WindowManagerSnapshotFrame: {
+      client?: {
+        active_desktop_id: string;
+        client_id: string;
+        /** Format: date-time */
+        connected_at: string;
+        focus_order: string[];
+        focused_window_id?: string | null;
+        presentation_revision: number;
+        workspace_id: string;
+      } | null;
+      revision: number;
+      snapshot: {
+        desktops: {
+          floating: string[];
+          focus_owner?: string | null;
+          groups: {
+            frame: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            root: {
+              active_id?: string | null;
+              /** @enum {string|null} */
+              axis?: "horizontal" | "vertical" | null;
+              children?: components["schemas"]["WindowManagerLayoutNode"][];
+              id: string;
+              /** @enum {string} */
+              kind: "leaf" | "split" | "stack";
+              weights?: number[];
+              window_id?: string | null;
+              window_ids?: string[];
+            };
+          }[];
+          id: string;
+          name: string;
+          order: number;
+          /** @enum {string} */
+          purpose: "standard" | "focus";
+        }[];
+        history: {
+          redo: {
+            actor: {
+              id?: string;
+              kind?: string;
+            };
+            after: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            before: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            /** @enum {string} */
+            command_id:
+              | "desktop.create"
+              | "desktop.update"
+              | "desktop.reorder"
+              | "desktop.switch"
+              | "desktop.delete"
+              | "window.open"
+              | "window.navigate"
+              | "window.close"
+              | "window.focus"
+              | "window.move"
+              | "window.swap"
+              | "window.toggle_floating"
+              | "window.zoom"
+              | "layout.arrange"
+              | "layout.resize"
+              | "layout.balance"
+              | "layout.undo"
+              | "layout.redo"
+              | "layout.replace";
+            /** Format: date-time */
+            created_at: string;
+            origin?: string;
+          }[];
+          undo: {
+            actor: {
+              id?: string;
+              kind?: string;
+            };
+            after: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            before: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+            };
+            /** @enum {string} */
+            command_id:
+              | "desktop.create"
+              | "desktop.update"
+              | "desktop.reorder"
+              | "desktop.switch"
+              | "desktop.delete"
+              | "window.open"
+              | "window.navigate"
+              | "window.close"
+              | "window.focus"
+              | "window.move"
+              | "window.swap"
+              | "window.toggle_floating"
+              | "window.zoom"
+              | "layout.arrange"
+              | "layout.resize"
+              | "layout.balance"
+              | "layout.undo"
+              | "layout.redo"
+              | "layout.replace";
+            /** Format: date-time */
+            created_at: string;
+            origin?: string;
+          }[];
+        };
+        overrides: {
+          bindings?: {
+            bottom_center: string;
+            top_center: string;
+          } | null;
+          desktop_transition?: string | null;
+          drag_away_policy?: string | null;
+          focus_follows_pointer?: boolean | null;
+          focus_policy?: string | null;
+          focus_wrap?: boolean | null;
+          gaps?: {
+            /** Format: double */
+            bottom: number;
+            /** Format: double */
+            inner: number;
+            /** Format: double */
+            left: number;
+            /** Format: double */
+            right: number;
+            /** Format: double */
+            top: number;
+          } | null;
+          group_move_modifier?: string | null;
+          history_limit?: number | null;
+          new_window_policy?: string | null;
+          raise_on_focus?: boolean | null;
+          shortcuts?: {
+            [key: string]: string;
+          };
+          small_viewport_policy?: string | null;
+          snap?: {
+            /** Format: double */
+            corner_reach: number;
+            /** Format: double */
+            edge_band: number;
+            /** Format: double */
+            exit_slack: number;
+            repeat_ratios: number[];
+          } | null;
+        };
+        revision: number;
+        /** Format: date-time */
+        updated_at: string;
+        version: number;
+        windows: {
+          [key: string]: {
+            app: string;
+            desktop_id: string;
+            floating_rect: {
+              /** Format: double */
+              height: number;
+              /** Format: double */
+              width: number;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            };
+            id: string;
+            instance_key?: string | null;
+            minimized: boolean;
+            /** @enum {string} */
+            placement: "tiled" | "stacked" | "floating";
+            return_anchor?: {
+              child_index?: number | null;
+              desktop_id: string;
+              group_id?: string | null;
+              neighbor_ids?: string[];
+              parent_split_id?: string | null;
+              source_group?: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              } | null;
+              source_revision: number;
+              /** Format: double */
+              weight?: number | null;
+            } | null;
+            route: {
+              pathname: string;
+              search: {
+                [key: string]: unknown;
+              };
+            };
+          };
+        };
+        workspace_id: string;
+      };
+      /** @enum {string} */
+      type: "snapshot";
+      workspace_id: string;
+    };
+    WindowManagerSwapWindowsPayload: {
+      first_window_id: string;
+      second_window_id: string;
+    };
+    WindowManagerSwitchDesktopPayload: {
+      desktop_id: string;
+    };
+    WindowManagerToggleFloatingPayload: {
+      floating_rect?: {
+        /** Format: double */
+        height: number;
+        /** Format: double */
+        width: number;
+        /** Format: double */
+        x: number;
+        /** Format: double */
+        y: number;
+      } | null;
+      window_id: string;
+    };
+    WindowManagerUndoLayoutPayload: unknown;
+    WindowManagerUpdateDesktopPayload: {
+      desktop_id: string;
+      name: string;
+    };
+    WindowManagerZoomWindowPayload: {
+      window_id: string;
     };
   };
   responses: never;
@@ -24090,6 +28378,13 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              layouts?: {
+                aspect_variant: string;
+                display_name: string;
+                id: string;
+                overflow_policy: string;
+                participant_slots?: string[];
+              }[];
               network_requirement_confirmed_at?: string;
               network_requirement_confirmed_by?: string;
               network_requirement_digest?: string;
@@ -24236,6 +28531,13 @@ export interface operations {
                 enabled: boolean;
                 id: string;
                 name: string;
+              }[];
+              layouts?: {
+                aspect_variant: string;
+                display_name: string;
+                id: string;
+                overflow_policy: string;
+                participant_slots?: string[];
               }[];
               network_requirement_confirmed_at?: string;
               network_requirement_confirmed_by?: string;
@@ -24474,6 +28776,13 @@ export interface operations {
                 enabled: boolean;
                 id: string;
                 name: string;
+              }[];
+              layouts?: {
+                aspect_variant: string;
+                display_name: string;
+                id: string;
+                overflow_policy: string;
+                participant_slots?: string[];
               }[];
               network_requirement_confirmed_at?: string;
               network_requirement_confirmed_by?: string;
@@ -24743,6 +29052,13 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              layouts?: {
+                aspect_variant: string;
+                display_name: string;
+                id: string;
+                overflow_policy: string;
+                participant_slots?: string[];
+              }[];
               network_requirement_confirmed_at?: string;
               network_requirement_confirmed_by?: string;
               network_requirement_digest?: string;
@@ -24923,6 +29239,7 @@ export interface operations {
                 }[];
                 description?: string;
                 job_count?: number;
+                layout_count?: number;
                 name: string;
                 primary_channel?: string;
                 trigger_count?: number;
@@ -25137,6 +29454,13 @@ export interface operations {
                 enabled: boolean;
                 id: string;
                 name: string;
+              }[];
+              layouts?: {
+                aspect_variant: string;
+                display_name: string;
+                id: string;
+                overflow_policy: string;
+                participant_slots?: string[];
               }[];
               network_requirement_confirmed_at?: string;
               network_requirement_confirmed_by?: string;
@@ -27539,7 +31863,11 @@ export interface operations {
           | "network.peer.joined"
           | "network.peer.left"
           | "network.participation.pre_resolve"
-          | "network.participation.resolved";
+          | "network.participation.resolved"
+          | "window_manager.layout.applied"
+          | "window_manager.desktop.created"
+          | "window_manager.desktop.deleted"
+          | "window_manager.window.moved";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -28561,6 +32889,7 @@ export interface operations {
                 channels: number;
                 description?: string;
                 jobs: number;
+                layouts: number;
                 name: string;
                 triggers: number;
               }[];
@@ -32997,7 +37326,20 @@ export interface operations {
               restart_scope?: string;
               /** @enum {string} */
               scope?: "global" | "workspace" | "agent";
-              section?: string;
+              /** @enum {string} */
+              section?:
+                | "general"
+                | "memory"
+                | "skills"
+                | "automation"
+                | "network"
+                | "window-manager"
+                | "observability"
+                | "hooks-extensions"
+                | "providers"
+                | "mcp-servers"
+                | "sandboxes"
+                | "hooks";
               skipped?: boolean;
               skipped_reason?: string;
               warnings?: string[];
@@ -42072,6 +46414,7 @@ export interface operations {
               | "skills"
               | "automation"
               | "network"
+              | "window-manager"
               | "observability"
               | "hooks-extensions";
           };
@@ -42171,7 +46514,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -42377,6 +46733,7 @@ export interface operations {
               | "skills"
               | "automation"
               | "network"
+              | "window-manager"
               | "observability"
               | "hooks-extensions";
           };
@@ -42498,7 +46855,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -42730,7 +47100,11 @@ export interface operations {
                   | "network.peer.joined"
                   | "network.peer.left"
                   | "network.participation.pre_resolve"
-                  | "network.participation.resolved";
+                  | "network.participation.resolved"
+                  | "window_manager.layout.applied"
+                  | "window_manager.desktop.created"
+                  | "window_manager.desktop.deleted"
+                  | "window_manager.window.moved";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -42998,7 +47372,11 @@ export interface operations {
                   | "network.peer.joined"
                   | "network.peer.left"
                   | "network.participation.pre_resolve"
-                  | "network.participation.resolved";
+                  | "network.participation.resolved"
+                  | "window_manager.layout.applied"
+                  | "window_manager.desktop.created"
+                  | "window_manager.desktop.deleted"
+                  | "window_manager.window.moved";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -43120,6 +47498,7 @@ export interface operations {
               | "skills"
               | "automation"
               | "network"
+              | "window-manager"
               | "observability"
               | "hooks-extensions";
             transport_parity: {
@@ -43239,7 +47618,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -43465,7 +47857,11 @@ export interface operations {
               | "network.peer.joined"
               | "network.peer.left"
               | "network.participation.pre_resolve"
-              | "network.participation.resolved";
+              | "network.participation.resolved"
+              | "window_manager.layout.applied"
+              | "window_manager.desktop.created"
+              | "window_manager.desktop.deleted"
+              | "window_manager.window.moved";
             /** @enum {string} */
             executor_kind?: "native" | "subprocess" | "wasm";
             matcher: {
@@ -43572,7 +47968,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -43745,7 +48154,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -44121,7 +48543,20 @@ export interface operations {
               restart_scope?: string;
               /** @enum {string} */
               scope?: "global" | "workspace" | "agent";
-              section?: string;
+              /** @enum {string} */
+              section?:
+                | "general"
+                | "memory"
+                | "skills"
+                | "automation"
+                | "network"
+                | "window-manager"
+                | "observability"
+                | "hooks-extensions"
+                | "providers"
+                | "mcp-servers"
+                | "sandboxes"
+                | "hooks";
               skipped?: boolean;
               skipped_reason?: string;
               warnings?: string[];
@@ -44528,7 +48963,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -44733,7 +49181,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -45574,6 +50035,7 @@ export interface operations {
               | "skills"
               | "automation"
               | "network"
+              | "window-manager"
               | "observability"
               | "hooks-extensions";
           };
@@ -45798,7 +50260,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -45988,6 +50463,7 @@ export interface operations {
               | "skills"
               | "automation"
               | "network"
+              | "window-manager"
               | "observability"
               | "hooks-extensions";
           };
@@ -46107,7 +50583,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -46281,6 +50770,7 @@ export interface operations {
               | "skills"
               | "automation"
               | "network"
+              | "window-manager"
               | "observability"
               | "hooks-extensions";
           };
@@ -46383,7 +50873,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -47310,7 +51813,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -47483,7 +51999,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -47628,7 +52157,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -48079,7 +52621,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -48252,7 +52807,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -48433,6 +53001,7 @@ export interface operations {
               | "skills"
               | "automation"
               | "network"
+              | "window-manager"
               | "observability"
               | "hooks-extensions";
             workspace_id?: string;
@@ -48617,7 +53186,20 @@ export interface operations {
             restart_scope?: string;
             /** @enum {string} */
             scope?: "global" | "workspace" | "agent";
-            section?: string;
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
             skipped?: boolean;
             skipped_reason?: string;
             warnings?: string[];
@@ -48844,6 +53426,334 @@ export interface operations {
       };
       /** @description Update surface unavailable */
       503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSettingsWindowManager: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: "global"[];
+            config: {
+              bindings: {
+                /** @enum {string} */
+                bottom_center: "none" | "reserved" | "zoom";
+                /** @enum {string} */
+                top_center: "none" | "reserved" | "zoom";
+              };
+              /** @enum {string} */
+              desktop_transition: "slide" | "crossfade" | "instant";
+              /** @enum {string} */
+              drag_away_policy: "window" | "group";
+              focus_follows_pointer: boolean;
+              /** @enum {string} */
+              focus_policy: "click_directional" | "directional";
+              focus_wrap: boolean;
+              gaps: {
+                bottom: number;
+                inner: number;
+                left: number;
+                right: number;
+                top: number;
+              };
+              /** @enum {string} */
+              group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
+              history_limit: number;
+              /** @enum {string} */
+              new_window_policy: "floating" | "beside_focus";
+              raise_on_focus: boolean;
+              shortcuts: {
+                [key: string]: string;
+              };
+              /** @enum {string} */
+              small_viewport_policy: "stack" | "reject";
+              snap: {
+                corner_reach: number;
+                edge_band: number;
+                exit_slack: number;
+                repeat_ratios: number[];
+              };
+            };
+            /** @enum {string} */
+            scope: "global";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateSettingsWindowManager: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            bindings: {
+              /** @enum {string} */
+              bottom_center: "none" | "reserved" | "zoom";
+              /** @enum {string} */
+              top_center: "none" | "reserved" | "zoom";
+            };
+            /** @enum {string} */
+            desktop_transition: "slide" | "crossfade" | "instant";
+            /** @enum {string} */
+            drag_away_policy: "window" | "group";
+            focus_follows_pointer: boolean;
+            /** @enum {string} */
+            focus_policy: "click_directional" | "directional";
+            focus_wrap: boolean;
+            gaps: {
+              bottom: number;
+              inner: number;
+              left: number;
+              right: number;
+              top: number;
+            };
+            /** @enum {string} */
+            group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
+            history_limit: number;
+            /** @enum {string} */
+            new_window_policy: "floating" | "beside_focus";
+            raise_on_focus: boolean;
+            shortcuts: {
+              [key: string]: string;
+            };
+            /** @enum {string} */
+            small_viewport_policy: "stack" | "reject";
+            snap: {
+              corner_reach: number;
+              edge_band: number;
+              exit_slack: number;
+              repeat_ratios: number[];
+            };
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
+            applied: boolean;
+            apply_record_id: string;
+            /** @enum {string} */
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope?: "global" | "workspace" | "agent";
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
+            skipped?: boolean;
+            skipped_reason?: string;
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -76737,746 +81647,6 @@ export interface operations {
       };
     };
   };
-  listDesktopState: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            as_of_seq: number;
-            entries: {
-              deleted: boolean;
-              key: string;
-              rev: number;
-              seq: number;
-              /** Format: date-time */
-              updated_at: string;
-              value: {
-                [key: string]: unknown;
-              } | null;
-            }[];
-          };
-        };
-      };
-      /** @description Workspace not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-    };
-  };
-  applyDesktopState: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          ops: {
-            if_rev?: number;
-            key: string;
-            /** @enum {string} */
-            kind: "put" | "delete";
-            value?: {
-              [key: string]: unknown;
-            } | null;
-          }[];
-        };
-      };
-    };
-    responses: {
-      /** @description Applied */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            results: {
-              deleted: boolean;
-              key: string;
-              rev: number;
-              seq: number;
-              /** Format: date-time */
-              updated_at: string;
-              value: {
-                [key: string]: unknown;
-              } | null;
-            }[];
-          };
-        };
-      };
-      /** @description Desktop state or workspace not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Revision conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Payload too large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Invalid desktop-state mutation */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-    };
-  };
-  streamDesktopState: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description WebSocket upgrade and frame contract */
-      101: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            ack: {
-              /** @enum {string} */
-              op: "ack";
-              req: string;
-              results: {
-                key: string;
-                rev: number;
-                seq: number;
-              }[];
-            };
-            apply: {
-              /** @enum {string} */
-              op: "apply";
-              ops: {
-                if_rev?: number;
-                key: string;
-                /** @enum {string} */
-                kind: "put" | "delete";
-                value?: {
-                  [key: string]: unknown;
-                } | null;
-              }[];
-              req: string;
-            };
-            error: {
-              /** @enum {string} */
-              code:
-                | "desktop_state_not_found"
-                | "workspace_not_found"
-                | "desktop_state_rev_conflict"
-                | "desktop_state_value_too_large"
-                | "desktop_state_key_quota_exceeded"
-                | "desktop_state_invalid_key"
-                | "desktop_state_invalid_value"
-                | "desktop_state_slow_consumer";
-              key?: string;
-              /** @enum {string} */
-              op: "error";
-              req?: string;
-            };
-            event: {
-              entry: {
-                deleted: boolean;
-                key: string;
-                rev: number;
-                seq: number;
-                /** Format: date-time */
-                updated_at: string;
-                value: {
-                  [key: string]: unknown;
-                } | null;
-              };
-              /** @enum {string} */
-              op: "event";
-              origin: string;
-            };
-            ping: {
-              /** @enum {string} */
-              op: "ping";
-            };
-            pong: {
-              /** @enum {string} */
-              op: "pong";
-            };
-            snapshot: {
-              as_of_seq: number;
-              entries: {
-                deleted: boolean;
-                key: string;
-                rev: number;
-                seq: number;
-                /** Format: date-time */
-                updated_at: string;
-                value: {
-                  [key: string]: unknown;
-                } | null;
-              }[];
-              /** @enum {string} */
-              op: "snapshot";
-            };
-            subscribe: {
-              /** @enum {string} */
-              op: "sub";
-            };
-          };
-        };
-      };
-      /** @description Workspace not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-    };
-  };
-  getDesktopState: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-        /** @description Desktop-state key */
-        key: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            deleted: boolean;
-            key: string;
-            rev: number;
-            seq: number;
-            /** Format: date-time */
-            updated_at: string;
-            value: {
-              [key: string]: unknown;
-            } | null;
-          };
-        };
-      };
-      /** @description Desktop state or workspace not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-    };
-  };
-  putDesktopState: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-        /** @description Desktop-state key */
-        key: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          if_rev?: number;
-          value: {
-            [key: string]: unknown;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description Updated */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            deleted: boolean;
-            key: string;
-            rev: number;
-            seq: number;
-            /** Format: date-time */
-            updated_at: string;
-            value: {
-              [key: string]: unknown;
-            } | null;
-          };
-        };
-      };
-      /** @description Desktop state or workspace not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Revision conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Payload too large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Invalid desktop-state mutation */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-    };
-  };
-  deleteDesktopState: {
-    parameters: {
-      query?: {
-        /** @description Expected current revision */
-        if_rev?: number;
-      };
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-        /** @description Desktop-state key */
-        key: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description No Content */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Desktop state or workspace not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Revision conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Payload too large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Invalid desktop-state mutation */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {string} */
-            code:
-              | "desktop_state_not_found"
-              | "workspace_not_found"
-              | "desktop_state_rev_conflict"
-              | "desktop_state_value_too_large"
-              | "desktop_state_key_quota_exceeded"
-              | "desktop_state_invalid_key"
-              | "desktop_state_invalid_value"
-              | "desktop_state_slow_consumer";
-            error: string;
-            key?: string;
-          };
-        };
-      };
-    };
-  };
   getHookRuns: {
     parameters: {
       query: {
@@ -77569,7 +81739,11 @@ export interface operations {
           | "network.peer.joined"
           | "network.peer.left"
           | "network.participation.pre_resolve"
-          | "network.participation.resolved";
+          | "network.participation.resolved"
+          | "window_manager.layout.applied"
+          | "window_manager.desktop.created"
+          | "window_manager.desktop.deleted"
+          | "window_manager.window.moved";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */
@@ -95745,6 +99919,6929 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+    };
+  };
+  getWindowManagerSnapshot: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            desktops: {
+              floating: string[];
+              focus_owner?: string | null;
+              groups: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              }[];
+              id: string;
+              name: string;
+              order: number;
+              /** @enum {string} */
+              purpose: "standard" | "focus";
+            }[];
+            history: {
+              redo: {
+                actor: {
+                  id?: string;
+                  kind?: string;
+                };
+                after: {
+                  desktops: {
+                    floating: string[];
+                    focus_owner?: string | null;
+                    groups: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    }[];
+                    id: string;
+                    name: string;
+                    order: number;
+                    /** @enum {string} */
+                    purpose: "standard" | "focus";
+                  }[];
+                  overrides: {
+                    bindings?: {
+                      bottom_center: string;
+                      top_center: string;
+                    } | null;
+                    desktop_transition?: string | null;
+                    drag_away_policy?: string | null;
+                    focus_follows_pointer?: boolean | null;
+                    focus_policy?: string | null;
+                    focus_wrap?: boolean | null;
+                    gaps?: {
+                      /** Format: double */
+                      bottom: number;
+                      /** Format: double */
+                      inner: number;
+                      /** Format: double */
+                      left: number;
+                      /** Format: double */
+                      right: number;
+                      /** Format: double */
+                      top: number;
+                    } | null;
+                    group_move_modifier?: string | null;
+                    history_limit?: number | null;
+                    new_window_policy?: string | null;
+                    raise_on_focus?: boolean | null;
+                    shortcuts?: {
+                      [key: string]: string;
+                    };
+                    small_viewport_policy?: string | null;
+                    snap?: {
+                      /** Format: double */
+                      corner_reach: number;
+                      /** Format: double */
+                      edge_band: number;
+                      /** Format: double */
+                      exit_slack: number;
+                      repeat_ratios: number[];
+                    } | null;
+                  };
+                  windows: {
+                    [key: string]: {
+                      app: string;
+                      desktop_id: string;
+                      floating_rect: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      instance_key?: string | null;
+                      minimized: boolean;
+                      /** @enum {string} */
+                      placement: "tiled" | "stacked" | "floating";
+                      return_anchor?: {
+                        child_index?: number | null;
+                        desktop_id: string;
+                        group_id?: string | null;
+                        neighbor_ids?: string[];
+                        parent_split_id?: string | null;
+                        source_group?: {
+                          frame: {
+                            /** Format: double */
+                            height: number;
+                            /** Format: double */
+                            width: number;
+                            /** Format: double */
+                            x: number;
+                            /** Format: double */
+                            y: number;
+                          };
+                          id: string;
+                          root: {
+                            active_id?: string | null;
+                            /** @enum {string|null} */
+                            axis?: "horizontal" | "vertical" | null;
+                            children?: components["schemas"]["WindowManagerLayoutNode"][];
+                            id: string;
+                            /** @enum {string} */
+                            kind: "leaf" | "split" | "stack";
+                            weights?: number[];
+                            window_id?: string | null;
+                            window_ids?: string[];
+                          };
+                        } | null;
+                        source_revision: number;
+                        /** Format: double */
+                        weight?: number | null;
+                      } | null;
+                      route: {
+                        pathname: string;
+                        search: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    };
+                  };
+                };
+                before: {
+                  desktops: {
+                    floating: string[];
+                    focus_owner?: string | null;
+                    groups: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    }[];
+                    id: string;
+                    name: string;
+                    order: number;
+                    /** @enum {string} */
+                    purpose: "standard" | "focus";
+                  }[];
+                  overrides: {
+                    bindings?: {
+                      bottom_center: string;
+                      top_center: string;
+                    } | null;
+                    desktop_transition?: string | null;
+                    drag_away_policy?: string | null;
+                    focus_follows_pointer?: boolean | null;
+                    focus_policy?: string | null;
+                    focus_wrap?: boolean | null;
+                    gaps?: {
+                      /** Format: double */
+                      bottom: number;
+                      /** Format: double */
+                      inner: number;
+                      /** Format: double */
+                      left: number;
+                      /** Format: double */
+                      right: number;
+                      /** Format: double */
+                      top: number;
+                    } | null;
+                    group_move_modifier?: string | null;
+                    history_limit?: number | null;
+                    new_window_policy?: string | null;
+                    raise_on_focus?: boolean | null;
+                    shortcuts?: {
+                      [key: string]: string;
+                    };
+                    small_viewport_policy?: string | null;
+                    snap?: {
+                      /** Format: double */
+                      corner_reach: number;
+                      /** Format: double */
+                      edge_band: number;
+                      /** Format: double */
+                      exit_slack: number;
+                      repeat_ratios: number[];
+                    } | null;
+                  };
+                  windows: {
+                    [key: string]: {
+                      app: string;
+                      desktop_id: string;
+                      floating_rect: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      instance_key?: string | null;
+                      minimized: boolean;
+                      /** @enum {string} */
+                      placement: "tiled" | "stacked" | "floating";
+                      return_anchor?: {
+                        child_index?: number | null;
+                        desktop_id: string;
+                        group_id?: string | null;
+                        neighbor_ids?: string[];
+                        parent_split_id?: string | null;
+                        source_group?: {
+                          frame: {
+                            /** Format: double */
+                            height: number;
+                            /** Format: double */
+                            width: number;
+                            /** Format: double */
+                            x: number;
+                            /** Format: double */
+                            y: number;
+                          };
+                          id: string;
+                          root: {
+                            active_id?: string | null;
+                            /** @enum {string|null} */
+                            axis?: "horizontal" | "vertical" | null;
+                            children?: components["schemas"]["WindowManagerLayoutNode"][];
+                            id: string;
+                            /** @enum {string} */
+                            kind: "leaf" | "split" | "stack";
+                            weights?: number[];
+                            window_id?: string | null;
+                            window_ids?: string[];
+                          };
+                        } | null;
+                        source_revision: number;
+                        /** Format: double */
+                        weight?: number | null;
+                      } | null;
+                      route: {
+                        pathname: string;
+                        search: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    };
+                  };
+                };
+                /** @enum {string} */
+                command_id:
+                  | "desktop.create"
+                  | "desktop.update"
+                  | "desktop.reorder"
+                  | "desktop.switch"
+                  | "desktop.delete"
+                  | "window.open"
+                  | "window.navigate"
+                  | "window.close"
+                  | "window.focus"
+                  | "window.move"
+                  | "window.swap"
+                  | "window.toggle_floating"
+                  | "window.zoom"
+                  | "layout.arrange"
+                  | "layout.resize"
+                  | "layout.balance"
+                  | "layout.undo"
+                  | "layout.redo"
+                  | "layout.replace";
+                /** Format: date-time */
+                created_at: string;
+                origin?: string;
+              }[];
+              undo: {
+                actor: {
+                  id?: string;
+                  kind?: string;
+                };
+                after: {
+                  desktops: {
+                    floating: string[];
+                    focus_owner?: string | null;
+                    groups: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    }[];
+                    id: string;
+                    name: string;
+                    order: number;
+                    /** @enum {string} */
+                    purpose: "standard" | "focus";
+                  }[];
+                  overrides: {
+                    bindings?: {
+                      bottom_center: string;
+                      top_center: string;
+                    } | null;
+                    desktop_transition?: string | null;
+                    drag_away_policy?: string | null;
+                    focus_follows_pointer?: boolean | null;
+                    focus_policy?: string | null;
+                    focus_wrap?: boolean | null;
+                    gaps?: {
+                      /** Format: double */
+                      bottom: number;
+                      /** Format: double */
+                      inner: number;
+                      /** Format: double */
+                      left: number;
+                      /** Format: double */
+                      right: number;
+                      /** Format: double */
+                      top: number;
+                    } | null;
+                    group_move_modifier?: string | null;
+                    history_limit?: number | null;
+                    new_window_policy?: string | null;
+                    raise_on_focus?: boolean | null;
+                    shortcuts?: {
+                      [key: string]: string;
+                    };
+                    small_viewport_policy?: string | null;
+                    snap?: {
+                      /** Format: double */
+                      corner_reach: number;
+                      /** Format: double */
+                      edge_band: number;
+                      /** Format: double */
+                      exit_slack: number;
+                      repeat_ratios: number[];
+                    } | null;
+                  };
+                  windows: {
+                    [key: string]: {
+                      app: string;
+                      desktop_id: string;
+                      floating_rect: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      instance_key?: string | null;
+                      minimized: boolean;
+                      /** @enum {string} */
+                      placement: "tiled" | "stacked" | "floating";
+                      return_anchor?: {
+                        child_index?: number | null;
+                        desktop_id: string;
+                        group_id?: string | null;
+                        neighbor_ids?: string[];
+                        parent_split_id?: string | null;
+                        source_group?: {
+                          frame: {
+                            /** Format: double */
+                            height: number;
+                            /** Format: double */
+                            width: number;
+                            /** Format: double */
+                            x: number;
+                            /** Format: double */
+                            y: number;
+                          };
+                          id: string;
+                          root: {
+                            active_id?: string | null;
+                            /** @enum {string|null} */
+                            axis?: "horizontal" | "vertical" | null;
+                            children?: components["schemas"]["WindowManagerLayoutNode"][];
+                            id: string;
+                            /** @enum {string} */
+                            kind: "leaf" | "split" | "stack";
+                            weights?: number[];
+                            window_id?: string | null;
+                            window_ids?: string[];
+                          };
+                        } | null;
+                        source_revision: number;
+                        /** Format: double */
+                        weight?: number | null;
+                      } | null;
+                      route: {
+                        pathname: string;
+                        search: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    };
+                  };
+                };
+                before: {
+                  desktops: {
+                    floating: string[];
+                    focus_owner?: string | null;
+                    groups: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    }[];
+                    id: string;
+                    name: string;
+                    order: number;
+                    /** @enum {string} */
+                    purpose: "standard" | "focus";
+                  }[];
+                  overrides: {
+                    bindings?: {
+                      bottom_center: string;
+                      top_center: string;
+                    } | null;
+                    desktop_transition?: string | null;
+                    drag_away_policy?: string | null;
+                    focus_follows_pointer?: boolean | null;
+                    focus_policy?: string | null;
+                    focus_wrap?: boolean | null;
+                    gaps?: {
+                      /** Format: double */
+                      bottom: number;
+                      /** Format: double */
+                      inner: number;
+                      /** Format: double */
+                      left: number;
+                      /** Format: double */
+                      right: number;
+                      /** Format: double */
+                      top: number;
+                    } | null;
+                    group_move_modifier?: string | null;
+                    history_limit?: number | null;
+                    new_window_policy?: string | null;
+                    raise_on_focus?: boolean | null;
+                    shortcuts?: {
+                      [key: string]: string;
+                    };
+                    small_viewport_policy?: string | null;
+                    snap?: {
+                      /** Format: double */
+                      corner_reach: number;
+                      /** Format: double */
+                      edge_band: number;
+                      /** Format: double */
+                      exit_slack: number;
+                      repeat_ratios: number[];
+                    } | null;
+                  };
+                  windows: {
+                    [key: string]: {
+                      app: string;
+                      desktop_id: string;
+                      floating_rect: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      instance_key?: string | null;
+                      minimized: boolean;
+                      /** @enum {string} */
+                      placement: "tiled" | "stacked" | "floating";
+                      return_anchor?: {
+                        child_index?: number | null;
+                        desktop_id: string;
+                        group_id?: string | null;
+                        neighbor_ids?: string[];
+                        parent_split_id?: string | null;
+                        source_group?: {
+                          frame: {
+                            /** Format: double */
+                            height: number;
+                            /** Format: double */
+                            width: number;
+                            /** Format: double */
+                            x: number;
+                            /** Format: double */
+                            y: number;
+                          };
+                          id: string;
+                          root: {
+                            active_id?: string | null;
+                            /** @enum {string|null} */
+                            axis?: "horizontal" | "vertical" | null;
+                            children?: components["schemas"]["WindowManagerLayoutNode"][];
+                            id: string;
+                            /** @enum {string} */
+                            kind: "leaf" | "split" | "stack";
+                            weights?: number[];
+                            window_id?: string | null;
+                            window_ids?: string[];
+                          };
+                        } | null;
+                        source_revision: number;
+                        /** Format: double */
+                        weight?: number | null;
+                      } | null;
+                      route: {
+                        pathname: string;
+                        search: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    };
+                  };
+                };
+                /** @enum {string} */
+                command_id:
+                  | "desktop.create"
+                  | "desktop.update"
+                  | "desktop.reorder"
+                  | "desktop.switch"
+                  | "desktop.delete"
+                  | "window.open"
+                  | "window.navigate"
+                  | "window.close"
+                  | "window.focus"
+                  | "window.move"
+                  | "window.swap"
+                  | "window.toggle_floating"
+                  | "window.zoom"
+                  | "layout.arrange"
+                  | "layout.resize"
+                  | "layout.balance"
+                  | "layout.undo"
+                  | "layout.redo"
+                  | "layout.replace";
+                /** Format: date-time */
+                created_at: string;
+                origin?: string;
+              }[];
+            };
+            overrides: {
+              bindings?: {
+                bottom_center: string;
+                top_center: string;
+              } | null;
+              desktop_transition?: string | null;
+              drag_away_policy?: string | null;
+              focus_follows_pointer?: boolean | null;
+              focus_policy?: string | null;
+              focus_wrap?: boolean | null;
+              gaps?: {
+                /** Format: double */
+                bottom: number;
+                /** Format: double */
+                inner: number;
+                /** Format: double */
+                left: number;
+                /** Format: double */
+                right: number;
+                /** Format: double */
+                top: number;
+              } | null;
+              group_move_modifier?: string | null;
+              history_limit?: number | null;
+              new_window_policy?: string | null;
+              raise_on_focus?: boolean | null;
+              shortcuts?: {
+                [key: string]: string;
+              };
+              small_viewport_policy?: string | null;
+              snap?: {
+                /** Format: double */
+                corner_reach: number;
+                /** Format: double */
+                edge_band: number;
+                /** Format: double */
+                exit_slack: number;
+                repeat_ratios: number[];
+              } | null;
+            };
+            revision: number;
+            /** Format: date-time */
+            updated_at: string;
+            version: number;
+            windows: {
+              [key: string]: {
+                app: string;
+                desktop_id: string;
+                floating_rect: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                instance_key?: string | null;
+                minimized: boolean;
+                /** @enum {string} */
+                placement: "tiled" | "stacked" | "floating";
+                return_anchor?: {
+                  child_index?: number | null;
+                  desktop_id: string;
+                  group_id?: string | null;
+                  neighbor_ids?: string[];
+                  parent_split_id?: string | null;
+                  source_group?: {
+                    frame: {
+                      /** Format: double */
+                      height: number;
+                      /** Format: double */
+                      width: number;
+                      /** Format: double */
+                      x: number;
+                      /** Format: double */
+                      y: number;
+                    };
+                    id: string;
+                    root: {
+                      active_id?: string | null;
+                      /** @enum {string|null} */
+                      axis?: "horizontal" | "vertical" | null;
+                      children?: components["schemas"]["WindowManagerLayoutNode"][];
+                      id: string;
+                      /** @enum {string} */
+                      kind: "leaf" | "split" | "stack";
+                      weights?: number[];
+                      window_id?: string | null;
+                      window_ids?: string[];
+                    };
+                  } | null;
+                  source_revision: number;
+                  /** Format: double */
+                  weight?: number | null;
+                } | null;
+                route: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                };
+              };
+            };
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+    };
+  };
+  listWindowManagerClients: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients: {
+              active_desktop_id: string;
+              client_id: string;
+              /** Format: date-time */
+              connected_at: string;
+              focus_order: string[];
+              focused_window_id?: string | null;
+              presentation_revision: number;
+              workspace_id: string;
+            }[];
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+    };
+  };
+  registerWindowManagerClient: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          active_desktop_id?: string;
+          client_id?: string;
+          workspace_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Registered */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_desktop_id: string;
+            client_id: string;
+            /** Format: date-time */
+            connected_at: string;
+            focus_order: string[];
+            focused_window_id?: string | null;
+            presentation_revision: number;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Workspace or referenced entity not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Revision or state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Invalid window-manager request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+    };
+  };
+  unregisterWindowManagerClient: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Connected window-manager client id */
+        client_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Workspace or referenced entity not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Revision or state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Invalid window-manager request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+    };
+  };
+  executeWindowManagerCommand: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id:
+            | "desktop.create"
+            | "desktop.update"
+            | "desktop.reorder"
+            | "desktop.switch"
+            | "desktop.delete"
+            | "window.open"
+            | "window.navigate"
+            | "window.close"
+            | "window.focus"
+            | "window.move"
+            | "window.swap"
+            | "window.toggle_floating"
+            | "window.zoom"
+            | "layout.arrange"
+            | "layout.resize"
+            | "layout.balance"
+            | "layout.undo"
+            | "layout.redo"
+            | "layout.replace";
+          expected_revision: number;
+          origin: string;
+          payload: unknown;
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            changes: {
+              client_ids?: string[];
+              desktop_ids?: string[];
+              group_ids?: string[];
+              node_ids?: string[];
+              window_ids?: string[];
+            };
+            client?: {
+              active_desktop_id: string;
+              client_id: string;
+              /** Format: date-time */
+              connected_at: string;
+              focus_order: string[];
+              focused_window_id?: string | null;
+              presentation_revision: number;
+              workspace_id: string;
+            } | null;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            rebased_from?: number;
+            snapshot: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              history: {
+                redo: {
+                  actor: {
+                    id?: string;
+                    kind?: string;
+                  };
+                  after: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  before: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  /** @enum {string} */
+                  command_id:
+                    | "desktop.create"
+                    | "desktop.update"
+                    | "desktop.reorder"
+                    | "desktop.switch"
+                    | "desktop.delete"
+                    | "window.open"
+                    | "window.navigate"
+                    | "window.close"
+                    | "window.focus"
+                    | "window.move"
+                    | "window.swap"
+                    | "window.toggle_floating"
+                    | "window.zoom"
+                    | "layout.arrange"
+                    | "layout.resize"
+                    | "layout.balance"
+                    | "layout.undo"
+                    | "layout.redo"
+                    | "layout.replace";
+                  /** Format: date-time */
+                  created_at: string;
+                  origin?: string;
+                }[];
+                undo: {
+                  actor: {
+                    id?: string;
+                    kind?: string;
+                  };
+                  after: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  before: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  /** @enum {string} */
+                  command_id:
+                    | "desktop.create"
+                    | "desktop.update"
+                    | "desktop.reorder"
+                    | "desktop.switch"
+                    | "desktop.delete"
+                    | "window.open"
+                    | "window.navigate"
+                    | "window.close"
+                    | "window.focus"
+                    | "window.move"
+                    | "window.swap"
+                    | "window.toggle_floating"
+                    | "window.zoom"
+                    | "layout.arrange"
+                    | "layout.resize"
+                    | "layout.balance"
+                    | "layout.undo"
+                    | "layout.redo"
+                    | "layout.replace";
+                  /** Format: date-time */
+                  created_at: string;
+                  origin?: string;
+                }[];
+              };
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+              version: number;
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Workspace or referenced entity not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Revision or state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Invalid window-manager request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+    };
+  };
+  exportWindowManagerLayout: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            desktops: {
+              floating: string[];
+              focus_owner?: string | null;
+              groups: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              }[];
+              id: string;
+              name: string;
+              order: number;
+              /** @enum {string} */
+              purpose: "standard" | "focus";
+            }[];
+            overrides: {
+              bindings?: {
+                bottom_center: string;
+                top_center: string;
+              } | null;
+              desktop_transition?: string | null;
+              drag_away_policy?: string | null;
+              focus_follows_pointer?: boolean | null;
+              focus_policy?: string | null;
+              focus_wrap?: boolean | null;
+              gaps?: {
+                /** Format: double */
+                bottom: number;
+                /** Format: double */
+                inner: number;
+                /** Format: double */
+                left: number;
+                /** Format: double */
+                right: number;
+                /** Format: double */
+                top: number;
+              } | null;
+              group_move_modifier?: string | null;
+              history_limit?: number | null;
+              new_window_policy?: string | null;
+              raise_on_focus?: boolean | null;
+              shortcuts?: {
+                [key: string]: string;
+              };
+              small_viewport_policy?: string | null;
+              snap?: {
+                /** Format: double */
+                corner_reach: number;
+                /** Format: double */
+                edge_band: number;
+                /** Format: double */
+                exit_slack: number;
+                repeat_ratios: number[];
+              } | null;
+            };
+            version: number;
+            windows: {
+              [key: string]: {
+                app: string;
+                desktop_id: string;
+                floating_rect: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                instance_key?: string | null;
+                minimized: boolean;
+                /** @enum {string} */
+                placement: "tiled" | "stacked" | "floating";
+                return_anchor?: {
+                  child_index?: number | null;
+                  desktop_id: string;
+                  group_id?: string | null;
+                  neighbor_ids?: string[];
+                  parent_split_id?: string | null;
+                  source_group?: {
+                    frame: {
+                      /** Format: double */
+                      height: number;
+                      /** Format: double */
+                      width: number;
+                      /** Format: double */
+                      x: number;
+                      /** Format: double */
+                      y: number;
+                    };
+                    id: string;
+                    root: {
+                      active_id?: string | null;
+                      /** @enum {string|null} */
+                      axis?: "horizontal" | "vertical" | null;
+                      children?: components["schemas"]["WindowManagerLayoutNode"][];
+                      id: string;
+                      /** @enum {string} */
+                      kind: "leaf" | "split" | "stack";
+                      weights?: number[];
+                      window_id?: string | null;
+                      window_ids?: string[];
+                    };
+                  } | null;
+                  source_revision: number;
+                  /** Format: double */
+                  weight?: number | null;
+                } | null;
+                route: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                };
+              };
+            };
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+    };
+  };
+  replaceWindowManagerLayout: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          document: {
+            desktops: {
+              floating: string[];
+              focus_owner?: string | null;
+              groups: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              }[];
+              id: string;
+              name: string;
+              order: number;
+              /** @enum {string} */
+              purpose: "standard" | "focus";
+            }[];
+            overrides: {
+              bindings?: {
+                bottom_center: string;
+                top_center: string;
+              } | null;
+              desktop_transition?: string | null;
+              drag_away_policy?: string | null;
+              focus_follows_pointer?: boolean | null;
+              focus_policy?: string | null;
+              focus_wrap?: boolean | null;
+              gaps?: {
+                /** Format: double */
+                bottom: number;
+                /** Format: double */
+                inner: number;
+                /** Format: double */
+                left: number;
+                /** Format: double */
+                right: number;
+                /** Format: double */
+                top: number;
+              } | null;
+              group_move_modifier?: string | null;
+              history_limit?: number | null;
+              new_window_policy?: string | null;
+              raise_on_focus?: boolean | null;
+              shortcuts?: {
+                [key: string]: string;
+              };
+              small_viewport_policy?: string | null;
+              snap?: {
+                /** Format: double */
+                corner_reach: number;
+                /** Format: double */
+                edge_band: number;
+                /** Format: double */
+                exit_slack: number;
+                repeat_ratios: number[];
+              } | null;
+            };
+            version: number;
+            windows: {
+              [key: string]: {
+                app: string;
+                desktop_id: string;
+                floating_rect: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                instance_key?: string | null;
+                minimized: boolean;
+                /** @enum {string} */
+                placement: "tiled" | "stacked" | "floating";
+                return_anchor?: {
+                  child_index?: number | null;
+                  desktop_id: string;
+                  group_id?: string | null;
+                  neighbor_ids?: string[];
+                  parent_split_id?: string | null;
+                  source_group?: {
+                    frame: {
+                      /** Format: double */
+                      height: number;
+                      /** Format: double */
+                      width: number;
+                      /** Format: double */
+                      x: number;
+                      /** Format: double */
+                      y: number;
+                    };
+                    id: string;
+                    root: {
+                      active_id?: string | null;
+                      /** @enum {string|null} */
+                      axis?: "horizontal" | "vertical" | null;
+                      children?: components["schemas"]["WindowManagerLayoutNode"][];
+                      id: string;
+                      /** @enum {string} */
+                      kind: "leaf" | "split" | "stack";
+                      weights?: number[];
+                      window_id?: string | null;
+                      window_ids?: string[];
+                    };
+                  } | null;
+                  source_revision: number;
+                  /** Format: double */
+                  weight?: number | null;
+                } | null;
+                route: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                };
+              };
+            };
+            workspace_id: string;
+          };
+          expected_revision: number;
+          origin: string;
+          workspace_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Applied */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            changes: {
+              client_ids?: string[];
+              desktop_ids?: string[];
+              group_ids?: string[];
+              node_ids?: string[];
+              window_ids?: string[];
+            };
+            client?: {
+              active_desktop_id: string;
+              client_id: string;
+              /** Format: date-time */
+              connected_at: string;
+              focus_order: string[];
+              focused_window_id?: string | null;
+              presentation_revision: number;
+              workspace_id: string;
+            } | null;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            rebased_from?: number;
+            snapshot: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              history: {
+                redo: {
+                  actor: {
+                    id?: string;
+                    kind?: string;
+                  };
+                  after: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  before: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  /** @enum {string} */
+                  command_id:
+                    | "desktop.create"
+                    | "desktop.update"
+                    | "desktop.reorder"
+                    | "desktop.switch"
+                    | "desktop.delete"
+                    | "window.open"
+                    | "window.navigate"
+                    | "window.close"
+                    | "window.focus"
+                    | "window.move"
+                    | "window.swap"
+                    | "window.toggle_floating"
+                    | "window.zoom"
+                    | "layout.arrange"
+                    | "layout.resize"
+                    | "layout.balance"
+                    | "layout.undo"
+                    | "layout.redo"
+                    | "layout.replace";
+                  /** Format: date-time */
+                  created_at: string;
+                  origin?: string;
+                }[];
+                undo: {
+                  actor: {
+                    id?: string;
+                    kind?: string;
+                  };
+                  after: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  before: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  /** @enum {string} */
+                  command_id:
+                    | "desktop.create"
+                    | "desktop.update"
+                    | "desktop.reorder"
+                    | "desktop.switch"
+                    | "desktop.delete"
+                    | "window.open"
+                    | "window.navigate"
+                    | "window.close"
+                    | "window.focus"
+                    | "window.move"
+                    | "window.swap"
+                    | "window.toggle_floating"
+                    | "window.zoom"
+                    | "layout.arrange"
+                    | "layout.resize"
+                    | "layout.balance"
+                    | "layout.undo"
+                    | "layout.redo"
+                    | "layout.replace";
+                  /** Format: date-time */
+                  created_at: string;
+                  origin?: string;
+                }[];
+              };
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+              version: number;
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Workspace or referenced entity not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Revision or state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Invalid window-manager request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+    };
+  };
+  listWindowManagerLayoutProfiles: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            records: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            }[];
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+    };
+  };
+  putWindowManagerLayoutProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Layout profile id */
+        profile_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: int64 */
+          expected_version?: number;
+          scope: {
+            id?: string;
+            /** @enum {string} */
+            kind: "global" | "workspace";
+          };
+          spec: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            record: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            record: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid JSON body */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace or profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid layout profile */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+    };
+  };
+  deleteWindowManagerLayoutProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Layout profile id */
+        profile_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: int64 */
+          expected_version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid JSON body */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace or profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid delete request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+    };
+  };
+  validateWindowManagerLayout: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          document: {
+            desktops: {
+              floating: string[];
+              focus_owner?: string | null;
+              groups: {
+                frame: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                root: {
+                  active_id?: string | null;
+                  /** @enum {string|null} */
+                  axis?: "horizontal" | "vertical" | null;
+                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                  id: string;
+                  /** @enum {string} */
+                  kind: "leaf" | "split" | "stack";
+                  weights?: number[];
+                  window_id?: string | null;
+                  window_ids?: string[];
+                };
+              }[];
+              id: string;
+              name: string;
+              order: number;
+              /** @enum {string} */
+              purpose: "standard" | "focus";
+            }[];
+            overrides: {
+              bindings?: {
+                bottom_center: string;
+                top_center: string;
+              } | null;
+              desktop_transition?: string | null;
+              drag_away_policy?: string | null;
+              focus_follows_pointer?: boolean | null;
+              focus_policy?: string | null;
+              focus_wrap?: boolean | null;
+              gaps?: {
+                /** Format: double */
+                bottom: number;
+                /** Format: double */
+                inner: number;
+                /** Format: double */
+                left: number;
+                /** Format: double */
+                right: number;
+                /** Format: double */
+                top: number;
+              } | null;
+              group_move_modifier?: string | null;
+              history_limit?: number | null;
+              new_window_policy?: string | null;
+              raise_on_focus?: boolean | null;
+              shortcuts?: {
+                [key: string]: string;
+              };
+              small_viewport_policy?: string | null;
+              snap?: {
+                /** Format: double */
+                corner_reach: number;
+                /** Format: double */
+                edge_band: number;
+                /** Format: double */
+                exit_slack: number;
+                repeat_ratios: number[];
+              } | null;
+            };
+            version: number;
+            windows: {
+              [key: string]: {
+                app: string;
+                desktop_id: string;
+                floating_rect: {
+                  /** Format: double */
+                  height: number;
+                  /** Format: double */
+                  width: number;
+                  /** Format: double */
+                  x: number;
+                  /** Format: double */
+                  y: number;
+                };
+                id: string;
+                instance_key?: string | null;
+                minimized: boolean;
+                /** @enum {string} */
+                placement: "tiled" | "stacked" | "floating";
+                return_anchor?: {
+                  child_index?: number | null;
+                  desktop_id: string;
+                  group_id?: string | null;
+                  neighbor_ids?: string[];
+                  parent_split_id?: string | null;
+                  source_group?: {
+                    frame: {
+                      /** Format: double */
+                      height: number;
+                      /** Format: double */
+                      width: number;
+                      /** Format: double */
+                      x: number;
+                      /** Format: double */
+                      y: number;
+                    };
+                    id: string;
+                    root: {
+                      active_id?: string | null;
+                      /** @enum {string|null} */
+                      axis?: "horizontal" | "vertical" | null;
+                      children?: components["schemas"]["WindowManagerLayoutNode"][];
+                      id: string;
+                      /** @enum {string} */
+                      kind: "leaf" | "split" | "stack";
+                      weights?: number[];
+                      window_id?: string | null;
+                      window_ids?: string[];
+                    };
+                  } | null;
+                  source_revision: number;
+                  /** Format: double */
+                  weight?: number | null;
+                } | null;
+                route: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                };
+              };
+            };
+            workspace_id: string;
+          };
+          workspace_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Validation result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            valid: boolean;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Workspace or referenced entity not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Revision or state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Invalid window-manager request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+    };
+  };
+  previewWindowManagerCommand: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          actor: {
+            id?: string;
+            kind?: string;
+          };
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id:
+            | "desktop.create"
+            | "desktop.update"
+            | "desktop.reorder"
+            | "desktop.switch"
+            | "desktop.delete"
+            | "window.open"
+            | "window.navigate"
+            | "window.close"
+            | "window.focus"
+            | "window.move"
+            | "window.swap"
+            | "window.toggle_floating"
+            | "window.zoom"
+            | "layout.arrange"
+            | "layout.resize"
+            | "layout.balance"
+            | "layout.undo"
+            | "layout.redo"
+            | "layout.replace";
+          expected_revision: number;
+          origin: string;
+          payload: unknown;
+          rebase?: {
+            boundary_index?: number | null;
+            source_node_id?: string | null;
+            split_id?: string | null;
+            target_node_id?: string | null;
+            window_id?: string | null;
+          } | null;
+          workspace_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            changed: boolean;
+            changes: {
+              client_ids?: string[];
+              desktop_ids?: string[];
+              group_ids?: string[];
+              node_ids?: string[];
+              window_ids?: string[];
+            };
+            client?: {
+              active_desktop_id: string;
+              client_id: string;
+              /** Format: date-time */
+              connected_at: string;
+              focus_order: string[];
+              focused_window_id?: string | null;
+              presentation_revision: number;
+              workspace_id: string;
+            } | null;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            snapshot: {
+              desktops: {
+                floating: string[];
+                focus_owner?: string | null;
+                groups: {
+                  frame: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  root: {
+                    active_id?: string | null;
+                    /** @enum {string|null} */
+                    axis?: "horizontal" | "vertical" | null;
+                    children?: components["schemas"]["WindowManagerLayoutNode"][];
+                    id: string;
+                    /** @enum {string} */
+                    kind: "leaf" | "split" | "stack";
+                    weights?: number[];
+                    window_id?: string | null;
+                    window_ids?: string[];
+                  };
+                }[];
+                id: string;
+                name: string;
+                order: number;
+                /** @enum {string} */
+                purpose: "standard" | "focus";
+              }[];
+              history: {
+                redo: {
+                  actor: {
+                    id?: string;
+                    kind?: string;
+                  };
+                  after: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  before: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  /** @enum {string} */
+                  command_id:
+                    | "desktop.create"
+                    | "desktop.update"
+                    | "desktop.reorder"
+                    | "desktop.switch"
+                    | "desktop.delete"
+                    | "window.open"
+                    | "window.navigate"
+                    | "window.close"
+                    | "window.focus"
+                    | "window.move"
+                    | "window.swap"
+                    | "window.toggle_floating"
+                    | "window.zoom"
+                    | "layout.arrange"
+                    | "layout.resize"
+                    | "layout.balance"
+                    | "layout.undo"
+                    | "layout.redo"
+                    | "layout.replace";
+                  /** Format: date-time */
+                  created_at: string;
+                  origin?: string;
+                }[];
+                undo: {
+                  actor: {
+                    id?: string;
+                    kind?: string;
+                  };
+                  after: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  before: {
+                    desktops: {
+                      floating: string[];
+                      focus_owner?: string | null;
+                      groups: {
+                        frame: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        root: {
+                          active_id?: string | null;
+                          /** @enum {string|null} */
+                          axis?: "horizontal" | "vertical" | null;
+                          children?: components["schemas"]["WindowManagerLayoutNode"][];
+                          id: string;
+                          /** @enum {string} */
+                          kind: "leaf" | "split" | "stack";
+                          weights?: number[];
+                          window_id?: string | null;
+                          window_ids?: string[];
+                        };
+                      }[];
+                      id: string;
+                      name: string;
+                      order: number;
+                      /** @enum {string} */
+                      purpose: "standard" | "focus";
+                    }[];
+                    overrides: {
+                      bindings?: {
+                        bottom_center: string;
+                        top_center: string;
+                      } | null;
+                      desktop_transition?: string | null;
+                      drag_away_policy?: string | null;
+                      focus_follows_pointer?: boolean | null;
+                      focus_policy?: string | null;
+                      focus_wrap?: boolean | null;
+                      gaps?: {
+                        /** Format: double */
+                        bottom: number;
+                        /** Format: double */
+                        inner: number;
+                        /** Format: double */
+                        left: number;
+                        /** Format: double */
+                        right: number;
+                        /** Format: double */
+                        top: number;
+                      } | null;
+                      group_move_modifier?: string | null;
+                      history_limit?: number | null;
+                      new_window_policy?: string | null;
+                      raise_on_focus?: boolean | null;
+                      shortcuts?: {
+                        [key: string]: string;
+                      };
+                      small_viewport_policy?: string | null;
+                      snap?: {
+                        /** Format: double */
+                        corner_reach: number;
+                        /** Format: double */
+                        edge_band: number;
+                        /** Format: double */
+                        exit_slack: number;
+                        repeat_ratios: number[];
+                      } | null;
+                    };
+                    windows: {
+                      [key: string]: {
+                        app: string;
+                        desktop_id: string;
+                        floating_rect: {
+                          /** Format: double */
+                          height: number;
+                          /** Format: double */
+                          width: number;
+                          /** Format: double */
+                          x: number;
+                          /** Format: double */
+                          y: number;
+                        };
+                        id: string;
+                        instance_key?: string | null;
+                        minimized: boolean;
+                        /** @enum {string} */
+                        placement: "tiled" | "stacked" | "floating";
+                        return_anchor?: {
+                          child_index?: number | null;
+                          desktop_id: string;
+                          group_id?: string | null;
+                          neighbor_ids?: string[];
+                          parent_split_id?: string | null;
+                          source_group?: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          } | null;
+                          source_revision: number;
+                          /** Format: double */
+                          weight?: number | null;
+                        } | null;
+                        route: {
+                          pathname: string;
+                          search: {
+                            [key: string]: unknown;
+                          };
+                        };
+                      };
+                    };
+                  };
+                  /** @enum {string} */
+                  command_id:
+                    | "desktop.create"
+                    | "desktop.update"
+                    | "desktop.reorder"
+                    | "desktop.switch"
+                    | "desktop.delete"
+                    | "window.open"
+                    | "window.navigate"
+                    | "window.close"
+                    | "window.focus"
+                    | "window.move"
+                    | "window.swap"
+                    | "window.toggle_floating"
+                    | "window.zoom"
+                    | "layout.arrange"
+                    | "layout.resize"
+                    | "layout.balance"
+                    | "layout.undo"
+                    | "layout.redo"
+                    | "layout.replace";
+                  /** Format: date-time */
+                  created_at: string;
+                  origin?: string;
+                }[];
+              };
+              overrides: {
+                bindings?: {
+                  bottom_center: string;
+                  top_center: string;
+                } | null;
+                desktop_transition?: string | null;
+                drag_away_policy?: string | null;
+                focus_follows_pointer?: boolean | null;
+                focus_policy?: string | null;
+                focus_wrap?: boolean | null;
+                gaps?: {
+                  /** Format: double */
+                  bottom: number;
+                  /** Format: double */
+                  inner: number;
+                  /** Format: double */
+                  left: number;
+                  /** Format: double */
+                  right: number;
+                  /** Format: double */
+                  top: number;
+                } | null;
+                group_move_modifier?: string | null;
+                history_limit?: number | null;
+                new_window_policy?: string | null;
+                raise_on_focus?: boolean | null;
+                shortcuts?: {
+                  [key: string]: string;
+                };
+                small_viewport_policy?: string | null;
+                snap?: {
+                  /** Format: double */
+                  corner_reach: number;
+                  /** Format: double */
+                  edge_band: number;
+                  /** Format: double */
+                  exit_slack: number;
+                  repeat_ratios: number[];
+                } | null;
+              };
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+              version: number;
+              windows: {
+                [key: string]: {
+                  app: string;
+                  desktop_id: string;
+                  floating_rect: {
+                    /** Format: double */
+                    height: number;
+                    /** Format: double */
+                    width: number;
+                    /** Format: double */
+                    x: number;
+                    /** Format: double */
+                    y: number;
+                  };
+                  id: string;
+                  instance_key?: string | null;
+                  minimized: boolean;
+                  /** @enum {string} */
+                  placement: "tiled" | "stacked" | "floating";
+                  return_anchor?: {
+                    child_index?: number | null;
+                    desktop_id: string;
+                    group_id?: string | null;
+                    neighbor_ids?: string[];
+                    parent_split_id?: string | null;
+                    source_group?: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    } | null;
+                    source_revision: number;
+                    /** Format: double */
+                    weight?: number | null;
+                  } | null;
+                  route: {
+                    pathname: string;
+                    search: {
+                      [key: string]: unknown;
+                    };
+                  };
+                };
+              };
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Workspace or referenced entity not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Revision or state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Invalid window-manager request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+    };
+  };
+  streamWindowManager: {
+    parameters: {
+      query?: {
+        /** @description Last applied window-manager revision */
+        after_revision?: number;
+        /** @description Optional connected client bound to presentation updates */
+        client_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description WebSocket upgrade and frame contract */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                client?: {
+                  active_desktop_id: string;
+                  client_id: string;
+                  /** Format: date-time */
+                  connected_at: string;
+                  focus_order: string[];
+                  focused_window_id?: string | null;
+                  presentation_revision: number;
+                  workspace_id: string;
+                } | null;
+                revision: number;
+                snapshot: {
+                  desktops: {
+                    floating: string[];
+                    focus_owner?: string | null;
+                    groups: {
+                      frame: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      root: {
+                        active_id?: string | null;
+                        /** @enum {string|null} */
+                        axis?: "horizontal" | "vertical" | null;
+                        children?: components["schemas"]["WindowManagerLayoutNode"][];
+                        id: string;
+                        /** @enum {string} */
+                        kind: "leaf" | "split" | "stack";
+                        weights?: number[];
+                        window_id?: string | null;
+                        window_ids?: string[];
+                      };
+                    }[];
+                    id: string;
+                    name: string;
+                    order: number;
+                    /** @enum {string} */
+                    purpose: "standard" | "focus";
+                  }[];
+                  history: {
+                    redo: {
+                      actor: {
+                        id?: string;
+                        kind?: string;
+                      };
+                      after: {
+                        desktops: {
+                          floating: string[];
+                          focus_owner?: string | null;
+                          groups: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          }[];
+                          id: string;
+                          name: string;
+                          order: number;
+                          /** @enum {string} */
+                          purpose: "standard" | "focus";
+                        }[];
+                        overrides: {
+                          bindings?: {
+                            bottom_center: string;
+                            top_center: string;
+                          } | null;
+                          desktop_transition?: string | null;
+                          drag_away_policy?: string | null;
+                          focus_follows_pointer?: boolean | null;
+                          focus_policy?: string | null;
+                          focus_wrap?: boolean | null;
+                          gaps?: {
+                            /** Format: double */
+                            bottom: number;
+                            /** Format: double */
+                            inner: number;
+                            /** Format: double */
+                            left: number;
+                            /** Format: double */
+                            right: number;
+                            /** Format: double */
+                            top: number;
+                          } | null;
+                          group_move_modifier?: string | null;
+                          history_limit?: number | null;
+                          new_window_policy?: string | null;
+                          raise_on_focus?: boolean | null;
+                          shortcuts?: {
+                            [key: string]: string;
+                          };
+                          small_viewport_policy?: string | null;
+                          snap?: {
+                            /** Format: double */
+                            corner_reach: number;
+                            /** Format: double */
+                            edge_band: number;
+                            /** Format: double */
+                            exit_slack: number;
+                            repeat_ratios: number[];
+                          } | null;
+                        };
+                        windows: {
+                          [key: string]: {
+                            app: string;
+                            desktop_id: string;
+                            floating_rect: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            instance_key?: string | null;
+                            minimized: boolean;
+                            /** @enum {string} */
+                            placement: "tiled" | "stacked" | "floating";
+                            return_anchor?: {
+                              child_index?: number | null;
+                              desktop_id: string;
+                              group_id?: string | null;
+                              neighbor_ids?: string[];
+                              parent_split_id?: string | null;
+                              source_group?: {
+                                frame: {
+                                  /** Format: double */
+                                  height: number;
+                                  /** Format: double */
+                                  width: number;
+                                  /** Format: double */
+                                  x: number;
+                                  /** Format: double */
+                                  y: number;
+                                };
+                                id: string;
+                                root: {
+                                  active_id?: string | null;
+                                  /** @enum {string|null} */
+                                  axis?: "horizontal" | "vertical" | null;
+                                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                                  id: string;
+                                  /** @enum {string} */
+                                  kind: "leaf" | "split" | "stack";
+                                  weights?: number[];
+                                  window_id?: string | null;
+                                  window_ids?: string[];
+                                };
+                              } | null;
+                              source_revision: number;
+                              /** Format: double */
+                              weight?: number | null;
+                            } | null;
+                            route: {
+                              pathname: string;
+                              search: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          };
+                        };
+                      };
+                      before: {
+                        desktops: {
+                          floating: string[];
+                          focus_owner?: string | null;
+                          groups: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          }[];
+                          id: string;
+                          name: string;
+                          order: number;
+                          /** @enum {string} */
+                          purpose: "standard" | "focus";
+                        }[];
+                        overrides: {
+                          bindings?: {
+                            bottom_center: string;
+                            top_center: string;
+                          } | null;
+                          desktop_transition?: string | null;
+                          drag_away_policy?: string | null;
+                          focus_follows_pointer?: boolean | null;
+                          focus_policy?: string | null;
+                          focus_wrap?: boolean | null;
+                          gaps?: {
+                            /** Format: double */
+                            bottom: number;
+                            /** Format: double */
+                            inner: number;
+                            /** Format: double */
+                            left: number;
+                            /** Format: double */
+                            right: number;
+                            /** Format: double */
+                            top: number;
+                          } | null;
+                          group_move_modifier?: string | null;
+                          history_limit?: number | null;
+                          new_window_policy?: string | null;
+                          raise_on_focus?: boolean | null;
+                          shortcuts?: {
+                            [key: string]: string;
+                          };
+                          small_viewport_policy?: string | null;
+                          snap?: {
+                            /** Format: double */
+                            corner_reach: number;
+                            /** Format: double */
+                            edge_band: number;
+                            /** Format: double */
+                            exit_slack: number;
+                            repeat_ratios: number[];
+                          } | null;
+                        };
+                        windows: {
+                          [key: string]: {
+                            app: string;
+                            desktop_id: string;
+                            floating_rect: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            instance_key?: string | null;
+                            minimized: boolean;
+                            /** @enum {string} */
+                            placement: "tiled" | "stacked" | "floating";
+                            return_anchor?: {
+                              child_index?: number | null;
+                              desktop_id: string;
+                              group_id?: string | null;
+                              neighbor_ids?: string[];
+                              parent_split_id?: string | null;
+                              source_group?: {
+                                frame: {
+                                  /** Format: double */
+                                  height: number;
+                                  /** Format: double */
+                                  width: number;
+                                  /** Format: double */
+                                  x: number;
+                                  /** Format: double */
+                                  y: number;
+                                };
+                                id: string;
+                                root: {
+                                  active_id?: string | null;
+                                  /** @enum {string|null} */
+                                  axis?: "horizontal" | "vertical" | null;
+                                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                                  id: string;
+                                  /** @enum {string} */
+                                  kind: "leaf" | "split" | "stack";
+                                  weights?: number[];
+                                  window_id?: string | null;
+                                  window_ids?: string[];
+                                };
+                              } | null;
+                              source_revision: number;
+                              /** Format: double */
+                              weight?: number | null;
+                            } | null;
+                            route: {
+                              pathname: string;
+                              search: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          };
+                        };
+                      };
+                      /** @enum {string} */
+                      command_id:
+                        | "desktop.create"
+                        | "desktop.update"
+                        | "desktop.reorder"
+                        | "desktop.switch"
+                        | "desktop.delete"
+                        | "window.open"
+                        | "window.navigate"
+                        | "window.close"
+                        | "window.focus"
+                        | "window.move"
+                        | "window.swap"
+                        | "window.toggle_floating"
+                        | "window.zoom"
+                        | "layout.arrange"
+                        | "layout.resize"
+                        | "layout.balance"
+                        | "layout.undo"
+                        | "layout.redo"
+                        | "layout.replace";
+                      /** Format: date-time */
+                      created_at: string;
+                      origin?: string;
+                    }[];
+                    undo: {
+                      actor: {
+                        id?: string;
+                        kind?: string;
+                      };
+                      after: {
+                        desktops: {
+                          floating: string[];
+                          focus_owner?: string | null;
+                          groups: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          }[];
+                          id: string;
+                          name: string;
+                          order: number;
+                          /** @enum {string} */
+                          purpose: "standard" | "focus";
+                        }[];
+                        overrides: {
+                          bindings?: {
+                            bottom_center: string;
+                            top_center: string;
+                          } | null;
+                          desktop_transition?: string | null;
+                          drag_away_policy?: string | null;
+                          focus_follows_pointer?: boolean | null;
+                          focus_policy?: string | null;
+                          focus_wrap?: boolean | null;
+                          gaps?: {
+                            /** Format: double */
+                            bottom: number;
+                            /** Format: double */
+                            inner: number;
+                            /** Format: double */
+                            left: number;
+                            /** Format: double */
+                            right: number;
+                            /** Format: double */
+                            top: number;
+                          } | null;
+                          group_move_modifier?: string | null;
+                          history_limit?: number | null;
+                          new_window_policy?: string | null;
+                          raise_on_focus?: boolean | null;
+                          shortcuts?: {
+                            [key: string]: string;
+                          };
+                          small_viewport_policy?: string | null;
+                          snap?: {
+                            /** Format: double */
+                            corner_reach: number;
+                            /** Format: double */
+                            edge_band: number;
+                            /** Format: double */
+                            exit_slack: number;
+                            repeat_ratios: number[];
+                          } | null;
+                        };
+                        windows: {
+                          [key: string]: {
+                            app: string;
+                            desktop_id: string;
+                            floating_rect: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            instance_key?: string | null;
+                            minimized: boolean;
+                            /** @enum {string} */
+                            placement: "tiled" | "stacked" | "floating";
+                            return_anchor?: {
+                              child_index?: number | null;
+                              desktop_id: string;
+                              group_id?: string | null;
+                              neighbor_ids?: string[];
+                              parent_split_id?: string | null;
+                              source_group?: {
+                                frame: {
+                                  /** Format: double */
+                                  height: number;
+                                  /** Format: double */
+                                  width: number;
+                                  /** Format: double */
+                                  x: number;
+                                  /** Format: double */
+                                  y: number;
+                                };
+                                id: string;
+                                root: {
+                                  active_id?: string | null;
+                                  /** @enum {string|null} */
+                                  axis?: "horizontal" | "vertical" | null;
+                                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                                  id: string;
+                                  /** @enum {string} */
+                                  kind: "leaf" | "split" | "stack";
+                                  weights?: number[];
+                                  window_id?: string | null;
+                                  window_ids?: string[];
+                                };
+                              } | null;
+                              source_revision: number;
+                              /** Format: double */
+                              weight?: number | null;
+                            } | null;
+                            route: {
+                              pathname: string;
+                              search: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          };
+                        };
+                      };
+                      before: {
+                        desktops: {
+                          floating: string[];
+                          focus_owner?: string | null;
+                          groups: {
+                            frame: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            root: {
+                              active_id?: string | null;
+                              /** @enum {string|null} */
+                              axis?: "horizontal" | "vertical" | null;
+                              children?: components["schemas"]["WindowManagerLayoutNode"][];
+                              id: string;
+                              /** @enum {string} */
+                              kind: "leaf" | "split" | "stack";
+                              weights?: number[];
+                              window_id?: string | null;
+                              window_ids?: string[];
+                            };
+                          }[];
+                          id: string;
+                          name: string;
+                          order: number;
+                          /** @enum {string} */
+                          purpose: "standard" | "focus";
+                        }[];
+                        overrides: {
+                          bindings?: {
+                            bottom_center: string;
+                            top_center: string;
+                          } | null;
+                          desktop_transition?: string | null;
+                          drag_away_policy?: string | null;
+                          focus_follows_pointer?: boolean | null;
+                          focus_policy?: string | null;
+                          focus_wrap?: boolean | null;
+                          gaps?: {
+                            /** Format: double */
+                            bottom: number;
+                            /** Format: double */
+                            inner: number;
+                            /** Format: double */
+                            left: number;
+                            /** Format: double */
+                            right: number;
+                            /** Format: double */
+                            top: number;
+                          } | null;
+                          group_move_modifier?: string | null;
+                          history_limit?: number | null;
+                          new_window_policy?: string | null;
+                          raise_on_focus?: boolean | null;
+                          shortcuts?: {
+                            [key: string]: string;
+                          };
+                          small_viewport_policy?: string | null;
+                          snap?: {
+                            /** Format: double */
+                            corner_reach: number;
+                            /** Format: double */
+                            edge_band: number;
+                            /** Format: double */
+                            exit_slack: number;
+                            repeat_ratios: number[];
+                          } | null;
+                        };
+                        windows: {
+                          [key: string]: {
+                            app: string;
+                            desktop_id: string;
+                            floating_rect: {
+                              /** Format: double */
+                              height: number;
+                              /** Format: double */
+                              width: number;
+                              /** Format: double */
+                              x: number;
+                              /** Format: double */
+                              y: number;
+                            };
+                            id: string;
+                            instance_key?: string | null;
+                            minimized: boolean;
+                            /** @enum {string} */
+                            placement: "tiled" | "stacked" | "floating";
+                            return_anchor?: {
+                              child_index?: number | null;
+                              desktop_id: string;
+                              group_id?: string | null;
+                              neighbor_ids?: string[];
+                              parent_split_id?: string | null;
+                              source_group?: {
+                                frame: {
+                                  /** Format: double */
+                                  height: number;
+                                  /** Format: double */
+                                  width: number;
+                                  /** Format: double */
+                                  x: number;
+                                  /** Format: double */
+                                  y: number;
+                                };
+                                id: string;
+                                root: {
+                                  active_id?: string | null;
+                                  /** @enum {string|null} */
+                                  axis?: "horizontal" | "vertical" | null;
+                                  children?: components["schemas"]["WindowManagerLayoutNode"][];
+                                  id: string;
+                                  /** @enum {string} */
+                                  kind: "leaf" | "split" | "stack";
+                                  weights?: number[];
+                                  window_id?: string | null;
+                                  window_ids?: string[];
+                                };
+                              } | null;
+                              source_revision: number;
+                              /** Format: double */
+                              weight?: number | null;
+                            } | null;
+                            route: {
+                              pathname: string;
+                              search: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          };
+                        };
+                      };
+                      /** @enum {string} */
+                      command_id:
+                        | "desktop.create"
+                        | "desktop.update"
+                        | "desktop.reorder"
+                        | "desktop.switch"
+                        | "desktop.delete"
+                        | "window.open"
+                        | "window.navigate"
+                        | "window.close"
+                        | "window.focus"
+                        | "window.move"
+                        | "window.swap"
+                        | "window.toggle_floating"
+                        | "window.zoom"
+                        | "layout.arrange"
+                        | "layout.resize"
+                        | "layout.balance"
+                        | "layout.undo"
+                        | "layout.redo"
+                        | "layout.replace";
+                      /** Format: date-time */
+                      created_at: string;
+                      origin?: string;
+                    }[];
+                  };
+                  overrides: {
+                    bindings?: {
+                      bottom_center: string;
+                      top_center: string;
+                    } | null;
+                    desktop_transition?: string | null;
+                    drag_away_policy?: string | null;
+                    focus_follows_pointer?: boolean | null;
+                    focus_policy?: string | null;
+                    focus_wrap?: boolean | null;
+                    gaps?: {
+                      /** Format: double */
+                      bottom: number;
+                      /** Format: double */
+                      inner: number;
+                      /** Format: double */
+                      left: number;
+                      /** Format: double */
+                      right: number;
+                      /** Format: double */
+                      top: number;
+                    } | null;
+                    group_move_modifier?: string | null;
+                    history_limit?: number | null;
+                    new_window_policy?: string | null;
+                    raise_on_focus?: boolean | null;
+                    shortcuts?: {
+                      [key: string]: string;
+                    };
+                    small_viewport_policy?: string | null;
+                    snap?: {
+                      /** Format: double */
+                      corner_reach: number;
+                      /** Format: double */
+                      edge_band: number;
+                      /** Format: double */
+                      exit_slack: number;
+                      repeat_ratios: number[];
+                    } | null;
+                  };
+                  revision: number;
+                  /** Format: date-time */
+                  updated_at: string;
+                  version: number;
+                  windows: {
+                    [key: string]: {
+                      app: string;
+                      desktop_id: string;
+                      floating_rect: {
+                        /** Format: double */
+                        height: number;
+                        /** Format: double */
+                        width: number;
+                        /** Format: double */
+                        x: number;
+                        /** Format: double */
+                        y: number;
+                      };
+                      id: string;
+                      instance_key?: string | null;
+                      minimized: boolean;
+                      /** @enum {string} */
+                      placement: "tiled" | "stacked" | "floating";
+                      return_anchor?: {
+                        child_index?: number | null;
+                        desktop_id: string;
+                        group_id?: string | null;
+                        neighbor_ids?: string[];
+                        parent_split_id?: string | null;
+                        source_group?: {
+                          frame: {
+                            /** Format: double */
+                            height: number;
+                            /** Format: double */
+                            width: number;
+                            /** Format: double */
+                            x: number;
+                            /** Format: double */
+                            y: number;
+                          };
+                          id: string;
+                          root: {
+                            active_id?: string | null;
+                            /** @enum {string|null} */
+                            axis?: "horizontal" | "vertical" | null;
+                            children?: components["schemas"]["WindowManagerLayoutNode"][];
+                            id: string;
+                            /** @enum {string} */
+                            kind: "leaf" | "split" | "stack";
+                            weights?: number[];
+                            window_id?: string | null;
+                            window_ids?: string[];
+                          };
+                        } | null;
+                        source_revision: number;
+                        /** Format: double */
+                        weight?: number | null;
+                      } | null;
+                      route: {
+                        pathname: string;
+                        search: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    };
+                  };
+                  workspace_id: string;
+                };
+                /** @enum {string} */
+                type: "snapshot";
+                workspace_id: string;
+              }
+            | {
+                event: {
+                  actor: {
+                    id?: string;
+                    kind?: string;
+                  };
+                  changes: {
+                    client_ids?: string[];
+                    desktop_ids?: string[];
+                    group_ids?: string[];
+                    node_ids?: string[];
+                    window_ids?: string[];
+                  };
+                  /** @enum {string} */
+                  command_id:
+                    | "desktop.create"
+                    | "desktop.update"
+                    | "desktop.reorder"
+                    | "desktop.switch"
+                    | "desktop.delete"
+                    | "window.open"
+                    | "window.navigate"
+                    | "window.close"
+                    | "window.focus"
+                    | "window.move"
+                    | "window.swap"
+                    | "window.toggle_floating"
+                    | "window.zoom"
+                    | "layout.arrange"
+                    | "layout.resize"
+                    | "layout.balance"
+                    | "layout.undo"
+                    | "layout.redo"
+                    | "layout.replace";
+                  /** Format: date-time */
+                  occurred_at: string;
+                  origin?: string;
+                  revision: number;
+                  workspace_id: string;
+                };
+                revision: number;
+                /** @enum {string} */
+                type: "event";
+                workspace_id: string;
+              }
+            | {
+                client: {
+                  active_desktop_id: string;
+                  client_id: string;
+                  /** Format: date-time */
+                  connected_at: string;
+                  focus_order: string[];
+                  focused_window_id?: string | null;
+                  presentation_revision: number;
+                  workspace_id: string;
+                };
+                revision: number;
+                /** @enum {string} */
+                type: "client";
+                workspace_id: string;
+              }
+            | {
+                error: {
+                  /** @enum {string} */
+                  code:
+                    | "window_manager_workspace_not_found"
+                    | "window_manager_revision_conflict"
+                    | "window_manager_invalid_command"
+                    | "window_manager_invalid_topology"
+                    | "window_manager_desktop_not_found"
+                    | "window_manager_window_not_found"
+                    | "window_manager_client_not_found"
+                    | "window_manager_destination_required"
+                    | "window_manager_final_desktop"
+                    | "window_manager_history_boundary"
+                    | "window_manager_layout_not_found"
+                    | "window_manager_slow_consumer"
+                    | "window_manager_unavailable";
+                  conflicts?: {
+                    code: string;
+                    current_id?: string;
+                    entity_id?: string;
+                  }[];
+                  current_revision?: number;
+                  diagnostics?: {
+                    code: string;
+                    message: string;
+                    path?: string;
+                  }[];
+                  error: string;
+                  workspace_id: string;
+                };
+                /** @enum {string} */
+                type: "error";
+              };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Requested revision is ahead */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Invalid after_revision */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "window_manager_workspace_not_found"
+              | "window_manager_revision_conflict"
+              | "window_manager_invalid_command"
+              | "window_manager_invalid_topology"
+              | "window_manager_desktop_not_found"
+              | "window_manager_window_not_found"
+              | "window_manager_client_not_found"
+              | "window_manager_destination_required"
+              | "window_manager_final_desktop"
+              | "window_manager_history_boundary"
+              | "window_manager_layout_not_found"
+              | "window_manager_slow_consumer"
+              | "window_manager_unavailable";
+            conflicts?: {
+              code: string;
+              current_id?: string;
+              entity_id?: string;
+            }[];
+            current_revision?: number;
+            diagnostics?: {
+              code: string;
+              message: string;
+              path?: string;
+            }[];
+            error: string;
+            workspace_id: string;
           };
         };
       };

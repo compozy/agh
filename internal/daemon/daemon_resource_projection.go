@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/agh/internal/resources"
 
 	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/windowmanager"
 
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
@@ -135,6 +136,17 @@ func appendCoreProjectorRegistrations(
 	registrations []resources.ProjectorRegistration,
 	deps *resourceReconcileDriverDeps,
 ) ([]resources.ProjectorRegistration, error) {
+	registrations, err := appendAuthoredCoreProjectorRegistrations(registrations, deps)
+	if err != nil {
+		return nil, err
+	}
+	return appendCapabilityCoreProjectorRegistrations(registrations, deps)
+}
+
+func appendAuthoredCoreProjectorRegistrations(
+	registrations []resources.ProjectorRegistration,
+	deps *resourceReconcileDriverDeps,
+) ([]resources.ProjectorRegistration, error) {
 	var err error
 	if deps.Hooks != nil {
 		registrations, err = appendTypedProjectorRegistration(
@@ -180,6 +192,14 @@ func appendCoreProjectorRegistrations(
 	if err != nil {
 		return nil, err
 	}
+	return registrations, nil
+}
+
+func appendCapabilityCoreProjectorRegistrations(
+	registrations []resources.ProjectorRegistration,
+	deps *resourceReconcileDriverDeps,
+) ([]resources.ProjectorRegistration, error) {
+	var err error
 	if deps.ToolCatalog != nil {
 		registrations, err = appendTypedProjectorRegistration(
 			registrations,
@@ -197,6 +217,17 @@ func appendCoreProjectorRegistrations(
 			deps.CodecRegistry,
 			aghconfig.MCPServerResourceKind,
 			newMCPServerProjector(deps.MCPServerCatalog),
+		)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if deps.WindowLayoutCatalog != nil {
+		registrations, err = appendTypedProjectorRegistration(
+			registrations,
+			deps.CodecRegistry,
+			windowmanager.WindowLayoutResourceKind,
+			newWindowLayoutProjector(deps.WindowLayoutCatalog),
 		)
 	}
 	if err != nil {

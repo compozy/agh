@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: MS-029
 ---
 
-story: As an operator I edit any server class the marketplace can install (local stdio or remote http/sse with OAuth) directly in the product with validation that mirrors the daemon.
+story: As a builder I edit any server class the marketplace can install (local stdio or remote http/sse with OAuth) directly in the product with validation that mirrors the daemon.
 
 src: docs/design/opendesign/mcp-management.html
 

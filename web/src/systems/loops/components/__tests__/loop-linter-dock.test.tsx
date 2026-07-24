@@ -1,22 +1,38 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LoopLinterDock } from "../editor/loop-linter-dock";
 import { buildLintState, emptyLintState } from "../../lib/loop-editor-lint";
+
+function expandDock() {
+  const toggle = screen.getByTestId("loop-linter-toggle");
+  if (toggle.getAttribute("aria-expanded") === "false") {
+    fireEvent.click(toggle);
+  }
+}
 
 describe("LoopLinterDock", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
+  it("Should start collapsed with the count chip visible in the header", () => {
+    render(<LoopLinterDock lint={emptyLintState()} validateFailed={false} onReveal={vi.fn()} />);
+    expect(screen.getByTestId("loop-linter-toggle")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("checking…");
+    expect(screen.queryByTestId("loop-linter-issue")).not.toBeInTheDocument();
+  });
+
   it("Should show a neutral pending state before the first daemon verdict", () => {
     render(<LoopLinterDock lint={emptyLintState()} validateFailed={false} onReveal={vi.fn()} />);
+    expandDock();
     expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("checking…");
     expect(screen.queryByTestId("loop-linter-issue")).not.toBeInTheDocument();
   });
 
   it("Should show an unavailable state (not a perpetual spinner) when validate fails first", () => {
     render(<LoopLinterDock lint={emptyLintState()} validateFailed onReveal={vi.fn()} />);
+    expandDock();
     expect(screen.getByTestId("loop-linter-unavailable")).toHaveTextContent(
       /couldn't reach the shared linter/i
     );
@@ -36,6 +52,7 @@ describe("LoopLinterDock", () => {
       ],
     });
     render(<LoopLinterDock lint={lint} validateFailed={false} onReveal={vi.fn()} />);
+    expandDock();
     // A warning-only verdict must NOT read as a red "0 issues" 422 gate.
     expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("1 warning");
     const row = screen.getByTestId("loop-linter-issue");
@@ -58,6 +75,7 @@ describe("LoopLinterDock", () => {
     });
     const onReveal = vi.fn();
     render(<LoopLinterDock lint={lint} validateFailed={false} onReveal={onReveal} />);
+    expandDock();
     expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("1 issue");
     const row = screen.getByTestId("loop-linter-issue");
     expect(row).toHaveAttribute("data-severity", "error");
@@ -75,6 +93,7 @@ describe("LoopLinterDock", () => {
     const lint = buildLintState({ valid: false, errors: [issue, issue] });
 
     render(<LoopLinterDock lint={lint} validateFailed={false} onReveal={vi.fn()} />);
+    expandDock();
 
     expect(screen.getAllByTestId("loop-linter-issue")).toHaveLength(2);
     expect(consoleError).not.toHaveBeenCalled();

@@ -10,6 +10,8 @@ import { useDesktop } from "../../hooks/use-desktop";
 import { MarketplaceDetailLocation } from "./marketplace-detail-location";
 import { validateMarketplaceDetailSearch } from "./marketplace-detail-search";
 
+const DEFAULT_MARKETPLACE_ROUTE = { pathname: "/marketplace/skills", search: {} } as const;
+
 function decodePathSegment(value: string): string {
   try {
     return decodeURIComponent(value);
@@ -20,9 +22,7 @@ function decodePathSegment(value: string): string {
 
 /** Marketplace app controller driven exclusively by the logical window's WM location. */
 export function MarketplaceWindow({ windowId }: { windowId: string }) {
-  const location = useDesktop(
-    state => state.windows[windowId]?.location ?? { pathname: "/marketplace/skills", search: {} }
-  );
+  const location = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_MARKETPLACE_ROUTE);
   const segments = location.pathname.split("/").filter(Boolean);
 
   if (segments[1] === "bundles" && segments[2] === "activations" && segments[3]) {

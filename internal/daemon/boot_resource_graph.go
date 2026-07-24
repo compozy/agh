@@ -19,6 +19,7 @@ import (
 
 	"github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/windowmanager"
 
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
@@ -71,6 +72,13 @@ func registerDaemonResourceCodecs(registry *resources.CodecRegistry, bridges *br
 		return err
 	}
 	if err := registerDaemonResourceCodec(registry, "loop", looppkg.NewResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(
+		registry,
+		"window layout",
+		windowmanager.NewLayoutResourceCodec,
+	); err != nil {
 		return err
 	}
 	if err := registerDaemonResourceCodec(registry, "automation job", automationpkg.NewJobResourceCodec); err != nil {
@@ -170,24 +178,28 @@ func (d *Daemon) bootResourceReconcile(
 	if state.loopCatalog == nil {
 		state.loopCatalog = newResourceCatalog(looppkg.CloneResourceSpec)
 	}
+	if state.windowLayoutCatalog == nil {
+		state.windowLayoutCatalog = newResourceCatalog(windowmanager.CloneLayoutResource)
+	}
 
 	driver, err := d.newResourceReconcile(ctx, resourceReconcileDriverDeps{
-		Config:           state.cfg,
-		Logger:           state.logger,
-		Registry:         state.registry,
-		ResourceStore:    resourceRawStore(state.resourceKernel),
-		CodecRegistry:    state.resourceCodecs,
-		Hooks:            state.hookDispatcher,
-		AgentCatalog:     state.agentCatalog,
-		SoulCatalog:      state.soulCatalog,
-		HeartbeatCatalog: state.heartbeatCatalog,
-		ToolCatalog:      state.toolCatalog,
-		MCPServerCatalog: state.mcpServerCatalog,
-		LoopCatalog:      state.loopCatalog,
-		SkillsRegistry:   state.skillsRegistry,
-		Automation:       automationResourceTarget(state.automation),
-		Bridges:          bridgeResourceTarget(state.bridges),
-		Bundles:          state.bundles,
+		Config:              state.cfg,
+		Logger:              state.logger,
+		Registry:            state.registry,
+		ResourceStore:       resourceRawStore(state.resourceKernel),
+		CodecRegistry:       state.resourceCodecs,
+		Hooks:               state.hookDispatcher,
+		AgentCatalog:        state.agentCatalog,
+		SoulCatalog:         state.soulCatalog,
+		HeartbeatCatalog:    state.heartbeatCatalog,
+		ToolCatalog:         state.toolCatalog,
+		MCPServerCatalog:    state.mcpServerCatalog,
+		LoopCatalog:         state.loopCatalog,
+		WindowLayoutCatalog: state.windowLayoutCatalog,
+		SkillsRegistry:      state.skillsRegistry,
+		Automation:          automationResourceTarget(state.automation),
+		Bridges:             bridgeResourceTarget(state.bridges),
+		Bundles:             state.bundles,
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)

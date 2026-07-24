@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { MessageSquare } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Empty, MetadataList, Pill, Section, Skeleton } from "@agh/ui";
 
@@ -27,6 +28,8 @@ export interface AgentOverviewTabProps {
   lastSessionActivityAt: string | null;
   sessionsLoading: boolean;
   sessionsError: boolean;
+  /** Immediate Provider · Model · Reasoning control, mounted by the route. */
+  runtimeControl: ReactNode;
   onEditRuntime: () => void;
   onViewAllSessions: () => void;
 }
@@ -43,6 +46,7 @@ export function AgentOverviewTab({
   lastSessionActivityAt,
   sessionsLoading,
   sessionsError,
+  runtimeControl,
   onEditRuntime,
   onViewAllSessions,
 }: AgentOverviewTabProps) {
@@ -102,6 +106,12 @@ export function AgentOverviewTab({
           >
             <AgentPanelBox>
               <MetadataList className="gap-0">
+                <MetadataList.Row className={metadataRowClassName}>
+                  <MetadataList.Term id="agent-overview-model-label">Model</MetadataList.Term>
+                  <MetadataList.Value className="w-full text-fg">
+                    {runtimeControl}
+                  </MetadataList.Value>
+                </MetadataList.Row>
                 <MetadataList.Row className={metadataRowClassName}>
                   <MetadataList.Term>Command</MetadataList.Term>
                   <MetadataList.Value className={agent.command ? "font-mono" : "text-muted"}>

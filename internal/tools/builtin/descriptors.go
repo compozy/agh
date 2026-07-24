@@ -7,11 +7,15 @@ import (
 )
 
 const (
-	descriptorKeywordCatalog = "catalog"
-	descriptorKeywordStatus  = "status"
-	descriptorKeywordCreate  = "create"
-	descriptorKeywordUpdate  = "update"
-	emptyInputSchema         = `{"type":"object","additionalProperties":false}`
+	descriptorKeywordCatalog     = "catalog"
+	descriptorKeywordClient      = "client"
+	descriptorKeywordStatus      = "status"
+	descriptorKeywordCreate      = "create"
+	descriptorKeywordDiagnostics = "diagnostics"
+	descriptorKeywordSnapshot    = "snapshot"
+	descriptorKeywordUpdate      = "update"
+	descriptorWorkspaceIDKey     = "workspace_id"
+	emptyInputSchema             = `{"type":"object","additionalProperties":false}`
 )
 
 // NativeDescriptors returns the MVP native_go built-in descriptors.
@@ -41,6 +45,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		extensionDescriptors(),
 		bundleDescriptors(),
 		resourceDescriptors(),
+		windowManagerDescriptors(),
 		mcpDescriptors(),
 		mcpAuthDescriptors(),
 	}

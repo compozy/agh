@@ -42,6 +42,7 @@ import { Route as AppSettingsAutomationRouteImport } from './routes/_app/setting
 import { Route as AppSettingsExtensionsRouteImport } from './routes/_app/settings/extensions'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSettingsHooksRouteImport } from './routes/_app/settings/hooks'
+import { Route as AppSettingsLayoutsRouteImport } from './routes/_app/settings/layouts'
 import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
 import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
@@ -230,6 +231,11 @@ const AppSettingsHooksRoute = AppSettingsHooksRouteImport.update({
   path: '/hooks',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsLayoutsRoute = AppSettingsLayoutsRouteImport.update({
+  id: '/layouts',
+  path: '/layouts',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsMemoryRoute = AppSettingsMemoryRouteImport.update({
   id: '/memory',
   path: '/memory',
@@ -380,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/hooks': typeof AppSettingsHooksRoute
+  '/settings/layouts': typeof AppSettingsLayoutsRoute
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
@@ -434,6 +441,7 @@ export interface FileRoutesByTo {
   '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/hooks': typeof AppSettingsHooksRoute
+  '/settings/layouts': typeof AppSettingsLayoutsRoute
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
@@ -492,6 +500,7 @@ export interface FileRoutesById {
   '/_app/settings/extensions': typeof AppSettingsExtensionsRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/hooks': typeof AppSettingsHooksRoute
+  '/_app/settings/layouts': typeof AppSettingsLayoutsRoute
   '/_app/settings/memory': typeof AppSettingsMemoryRoute
   '/_app/settings/network': typeof AppSettingsNetworkRoute
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
@@ -550,6 +559,7 @@ export interface FileRouteTypes {
     | '/settings/extensions'
     | '/settings/general'
     | '/settings/hooks'
+    | '/settings/layouts'
     | '/settings/memory'
     | '/settings/network'
     | '/settings/observability'
@@ -604,6 +614,7 @@ export interface FileRouteTypes {
     | '/settings/extensions'
     | '/settings/general'
     | '/settings/hooks'
+    | '/settings/layouts'
     | '/settings/memory'
     | '/settings/network'
     | '/settings/observability'
@@ -661,6 +672,7 @@ export interface FileRouteTypes {
     | '/_app/settings/extensions'
     | '/_app/settings/general'
     | '/_app/settings/hooks'
+    | '/_app/settings/layouts'
     | '/_app/settings/memory'
     | '/_app/settings/network'
     | '/_app/settings/observability'
@@ -923,6 +935,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks'
       fullPath: '/settings/hooks'
       preLoaderRoute: typeof AppSettingsHooksRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/layouts': {
+      id: '/_app/settings/layouts'
+      path: '/layouts'
+      fullPath: '/settings/layouts'
+      preLoaderRoute: typeof AppSettingsLayoutsRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/memory': {
@@ -1262,6 +1281,7 @@ interface AppSettingsRouteChildren {
   AppSettingsExtensionsRoute: typeof AppSettingsExtensionsRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsHooksRoute: typeof AppSettingsHooksRoute
+  AppSettingsLayoutsRoute: typeof AppSettingsLayoutsRoute
   AppSettingsMemoryRoute: typeof AppSettingsMemoryRoute
   AppSettingsNetworkRoute: typeof AppSettingsNetworkRoute
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
@@ -1276,6 +1296,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsExtensionsRoute: AppSettingsExtensionsRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsHooksRoute: AppSettingsHooksRoute,
+  AppSettingsLayoutsRoute: AppSettingsLayoutsRoute,
   AppSettingsMemoryRoute: AppSettingsMemoryRoute,
   AppSettingsNetworkRoute: AppSettingsNetworkRoute,
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,

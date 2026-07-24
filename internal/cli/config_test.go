@@ -18,109 +18,143 @@ import (
 
 func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	t.Parallel()
+	t.Run("Should mutate validate and inspect a temporary home", func(t *testing.T) {
+		t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		t.Fatalf("resolveHome() error = %v", err)
-	}
+		deps := newTestDeps(t, &stubClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
 
-	setOut, _, err := executeRootCommand(t, deps, "config", "set", "defaults.provider", "claude", "-o", "json")
-	if err != nil {
-		t.Fatalf("config set defaults.provider error = %v", err)
-	}
-	var setRecord configSetRecord
-	if err := json.Unmarshal([]byte(setOut), &setRecord); err != nil {
-		t.Fatalf("json.Unmarshal(config set) error = %v", err)
-	}
-	if setRecord.Path != "defaults.provider" || setRecord.Value != "claude" {
-		t.Fatalf("config set record = %#v, want defaults.provider=claude", setRecord)
-	}
-	sandboxOut, _, err := executeRootCommand(t, deps, "config", "set", "defaults.sandbox", "local", "-o", "json")
-	if err != nil {
-		t.Fatalf("config set defaults.sandbox error = %v", err)
-	}
-	var sandboxSetRecord configSetRecord
-	if err := json.Unmarshal([]byte(sandboxOut), &sandboxSetRecord); err != nil {
-		t.Fatalf("json.Unmarshal(config set defaults.sandbox) error = %v", err)
-	}
-	if sandboxSetRecord.Path != "defaults.sandbox" || sandboxSetRecord.Value != "local" {
-		t.Fatalf("config set sandbox record = %#v, want defaults.sandbox=local", sandboxSetRecord)
-	}
-	deadlineOut, _, err := executeRootCommand(
-		t,
-		deps,
-		"config",
-		"set",
-		"session.supervision.prompt_deadline",
-		"8s",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("config set session.supervision.prompt_deadline error = %v", err)
-	}
-	var deadlineSetRecord configSetRecord
-	if err := json.Unmarshal([]byte(deadlineOut), &deadlineSetRecord); err != nil {
-		t.Fatalf("json.Unmarshal(config set session.supervision.prompt_deadline) error = %v", err)
-	}
-	if deadlineSetRecord.Path != "session.supervision.prompt_deadline" || deadlineSetRecord.Value != "8s" {
-		t.Fatalf(
-			"config set prompt deadline record = %#v, want session.supervision.prompt_deadline=8s",
-			deadlineSetRecord,
+		setOut, _, err := executeRootCommand(t, deps, "config", "set", "defaults.provider", "claude", "-o", "json")
+		if err != nil {
+			t.Fatalf("config set defaults.provider error = %v", err)
+		}
+		var setRecord configSetRecord
+		if err := json.Unmarshal([]byte(setOut), &setRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config set) error = %v", err)
+		}
+		if setRecord.Path != "defaults.provider" || setRecord.Value != "claude" {
+			t.Fatalf("config set record = %#v, want defaults.provider=claude", setRecord)
+		}
+		sandboxOut, _, err := executeRootCommand(t, deps, "config", "set", "defaults.sandbox", "local", "-o", "json")
+		if err != nil {
+			t.Fatalf("config set defaults.sandbox error = %v", err)
+		}
+		var sandboxSetRecord configSetRecord
+		if err := json.Unmarshal([]byte(sandboxOut), &sandboxSetRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config set defaults.sandbox) error = %v", err)
+		}
+		if sandboxSetRecord.Path != "defaults.sandbox" || sandboxSetRecord.Value != "local" {
+			t.Fatalf("config set sandbox record = %#v, want defaults.sandbox=local", sandboxSetRecord)
+		}
+		deadlineOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"session.supervision.prompt_deadline",
+			"8s",
+			"-o",
+			"json",
 		)
-	}
+		if err != nil {
+			t.Fatalf("config set session.supervision.prompt_deadline error = %v", err)
+		}
+		var deadlineSetRecord configSetRecord
+		if err := json.Unmarshal([]byte(deadlineOut), &deadlineSetRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config set session.supervision.prompt_deadline) error = %v", err)
+		}
+		if deadlineSetRecord.Path != "session.supervision.prompt_deadline" || deadlineSetRecord.Value != "8s" {
+			t.Fatalf(
+				"config set prompt deadline record = %#v, want session.supervision.prompt_deadline=8s",
+				deadlineSetRecord,
+			)
+		}
 
-	cfg, err := aghconfig.LoadGlobalConfig(homePaths)
-	if err != nil {
-		t.Fatalf("LoadGlobalConfig() error = %v", err)
-	}
-	if cfg.Defaults.Provider != "claude" {
-		t.Fatalf("Defaults.Provider = %q, want claude", cfg.Defaults.Provider)
-	}
-	if cfg.Defaults.Sandbox != "local" {
-		t.Fatalf("Defaults.Sandbox = %q, want local", cfg.Defaults.Sandbox)
-	}
-	if got, want := cfg.Session.Supervision.PromptDeadline.String(), "8s"; got != want {
-		t.Fatalf("Session.Supervision.PromptDeadline = %q, want %q", got, want)
-	}
+		cfg, err := aghconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig() error = %v", err)
+		}
+		if cfg.Defaults.Provider != "claude" {
+			t.Fatalf("Defaults.Provider = %q, want claude", cfg.Defaults.Provider)
+		}
+		if cfg.Defaults.Sandbox != "local" {
+			t.Fatalf("Defaults.Sandbox = %q, want local", cfg.Defaults.Sandbox)
+		}
+		if got, want := cfg.Session.Supervision.PromptDeadline.String(), "8s"; got != want {
+			t.Fatalf("Session.Supervision.PromptDeadline = %q, want %q", got, want)
+		}
 
-	getOut, _, err := executeRootCommand(t, deps, "config", "get", "defaults.provider", "-o", "json")
-	if err != nil {
-		t.Fatalf("config get defaults.provider error = %v", err)
-	}
-	var valueRecord configValueRecord
-	if err := json.Unmarshal([]byte(getOut), &valueRecord); err != nil {
-		t.Fatalf("json.Unmarshal(config get) error = %v", err)
-	}
-	if valueRecord.Value != "claude" || valueRecord.Redacted {
-		t.Fatalf("config get record = %#v, want unredacted claude", valueRecord)
-	}
+		getOut, _, err := executeRootCommand(t, deps, "config", "get", "defaults.provider", "-o", "json")
+		if err != nil {
+			t.Fatalf("config get defaults.provider error = %v", err)
+		}
+		var valueRecord configValueRecord
+		if err := json.Unmarshal([]byte(getOut), &valueRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config get) error = %v", err)
+		}
+		if valueRecord.Value != "claude" || valueRecord.Redacted {
+			t.Fatalf("config get record = %#v, want unredacted claude", valueRecord)
+		}
 
-	validateOut, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
-	if err != nil {
-		t.Fatalf("config validate error = %v", err)
-	}
-	var validateRecord configValidateRecord
-	if err := json.Unmarshal([]byte(validateOut), &validateRecord); err != nil {
-		t.Fatalf("json.Unmarshal(config validate) error = %v", err)
-	}
-	if validateRecord.Status != "valid" || validateRecord.ConfigFile != homePaths.ConfigFile {
-		t.Fatalf("config validate record = %#v, want valid config file", validateRecord)
-	}
+		validateOut, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
+		if err != nil {
+			t.Fatalf("config validate error = %v", err)
+		}
+		var validateRecord configValidateRecord
+		if err := json.Unmarshal([]byte(validateOut), &validateRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config validate) error = %v", err)
+		}
+		if validateRecord.Status != "valid" || validateRecord.ConfigFile != homePaths.ConfigFile {
+			t.Fatalf("config validate record = %#v, want valid config file", validateRecord)
+		}
 
-	pathOut, _, err := executeRootCommand(t, deps, "config", "path", "-o", "json")
-	if err != nil {
-		t.Fatalf("config path error = %v", err)
-	}
-	var pathRecord configPathRecord
-	if err := json.Unmarshal([]byte(pathOut), &pathRecord); err != nil {
-		t.Fatalf("json.Unmarshal(config path) error = %v", err)
-	}
-	if pathRecord.GlobalConfig != homePaths.ConfigFile ||
-		pathRecord.GlobalMCPJSON != filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName) {
-		t.Fatalf("config path record = %#v, want resolved home paths", pathRecord)
-	}
+		pathOut, _, err := executeRootCommand(t, deps, "config", "path", "-o", "json")
+		if err != nil {
+			t.Fatalf("config path error = %v", err)
+		}
+		var pathRecord configPathRecord
+		if err := json.Unmarshal([]byte(pathOut), &pathRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config path) error = %v", err)
+		}
+		if pathRecord.GlobalConfig != homePaths.ConfigFile ||
+			pathRecord.GlobalMCPJSON != filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName) {
+			t.Fatalf("config path record = %#v, want resolved home paths", pathRecord)
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"window_manager.snap.repeat_ratios",
+			`[0.5,0.75,0.25]`,
+		); err != nil {
+			t.Fatalf("config set window manager ratios error = %v", err)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"window_manager.shortcuts.window.focus.left",
+			"alt+KeyH",
+		); err != nil {
+			t.Fatalf("config set window manager shortcut error = %v", err)
+		}
+		configured, err := aghconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig(window manager) error = %v", err)
+		}
+		if got := configured.WindowManager.Snap.RepeatRatios; len(got) != 3 || got[1] != 0.75 {
+			t.Fatalf("WindowManager.Snap.RepeatRatios = %#v, want [0.5 0.75 0.25]", got)
+		}
+		if got := configured.WindowManager.Shortcuts["window.focus.left"]; got != "alt+KeyH" {
+			t.Fatalf("WindowManager.Shortcuts[window.focus.left] = %q, want alt+KeyH", got)
+		}
+	})
 }
 
 func TestConfigSetReportsMutationLifecycle(t *testing.T) {
@@ -1012,6 +1046,41 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				wantKind:    configSetDuration,
 				wantAllowed: true,
 			},
+			{
+				name:        "Should allow window manager string behavior",
+				path:        "window_manager.new_window_policy",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow window manager boolean behavior",
+				path:        "window_manager.focus_wrap",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow window manager integer behavior",
+				path:        "window_manager.snap.edge_band",
+				wantKind:    configSetInt,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow window manager ratio arrays",
+				path:        "window_manager.snap.repeat_ratios",
+				wantKind:    configSetFloatSlice,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow window manager shortcut entries",
+				path:        "window_manager.shortcuts.window.focus.left",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should reject unknown window manager values",
+				path:        "window_manager.snap.unknown",
+				wantAllowed: false,
+			},
 			{name: "Should reject unknown sandbox values", path: "sandboxes.dev.unknown.value", wantAllowed: false},
 		}
 		for _, tc := range testCases {
@@ -1064,6 +1133,21 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			t.Fatal("parseStringSliceValue(invalid json) error = nil, want error")
 		} else if !strings.Contains(err.Error(), "string") {
 			t.Fatalf("parseStringSliceValue(invalid json) error = %v, want element type detail", err)
+		}
+	})
+
+	t.Run("Should parse float slice values", func(t *testing.T) {
+		t.Parallel()
+
+		values, err := parseFloatSliceValue(`[0.5,0.666667,0.333333]`)
+		if err != nil {
+			t.Fatalf("parseFloatSliceValue(valid) error = %v", err)
+		}
+		if len(values) != 3 || values[0] != 0.5 || values[1] != 0.666667 || values[2] != 0.333333 {
+			t.Fatalf("parseFloatSliceValue(valid) = %#v, want canonical ratios", values)
+		}
+		if _, err := parseFloatSliceValue(`[0.5,"invalid"]`); err == nil {
+			t.Fatal("parseFloatSliceValue(invalid) error = nil, want error")
 		}
 	})
 }

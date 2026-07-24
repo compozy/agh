@@ -2314,6 +2314,76 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 	})
 
+	t.Run("Should update a catalog-projected global definition at its effective source", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		path := filepath.Join(
+			t.TempDir(),
+			"extensions",
+			"dev-cycle",
+			"agents",
+			"code_implementer",
+			aghconfig.AgentDefinitionFileName,
+		)
+		current, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+			Name:         "code_implementer",
+			Provider:     "codex",
+			CategoryPath: []string{"Compozy"},
+			Prompt:       "Before.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile() error = %v", err)
+		}
+		digest, err := aghconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatalf("AgentDefinitionDigest() error = %v", err)
+		}
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{
+			get: map[string]aghconfig.AgentDef{"code_implementer": current},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/code_implementer",
+			mustJSON(t, contract.UpdateAgentRequest{
+				Agent: contract.CreateAgentPayload{
+					Name:         "code_implementer",
+					Provider:     "codex",
+					Model:        "gpt-5",
+					CategoryPath: []string{"Compozy"},
+					Prompt:       "After.",
+				},
+				ExpectedDigest: digest,
+			}),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("update status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Agent.Model != "gpt-5" || payload.Agent.Prompt != "After." ||
+			!slices.Equal(payload.Agent.CategoryPath, []string{"Compozy"}) {
+			t.Fatalf("updated catalog agent = %#v", payload.Agent)
+		}
+		loaded, err := aghconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile(effective source) error = %v", err)
+		}
+		if loaded.Model != "gpt-5" || loaded.Prompt != "After." {
+			t.Fatalf("effective source definition = %#v", loaded)
+		}
+	})
+
 	t.Run("Should preserve MCP sidecar ownership when updating the authored definition", func(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(

@@ -15,7 +15,6 @@ import {
   SquareArrowDownRight,
   SquareArrowUpLeft,
   SquareArrowUpRight,
-  Undo2,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -33,13 +32,13 @@ import {
 
 import { useOsCommandPalette } from "../hooks/use-os-command-palette";
 import { OS_APPS } from "../lib/app-registry";
-import type { OsSnapZoneId } from "../lib/os-types";
+import type { WindowPlacementId } from "../lib/window-manager-command-registry";
 
 export interface OsCommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Opens the Spaces overview overlay (⇧⌘S parity — US-019.EC-3 fallback). */
-  onOpenSpaces?: () => void;
+  /** Opens the daemon-backed Desktops overview (⇧⌘S parity). */
+  onOpenDesktops?: () => void;
   /** Toggles the global Sessions catalog modal. */
   onToggleSessions?: () => void;
 }
@@ -47,7 +46,7 @@ export interface OsCommandPaletteProps {
 /** Apps the palette can open: every registry app except multi-instance sessions. */
 const PALETTE_APPS = Object.values(OS_APPS).filter(app => app.id !== "session");
 
-const SNAP_COMMAND_ICONS: Record<OsSnapZoneId, LucideIcon> = {
+const PLACEMENT_COMMAND_ICONS: Record<WindowPlacementId, LucideIcon> = {
   left: PanelLeft,
   right: PanelRight,
   top: PanelTop,
@@ -72,10 +71,13 @@ const ARRANGE_COMMAND_ICONS: Record<"two-up" | "grid", LucideIcon> = {
 export function OsCommandPalette({
   open,
   onOpenChange,
-  onOpenSpaces,
+  onOpenDesktops,
   onToggleSessions,
 }: OsCommandPaletteProps) {
-  const model = useOsCommandPalette(open, onOpenChange, { onOpenSpaces, onToggleSessions });
+  const model = useOsCommandPalette(open, onOpenChange, {
+    onOpenDesktops,
+    onToggleSessions,
+  });
 
   return (
     <CommandDialog
@@ -97,6 +99,7 @@ export function OsCommandPalette({
                 value={`open ${app.title}`}
                 data-testid={`os-palette-app-${app.id}`}
                 onSelect={() => model.openApp(app.id)}
+                disabled={!model.commandsAvailable}
               >
                 <app.icon className="size-3.5 text-muted" />
                 Open {app.title}
@@ -111,6 +114,7 @@ export function OsCommandPalette({
                   value={`session ${session.name ?? session.id} ${session.agent_name}`}
                   data-testid={`os-palette-session-${session.id}`}
                   onSelect={() => model.jumpToSession(session.id, session.agent_name ?? "")}
+                  disabled={!model.commandsAvailable}
                 >
                   <OS_APPS.session.icon className="size-3.5 text-muted" />
                   <span className="min-w-0 truncate">{session.name?.trim() || session.id}</span>
@@ -119,7 +123,7 @@ export function OsCommandPalette({
               ))}
             </CommandGroup>
           ) : null}
-          {model.focusedWindowActions !== null || model.snapCommands.length > 0 ? (
+          {model.focusedWindowActions !== null || model.placementCommands.length > 0 ? (
             <CommandGroup heading="Window">
               {model.focusedWindowActions !== null ? (
                 <>
@@ -130,7 +134,9 @@ export function OsCommandPalette({
                   >
                     <X className="size-3.5 text-muted" />
                     Close window
-                    <CommandShortcut>⌘W</CommandShortcut>
+                    {model.shortcutLabels["window.close"] ? (
+                      <CommandShortcut>{model.shortcutLabels["window.close"]}</CommandShortcut>
+                    ) : null}
                   </CommandItem>
                   <CommandItem
                     value="minimize window"
@@ -139,7 +145,9 @@ export function OsCommandPalette({
                   >
                     <Minus className="size-3.5 text-muted" />
                     Minimize window
-                    <CommandShortcut>⌘M</CommandShortcut>
+                    {model.shortcutLabels["window.minimize"] ? (
+                      <CommandShortcut>{model.shortcutLabels["window.minimize"]}</CommandShortcut>
+                    ) : null}
                   </CommandItem>
                   {model.focusedWindowActions.zoom !== null ? (
                     <CommandItem
@@ -149,26 +157,42 @@ export function OsCommandPalette({
                     >
                       <Maximize2 className="size-3.5 text-muted" />
                       Zoom window
+                      {model.shortcutLabels["window.zoom"] ? (
+                        <CommandShortcut>{model.shortcutLabels["window.zoom"]}</CommandShortcut>
+                      ) : null}
+                    </CommandItem>
+                  ) : null}
+                  {model.focusedWindowActions.makeFloating !== null ? (
+                    <CommandItem
+                      value="make window floating"
+                      data-testid="os-palette-make-floating"
+                      onSelect={model.focusedWindowActions.makeFloating}
+                    >
+                      <PanelsTopLeft className="size-3.5 text-muted" />
+                      Make window floating
+                      {model.shortcutLabels["window.toggle_floating"] ? (
+                        <CommandShortcut>
+                          {model.shortcutLabels["window.toggle_floating"]}
+                        </CommandShortcut>
+                      ) : null}
                     </CommandItem>
                   ) : null}
                 </>
               ) : null}
-              {model.snapCommands.map(command => {
-                const Icon = command.zoneId === null ? Undo2 : SNAP_COMMAND_ICONS[command.zoneId];
-                const testId =
-                  command.zoneId === null
-                    ? "os-palette-snap-restore"
-                    : `os-palette-snap-${command.zoneId}`;
+              {model.placementCommands.map(command => {
+                const Icon = PLACEMENT_COMMAND_ICONS[command.placement];
                 return (
                   <CommandItem
-                    key={command.label}
+                    key={command.id}
                     value={command.label}
-                    data-testid={testId}
-                    onSelect={() => model.dispatchSnap(command)}
+                    data-testid={`os-palette-tile-${command.placement}`}
+                    onSelect={() => model.dispatchPlacement(command)}
                   >
                     <Icon className="size-3.5 text-muted" />
                     {command.label}
-                    {command.keys ? <CommandShortcut>{command.keys}</CommandShortcut> : null}
+                    {model.shortcutLabels[command.id] ? (
+                      <CommandShortcut>{model.shortcutLabels[command.id]}</CommandShortcut>
+                    ) : null}
                   </CommandItem>
                 );
               })}
@@ -183,6 +207,9 @@ export function OsCommandPalette({
                   >
                     <Icon className="size-3.5 text-muted" />
                     {command.label}
+                    {model.shortcutLabels[command.id] ? (
+                      <CommandShortcut>{model.shortcutLabels[command.id]}</CommandShortcut>
+                    ) : null}
                   </CommandItem>
                 );
               })}
@@ -207,18 +234,21 @@ export function OsCommandPalette({
               <CommandShortcut>⌘N</CommandShortcut>
             </CommandItem>
             <CommandItem
-              value="spaces overview"
-              data-testid="os-palette-spaces-overview"
-              onSelect={model.openSpaces}
+              value="desktops overview"
+              data-testid="os-palette-desktops-overview"
+              onSelect={model.openDesktops}
             >
               <PanelsTopLeft className="size-3.5 text-muted" />
-              Spaces overview
-              <CommandShortcut>⇧⌘S</CommandShortcut>
+              Desktops overview
+              {model.shortcutLabels["desktop.overview"] ? (
+                <CommandShortcut>{model.shortcutLabels["desktop.overview"]}</CommandShortcut>
+              ) : null}
             </CommandItem>
             <CommandItem
               value="appearance wallpaper motion"
               data-testid="os-palette-appearance"
               onSelect={model.openAppearance}
+              disabled={!model.commandsAvailable}
             >
               <Palette className="size-3.5 text-muted" />
               Appearance

@@ -40,9 +40,8 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
               className="flex items-center gap-2 rounded-md border border-line-soft bg-canvas-soft px-2 py-1.5 text-left transition-colors hover:border-line-strong hover:bg-canvas-tint disabled:cursor-not-allowed disabled:opacity-60"
             >
               <GripVertical aria-hidden="true" className="size-3 shrink-0 text-faint" />
-              <span className="text-form-label font-medium text-fg-strong">{item.label}</span>
-              <span className="ml-auto truncate font-mono text-pill-group-badge text-subtle">
-                {item.kindLabel}
+              <span className="truncate text-form-label font-medium text-fg-strong">
+                {item.label}
               </span>
             </button>
           ))}

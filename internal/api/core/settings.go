@@ -148,6 +148,21 @@ func (h *BaseHandlers) UpdateSettingsNetwork(c *gin.Context) {
 	h.updateSettingsSection(c, req)
 }
 
+// GetSettingsWindowManager returns the window-manager settings section.
+func (h *BaseHandlers) GetSettingsWindowManager(c *gin.Context) {
+	h.getSettingsSection(c, settingspkg.SectionWindowManager)
+}
+
+// UpdateSettingsWindowManager persists the window-manager settings section.
+func (h *BaseHandlers) UpdateSettingsWindowManager(c *gin.Context) {
+	req, err := parseUpdateSettingsWindowManagerRequest(c)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	h.updateSettingsSection(c, req)
+}
+
 // GetSettingsObservability returns the observability settings section.
 func (h *BaseHandlers) GetSettingsObservability(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionObservability)

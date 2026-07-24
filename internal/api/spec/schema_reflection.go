@@ -28,7 +28,56 @@ func schemaRefForValue(value any, schemas openapi3.Schemas) (*openapi3.SchemaRef
 		return nil, err
 	}
 	applySchemaRequirements(schemaRef, rootType)
+	resolveSchemaReferences(schemaRef, schemas, make(map[*openapi3.Schema]struct{}))
 	return schemaRef, nil
+}
+
+func resolveComponentSchemaReferences(schemas openapi3.Schemas) {
+	seen := make(map[*openapi3.Schema]struct{})
+	for _, schemaRef := range schemas {
+		resolveSchemaReferences(schemaRef, schemas, seen)
+	}
+}
+
+func resolveSchemaReferences(
+	schemaRef *openapi3.SchemaRef,
+	schemas openapi3.Schemas,
+	seen map[*openapi3.Schema]struct{},
+) {
+	if schemaRef == nil {
+		return
+	}
+	if schemaRef.Value == nil {
+		const componentPrefix = "#/components/schemas/"
+		name := strings.TrimPrefix(schemaRef.Ref, componentPrefix)
+		if name != schemaRef.Ref {
+			if target := schemas[name]; target != nil {
+				schemaRef.Value = target.Value
+			}
+		}
+	}
+	if schemaRef.Value == nil {
+		return
+	}
+	if _, visited := seen[schemaRef.Value]; visited {
+		return
+	}
+	seen[schemaRef.Value] = struct{}{}
+	for _, property := range schemaRef.Value.Properties {
+		resolveSchemaReferences(property, schemas, seen)
+	}
+	resolveSchemaReferences(schemaRef.Value.Items, schemas, seen)
+	resolveSchemaReferences(schemaRef.Value.AdditionalProperties.Schema, schemas, seen)
+	for _, nested := range schemaRef.Value.OneOf {
+		resolveSchemaReferences(nested, schemas, seen)
+	}
+	for _, nested := range schemaRef.Value.AnyOf {
+		resolveSchemaReferences(nested, schemas, seen)
+	}
+	for _, nested := range schemaRef.Value.AllOf {
+		resolveSchemaReferences(nested, schemas, seen)
+	}
+	resolveSchemaReferences(schemaRef.Value.Not, schemas, seen)
 }
 
 func buildParameter(spec ParameterSpec) *openapi3.Parameter {
@@ -89,6 +138,19 @@ func schemaCustomizer(_ string, t reflect.Type, _ reflect.StructTag, schema *ope
 }
 
 func applySchemaRequirements(schemaRef *openapi3.SchemaRef, t reflect.Type) {
+	applySchemaRequirementsSeen(schemaRef, t, make(map[schemaRequirementVisit]struct{}))
+}
+
+type schemaRequirementVisit struct {
+	schema *openapi3.Schema
+	typeOf reflect.Type
+}
+
+func applySchemaRequirementsSeen(
+	schemaRef *openapi3.SchemaRef,
+	t reflect.Type,
+	seen map[schemaRequirementVisit]struct{},
+) {
 	if schemaRef == nil || schemaRef.Value == nil || t == nil {
 		return
 	}
@@ -96,20 +158,29 @@ func applySchemaRequirements(schemaRef *openapi3.SchemaRef, t reflect.Type) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
+	visit := schemaRequirementVisit{schema: schemaRef.Value, typeOf: t}
+	if _, visited := seen[visit]; visited {
+		return
+	}
+	seen[visit] = struct{}{}
 
 	switch t.Kind() {
 	case reflect.Array, reflect.Slice:
-		applySchemaRequirements(schemaRef.Value.Items, t.Elem())
+		applySchemaRequirementsSeen(schemaRef.Value.Items, t.Elem(), seen)
 	case reflect.Map:
 		if schemaRef.Value.AdditionalProperties.Schema != nil {
-			applySchemaRequirements(schemaRef.Value.AdditionalProperties.Schema, t.Elem())
+			applySchemaRequirementsSeen(schemaRef.Value.AdditionalProperties.Schema, t.Elem(), seen)
 		}
 	case reflect.Struct:
-		applyStructRequirements(schemaRef.Value, t)
+		applyStructRequirements(schemaRef.Value, t, seen)
 	}
 }
 
-func applyStructRequirements(schema *openapi3.Schema, t reflect.Type) {
+func applyStructRequirements(
+	schema *openapi3.Schema,
+	t reflect.Type,
+	seen map[schemaRequirementVisit]struct{},
+) {
 	if schema == nil || t.Kind() != reflect.Struct {
 		return
 	}
@@ -121,7 +192,7 @@ func applyStructRequirements(schema *openapi3.Schema, t reflect.Type) {
 	}
 
 	required := make(map[string]struct{}, len(schema.Properties))
-	collectStructRequirements(schema, t, required)
+	collectStructRequirements(schema, t, required, seen)
 	if len(required) == 0 {
 		schema.Required = nil
 		return
@@ -134,7 +205,12 @@ func applyStructRequirements(schema *openapi3.Schema, t reflect.Type) {
 	sort.Strings(schema.Required)
 }
 
-func collectStructRequirements(schema *openapi3.Schema, t reflect.Type, required map[string]struct{}) {
+func collectStructRequirements(
+	schema *openapi3.Schema,
+	t reflect.Type,
+	required map[string]struct{},
+	seen map[schemaRequirementVisit]struct{},
+) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
@@ -153,7 +229,7 @@ func collectStructRequirements(schema *openapi3.Schema, t reflect.Type, required
 		}
 
 		if field.Anonymous && field.Tag.Get("json") == "" {
-			collectStructRequirements(schema, field.Type, required)
+			collectStructRequirements(schema, field.Type, required, seen)
 			continue
 		}
 
@@ -165,7 +241,7 @@ func collectStructRequirements(schema *openapi3.Schema, t reflect.Type, required
 		if !omitEmpty {
 			required[jsonName] = struct{}{}
 		}
-		applySchemaRequirements(propertyRef, field.Type)
+		applySchemaRequirementsSeen(propertyRef, field.Type, seen)
 	}
 }
 

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
-import type { OsSnapCommand } from "../lib/os-snap-commands";
-import { OS_SNAP_ZONES } from "../lib/os-snap-zones";
 import type { OsArrangePreset } from "../lib/os-types";
+import { arrangePeerWindows } from "../lib/window-manager-navigation";
+import { dispatchWindowPlacement } from "../lib/window-manager-action-dispatch";
+import type { WindowPlacementCommand } from "../lib/window-manager-command-registry";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
 
@@ -18,11 +20,12 @@ export interface OsZoomMenuModel {
   onHoverEnter(event: ReactPointerEvent<HTMLElement>): void;
   onHoverLeave(): void;
   onContentEnter(): void;
-  /** Restore renders only while the window is snapped (palette parity). */
-  snapped: boolean;
+  floating: boolean;
+  placementEnabled: boolean;
   /** Arrange presets need at least one other visible window (truthful UI). */
   arrangeEnabled: boolean;
-  dispatchSnap(command: OsSnapCommand): void;
+  dispatchPlacement(command: WindowPlacementCommand): void;
+  dispatchMakeFloating(): void;
   dispatchFill(): void;
   dispatchArrange(preset: OsArrangePreset): void;
 }
@@ -35,17 +38,20 @@ export interface OsZoomMenuModel {
  * palette/chords surface, which remains the guaranteed keyboard path.
  */
 export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
-  const { store } = useOsShell();
+  const { manager, store } = useOsShell();
   const [open, setOpen] = useState(false);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const snapped = useDesktop(state => (state.windows[windowId]?.snap ?? null) !== null);
-  const arrangeEnabled = useDesktop(state => {
-    for (const win of Object.values(state.windows)) {
-      if (win.id !== windowId && !win.minimized) return true;
-    }
-    return false;
-  });
+  const floating = useDesktop(state => state.windows[windowId]?.placement === "floating");
+  const commandsAvailable = useDesktop(windowManagerCommandsAvailable);
+  const placementEnabled = useDesktop(
+    state => windowManagerCommandsAvailable(state) && state.windowManagerConfig !== null
+  );
+  const arrangeEnabled = useDesktop(
+    state =>
+      windowManagerCommandsAvailable(state) &&
+      arrangePeerWindows(state.windows, windowId).length > 0
+  );
 
   const clearTimers = () => {
     if (openTimer.current !== null) {
@@ -68,7 +74,8 @@ export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
 
   return {
     open,
-    snapped,
+    floating,
+    placementEnabled,
     arrangeEnabled,
     onOpenChange: next => {
       clearTimers();
@@ -103,17 +110,24 @@ export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
         closeTimer.current = null;
       }
     },
-    dispatchSnap: command =>
-      dispatch(() =>
-        store
-          .getState()
-          .snapWindow(windowId, command.zoneId === null ? null : OS_SNAP_ZONES[command.zoneId])
-      ),
-    dispatchFill: () =>
+    dispatchPlacement: command =>
       dispatch(() => {
         const state = store.getState();
-        if (!state.windows[windowId]?.maximized) state.toggleZoom(windowId);
+        if (windowManagerCommandsAvailable(state) && state.windowManagerConfig !== null) {
+          dispatchWindowPlacement(manager, windowId, command);
+        }
       }),
-    dispatchArrange: preset => dispatch(() => store.getState().arrangeWindows(windowId, preset)),
+    dispatchMakeFloating: () =>
+      dispatch(() => {
+        if (commandsAvailable) manager.getState().toggleFloating(windowId);
+      }),
+    dispatchFill: () =>
+      dispatch(() => {
+        if (commandsAvailable) manager.getState().zoomWindow(windowId);
+      }),
+    dispatchArrange: preset =>
+      dispatch(() => {
+        if (commandsAvailable) manager.getState().arrangeLayout(windowId, preset);
+      }),
   };
 }

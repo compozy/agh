@@ -11,6 +11,7 @@ import { handlers as marketplaceHandlers } from "@/systems/marketplace/mocks";
 import { handlers as modelCatalogHandlers } from "@/systems/model-catalog/mocks";
 import { handlers as networkHandlers } from "@/systems/network/mocks";
 import { handlers as onboardingHandlers } from "@/systems/onboarding/mocks";
+import { handlers as osHandlers } from "@/systems/os/mocks";
 import { handlers as runtimeHandlers } from "@/systems/runtime/mocks";
 import { handlers as sessionHandlers } from "@/systems/session/mocks";
 import { handlers as settingsHandlers } from "@/systems/settings/mocks";
@@ -35,6 +36,7 @@ export type StorybookHandlerGroupName =
   | "model-catalog"
   | "network"
   | "onboarding"
+  | "os"
   | "runtime"
   | "session"
   | "settings"
@@ -61,6 +63,7 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   "model-catalog": modelCatalogHandlers,
   network: networkHandlers,
   onboarding: onboardingHandlers,
+  os: osHandlers,
   runtime: runtimeHandlers,
   session: sessionHandlers,
   settings: settingsHandlers,

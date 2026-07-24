@@ -186,7 +186,11 @@ export type HookEvent =
   | "network.peer.joined"
   | "network.peer.left"
   | "network.participation.pre_resolve"
-  | "network.participation.resolved";
+  | "network.participation.resolved"
+  | "window_manager.layout.applied"
+  | "window_manager.desktop.created"
+  | "window_manager.desktop.deleted"
+  | "window_manager.window.moved";
 
 export interface AgentCrashedPayload {
   event: HookEvent;
@@ -2047,7 +2051,8 @@ export type HookEventFamily =
   | "task.run"
   | "loop"
   | "spawn"
-  | "network";
+  | "network"
+  | "window_manager";
 
 export type HookRunOutcome = "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
 
@@ -6188,6 +6193,65 @@ export interface TurnStartPayload {
   user_message?: string;
 }
 
+export interface WindowManagerChanges {
+  desktop_ids?: string[];
+  window_ids?: string[];
+  group_ids?: string[];
+  node_ids?: string[];
+  client_ids?: string[];
+}
+
+export interface WindowManagerActor {
+  kind?: string;
+  id?: string;
+}
+
+export interface WindowManagerDesktopCreatedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
+export interface WindowManagerDesktopDeletedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
+export interface WindowManagerLayoutAppliedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
+export type WindowManagerObservationPatch = Record<string, never>;
+
+export interface WindowManagerWindowMovedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
 export interface HookPayloadByEvent {
   "session.pre_create": SessionPreCreatePayload;
   "session.post_create": SessionPostCreatePayload;
@@ -6275,6 +6339,10 @@ export interface HookPayloadByEvent {
   "network.peer.left": NetworkPeerLeftPayload;
   "network.participation.pre_resolve": NetworkParticipationPreResolvePayload;
   "network.participation.resolved": NetworkParticipationResolvedPayload;
+  "window_manager.layout.applied": WindowManagerLayoutAppliedPayload;
+  "window_manager.desktop.created": WindowManagerDesktopCreatedPayload;
+  "window_manager.desktop.deleted": WindowManagerDesktopDeletedPayload;
+  "window_manager.window.moved": WindowManagerWindowMovedPayload;
 }
 
 export interface HookPatchByEvent {
@@ -6364,6 +6432,10 @@ export interface HookPatchByEvent {
   "network.peer.left": NetworkObservationPatch;
   "network.participation.pre_resolve": NetworkParticipationPreResolvePatch;
   "network.participation.resolved": NetworkParticipationResolvedPatch;
+  "window_manager.layout.applied": WindowManagerObservationPatch;
+  "window_manager.desktop.created": WindowManagerObservationPatch;
+  "window_manager.desktop.deleted": WindowManagerObservationPatch;
+  "window_manager.window.moved": WindowManagerObservationPatch;
 }
 
 export interface HostAPIMethodMap {

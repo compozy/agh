@@ -3,7 +3,7 @@ import {
   validateAgentSettingsSearch,
   validateAgentsFleetSearch,
 } from "@/systems/agent";
-import type { OsWindowLocation } from "../../lib/os-types";
+import type { OsWindowRoute } from "../../lib/os-types";
 
 export type AgentWindowLocation =
   | { kind: "catalog"; search: ReturnType<typeof validateAgentsFleetSearch> }
@@ -26,7 +26,7 @@ function decodePathSegment(value: string): string {
   }
 }
 
-export function parseAgentWindowLocation(location: OsWindowLocation): AgentWindowLocation {
+export function parseAgentWindowLocation(location: OsWindowRoute): AgentWindowLocation {
   const settingsMatch = /^\/agents\/([^/]+)\/settings$/.exec(location.pathname);
   if (settingsMatch) {
     return {

@@ -38,6 +38,30 @@ function agent(overrides: Partial<AgentPayload> = {}): AgentPayload {
   };
 }
 
+const runtimeControlStub = <div data-testid="agent-detail-runtime">Model control</div>;
+
+function overviewProps(
+  overrides: Partial<Parameters<typeof AgentOverviewTab>[0]> = {}
+): Parameters<typeof AgentOverviewTab>[0] {
+  return {
+    agent: agent(),
+    sessions: [],
+    sessionsTotal: 0,
+    activeSessionsTotal: 0,
+    failedSessionsTotal: 0,
+    runtimeSeconds: 0,
+    metricsUnavailable: false,
+    metricsLoading: false,
+    lastSessionActivityAt: null,
+    sessionsLoading: false,
+    sessionsError: false,
+    runtimeControl: runtimeControlStub,
+    onEditRuntime: vi.fn(),
+    onViewAllSessions: vi.fn(),
+    ...overrides,
+  };
+}
+
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
     ...primarySessionFixture,
@@ -130,30 +154,27 @@ describe("agent detail panels", () => {
     const onEditRuntime = vi.fn();
     render(
       <AgentOverviewTab
-        agent={agent()}
-        sessions={[
-          session({ activity: { ...primarySessionFixture.activity!, elapsed_seconds: 59.5 } }),
-          session({ id: "sess-2" }),
-          session({ id: "sess-3" }),
-          session({ id: "sess-4" }),
-        ]}
-        sessionsTotal={4}
-        activeSessionsTotal={4}
-        failedSessionsTotal={0}
-        runtimeSeconds={180}
-        metricsUnavailable={false}
-        metricsLoading={false}
-        lastSessionActivityAt="2026-04-01T01:00:00Z"
-        sessionsLoading={false}
-        sessionsError={false}
-        onEditRuntime={onEditRuntime}
-        onViewAllSessions={vi.fn()}
+        {...overviewProps({
+          sessions: [
+            session({ activity: { ...primarySessionFixture.activity!, elapsed_seconds: 59.5 } }),
+            session({ id: "sess-2" }),
+            session({ id: "sess-3" }),
+            session({ id: "sess-4" }),
+          ],
+          sessionsTotal: 4,
+          activeSessionsTotal: 4,
+          failedSessionsTotal: 0,
+          runtimeSeconds: 180,
+          lastSessionActivityAt: "2026-04-01T01:00:00Z",
+          onEditRuntime,
+        })}
       />
     );
 
     expect(screen.getAllByText("Default")).toHaveLength(2);
+    expect(within(screen.getByTestId("agent-overview-runtime")).getByText("Model")).toBeVisible();
+    expect(screen.getByTestId("agent-detail-runtime")).toBeVisible();
     expect(screen.queryByText("Provider")).not.toBeInTheDocument();
-    expect(screen.queryByText("Model")).not.toBeInTheDocument();
     expect(screen.getByTestId("agent-overview-skills")).toHaveTextContent("1 skill disabled");
     expect(screen.getAllByTestId(/^agent-overview-live-sess-/)).toHaveLength(3);
     expect(screen.getByTestId("agent-overview-live-sess-active")).toHaveTextContent("59s");
@@ -166,19 +187,14 @@ describe("agent detail panels", () => {
   it("Should keep successful catalog metrics visible when the sessions page fails", () => {
     render(
       <AgentOverviewTab
-        agent={agent()}
-        sessions={[]}
-        sessionsTotal={11}
-        activeSessionsTotal={2}
-        failedSessionsTotal={1}
-        runtimeSeconds={90}
-        metricsUnavailable={false}
-        metricsLoading={false}
-        lastSessionActivityAt="2026-04-01T01:00:00Z"
-        sessionsLoading={false}
-        sessionsError
-        onEditRuntime={vi.fn()}
-        onViewAllSessions={vi.fn()}
+        {...overviewProps({
+          sessionsTotal: 11,
+          activeSessionsTotal: 2,
+          failedSessionsTotal: 1,
+          runtimeSeconds: 90,
+          lastSessionActivityAt: "2026-04-01T01:00:00Z",
+          sessionsError: true,
+        })}
       />
     );
     expect(screen.getByTestId("agent-overview-runtime")).toBeVisible();
@@ -192,19 +208,12 @@ describe("agent detail panels", () => {
   it("Should dash metrics without turning the live-session list into an error when catalog fails", () => {
     render(
       <AgentOverviewTab
-        agent={agent()}
-        sessions={[session()]}
-        sessionsTotal={0}
-        activeSessionsTotal={0}
-        failedSessionsTotal={null}
-        runtimeSeconds={null}
-        metricsUnavailable
-        metricsLoading={false}
-        lastSessionActivityAt={null}
-        sessionsLoading={false}
-        sessionsError={false}
-        onEditRuntime={vi.fn()}
-        onViewAllSessions={vi.fn()}
+        {...overviewProps({
+          sessions: [session()],
+          failedSessionsTotal: null,
+          runtimeSeconds: null,
+          metricsUnavailable: true,
+        })}
       />
     );
     expect(screen.queryByTestId("agent-overview-sessions-notice")).not.toBeInTheDocument();
@@ -220,19 +229,13 @@ describe("agent detail panels", () => {
   it("Should skeleton metrics from the catalog query while sessions rows stay independent", () => {
     render(
       <AgentOverviewTab
-        agent={agent()}
-        sessions={[session()]}
-        sessionsTotal={0}
-        activeSessionsTotal={0}
-        failedSessionsTotal={null}
-        runtimeSeconds={null}
-        metricsUnavailable
-        metricsLoading
-        lastSessionActivityAt={null}
-        sessionsLoading={false}
-        sessionsError={false}
-        onEditRuntime={vi.fn()}
-        onViewAllSessions={vi.fn()}
+        {...overviewProps({
+          sessions: [session()],
+          failedSessionsTotal: null,
+          runtimeSeconds: null,
+          metricsUnavailable: true,
+          metricsLoading: true,
+        })}
       />
     );
     expect(screen.getByTestId("agent-overview-metrics-skeleton").children).toHaveLength(4);

@@ -2,6 +2,7 @@ import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionDeleteDialog } from "@/hooks/routes/use-session-delete-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
 import {
+  useSessionInspectorState,
   useSessionLedger,
   useSessionTopbarSlot,
   useSessionUsage,
@@ -46,6 +47,7 @@ export function useSessionWindowController(input: {
     : null;
   const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
   const clearDialog = useSessionClearDialog(controls.handleClear);
+  const inspector = useSessionInspectorState(sessionId);
 
   useSessionTopbarSlot({
     session,
@@ -54,11 +56,21 @@ export function useSessionWindowController(input: {
     isResuming: controls.isResuming,
     isClearing: controls.isClearing,
     canClear: controls.canClear,
+    inspectorOpen: inspector.open,
+    onInspectorToggle: inspector.toggle,
     onDelete: deleteDialog.openDialog,
     onStop: controls.handleStop,
     onResume: controls.handleResume,
     onClear: clearDialog.openDialog,
   });
 
-  return { controls, inspectorMemory, inspectorUsage, sessionVault, deleteDialog, clearDialog };
+  return {
+    controls,
+    inspector,
+    inspectorMemory,
+    inspectorUsage,
+    sessionVault,
+    deleteDialog,
+    clearDialog,
+  };
 }

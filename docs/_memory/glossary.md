@@ -236,7 +236,7 @@ status authority.
 
 ### Task Execution Profile
 
-The task-owned typed overlay that selects the runtime shape of orchestration for one task. Persisted under `task_execution_profiles` plus selector side tables (never in `metadata_json`). Configured under `[task.orchestration.profile]` and managed through `agh task profile inspect|update|delete`, `/api/tasks/{id}/profile`, native task tools, and the operator web UI Task setup sheet.
+The task-owned typed overlay that selects the runtime shape of orchestration for one task. Persisted under `task_execution_profiles` plus selector side tables (never in `metadata_json`). Configured under `[task.orchestration.profile]` and managed through `agh task profile inspect|update|delete`, `/api/tasks/{id}/profile`, native task tools, and the web UI Task setup sheet.
 
 The profile carries `CoordinatorProfile` (`mode = "inherit" | "guided"`), `WorkerProfile` (worker agent/provider/model + worker eligibility selectors), `ReviewProfile` (reviewer selectors), `ParticipantPolicy` (allowed/preferred channels, peers, agents, capabilities), `SandboxPolicy` (`mode = "inherit" | "none" | "ref"`), and an optional `network_participation` request for future runs. Validation runs at write time in `task.Service.SetExecutionProfile`; session start loads the persisted profile without re-running validation. PUT replaces the entire profile — omitted blocks normalize to defaults.
 
@@ -278,23 +278,27 @@ Daemon-managed child-session creation. Defaults: `max_depth = 1`, `max_children 
 
 ## OS Shell
 
-The web operator surface presents as a desktop: a menubar, a wallpapered desktop, free-floating windows, and a dock (ADR-001/002/006). These terms name that presentation model. The runtime object remains the `workspace`; the shell only rearranges how its surfaces are shown.
+The web UI presents as a desktop environment: a menubar, persistent virtual desktops, tiled and floating windows, and a dock. These terms name that presentation model. The runtime object remains the `workspace`; switching a desktop never changes runtime scope.
 
 ### Workspace
 
-The runtime object: project root and scoped runtime context (sessions, memory, tasks, vault, config). Unchanged by the shell — a workspace is not a visual container, and shell terms never replace it as the unit of runtime scope.
-
-### Space
-
-The per-workspace desktop arrangement. Each workspace has one space: the set of open windows, their geometry, focus, and wallpaper for that workspace. Switching workspaces switches spaces. A space is presentation state, not a new runtime scope — it carries no sessions, memory, or tasks of its own.
+The runtime object: project root and scoped runtime context (sessions, memory, tasks, vault, config). A workspace owns window-manager topology, but remains the unit of runtime scope. The Workspaces surface switches this runtime context.
 
 ### Desktop
 
-The wallpapered canvas behind the windows in the current space. Not a runtime object.
+One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns tiled groups and floating-window order; a window belongs to exactly one desktop. The active desktop and focused window are client-local projections. A desktop carries no sessions, memory, or tasks of its own.
+
+### Tiled group
+
+One non-overlapping layout tree inside a desktop. A desktop may contain multiple tiled groups and floating windows. A tiled group uses leaf, split, and stack nodes; resizing acts on a structural split boundary, not on independent window rectangles.
 
 ### Window
 
-A floating frame hosting one app's route subtree. The window head is the route's `<Topbar>` with OS controls injected. Windows are presentation containers; the views inside them are the same `systems/*` views the routes render.
+A frame hosting one app's durably resumed route subtree. The window head is the route's `<Topbar>` with OS controls injected. Windows are presentation containers; the views inside them are the same `systems/*` views the routes render. A window may be tiled, stacked, or floating; structural placement is distinct from its internal pathname/search route.
+
+### Desktop pager
+
+The minimal lower-left horizontal dot control for switching the active client's desktop, aligned with the Dock centerline. It is navigation, not a persistent management panel. Desktops Overview owns create, rename, reorder, transfer, and delete operations.
 
 ### Dock
 
@@ -304,11 +308,11 @@ The bottom strip of app launchers. It mirrors the app inventory and carries runn
 
 The top bar across the desktop: workspace trigger, app menus, the approvals bell, the ⌘K palette, and Settings.
 
-### Desktop state
+### Window manager
 
-The persisted presentation state of a space: which windows are open, their rects/z/focus/minimized, the wallpaper, and rail/palette prefs. Stored daemon-side per workspace (ADR-008) and synced to clients.
+The daemon-authoritative, workspace-scoped topology and semantic command surface for desktops, tiled groups, and windows. Durable mutations use revision checks and atomic commits. Browser geometry projection, active desktop, focus, and gesture previews remain client-specific where defined by the contract.
 
-**Desktop state vs memory:** desktop state is *presentation* state — where windows sit and how the shell looks. It is opaque to the daemon and never interpreted. `memory` is *agent* state — the consolidated knowledge an agent carries (see Memory above). The two never mix: desktop state holds no agent knowledge, and memory holds no window geometry.
+**Window manager vs memory:** window-manager data is *presentation topology* interpreted by the daemon. `memory` is *agent* knowledge (see Memory above). Window-manager documents hold no agent knowledge, and memory holds no window geometry.
 
 ---
 

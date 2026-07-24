@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"fmt"
+	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 
@@ -55,6 +56,7 @@ func (s *agentSkillSourceSyncer) desiredResources(ctx context.Context) (struct {
 			if err != nil {
 				return desired, err
 			}
+			spec.SourcePath = strings.TrimSpace(item.spec.SourcePath)
 			id := managedResourceID(agentManagedIDPrefix, item.scope.Normalize(), item.sourceKey, encoded)
 			desired.agents[id] = desiredAgentResource{
 				id:      id,
@@ -92,6 +94,18 @@ func (s *agentSkillSourceSyncer) desiredResources(ctx context.Context) (struct {
 	}
 
 	return desired, nil
+}
+
+func (s *agentSkillSourceSyncer) stageAgentTransientSpecs(desired map[string]desiredAgentResource) {
+	projector, ok := s.agentProjector.(*resourceCatalogProjector[aghconfig.AgentDef])
+	if !ok || projector.catalog == nil {
+		return
+	}
+	specs := make(map[string]aghconfig.AgentDef, len(desired))
+	for id, agent := range desired {
+		specs[id] = agent.spec
+	}
+	projector.catalog.MergeTransientSpecs(specs)
 }
 
 func (s *agentSkillSourceSyncer) syncAgents(

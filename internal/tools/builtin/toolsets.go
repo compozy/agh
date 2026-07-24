@@ -205,6 +205,7 @@ var builtinToolsets = []toolspkg.Toolset{
 	{ID: toolspkg.ToolsetIDExtensions, Tools: []string{"agh__extensions_*"}},
 	{ID: toolspkg.ToolsetIDBundles, Tools: []string{"agh__bundles_*"}},
 	{ID: toolspkg.ToolsetIDResources, Tools: []string{"agh__resources_*"}},
+	{ID: toolspkg.ToolsetIDWindowManager, Tools: []string{"agh__desktop_*", "agh__window_*", "agh__layout_*"}},
 	{ID: toolspkg.ToolsetIDMCP, Tools: []string{toolspkg.ToolIDMCPStatus.String()}},
 	{ID: toolspkg.ToolsetIDMCPAuth, Tools: []string{toolspkg.ToolIDMCPAuthStatus.String()}},
 }

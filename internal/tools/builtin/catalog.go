@@ -42,7 +42,7 @@ var catalogTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDBootstrap, toolspkg.ToolsetIDCatalog},
-		[]string{catalogToolsKey, catalogRegistryKey, "diagnostics"},
+		[]string{catalogToolsKey, catalogRegistryKey, descriptorKeywordDiagnostics},
 		[]string{"tool descriptor", "tool policy diagnostics"},
 	),
 }

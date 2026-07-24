@@ -77,12 +77,19 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/tasks/:id/execution-profile",
 		"DELETE /api/vault/secrets",
 		"DELETE /api/workspaces/:workspace_id",
-		"DELETE /api/workspaces/:workspace_id/desktop-state/:key",
-		"GET /api/workspaces/:workspace_id/desktop-state",
-		"GET /api/workspaces/:workspace_id/desktop-state/:key",
-		"GET /api/workspaces/:workspace_id/desktop-state/stream",
-		"POST /api/workspaces/:workspace_id/desktop-state/apply",
-		"PUT /api/workspaces/:workspace_id/desktop-state/:key",
+		"DELETE /api/workspaces/:workspace_id/window-manager/clients/:client_id",
+		"DELETE /api/workspaces/:workspace_id/window-manager/layout-profiles/:profile_id",
+		"GET /api/workspaces/:workspace_id/window-manager",
+		"GET /api/workspaces/:workspace_id/window-manager/clients",
+		"GET /api/workspaces/:workspace_id/window-manager/layout",
+		"GET /api/workspaces/:workspace_id/window-manager/layout-profiles",
+		"GET /api/workspaces/:workspace_id/window-manager/stream",
+		"POST /api/workspaces/:workspace_id/window-manager/clients",
+		"POST /api/workspaces/:workspace_id/window-manager/commands",
+		"POST /api/workspaces/:workspace_id/window-manager/layout/validate",
+		"POST /api/workspaces/:workspace_id/window-manager/preview",
+		"PUT /api/workspaces/:workspace_id/window-manager/layout",
+		"PUT /api/workspaces/:workspace_id/window-manager/layout-profiles/:profile_id",
 		"GET /api/agent/channels",
 		"GET /api/agent/channels/:channel/recv",
 		"GET /api/agent/context",
@@ -216,6 +223,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/settings/mcp-servers/:name/auth/logout",
 		"GET /api/settings/memory",
 		"GET /api/settings/network",
+		"GET /api/settings/window-manager",
 		"GET /api/settings/observability",
 		"GET /api/settings/observability/log-tail",
 		"GET /api/settings/providers",
@@ -272,6 +280,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PATCH /api/settings/hooks-extensions",
 		"PATCH /api/settings/memory",
 		"PATCH /api/settings/network",
+		"PATCH /api/settings/window-manager",
 		"PATCH /api/settings/observability",
 		"PATCH /api/settings/skills",
 		"PATCH /api/tasks/:id",
@@ -1028,6 +1037,7 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 		"/api/settings/skills",
 		"/api/settings/automation",
 		"/api/settings/network",
+		"/api/settings/window-manager",
 		"/api/settings/observability",
 		"/api/settings/hooks-extensions",
 		"/api/settings/providers",
@@ -1042,7 +1052,7 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 	}
 
 	for _, path := range tests {
-		t.Run(path, func(t *testing.T) {
+		t.Run("Should reject "+path+" off loopback", func(t *testing.T) {
 			recorder := performRequest(t, engine, http.MethodGet, path, nil)
 			if recorder.Code != http.StatusForbidden {
 				t.Fatalf(
@@ -1155,6 +1165,7 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		{method: http.MethodPatch, path: "/api/settings/skills", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/automation", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/network", body: []byte(`{}`)},
+		{method: http.MethodPatch, path: "/api/settings/window-manager", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/observability", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/hooks-extensions", body: []byte(`{}`)},
 		{method: http.MethodPut, path: "/api/settings/providers/demo", body: []byte(`{}`)},

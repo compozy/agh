@@ -18,7 +18,8 @@ import type { WorkspacePayload } from "@/systems/workspace";
 import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import type { OsAttentionRow } from "../lib/attention-model";
-import { OS_SNAP_COMMANDS } from "../lib/os-snap-commands";
+import type { WindowManagerActionId } from "../lib/window-manager-command-registry";
+import { resolveWindowManagerActions } from "../lib/window-manager-shortcuts";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useDesktop } from "../hooks/use-desktop";
 import { OsHydrationStatus } from "./os-hydration-status";
@@ -32,7 +33,8 @@ export interface DesktopMenubarProps {
   onAddWorkspace: () => void;
   onNewSession: () => void;
   onOpenPalette: () => void;
-  onOpenSpaces: () => void;
+  onOpenDesktops: () => void;
+  onOpenWorkspaces: () => void;
   activeOverlay: DesktopOverlay | null;
   onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void;
   attention: OsAttentionModel;
@@ -42,18 +44,10 @@ function workspaceMonogram(name: string): string {
   return name.trim().slice(0, 2).toUpperCase() || "WS";
 }
 
-const SHORTCUT_ROWS: Array<{ keys: string; label: string }> = [
-  { keys: "⌘K", label: "Command palette" },
-  { keys: "⌘N", label: "New session" },
-  { keys: "⇧⌘S", label: "Spaces overview" },
-  { keys: "⌘W", label: "Close window" },
-  { keys: "⌘M", label: "Minimize window" },
-  { keys: "Esc", label: "Close overlay" },
-  // Snap chords (ADR-009); the palette carries the same actions everywhere.
-  // Preset-only rows (no chord) live in the zoom menu + palette, not here.
-  ...OS_SNAP_COMMANDS.flatMap(command =>
-    command.keys ? [{ keys: command.keys, label: command.label }] : []
-  ),
+const SHELL_SHORTCUT_ROWS: Array<{ id: string; keys: string; label: string }> = [
+  { id: "palette.open", keys: "⌘K", label: "Command palette" },
+  { id: "session.new", keys: "⌘N", label: "New session" },
+  { id: "overlay.close", keys: "Esc", label: "Close overlay" },
 ];
 
 function menuOverlay(menu: string): DesktopOverlay | null {
@@ -76,33 +70,46 @@ export function DesktopMenubar({
   onAddWorkspace,
   onNewSession,
   onOpenPalette,
-  onOpenSpaces,
+  onOpenDesktops,
+  onOpenWorkspaces,
   activeOverlay,
   onOverlayOpenChange,
   attention,
 }: DesktopMenubarProps) {
-  const { store, coordinator } = useOsShell();
+  const { manager, coordinator } = useOsShell();
   const focusedId = useDesktop(state => state.focusedId);
   const hydration = useDesktop(state => state.hydration);
+  const windowManagerConfig = useDesktop(state => state.windowManagerConfig);
   const hasFocusedWindow = focusedId !== null;
+  const windowManagerActions = resolveWindowManagerActions(windowManagerConfig?.shortcuts ?? {});
+  const shortcutFor = (actionId: WindowManagerActionId) =>
+    windowManagerActions.find(action => action.id === actionId)?.shortcutLabel ?? null;
+  const shortcutRows = [
+    ...SHELL_SHORTCUT_ROWS,
+    ...windowManagerActions.flatMap(action =>
+      action.shortcutLabel
+        ? [{ id: action.id, keys: action.shortcutLabel, label: action.label }]
+        : []
+    ),
+  ];
 
   const workspaceName = activeWorkspace?.name ?? "—";
   const focusAttentionRow = (row: OsAttentionRow) => {
     onOverlayOpenChange("bell", false);
     if (row.kind === "session") {
-      coordinator.userOpen({
+      void coordinator.userOpen({
         app: "session",
         instanceKey: row.id,
-        location: {
+        route: {
           pathname: `/agents/${encodeURIComponent(row.agentName)}/sessions/${encodeURIComponent(row.id)}`,
           search: {},
         },
       });
       return;
     }
-    coordinator.userOpen({
+    void coordinator.userOpen({
       app: "tasks",
-      location: { pathname: `/tasks/${encodeURIComponent(row.id)}`, search: {} },
+      route: { pathname: `/tasks/${encodeURIComponent(row.id)}`, search: {} },
     });
   };
 
@@ -111,9 +118,9 @@ export function DesktopMenubar({
       workspace={{ name: workspaceName, monogram: workspaceMonogram(workspaceName) }}
       status={<OsHydrationStatus hydration={hydration} />}
       notifications={attention.notificationCount}
-      onLogoClick={() => coordinator.userOpen({ app: "dashboard" })}
+      onLogoClick={() => void coordinator.userOpen({ app: "dashboard" })}
       onCommandClick={onOpenPalette}
-      onSettingsClick={() => coordinator.userOpen({ app: "settings" })}
+      onSettingsClick={() => void coordinator.userOpen({ app: "settings" })}
       wrapWorkspaceTrigger={trigger => (
         <DropdownMenu
           open={activeOverlay === "workspace-menu"}
@@ -161,16 +168,27 @@ export function DesktopMenubar({
               ) : null}
               {menu === "View" ? (
                 <>
-                  <DropdownMenuItem data-testid="os-menu-spaces-overview" onClick={onOpenSpaces}>
-                    Spaces overview
-                    <DropdownMenuShortcut>⇧⌘S</DropdownMenuShortcut>
+                  <DropdownMenuItem
+                    data-testid="os-menu-desktops-overview"
+                    onClick={onOpenDesktops}
+                  >
+                    Desktops overview
+                    {shortcutFor("desktop.overview") ? (
+                      <DropdownMenuShortcut>{shortcutFor("desktop.overview")}</DropdownMenuShortcut>
+                    ) : null}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="os-menu-workspaces-overview"
+                    onClick={onOpenWorkspaces}
+                  >
+                    Workspaces…
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     data-testid="os-menu-appearance"
                     onClick={() =>
-                      coordinator.userOpen({
+                      void coordinator.userOpen({
                         app: "settings",
-                        location: { pathname: "/settings/appearance", search: {} },
+                        route: { pathname: "/settings/appearance", search: {} },
                       })
                     }
                   >
@@ -179,32 +197,43 @@ export function DesktopMenubar({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     disabled={!hasFocusedWindow}
-                    onClick={() => focusedId !== null && coordinator.userMinimize(focusedId)}
+                    onClick={() => {
+                      if (focusedId !== null) void coordinator.userMinimize(focusedId);
+                    }}
                   >
                     Minimize window
-                    <DropdownMenuShortcut>⌘M</DropdownMenuShortcut>
+                    {shortcutFor("window.minimize") ? (
+                      <DropdownMenuShortcut>{shortcutFor("window.minimize")}</DropdownMenuShortcut>
+                    ) : null}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={!hasFocusedWindow}
-                    onClick={() => focusedId !== null && store.getState().toggleZoom(focusedId)}
+                    onClick={() => focusedId !== null && manager.getState().zoomWindow(focusedId)}
                   >
                     Zoom window
+                    {shortcutFor("window.zoom") ? (
+                      <DropdownMenuShortcut>{shortcutFor("window.zoom")}</DropdownMenuShortcut>
+                    ) : null}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     disabled={!hasFocusedWindow}
-                    onClick={() => focusedId !== null && coordinator.userClose(focusedId)}
+                    onClick={() => {
+                      if (focusedId !== null) void coordinator.userClose(focusedId);
+                    }}
                   >
                     Close window
-                    <DropdownMenuShortcut>⌘W</DropdownMenuShortcut>
+                    {shortcutFor("window.close") ? (
+                      <DropdownMenuShortcut>{shortcutFor("window.close")}</DropdownMenuShortcut>
+                    ) : null}
                   </DropdownMenuItem>
                 </>
               ) : null}
               {menu === "Help" ? (
                 <div className="flex flex-col gap-1 px-2 py-1.5" data-testid="os-help-shortcuts">
-                  {SHORTCUT_ROWS.map(row => (
+                  {shortcutRows.map(row => (
                     <div
-                      key={row.keys}
+                      key={row.id}
                       className="flex items-center justify-between gap-6 text-small-body text-muted"
                     >
                       <span>{row.label}</span>

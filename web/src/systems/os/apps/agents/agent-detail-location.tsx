@@ -113,7 +113,6 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
               onEditSettings={() => page.onEditSettings()}
             />
           ),
-          toolbar: <AgentRuntimeControl agent={page.agent} workspaceId={activeWorkspaceId} />,
         }
       : null
   );
@@ -201,6 +200,13 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                 lastSessionActivityAt={page.lastSessionActivityAt}
                 sessionsLoading={page.sessionsLoading}
                 sessionsError={page.sessionsError}
+                runtimeControl={
+                  <AgentRuntimeControl
+                    agent={page.agent}
+                    labelledBy="agent-overview-model-label"
+                    workspaceId={activeWorkspaceId}
+                  />
+                }
                 onEditRuntime={() => page.onEditSettings("runtime")}
                 onViewAllSessions={() => page.setTab("sessions")}
               />

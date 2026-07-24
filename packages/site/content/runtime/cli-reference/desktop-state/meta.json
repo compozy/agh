@@ -1,4 +1,0 @@
-{
-    "title": "Desktop State",
-    "pages": ["index", "delete", "get", "list", "set", "watch"]
-}

@@ -1,7 +1,10 @@
 import { HttpResponse, type HttpHandler } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
 
-import type { SettingsNotificationPresetCollection } from "@/systems/settings";
+import type {
+  SettingsMutationResult,
+  SettingsNotificationPresetCollection,
+} from "@/systems/settings";
 
 import {
   settingsAppliedMutationFixture,
@@ -27,8 +30,28 @@ import {
   settingsRestartStatusFixture,
   settingsSkillsSectionFixture,
 } from "./fixtures";
+import {
+  settingsWindowManagerSectionFixture,
+  windowManagerLayoutDocumentFixture,
+  windowManagerLayoutResourceFixture,
+} from "./window-manager-fixtures";
+import { settingsUpdateStatusFixture } from "./settings-update-fixture";
+import { windowManagerSnapshotFixture, windowManagerStoryDesktopId } from "@/systems/os/mocks";
 
-function mutationResult(section: string, restartRequired = false) {
+function layoutDocumentForWorkspace(workspaceId: string) {
+  return structuredClone({ ...windowManagerLayoutDocumentFixture, workspace_id: workspaceId });
+}
+
+function layoutResourceFor(workspaceId: string, id: string) {
+  const record = structuredClone(windowManagerLayoutResourceFixture);
+  record.id = id;
+  record.scope = { kind: "workspace", id: workspaceId };
+  record.spec.id = id;
+  record.spec.document = layoutDocumentForWorkspace(workspaceId);
+  return record;
+}
+
+function mutationResult(section: SettingsMutationResult["section"], restartRequired = false) {
   return {
     ...(restartRequired ? settingsRestartRequiredMutationFixture : settingsAppliedMutationFixture),
     section,
@@ -73,6 +96,7 @@ export const handlers: HttpHandler[] = [
   aghApiMock.patch("/api/settings/general", () =>
     HttpResponse.json(mutationResult("general", true))
   ),
+  aghApiMock.get("/api/settings/update", () => HttpResponse.json(settingsUpdateStatusFixture)),
 
   aghApiMock.get("/api/settings/memory", () => HttpResponse.json(settingsMemorySectionFixture)),
   aghApiMock.patch("/api/settings/memory", () => HttpResponse.json(mutationResult("memory"))),
@@ -90,6 +114,64 @@ export const handlers: HttpHandler[] = [
   aghApiMock.get("/api/settings/network", () => HttpResponse.json(settingsNetworkSectionFixture)),
   aghApiMock.patch("/api/settings/network", () =>
     HttpResponse.json(mutationResult("network", true))
+  ),
+
+  aghApiMock.get("/api/settings/window-manager", () =>
+    HttpResponse.json(settingsWindowManagerSectionFixture)
+  ),
+  aghApiMock.patch("/api/settings/window-manager", () =>
+    HttpResponse.json(mutationResult("window-manager"))
+  ),
+
+  aghApiMock.get("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>
+    HttpResponse.json(layoutDocumentForWorkspace(String(params.workspace_id)))
+  ),
+  aghApiMock.put("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>
+    HttpResponse.json({
+      snapshot: {
+        ...windowManagerSnapshotFixture,
+        workspace_id: String(params.workspace_id),
+        revision: 13,
+      },
+      applied: true,
+      changes: {},
+      diagnostics: [],
+    })
+  ),
+  aghApiMock.post("/api/workspaces/{workspace_id}/window-manager/layout/validate", ({ params }) =>
+    HttpResponse.json({
+      workspace_id: String(params.workspace_id),
+      valid: true,
+      diagnostics: [],
+    })
+  ),
+  aghApiMock.post("/api/workspaces/{workspace_id}/window-manager/preview", ({ params }) =>
+    HttpResponse.json({
+      snapshot: { ...windowManagerSnapshotFixture, workspace_id: String(params.workspace_id) },
+      changed: true,
+      changes: {
+        desktop_ids: [windowManagerStoryDesktopId],
+        window_ids: [],
+      },
+      diagnostics: [],
+    })
+  ),
+  aghApiMock.get("/api/workspaces/{workspace_id}/window-manager/layout-profiles", ({ params }) => {
+    const workspaceId = String(params.workspace_id);
+    return HttpResponse.json({
+      records: [layoutResourceFor(workspaceId, windowManagerLayoutResourceFixture.id)],
+    });
+  }),
+  aghApiMock.put(
+    "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}",
+    ({ params }) =>
+      HttpResponse.json({
+        record: layoutResourceFor(String(params.workspace_id), String(params.profile_id)),
+      })
+  ),
+  aghApiMock.delete(
+    "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}",
+    () => new HttpResponse(null, { status: 204 })
   ),
 
   aghApiMock.get("/api/settings/observability", () =>

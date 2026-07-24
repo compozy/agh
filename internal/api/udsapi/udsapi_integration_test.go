@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -33,7 +34,9 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
 	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/agh/internal/windowmanager"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/gorilla/websocket"
 )
 
 func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
@@ -196,6 +199,128 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("stop session status = %d, want %d; body=%s", stopResp.StatusCode, http.StatusNoContent, string(body))
 	}
 	_ = stopResp.Body.Close()
+}
+
+func TestUDSWindowManagerWebSocketStream(t *testing.T) {
+	t.Run("Should stream one client fence and drain over the Unix socket", func(t *testing.T) {
+		t.Parallel()
+		runtime := newIntegrationRuntime(t)
+		const workspaceID = "window-manager-workspace"
+		streamURL := "ws://unix/api/workspaces/" + workspaceID + "/window-manager/stream"
+		dialer := websocket.Dialer{
+			NetDialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var netDialer net.Dialer
+				return netDialer.DialContext(ctx, "unix", runtime.socket)
+			},
+		}
+
+		missingDialContext, cancelMissingDial := context.WithTimeout(t.Context(), time.Second)
+		missingConnection, response, err := dialer.DialContext(
+			missingDialContext,
+			streamURL+"?client_id=missing",
+			nil,
+		)
+		cancelMissingDial()
+		if err != nil {
+			if response != nil && response.Body != nil {
+				closeHTTPBody(t, response.Body)
+			}
+			t.Fatalf("DialContext(missing client) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := missingConnection.Close(); closeErr != nil {
+				t.Errorf("missing-client websocket Close() error = %v", closeErr)
+			}
+		})
+		if deadlineErr := missingConnection.SetReadDeadline(time.Now().Add(time.Second)); deadlineErr != nil {
+			t.Fatalf("SetReadDeadline(missing-client frame) error = %v", deadlineErr)
+		}
+		var terminal contract.WindowManagerErrorFrame
+		if readErr := missingConnection.ReadJSON(&terminal); readErr != nil {
+			t.Fatalf("ReadJSON(missing-client error) error = %v", readErr)
+		}
+		if terminal.Type != contract.WindowManagerFrameError ||
+			terminal.Error.Code != contract.WindowManagerErrorClientNotFound ||
+			terminal.Error.WorkspaceID != workspaceID {
+			t.Fatalf("missing-client terminal frame = %+v", terminal)
+		}
+		if deadlineErr := missingConnection.SetReadDeadline(time.Now().Add(time.Second)); deadlineErr != nil {
+			t.Fatalf("SetReadDeadline(missing client) error = %v", deadlineErr)
+		}
+		_, _, readErr := missingConnection.ReadMessage()
+		if !websocket.IsCloseError(readErr, websocket.ClosePolicyViolation) {
+			t.Fatalf("ReadMessage(missing client) error = %v, want policy-violation close", readErr)
+		}
+
+		registerResponse := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			"http://unix/api/workspaces/"+workspaceID+"/window-manager/clients",
+			[]byte(`{"workspace_id":"`+workspaceID+`","client_id":"client-a"}`),
+			nil,
+		)
+		if registerResponse.StatusCode != http.StatusCreated {
+			body := readAndCloseHTTPBody(t, registerResponse)
+			t.Fatalf(
+				"register client status = %d, want %d; body=%s",
+				registerResponse.StatusCode,
+				http.StatusCreated,
+				string(body),
+			)
+		}
+		var registered contract.WindowManagerClientView
+		decodeHTTPJSON(t, registerResponse, &registered)
+		if registered.ClientID != "client-a" || registered.PresentationRevision != 1 {
+			t.Fatalf("registered client = %+v", registered)
+		}
+
+		registeredDialContext, cancelRegisteredDial := context.WithTimeout(t.Context(), time.Second)
+		connection, response, err := dialer.DialContext(
+			registeredDialContext,
+			streamURL+"?client_id=client-a",
+			nil,
+		)
+		cancelRegisteredDial()
+		if err != nil {
+			if response != nil && response.Body != nil {
+				closeHTTPBody(t, response.Body)
+			}
+			t.Fatalf("DialContext(registered client) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := connection.Close(); closeErr != nil {
+				t.Errorf("registered-client websocket Close() error = %v", closeErr)
+			}
+		})
+		if deadlineErr := connection.SetReadDeadline(time.Now().Add(time.Second)); deadlineErr != nil {
+			t.Fatalf("SetReadDeadline(client fence) error = %v", deadlineErr)
+		}
+		var fence contract.WindowManagerSnapshotFrame
+		if readErr := connection.ReadJSON(&fence); readErr != nil {
+			t.Fatalf("ReadJSON(client fence) error = %v", readErr)
+		}
+		if fence.Type != contract.WindowManagerFrameSnapshot ||
+			fence.WorkspaceID != workspaceID ||
+			fence.Client == nil ||
+			fence.Client.ClientID != "client-a" ||
+			fence.Client.PresentationRevision != 1 {
+			t.Fatalf("client-bound fence = %+v", fence)
+		}
+
+		shutdownContext, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+		defer cancel()
+		if shutdownErr := runtime.server.Shutdown(shutdownContext); shutdownErr != nil {
+			t.Fatalf("server.Shutdown() error = %v", shutdownErr)
+		}
+		if deadlineErr := connection.SetReadDeadline(time.Now().Add(time.Second)); deadlineErr != nil {
+			t.Fatalf("SetReadDeadline(shutdown) error = %v", deadlineErr)
+		}
+		_, _, readErr = connection.ReadMessage()
+		if !websocket.IsCloseError(readErr, websocket.CloseGoingAway) {
+			t.Fatalf("ReadMessage(shutdown) error = %v, want going-away close", readErr)
+		}
+	})
 }
 
 func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
@@ -3119,6 +3244,20 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	windowManager, err := windowmanager.NewService(
+		windowmanager.NewMemoryRepository(),
+		windowmanager.NewMemoryWorkspaceResolver("window-manager-workspace"),
+		nil,
+		windowmanager.DefaultConfig(),
+	)
+	if err != nil {
+		t.Fatalf("windowmanager.NewService() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := windowManager.Close(); closeErr != nil {
+			t.Fatalf("windowManager.Close() error = %v", closeErr)
+		}
+	})
 
 	observer, err := observe.New(
 		context.Background(),
@@ -3248,6 +3387,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithWorkspaceResolver(resolver),
 		WithMemoryStore(memoryStore),
 		WithDreamTrigger(dreamTrigger),
+		WithWindowManagerService(windowManager),
 		WithPollInterval(10*time.Millisecond),
 	)
 	if err != nil {

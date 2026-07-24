@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 	transcriptpkg "github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/agh/internal/windowmanager"
 	"github.com/gin-gonic/gin"
 )
 
@@ -120,6 +121,239 @@ func TestUDSTransportRuntimeMemoryDoctorMatchesHTTPAndCLI(t *testing.T) {
 			t.Fatalf("runtime.memory evidence = %#v, want populated daemon snapshot", httpItem.Evidence)
 		}
 	})
+}
+
+func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
+	t.Run("Should preserve window manager reads mutations clients layouts and errors across real transports", func(t *testing.T) {
+		t.Parallel()
+		acpmock.RequireDriver(t)
+
+		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+		clients, err := runtimeHarness.TransportClients()
+		if err != nil {
+			t.Fatalf("TransportClients() error = %v", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		basePath := "/api/workspaces/" + url.PathEscape(runtimeHarness.WorkspaceID) + "/window-manager"
+		var httpSnapshot aghcontract.WindowManagerSnapshot
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, basePath, nil, &httpSnapshot); err != nil {
+			t.Fatalf("HTTP window manager snapshot error = %v", err)
+		}
+		var udsSnapshot aghcontract.WindowManagerSnapshot
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, basePath, nil, &udsSnapshot); err != nil {
+			t.Fatalf("UDS window manager snapshot error = %v", err)
+		}
+		if !reflect.DeepEqual(httpSnapshot, udsSnapshot) {
+			t.Fatalf("window manager snapshot parity mismatch: HTTP=%#v UDS=%#v", httpSnapshot, udsSnapshot)
+		}
+
+		createRequest := windowManagerTransportCreateDesktopRequest(
+			runtimeHarness.WorkspaceID,
+			httpSnapshot.Revision,
+			"desktop-http",
+		)
+		var httpPreview aghcontract.WindowManagerPreview
+		if err := runtimeHarness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			basePath+"/preview",
+			createRequest,
+			&httpPreview,
+		); err != nil {
+			t.Fatalf("HTTP window manager preview error = %v", err)
+		}
+		var udsPreview aghcontract.WindowManagerPreview
+		if err := runtimeHarness.UDSJSON(
+			ctx,
+			http.MethodPost,
+			basePath+"/preview",
+			createRequest,
+			&udsPreview,
+		); err != nil {
+			t.Fatalf("UDS window manager preview error = %v", err)
+		}
+		if !reflect.DeepEqual(httpPreview, udsPreview) {
+			t.Fatalf("window manager preview parity mismatch: HTTP=%#v UDS=%#v", httpPreview, udsPreview)
+		}
+
+		var httpMutation aghcontract.WindowManagerResult
+		if err := runtimeHarness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			basePath+"/commands",
+			createRequest,
+			&httpMutation,
+		); err != nil {
+			t.Fatalf("HTTP window manager command error = %v", err)
+		}
+		if !httpMutation.Applied || httpMutation.Snapshot.Revision != httpSnapshot.Revision+1 {
+			t.Fatalf("HTTP window manager mutation = %#v, want applied revision %d", httpMutation, httpSnapshot.Revision+1)
+		}
+
+		udsCreateRequest := windowManagerTransportCreateDesktopRequest(
+			runtimeHarness.WorkspaceID,
+			httpMutation.Snapshot.Revision,
+			"desktop-uds",
+		)
+		var udsMutation aghcontract.WindowManagerResult
+		if err := runtimeHarness.UDSJSON(
+			ctx,
+			http.MethodPost,
+			basePath+"/commands",
+			udsCreateRequest,
+			&udsMutation,
+		); err != nil {
+			t.Fatalf("UDS window manager command error = %v", err)
+		}
+		if !udsMutation.Applied || udsMutation.Snapshot.Revision != httpMutation.Snapshot.Revision+1 {
+			t.Fatalf(
+				"UDS window manager mutation = %#v, want applied revision %d",
+				udsMutation,
+				httpMutation.Snapshot.Revision+1,
+			)
+		}
+
+		registration := aghcontract.WindowManagerClientRegistration{
+			WorkspaceID: windowmanager.WorkspaceID(runtimeHarness.WorkspaceID),
+			ClientID:    "transport-parity-client",
+		}
+		var httpClient aghcontract.WindowManagerClientView
+		if err := runtimeHarness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			basePath+"/clients",
+			registration,
+			&httpClient,
+		); err != nil {
+			t.Fatalf("HTTP window manager client registration error = %v", err)
+		}
+		var udsClient aghcontract.WindowManagerClientView
+		if err := runtimeHarness.UDSJSON(
+			ctx,
+			http.MethodPost,
+			basePath+"/clients",
+			registration,
+			&udsClient,
+		); err != nil {
+			t.Fatalf("UDS window manager client registration error = %v", err)
+		}
+		if !reflect.DeepEqual(httpClient, udsClient) {
+			t.Fatalf("window manager client parity mismatch: HTTP=%#v UDS=%#v", httpClient, udsClient)
+		}
+
+		var httpLayout aghcontract.WindowManagerLayoutDocument
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, basePath+"/layout", nil, &httpLayout); err != nil {
+			t.Fatalf("HTTP window manager layout export error = %v", err)
+		}
+		var udsLayout aghcontract.WindowManagerLayoutDocument
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, basePath+"/layout", nil, &udsLayout); err != nil {
+			t.Fatalf("UDS window manager layout export error = %v", err)
+		}
+		if !reflect.DeepEqual(httpLayout, udsLayout) {
+			t.Fatalf("window manager layout parity mismatch: HTTP=%#v UDS=%#v", httpLayout, udsLayout)
+		}
+
+		validationRequest := aghcontract.WindowManagerLayoutValidationRequest{
+			WorkspaceID: windowmanager.WorkspaceID(runtimeHarness.WorkspaceID),
+			Document:    httpLayout,
+		}
+		var httpValidation aghcontract.WindowManagerLayoutValidationResponse
+		if err := runtimeHarness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			basePath+"/layout/validate",
+			validationRequest,
+			&httpValidation,
+		); err != nil {
+			t.Fatalf("HTTP window manager layout validation error = %v", err)
+		}
+		var udsValidation aghcontract.WindowManagerLayoutValidationResponse
+		if err := runtimeHarness.UDSJSON(
+			ctx,
+			http.MethodPost,
+			basePath+"/layout/validate",
+			validationRequest,
+			&udsValidation,
+		); err != nil {
+			t.Fatalf("UDS window manager layout validation error = %v", err)
+		}
+		if !reflect.DeepEqual(httpValidation, udsValidation) || !httpValidation.Valid {
+			t.Fatalf("window manager validation parity mismatch: HTTP=%#v UDS=%#v", httpValidation, udsValidation)
+		}
+
+		invalidRequest := windowManagerTransportCreateDesktopRequest(
+			runtimeHarness.WorkspaceID,
+			udsMutation.Snapshot.Revision,
+			"desktop-invalid",
+		)
+		invalidRequest.CommandID = "desktop.unknown"
+		invalidBody, err := json.Marshal(invalidRequest)
+		if err != nil {
+			t.Fatalf("json.Marshal(invalid window manager request) error = %v", err)
+		}
+		httpErrorResponse := mustUnixRequest(
+			t,
+			clients.HTTPClient,
+			http.MethodPost,
+			runtimeHarness.HTTPURL(basePath+"/commands"),
+			invalidBody,
+			nil,
+		)
+		udsErrorResponse := mustUnixRequest(
+			t,
+			clients.UDSClient,
+			http.MethodPost,
+			runtimeHarness.UDSURL(basePath+"/commands"),
+			invalidBody,
+			nil,
+		)
+		httpErrorBody := readAndCloseHTTPBody(t, httpErrorResponse)
+		udsErrorBody := readAndCloseHTTPBody(t, udsErrorResponse)
+		if httpErrorResponse.StatusCode != http.StatusUnprocessableEntity ||
+			udsErrorResponse.StatusCode != http.StatusUnprocessableEntity ||
+			!jsonEqual(httpErrorBody, udsErrorBody) {
+			t.Fatalf(
+				"window manager error parity mismatch: HTTP=(%d %s) UDS=(%d %s)",
+				httpErrorResponse.StatusCode,
+				httpErrorBody,
+				udsErrorResponse.StatusCode,
+				udsErrorBody,
+			)
+		}
+	})
+}
+
+func windowManagerTransportCreateDesktopRequest(
+	workspaceID string,
+	revision aghcontract.WindowManagerRevision,
+	desktopID string,
+) aghcontract.WindowManagerCommandRequest {
+	return aghcontract.WindowManagerCommandRequest{
+		WorkspaceID:      windowmanager.WorkspaceID(workspaceID),
+		CommandID:        aghcontract.WindowManagerCommandDesktopCreate,
+		ExpectedRevision: &revision,
+		Actor:            aghcontract.WindowManagerActor{Kind: "test", ID: "transport-parity"},
+		Origin:           "transport-parity",
+		Payload: json.RawMessage(fmt.Sprintf(
+			`{"desktop_id":%q,"name":%q,"purpose":"standard"}`,
+			desktopID,
+			desktopID,
+		)),
+	}
+}
+
+func jsonEqual(left []byte, right []byte) bool {
+	var leftValue any
+	if err := json.Unmarshal(left, &leftValue); err != nil {
+		return false
+	}
+	var rightValue any
+	if err := json.Unmarshal(right, &rightValue); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
 }
 
 func TestUDSTransportAutomaticSessionTitlePersistsAndMatchesHTTP(t *testing.T) {

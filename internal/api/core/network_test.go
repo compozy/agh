@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/windowmanager"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -708,6 +709,16 @@ func TestBundleActivationPayloadUsesMaterializedStableIDs(t *testing.T) {
 			},
 			Profile: extensionpkg.BundleProfile{
 				Name: "default",
+				Layouts: []extensionpkg.BundleLayout{{
+					Path: "layouts/two-up.json",
+					Layout: windowmanager.LayoutResource{
+						ID:               "two-up",
+						DisplayName:      "Two up",
+						AspectVariant:    windowmanager.LayoutAspectLandscape,
+						ParticipantSlots: []windowmanager.WindowID{"primary", "secondary"},
+						OverflowPolicy:   windowmanager.LayoutOverflowStack,
+					},
+				}},
 				Agents: []extensionpkg.BundleAgent{{
 					Path: "agents/planner",
 					Agent: aghconfig.AgentDef{
@@ -737,6 +748,17 @@ func TestBundleActivationPayloadUsesMaterializedStableIDs(t *testing.T) {
 		}
 
 		payload := core.BundleActivationPayload(preview)
+		if got, want := payload.Layouts[0].ID, bundleStableIDForTest(
+			"lay",
+			preview.Activation.ID,
+			"two-up",
+		); got != want {
+			t.Fatalf("payload.Layouts[0].ID = %q, want %q", got, want)
+		}
+		if got, want := payload.Layouts[0].ParticipantSlots,
+			[]string{"primary", "secondary"}; !slices.Equal(got, want) {
+			t.Fatalf("payload.Layouts[0].ParticipantSlots = %#v, want %#v", got, want)
+		}
 		if got, want := payload.Agents[0].ID, bundleStableIDForTest(
 			"agt",
 			preview.Activation.ID,

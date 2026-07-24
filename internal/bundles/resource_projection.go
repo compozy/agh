@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/agh/internal/heartbeat"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 // BundleActivationResourcePlan is the owned-resource composition plan produced from bundle.activation records.
@@ -19,12 +20,14 @@ type BundleActivationResourcePlan struct {
 	revision            int64
 	operations          int
 	activeActivationIDs map[string]struct{}
+	desiredLayouts      []ownedLayoutResource
 	desiredAgents       []ownedAgentResource
 	desiredSouls        []ownedSoulResource
 	desiredHeartbeats   []ownedHeartbeatResource
 	desiredJobs         []automationpkg.Job
 	desiredTriggers     []automationpkg.Trigger
 	desiredBridges      []bridgepkg.BridgeInstance
+	layoutOwners        map[string]string
 	agentOwners         map[string]string
 	soulOwners          map[string]string
 	heartbeatOwners     map[string]string
@@ -90,19 +93,22 @@ func (s *Service) Build(
 	if err != nil {
 		return nil, err
 	}
-	operations := len(state.desiredAgents) + len(state.desiredSouls) + len(state.desiredHeartbeats) +
+	operations := len(state.desiredLayouts) + len(state.desiredAgents) +
+		len(state.desiredSouls) + len(state.desiredHeartbeats) +
 		len(state.desiredJobs) + len(state.desiredTriggers) + len(state.desiredBridges)
 	owners := ownedResourceMaps(state.inventoryByActivation)
 	return &BundleActivationResourcePlan{
 		revision:            revision,
 		operations:          operations,
 		activeActivationIDs: state.activeActivationIDs,
+		desiredLayouts:      state.desiredLayouts,
 		desiredAgents:       state.desiredAgents,
 		desiredSouls:        state.desiredSouls,
 		desiredHeartbeats:   state.desiredHeartbeats,
 		desiredJobs:         state.desiredJobs,
 		desiredTriggers:     state.desiredTriggers,
 		desiredBridges:      state.desiredBridges,
+		layoutOwners:        owners.layouts,
 		agentOwners:         owners.agents,
 		soulOwners:          owners.souls,
 		heartbeatOwners:     owners.heartbeats,
@@ -114,6 +120,7 @@ func (s *Service) Build(
 }
 
 type ownedResourceOwnerMaps struct {
+	layouts    map[string]string
 	agents     map[string]string
 	souls      map[string]string
 	heartbeats map[string]string
@@ -130,6 +137,7 @@ func ownedResourceMaps(inventoryByActivation map[string][]InventoryItem) ownedRe
 		}
 	}
 	owners := ownedResourceOwnerMaps{
+		layouts:    make(map[string]string, counts.layouts),
 		agents:     make(map[string]string, counts.agents),
 		souls:      make(map[string]string, counts.souls),
 		heartbeats: make(map[string]string, counts.heartbeats),
@@ -141,6 +149,8 @@ func ownedResourceMaps(inventoryByActivation map[string][]InventoryItem) ownedRe
 		ownerID := strings.TrimSpace(activationID)
 		for _, item := range items {
 			switch resources.ResourceKind(strings.TrimSpace(item.ResourceKind)) {
+			case windowmanager.WindowLayoutResourceKind:
+				owners.layouts[strings.TrimSpace(item.ResourceID)] = ownerID
 			case aghconfig.AgentResourceKind:
 				owners.agents[strings.TrimSpace(item.ResourceID)] = ownerID
 			case soul.ResourceKind:
@@ -160,6 +170,7 @@ func ownedResourceMaps(inventoryByActivation map[string][]InventoryItem) ownedRe
 }
 
 type ownedResourceOwnerCounts struct {
+	layouts    int
 	agents     int
 	souls      int
 	heartbeats int
@@ -170,6 +181,8 @@ type ownedResourceOwnerCounts struct {
 
 func (c *ownedResourceOwnerCounts) add(kind resources.ResourceKind) {
 	switch kind {
+	case windowmanager.WindowLayoutResourceKind:
+		c.layouts++
 	case aghconfig.AgentResourceKind:
 		c.agents++
 	case soul.ResourceKind:
@@ -185,7 +198,7 @@ func (c *ownedResourceOwnerCounts) add(kind resources.ResourceKind) {
 	}
 }
 
-// Apply writes owned automation and bridge desired-state records through canonical stores.
+// Apply writes activation-owned desired-state records through canonical stores.
 func (s *Service) Apply(ctx context.Context, plan resources.ProjectionPlan) error {
 	if err := s.checkReady(ctx); err != nil {
 		return err
@@ -216,6 +229,7 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 	capacity := estimateDesiredStateCapacity(activations, bundleLookup)
 	state := reconcileState{
 		activeActivationIDs:   make(map[string]struct{}, len(activations)),
+		desiredLayouts:        make([]ownedLayoutResource, 0, capacity.layouts),
 		desiredAgents:         make([]ownedAgentResource, 0, capacity.agents),
 		desiredSouls:          make([]ownedSoulResource, 0, capacity.souls),
 		desiredHeartbeats:     make([]ownedHeartbeatResource, 0, capacity.heartbeats),
@@ -238,6 +252,7 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 
 		state.inventoryByActivation[activation.ID] = cloneInventoryItems(resolved.inventory)
 		state.declaredChannels = append(state.declaredChannels, resolved.channels...)
+		state.desiredLayouts = append(state.desiredLayouts, resolved.layouts...)
 		state.desiredAgents = append(state.desiredAgents, resolved.agents...)
 		state.desiredSouls = append(state.desiredSouls, resolved.souls...)
 		state.desiredHeartbeats = append(state.desiredHeartbeats, resolved.heartbeats...)
@@ -256,6 +271,7 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 }
 
 type desiredStateCapacity struct {
+	layouts    int
 	agents     int
 	souls      int
 	heartbeats int
@@ -284,6 +300,7 @@ func estimateDesiredStateCapacity(
 			continue
 		}
 		agentCount := len(profile.Agents)
+		capacity.layouts += len(profile.Layouts)
 		capacity.agents += agentCount
 		capacity.souls += agentCount
 		capacity.heartbeats += agentCount
@@ -347,6 +364,7 @@ func (s *Service) resolveActivationFromBundleLookup(
 	if err := s.validateActivationAgentBindings(ctx, activation, materialized); err != nil {
 		return resolvedActivation{}, err
 	}
+	resolved.layouts = materialized.layouts
 	resolved.agents = materialized.agents
 	resolved.souls = materialized.souls
 	resolved.heartbeats = materialized.heartbeats

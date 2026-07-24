@@ -31,6 +31,11 @@ const SECTION_PAGES = {
       default: m.AppearanceSettingsPane,
     }))
   ),
+  layouts: lazy(() =>
+    import("@/routes/_app/settings/-layouts-settings-page").then(m => ({
+      default: m.LayoutsSettingsPage,
+    }))
+  ),
   providers: lazy(() =>
     import("@/routes/_app/settings/-providers-settings-page").then(m => ({
       default: m.ProvidersSettingsPage,
@@ -90,7 +95,7 @@ function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
 const TYPING_TAGS = /^(INPUT|SELECT|TEXTAREA)$/;
 
 export function SettingsWindow({ windowId }: { windowId: string }) {
-  const pathname = useDesktop(state => state.windows[windowId]?.location.pathname ?? "/settings");
+  const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? "/settings");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const connection = useDaemonConnectionStatus();
   const activeSlug = sectionSlugFromPathname(pathname);

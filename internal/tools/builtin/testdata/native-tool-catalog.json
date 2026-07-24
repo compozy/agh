@@ -535,6 +535,118 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "agh__desktop_clients",
+    "native_name": "desktop_clients",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55b8bea717ff1230f4a36dada0b18022df5b9d49d516792bccf4f29c0126bdff",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "agh__desktop_create",
+    "native_name": "desktop_create",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ee06de13b3d3516f223f6a625c451b2c1571427f08ecdda2f0918389f73b7091",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__desktop_delete",
+    "native_name": "desktop_delete",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "220b44453bbb7c20cd30a69d0e631a5a2683658e8ab608bb4a1c374ab68963b8",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__desktop_list",
+    "native_name": "desktop_list",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55b8bea717ff1230f4a36dada0b18022df5b9d49d516792bccf4f29c0126bdff",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "agh__desktop_reorder",
+    "native_name": "desktop_reorder",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "b8ca4e1f3f76fd4e3106c668df5ff30845f8e50828f551c5a60eded305ed2870",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__desktop_switch",
+    "native_name": "desktop_switch",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "88e829c67b0ab4aa0537020bf7874a611de411274f1cf92c90a6d02f321beb7f",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__desktop_update",
+    "native_name": "desktop_update",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3dfdea2342ff65ce0863ba4871ccea58e3ed0acf6c7295c2856b58c0b307929a",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
     "tool_id": "agh__extensions_disable",
     "native_name": "extensions_disable",
     "toolsets": [
@@ -767,6 +879,166 @@
     "open_world": false,
     "input_schema_digest": "b3793517145e63240848b4df6fc528c99dd80e49bd8071d456d1f3a95970dad9",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "agh__layout_apply",
+    "native_name": "layout_apply",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "29fc31c62b3d620ad2788acee9ea29c52964365f6e71c3728cc580a6643fd006",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__layout_arrange",
+    "native_name": "layout_arrange",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a92ea99048267c6953af2a1fde04aec1b8c930d09bc2b834adc1ed56470dc5e5",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__layout_balance",
+    "native_name": "layout_balance",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8ea34d583efd300081f466db5525ba476a3624fde5aee16637f10bfa09406bc5",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__layout_export",
+    "native_name": "layout_export",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55b8bea717ff1230f4a36dada0b18022df5b9d49d516792bccf4f29c0126bdff",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "agh__layout_get",
+    "native_name": "layout_get",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55b8bea717ff1230f4a36dada0b18022df5b9d49d516792bccf4f29c0126bdff",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "agh__layout_preview",
+    "native_name": "layout_preview",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "37c4a482e7aa7d97097f9efbf2e901384e889272b99118ac4649e0290b32e5d4",
+    "output_schema_digest": "e013b71d3074f9d0265d7e1ca4a0f9a6440b9a9420036ad10fa1f21014cb0d9c",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "agh__layout_redo",
+    "native_name": "layout_redo",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e8852118eb550996ecd2ee836c98ee90147eae0ce05814dd106f55dfb75bb7e5",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__layout_resize",
+    "native_name": "layout_resize",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "fdde84d529f9354e300aa2255261b158ea2b529d491820b1689cb70a1363778b",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__layout_undo",
+    "native_name": "layout_undo",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e8852118eb550996ecd2ee836c98ee90147eae0ce05814dd106f55dfb75bb7e5",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__layout_validate",
+    "native_name": "layout_validate",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7532b8ad9791756e913a517751a655dfd62596cc166b9d8656e4e38357544d8d",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
   },
   {
     "tool_id": "agh__logs",
@@ -2413,6 +2685,150 @@
     "open_world": false,
     "input_schema_digest": "235b68f12aa4b9763d295705e9fe8170b86623970f5decd3e16e4468e0f0598a",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "agh__window_close",
+    "native_name": "window_close",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "dac4ae7425bec23c05fde7f1e2c7e9c1601c55295dd89561e0f490b1a750c0fe",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__window_float",
+    "native_name": "window_float",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "485669a4f468a71f90f1cdf8c8c7bae77254f757eca62a06ad5b73401bc982c9",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__window_focus",
+    "native_name": "window_focus",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "bad4802e550ce4d0a9a9ec02084326075ce7921e8a144bee392d233b69ffe91b",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__window_list",
+    "native_name": "window_list",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "57fc521df3d46ee13a02411a7cfa3b323052c2beb0ea33997ddde7ce092f7efb",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "agh__window_move",
+    "native_name": "window_move",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "60eb80414430a2f8987c27ec39cd7c88814141fde8e6105cf628999888f1f0b7",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__window_navigate",
+    "native_name": "window_navigate",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "bbacde2fc12797f07150eb5c82c0ab7f42b7dd45485e6a5a2561ff9d7e901761",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__window_open",
+    "native_name": "window_open",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a3245fef549390943ca44196df2346f4b06cfba07923da8f405b60484ca1158c",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__window_swap",
+    "native_name": "window_swap",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "58668ccbdec2329c5753589e28bc4d85b314a84309479ee46ab8dcca6673026d",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "agh__window_zoom",
+    "native_name": "window_zoom",
+    "toolsets": [
+      "agh__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ad28f2d0bf31d96ce980a4bb8281ce6f6be613f5aca192f638af3651fd001577",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
   },
   {
     "tool_id": "agh__workspace_describe",

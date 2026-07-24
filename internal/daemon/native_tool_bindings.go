@@ -50,6 +50,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.extensionToolBindings(availability.extensions))
 	addNativeToolBindings(bindings, n.bundleToolBindings(availability.bundles))
 	addNativeToolBindings(bindings, n.resourceToolBindings(availability.resources))
+	addNativeToolBindings(bindings, n.windowManagerToolBindings(availability.windowManager))
 	addNativeToolBindings(bindings, n.mcpAuthToolBindings(availability.mcpStatus, availability.mcpAuth))
 	return bindings
 }

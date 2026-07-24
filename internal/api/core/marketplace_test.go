@@ -942,6 +942,9 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 		if entry.Entry.ManagePath != wantDetailManagePath {
 			t.Fatalf("bundle detail manage path = %q, want %q", entry.Entry.ManagePath, wantDetailManagePath)
 		}
+		if entry.Bundle == nil || len(entry.Bundle.Profiles) != 1 || entry.Bundle.Profiles[0].Layouts != 1 {
+			t.Fatalf("bundle detail profiles = %#v, want one window layout", entry.Bundle)
+		}
 		missing := performRequest(t, engine, http.MethodGet, "/marketplace/mcp/missing", nil)
 		if missing.Code != http.StatusNotFound {
 			t.Fatalf("missing status = %d, want %d; body=%s", missing.Code, http.StatusNotFound, missing.Body.String())
@@ -1403,7 +1406,10 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 			Bundle: extensionpkg.BundleSpec{
 				Name:        "team",
 				Description: "Team bundle",
-				Profiles:    []extensionpkg.BundleProfile{{Name: "default"}},
+				Profiles: []extensionpkg.BundleProfile{{
+					Name:    "default",
+					Layouts: []extensionpkg.BundleLayout{{Path: "layouts/team.json"}},
+				}},
 			},
 		}},
 		activations: activations,

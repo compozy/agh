@@ -10,9 +10,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const openCommandKey = "open"
+
 func newOpenCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "open",
+		Use:   openCommandKey,
 		Short: "Open the AGH web UI in the default browser",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
@@ -40,7 +42,7 @@ func openBrowser(ctx context.Context, url string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.CommandContext(ctx, "open", url)
+		cmd = exec.CommandContext(ctx, openCommandKey, url)
 	case "windows":
 		cmd = exec.CommandContext(ctx, "cmd", "/c", "start", url)
 	default:

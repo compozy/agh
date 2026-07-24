@@ -1,10 +1,12 @@
 import { resolveAppForPath } from "./app-registry";
 import {
   osWindowId,
-  type OsDesktopStore,
+  type OsDesktopRuntimeStore,
   type OsOpenTarget,
-  type OsWindowLocation,
+  type OsWindowRoute,
 } from "./os-types";
+import { sameOsWindowRoute } from "./window-manager-route";
+import { defaultOsWindowRoute } from "./window-manager-view";
 
 /**
  * The routing coordinator is the ONLY URL↔WM bridge (Safety Invariant 13).
@@ -18,25 +20,30 @@ import {
  * - `hydrate`: the daemon snapshot applies before the initial URL intent; a
  *   cold deep link wins focus without losing the restored desktop.
  * - `workspace-switch`: swap + rehydrate, then one navigate to the target
- *   space's focused location (or `/`).
+ *   workspace's focused window route (or `/`).
  */
-
-export type OsRouteCause =
-  | "user-open"
-  | "user-focus"
-  | "route-pop"
-  | "hydrate"
-  | "workspace-switch";
 
 export interface OsRouterPort {
   /** Pushes one history entry reflecting the location. */
-  navigate(location: OsWindowLocation): void;
-  /** Replaces the current entry (hydration URL truth-up only). */
-  replace(location: OsWindowLocation): void;
+  navigate(route: OsWindowRoute): void;
+  /** Truths up hydration or remote authority without manufacturing history. */
+  replace(route: OsWindowRoute): void;
 }
 
+type RoutingStoreState = Pick<
+  OsDesktopRuntimeStore,
+  | "client"
+  | "windows"
+  | "focusedId"
+  | "openOrFocus"
+  | "closeWindow"
+  | "focusWindow"
+  | "minimizeWindow"
+  | "zoomWindow"
+>;
+
 interface StoreLike {
-  getState(): OsDesktopStore;
+  getState(): RoutingStoreState;
 }
 
 export class RoutingCoordinator {
@@ -44,7 +51,8 @@ export class RoutingCoordinator {
   private readonly router: OsRouterPort;
   private phase: "hydrating" | "ready" = "hydrating";
   private cycle: "boot" | "workspace-switch" = "boot";
-  private initialIntent: OsWindowLocation | null = null;
+  private initialIntent: OsWindowRoute | null = null;
+  private currentRoute: OsWindowRoute | null = null;
 
   constructor(store: StoreLike, router: OsRouterPort) {
     this.store = store;
@@ -55,21 +63,22 @@ export class RoutingCoordinator {
    * Sync-controllers report every matched location here (cause: route-pop).
    * During hydration the location is held as the final focus intent — on a
    * workspace switch this is exactly the cross-workspace deep link that must
-   * win over the target space's restored focus (US-016.EC-2).
+   * win over the target workspace's restored focus (US-016.EC-2).
    */
-  reportRouteMatch(location: OsWindowLocation): void {
+  reportRouteMatch(route: OsWindowRoute): void {
+    this.currentRoute = route;
     if (this.phase === "hydrating") {
-      this.initialIntent = location;
+      this.initialIntent = route;
       return;
     }
-    this.reconcile(location);
+    this.reconcile(route);
   }
 
   /**
    * Boot: applies the daemon snapshot's focus truth, then the initial URL as
    * the final focus intent (Routing Model rule 4) — no history write; the URL
    * is trued up by `replace` when a restored focus exists at a neutral URL.
-   * Workspace switch: one push to the new space's focused location (rule 8) —
+   * Workspace switch: one push to the new workspace's focused route (rule 8) —
    * unless a deep link arrived during the switch, which reconciles instead
    * (its own navigation already wrote the history entry).
    */
@@ -93,15 +102,35 @@ export class RoutingCoordinator {
     }
     const state = this.store.getState();
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
-    if (focused) this.router.replace(focused.location);
+    if (focused) this.replaceRoute(focused.route);
+  }
+
+  /**
+   * Daemon/client events report authoritative focus here after their runtime
+   * projection is applied. Remote transitions replace the current entry:
+   * user actions already own pushes, and repeated snapshot/client frames must
+   * not manufacture browser history.
+   */
+  reportAuthoritativeState(): void {
+    if (this.phase !== "ready") return;
+    const state = this.store.getState();
+    if (state.client === null) return;
+    const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
+    if (state.focusedId !== null && !focused) return;
+    const route = focused?.route ?? { pathname: "/", search: {} };
+    if (sameOsWindowRoute(this.currentRoute, route)) return;
+    this.replaceRoute(route);
   }
 
   /** Dock, palette, rail, menubar: open-or-focus then one history entry. */
-  userOpen(target: OsOpenTarget): string {
+  async userOpen(target: OsOpenTarget): Promise<string | null> {
     const state = this.store.getState();
-    const id = state.openOrFocus(target);
-    const win = this.store.getState().windows[id];
-    if (win) this.router.navigate(win.location);
+    const outcome = state.openOrFocus(target);
+    if (!(await outcome.completion)) return null;
+    const id = outcome.windowId;
+    const route =
+      target.route ?? this.store.getState().windows[id]?.route ?? defaultOsWindowRoute(target.app);
+    this.pushRoute(route);
     return id;
   }
 
@@ -110,54 +139,81 @@ export class RoutingCoordinator {
    * the activation target is a link, the link's own navigation writes the one
    * history entry and reconciliation follows it (rule 3 coalescing).
    */
-  userFocus(windowId: string, opts: { viaLink?: boolean } = {}): void {
+  async userFocus(windowId: string, opts: { viaLink?: boolean } = {}): Promise<boolean> {
     const state = this.store.getState();
     const win = state.windows[windowId];
-    if (!win || (state.focusedId === windowId && !win.minimized)) return;
-    state.focusWindow(windowId);
-    if (opts.viaLink) return;
+    if (!win || opts.viaLink || (state.focusedId === windowId && !win.minimized)) return false;
+    const outcome = state.focusWindow(windowId);
+    if (!(await outcome.completion)) return false;
     const focused = this.store.getState().windows[windowId];
-    if (focused) this.router.navigate(focused.location);
+    if (focused) this.pushRoute(focused.route);
+    return focused !== undefined;
   }
 
   /** Close: successor focus follows ADR-002 (next-top window, else desktop). */
-  userClose(windowId: string): void {
+  async userClose(windowId: string): Promise<boolean> {
     const state = this.store.getState();
-    if (!state.windows[windowId]) return;
+    if (!state.windows[windowId]) return false;
     const wasFocused = state.focusedId === windowId;
-    state.closeWindow(windowId);
-    if (!wasFocused) return;
-    this.navigateToFocusedOrDesktop();
+    if (!(await state.closeWindow(windowId))) return false;
+    if (wasFocused) this.navigateToFocusedOrDesktop();
+    return true;
   }
 
   /** Minimize: when focus moves to a successor, the URL follows it. */
-  userMinimize(windowId: string): void {
+  async userMinimize(windowId: string): Promise<boolean> {
     const state = this.store.getState();
     const win = state.windows[windowId];
-    if (!win || win.minimized) return;
+    if (!win || win.minimized) return false;
     const wasFocused = state.focusedId === windowId;
-    state.minimizeWindow(windowId);
-    if (!wasFocused) return;
-    this.navigateToFocusedOrDesktop();
+    if (!(await state.minimizeWindow(windowId))) return false;
+    if (wasFocused) this.navigateToFocusedOrDesktop();
+    return true;
+  }
+
+  /**
+   * Zoom already focuses its target in the daemon client projection. For an
+   * inactive window, reflect that activation with one history write without
+   * preceding the durable command with a competing presentation command.
+   */
+  async userZoom(windowId: string): Promise<boolean> {
+    const state = this.store.getState();
+    const win = state.windows[windowId];
+    if (!win || win.minimized) return false;
+    const wasFocused = state.focusedId === windowId;
+    const outcome = state.zoomWindow(windowId);
+    if (!(await outcome.completion)) return false;
+    if (!wasFocused) this.pushRoute(win.route);
+    return true;
   }
 
   /**
    * Workspace switch: rehydration restarts; completeHydration navigates once.
-   * Idempotent — the chrome flips this synchronously on selection change and
-   * again from its lifecycle effect; the second call must not drop a deep-link
-   * intent recorded in between.
+   * Route sync can report the current URL before the first workspace bind
+   * because layout effects precede the chrome's passive binding effect. Keep
+   * that one-shot intent here; completeHydration consumes it, so a later
+   * workspace cannot inherit it. Repeated calls during one cycle are no-ops.
    */
   beginWorkspaceSwitch(): void {
     if (this.phase === "hydrating" && this.cycle === "workspace-switch") return;
     this.phase = "hydrating";
     this.cycle = "workspace-switch";
-    this.initialIntent = null;
   }
 
   private navigateToFocusedOrDesktop(): void {
     const state = this.store.getState();
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
-    this.router.navigate(focused ? focused.location : { pathname: "/", search: {} });
+    this.pushRoute(focused ? focused.route : { pathname: "/", search: {} });
+  }
+
+  private pushRoute(route: OsWindowRoute): void {
+    this.currentRoute = route;
+    this.router.navigate(route);
+  }
+
+  private replaceRoute(route: OsWindowRoute): void {
+    this.currentRoute = route;
+    this.router.replace(route);
   }
 
   /**
@@ -165,30 +221,38 @@ export class RoutingCoordinator {
    * The desktop URL (`/`) opens nothing — it focuses an existing dashboard
    * window or leaves the desktop as-is (first run stays empty, US-001.EC-1).
    */
-  private reconcile(location: OsWindowLocation): void {
-    const resolved = resolveAppForPath(location.pathname);
+  private reconcile(route: OsWindowRoute): void {
+    const resolved = resolveAppForPath(route.pathname);
     if (!resolved) return;
     const state = this.store.getState();
     const { app, instanceKey } = resolved;
-    if (location.pathname === "/") {
+    if (route.pathname === "/") {
       const existing = state.windows[osWindowId(app.id)];
       if (!existing) return;
-      state.focusWindow(existing.id);
-      state.setLocation(existing.id, location);
+      if (
+        state.focusedId === existing.id &&
+        !existing.minimized &&
+        sameOsWindowRoute(existing.route, route)
+      ) {
+        return;
+      }
+      state.openOrFocus({ app: app.id, route });
       return;
     }
     const existingId = osWindowId(app.id, instanceKey);
     const existing = state.windows[existingId];
-    if (existing) {
-      state.focusWindow(existingId);
-      state.setLocation(existingId, location);
+    if (
+      existing &&
+      state.focusedId === existingId &&
+      !existing.minimized &&
+      sameOsWindowRoute(existing.route, route)
+    ) {
       return;
     }
-    const id = state.openOrFocus({
+    state.openOrFocus({
       app: app.id,
       instanceKey: instanceKey ?? undefined,
-      location,
+      route,
     });
-    state.setLocation(id, location);
   }
 }

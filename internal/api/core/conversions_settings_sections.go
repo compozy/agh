@@ -24,6 +24,8 @@ func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (
 		return settingsAutomationSectionResponse(envelope)
 	case settingspkg.SectionNetwork:
 		return settingsNetworkSectionResponse(envelope)
+	case settingspkg.SectionWindowManager:
+		return settingsWindowManagerSectionResponse(envelope)
 	case settingspkg.SectionObservability:
 		return settingsObservabilitySectionResponse(envelope)
 	case settingspkg.SectionHooksExtensions:
@@ -169,6 +171,7 @@ func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationR
 		settingspkg.SectionMemory,
 		settingspkg.SectionAutomation,
 		settingspkg.SectionNetwork,
+		settingspkg.SectionWindowManager,
 		settingspkg.SectionObservability,
 		settingspkg.SectionHooksExtensions:
 		return contract.SettingsGlobalSectionMutationResult{

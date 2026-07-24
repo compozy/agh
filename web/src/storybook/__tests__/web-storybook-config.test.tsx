@@ -25,12 +25,13 @@ const {
   storybookSystemHandlers,
 } = webPreviewModule;
 const { StorybookWorkspaceSetup } = await import("../route-story");
-const { desktopStore } = await import("@/systems/os/stores/desktop-store");
+const { useActiveWorkspaceStore } =
+  await import("@/systems/workspace/hooks/use-active-workspace-store");
 
 afterEach(() => {
   cleanup();
   document.documentElement.className = "";
-  desktopStore.getState().resetForWorkspace();
+  useActiveWorkspaceStore.getState().clearSelectedWorkspaceId();
 });
 
 function QueryClientProbe() {
@@ -147,16 +148,15 @@ describe("web Storybook config", () => {
     expect(router.state.location.pathname).toBe("/settings/providers");
   });
 
-  it("prepares app stories with completed local hydration and an optional initial window", async () => {
-    desktopStore.getState().openOrFocus({ app: "tasks" });
+  it("Should reset app state and select the story workspace without browser-owned topology", async () => {
+    useActiveWorkspaceStore.getState().setSelectedWorkspaceId("workspace:stale");
     resetStorybookAppState();
 
-    expect(desktopStore.getState().windows).toEqual({});
-    expect(desktopStore.getState().hydration).toBe("degraded");
+    expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBeNull();
 
-    render(createElement(StorybookWorkspaceSetup, { initialApp: "dashboard" }));
+    render(createElement(StorybookWorkspaceSetup));
     await waitFor(() => {
-      expect(desktopStore.getState().windows["app:dashboard"]).toBeDefined();
+      expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBeTruthy();
     });
   });
 

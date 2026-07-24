@@ -41,8 +41,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		streamCancel()
 	}
 	if s.handlers != nil {
-		if err := s.handlers.ShutdownDesktopStateStreams(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("httpapi: shutdown desktop-state streams: %w", err))
+		if err := s.handlers.ShutdownWindowManagerStreams(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("httpapi: shutdown window-manager streams: %w", err))
 		}
 	}
 	if listener != nil {

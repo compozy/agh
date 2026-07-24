@@ -260,10 +260,10 @@ export function OsSessionsModal({
 
   const selectSession = (session: SessionPayload) => {
     onOpenChange(false);
-    coordinator.userOpen({
+    void coordinator.userOpen({
       app: "session",
       instanceKey: session.id,
-      location: {
+      route: {
         pathname: `/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.id)}`,
         search: {},
       },

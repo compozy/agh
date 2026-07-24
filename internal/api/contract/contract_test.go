@@ -2,6 +2,7 @@ package contract_test
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -16,7 +17,169 @@ import (
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/windowmanager"
 )
+
+func TestWindowManagerReturnAnchorContract(t *testing.T) {
+	t.Run("Should preserve an exact source group through the public layout round trip", func(t *testing.T) {
+		t.Parallel()
+
+		axis := windowmanager.AxisHorizontal
+		zoomedWindowID := windowmanager.WindowID("window:zoomed")
+		peerWindowID := windowmanager.WindowID("window:peer")
+		activeWindowID := windowmanager.WindowID("window:active")
+		sourceGroup := windowmanager.LayoutGroup{
+			ID:    "group:source",
+			Frame: windowmanager.NormalizedRect{X: 0.1, Y: 0.2, Width: 0.8, Height: 0.6},
+			Root: windowmanager.LayoutNode{
+				ID: "split:source", Kind: windowmanager.NodeKindSplit, Axis: &axis,
+				Children: []windowmanager.LayoutNode{
+					{
+						ID: "leaf:zoomed", Kind: windowmanager.NodeKindLeaf,
+						WindowID: &zoomedWindowID, Children: []windowmanager.LayoutNode{},
+					},
+					{
+						ID: "stack:peers", Kind: windowmanager.NodeKindStack,
+						WindowIDs: []windowmanager.WindowID{peerWindowID, activeWindowID},
+						ActiveID:  &activeWindowID,
+						Children:  []windowmanager.LayoutNode{},
+					},
+				},
+				Weights: []float64{0.37, 0.63},
+			},
+		}
+		document := windowmanager.LayoutDocument{
+			Version: windowmanager.SnapshotVersion, WorkspaceID: "workspace:test",
+			Desktops: []windowmanager.Desktop{{
+				ID: "desktop:main", Name: "Main", Purpose: windowmanager.DesktopPurposeStandard,
+				Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{zoomedWindowID},
+			}},
+			Windows: map[windowmanager.WindowID]windowmanager.Window{
+				zoomedWindowID: {
+					ID: zoomedWindowID, App: "tasks",
+					Route:        windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
+					Placement:    windowmanager.WindowPlacementFloating,
+					DesktopID:    "desktop:main",
+					FloatingRect: windowmanager.NormalizedRect{X: 0.2, Y: 0.2, Width: 0.6, Height: 0.6},
+					ReturnAnchor: &windowmanager.ReturnAnchor{
+						DesktopID: "desktop:main", SourceRevision: 17, SourceGroup: &sourceGroup,
+					},
+				},
+			},
+		}
+
+		wireDocument, err := contract.WindowManagerLayoutFromDomain(document)
+		if err != nil {
+			t.Fatalf("WindowManagerLayoutFromDomain() error = %v", err)
+		}
+		data, err := json.Marshal(wireDocument)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var decoded contract.WindowManagerLayoutDocument
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		anchor := decoded.Domain().Windows[zoomedWindowID].ReturnAnchor
+		if anchor == nil || anchor.SourceGroup == nil {
+			t.Fatalf("round-trip return anchor = %#v, want exact source group", anchor)
+		}
+		if !reflect.DeepEqual(*anchor.SourceGroup, sourceGroup) {
+			t.Fatalf("round-trip source group = %#v, want %#v", *anchor.SourceGroup, sourceGroup)
+		}
+	})
+
+	t.Run("Should omit a source group when the return anchor has no exact capture", func(t *testing.T) {
+		t.Parallel()
+
+		anchor := contract.WindowManagerReturnAnchor{
+			DesktopID: "desktop:main", SourceRevision: 9,
+		}
+		data, err := json.Marshal(anchor)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if strings.Contains(string(data), `"source_group"`) {
+			t.Fatalf("return anchor JSON includes omitted source_group: %s", data)
+		}
+		var decoded contract.WindowManagerReturnAnchor
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.SourceGroup != nil {
+			t.Fatalf("decoded source group = %#v, want nil", decoded.SourceGroup)
+		}
+	})
+
+	t.Run("Should isolate mutable layout values in both conversion directions", func(t *testing.T) {
+		t.Parallel()
+		axis := windowmanager.AxisHorizontal
+		windowID := windowmanager.WindowID("window:a")
+		focusOwner := windowID
+		historyLimit := 20
+		document := windowmanager.LayoutDocument{
+			Version: windowmanager.SnapshotVersion, WorkspaceID: "workspace:test",
+			Desktops: []windowmanager.Desktop{{
+				ID: "desktop:main", Name: "Main", Purpose: windowmanager.DesktopPurposeStandard,
+				FocusOwner: &focusOwner,
+				Groups: []windowmanager.LayoutGroup{{
+					ID: "group:main", Frame: windowmanager.NormalizedRect{Width: 1, Height: 1},
+					Root: windowmanager.LayoutNode{
+						ID: "split:main", Kind: windowmanager.NodeKindSplit, Axis: &axis,
+						Weights: []float64{0.4, 0.6},
+						Children: []windowmanager.LayoutNode{
+							{ID: "leaf:a", Kind: windowmanager.NodeKindLeaf, WindowID: &windowID},
+							{ID: "stack:b", Kind: windowmanager.NodeKindStack,
+								WindowIDs: []windowmanager.WindowID{"window:b", "window:c"}},
+						},
+					},
+				}},
+				Floating: []windowmanager.WindowID{"window:floating"},
+			}},
+			Windows: map[windowmanager.WindowID]windowmanager.Window{},
+			Overrides: windowmanager.WorkspaceConfig{
+				HistoryLimit: &historyLimit,
+				Snap:         &windowmanager.SnapConfig{RepeatRatios: []float64{0.5, 0.75}},
+				Shortcuts:    map[string]string{"layout.balance": "Meta+Shift+KeyB"},
+			},
+		}
+
+		wire, err := contract.WindowManagerLayoutFromDomain(document)
+		if err != nil {
+			t.Fatalf("WindowManagerLayoutFromDomain() error = %v", err)
+		}
+		wire.Desktops[0].FocusOwner = new(windowmanager.WindowID)
+		wire.Desktops[0].Floating[0] = "wire-mutated"
+		wire.Desktops[0].Groups[0].Root.Weights[0] = 0.9
+		wire.Desktops[0].Groups[0].Root.Children[0].WindowID = new(windowmanager.WindowID)
+		*wire.Overrides.HistoryLimit = 99
+		wire.Overrides.Snap.RepeatRatios[0] = 0.25
+		wire.Overrides.Shortcuts["layout.balance"] = "Alt+KeyB"
+		if *document.Desktops[0].FocusOwner != windowID ||
+			document.Desktops[0].Floating[0] != "window:floating" ||
+			document.Desktops[0].Groups[0].Root.Weights[0] != 0.4 ||
+			*document.Desktops[0].Groups[0].Root.Children[0].WindowID != windowID ||
+			*document.Overrides.HistoryLimit != 20 ||
+			document.Overrides.Snap.RepeatRatios[0] != 0.5 ||
+			document.Overrides.Shortcuts["layout.balance"] != "Meta+Shift+KeyB" {
+			t.Fatalf("wire conversion aliases domain layout: %#v", document.Desktops[0])
+		}
+
+		domain := wire.Domain()
+		domain.Desktops[0].Floating[0] = "domain-mutated"
+		domain.Desktops[0].Groups[0].Root.Weights[0] = 0.2
+		*domain.Overrides.HistoryLimit = 8
+		domain.Overrides.Snap.RepeatRatios[0] = 0.1
+		domain.Overrides.Shortcuts["layout.balance"] = "Control+KeyB"
+		if wire.Desktops[0].Floating[0] != "wire-mutated" ||
+			wire.Desktops[0].Groups[0].Root.Weights[0] != 0.9 ||
+			*wire.Overrides.HistoryLimit != 99 ||
+			wire.Overrides.Snap.RepeatRatios[0] != 0.25 ||
+			wire.Overrides.Shortcuts["layout.balance"] != "Alt+KeyB" {
+			t.Fatalf("domain conversion aliases wire layout: %#v", wire.Desktops[0])
+		}
+	})
+}
 
 func TestLoopDefinitionDocumentPreservesWatchEvents(t *testing.T) {
 	t.Run("Should preserve watch-events subscriptions across the public DTO boundary", func(t *testing.T) {

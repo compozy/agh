@@ -74,6 +74,8 @@ const (
 	SectionAutomation SectionName = "automation"
 	// SectionNetwork exposes embedded network settings.
 	SectionNetwork SectionName = "network"
+	// SectionWindowManager exposes daemon-owned window behavior defaults.
+	SectionWindowManager SectionName = "window-manager"
 	// SectionObservability exposes observe and transcript settings.
 	SectionObservability SectionName = "observability"
 	// SectionHooksExtensions exposes hook declarations plus extension policy.
@@ -174,6 +176,7 @@ type SectionUpdateRequest struct {
 	Skills          *aghconfig.SkillsConfig
 	Automation      *AutomationSettings
 	Network         *aghconfig.NetworkConfig
+	WindowManager   *aghconfig.WindowManagerConfig
 	Observability   *aghconfig.ObservabilityConfig
 	HooksExtensions *aghconfig.ExtensionsConfig
 }
@@ -220,6 +223,7 @@ type SectionEnvelope struct {
 	Skills          *SkillsSection
 	Automation      *AutomationSection
 	Network         *NetworkSection
+	WindowManager   *WindowManagerSection
 	Observability   *ObservabilitySection
 	HooksExtensions *HooksExtensionsSection
 }

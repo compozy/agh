@@ -12,13 +12,10 @@ interface LoopEditorContractProps {
 /** Authoring controls for the Loop-level outcome contract, separate from graph-node fields. */
 export function LoopEditorContract({ contract, disabled, onChange }: LoopEditorContractProps) {
   return (
-    <section className="flex-none border-b border-line bg-canvas px-4 py-3.5">
-      <div className="mb-3">
-        <h2 className="text-item-title font-medium text-fg-strong">Contract</h2>
-        <p className="mt-1 text-form-hint leading-relaxed text-subtle">
-          Define the outcome this Loop should reach.
-        </p>
-      </div>
+    <section className="bg-canvas px-4 py-3.5" data-testid="loop-editor-contract">
+      <p className="mb-3 text-form-hint leading-relaxed text-subtle">
+        Define the outcome this Loop should reach.
+      </p>
       <div className="flex flex-col gap-3.5">
         <Field>
           <FieldLabel htmlFor="loop-contract-goal">Goal (optional)</FieldLabel>

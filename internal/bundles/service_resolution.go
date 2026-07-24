@@ -82,6 +82,7 @@ func (s *Service) resolveActivation(ctx context.Context, activation Activation) 
 	if err := s.validateActivationAgentBindings(ctx, activation, materialized); err != nil {
 		return resolvedActivation{}, err
 	}
+	resolved.layouts = materialized.layouts
 	resolved.agents = materialized.agents
 	resolved.souls = materialized.souls
 	resolved.heartbeats = materialized.heartbeats
@@ -217,6 +218,10 @@ func (s *Service) materializeActivationResources(
 	profile extensionpkg.BundleProfile,
 ) (materializedActivationResources, error) {
 	scope := resourceScopeForActivation(activation)
+	layouts, layoutInventory, err := materializeActivationLayouts(ctx, activation, bundle, profile, scope)
+	if err != nil {
+		return materializedActivationResources{}, err
+	}
 	agentResources, err := materializeActivationAgentResources(activation, bundle, profile, scope)
 	if err != nil {
 		return materializedActivationResources{}, err
@@ -236,10 +241,12 @@ func (s *Service) materializeActivationResources(
 		return materializedActivationResources{}, err
 	}
 	inventory := make([]InventoryItem, 0, materializedInventoryCapacity(profile))
+	inventory = append(inventory, layoutInventory...)
 	inventory = append(inventory, agentResources.inventory...)
 	inventory = append(inventory, automationInventory...)
 	inventory = append(inventory, bridgeInventory...)
 	return materializedActivationResources{
+		layouts:    layouts,
 		agents:     agentResources.agents,
 		souls:      agentResources.souls,
 		heartbeats: agentResources.heartbeats,

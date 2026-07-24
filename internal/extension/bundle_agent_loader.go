@@ -2,13 +2,10 @@ package extensionpkg
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"os"
 	"path/filepath"
-
 	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
@@ -24,11 +21,8 @@ func loadBundleAgent(ctx context.Context, rootDir string, path string) (BundleAg
 	if filepath.IsAbs(trimmed) {
 		return BundleAgent{}, fmt.Errorf("%w: profile agent path %q must be relative", ErrBundleInvalid, trimmed)
 	}
-	agentDir, err := resolvePathWithinRoot(rootDir, trimmed)
+	agentDir, err := resolveBundlePathWithinRoot(rootDir, trimmed, "profile agent")
 	if err != nil {
-		return BundleAgent{}, err
-	}
-	if err := ensureBundleAgentPathWithinRoot(rootDir, agentDir, trimmed); err != nil {
 		return BundleAgent{}, err
 	}
 	info, err := os.Stat(agentDir)
@@ -55,28 +49,6 @@ func loadBundleAgent(ctx context.Context, rootDir string, path string) (BundleAg
 		return BundleAgent{}, err
 	}
 	return loaded, nil
-}
-
-func ensureBundleAgentPathWithinRoot(rootDir string, agentDir string, original string) error {
-	root, err := filepath.EvalSymlinks(filepath.Clean(strings.TrimSpace(rootDir)))
-	if err != nil {
-		return fmt.Errorf("extension: resolve bundle root symlink: %w", err)
-	}
-	target, err := filepath.EvalSymlinks(filepath.Clean(strings.TrimSpace(agentDir)))
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return fmt.Errorf("extension: resolve bundle agent path %q symlink: %w", original, err)
-	}
-	rel, err := filepath.Rel(root, target)
-	if err != nil {
-		return fmt.Errorf("extension: resolve bundle agent path %q: %w", original, err)
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return fmt.Errorf("%w: profile agent path %q escapes extension root", ErrBundleInvalid, original)
-	}
-	return nil
 }
 
 func loadBundleAgentSoulSidecar(

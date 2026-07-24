@@ -46,8 +46,26 @@ func settingsSectionValues() []string {
 		string(contract.SettingsSectionSkills),
 		string(contract.SettingsSectionAutomation),
 		string(contract.SettingsSectionNetwork),
+		string(contract.SettingsSectionWindowManager),
 		string(contract.SettingsSectionObservability),
 		string(contract.SettingsSectionHooksExtensions),
+	}
+}
+
+func settingsApplyTargetValues() []string {
+	return []string{
+		string(contract.SettingsApplyTargetGeneral),
+		string(contract.SettingsApplyTargetMemory),
+		string(contract.SettingsApplyTargetSkills),
+		string(contract.SettingsApplyTargetAutomation),
+		string(contract.SettingsApplyTargetNetwork),
+		string(contract.SettingsApplyTargetWindowManager),
+		string(contract.SettingsApplyTargetObservability),
+		string(contract.SettingsApplyTargetHooksExtensions),
+		string(contract.SettingsApplyTargetProviders),
+		string(contract.SettingsApplyTargetMCPServers),
+		string(contract.SettingsApplyTargetSandboxes),
+		string(contract.SettingsApplyTargetHooks),
 	}
 }
 

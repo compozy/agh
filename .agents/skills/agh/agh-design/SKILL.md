@@ -14,10 +14,16 @@ Use the canonical visual authorities before making AGH design decisions.
 3. `packages/ui/src/index.ts`: the `@agh/ui` surface contract — the canonical primitive inventory.
 4. `packages/ui/src/components/**/*.tsx`: canonical production recipes.
 5. `COPY.md`: product voice, terms, and public claim rules.
+6. `PRODUCT.md`: audience, register, design principles, and anti-references.
 
 ## Top-of-mind invariants
 
+- Design for people running agent work, not an expert console — calm by
+  default, deep on demand: the default read of a screen is plain-language and
+  sparse; density, mono ids, and raw enums live on inspection surfaces.
 - Dark mode only; warm-dark surface ramp; one `--color-accent` target per viewport.
+- Signal color marks live state only, never taxonomy — rows and cards stay
+  neutral at rest.
 - Flat depth model; use `--shadow-overlay` for overlays and `--shadow-highlight` for active rims.
 - Pull values from `--color-*`, `--text-*`, `--radius-*`, `--duration-*`, and `--shadow-*` tokens; do not hardcode production hex or one-off sizes.
 - `<Eyebrow>` is the only uppercase label contract; do not inline typography tuples for labels.
@@ -38,7 +44,7 @@ copy, brand marks, and which controls exist stay with runtime truth,
 
 Inline or import actual values from `packages/ui/src/tokens.css`. Mirror the class
 structure and component anatomy in `packages/ui/src/components` where possible.
-Keep artifacts dark, flat, and functional. Use literal CSS only to represent
+Keep artifacts dark, flat, calm, and functional. Use literal CSS only to represent
 exported token values; do not invent a parallel palette.
 
 ## Production code

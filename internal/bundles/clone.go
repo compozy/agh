@@ -11,6 +11,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/agh/internal/windowmanager"
 )
 
 func cloneActivation(value Activation) Activation {
@@ -33,9 +34,24 @@ func cloneBundleProfile(value extensionpkg.BundleProfile) extensionpkg.BundlePro
 		Items:   append([]extensionpkg.BundleChannel(nil), value.Channels.Items...),
 	}
 	cloned.Agents = cloneBundleAgents(value.Agents)
+	cloned.Layouts = cloneBundleLayouts(value.Layouts)
 	cloned.Jobs = cloneBundleJobs(value.Jobs)
 	cloned.Triggers = cloneBundleTriggers(value.Triggers)
 	cloned.Bridges = cloneBundleBridgePresets(value.Bridges)
+	return cloned
+}
+
+func cloneBundleLayouts(values []extensionpkg.BundleLayout) []extensionpkg.BundleLayout {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]extensionpkg.BundleLayout, 0, len(values))
+	for _, value := range values {
+		cloned = append(cloned, extensionpkg.BundleLayout{
+			Path:   strings.TrimSpace(value.Path),
+			Layout: windowmanager.CloneLayoutResource(value.Layout),
+		})
+	}
 	return cloned
 }
 

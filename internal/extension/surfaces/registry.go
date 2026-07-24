@@ -21,6 +21,7 @@ const (
 	FamilyAutomationJobs     ManifestFamily = "automation_jobs"
 	FamilyAutomationTriggers ManifestFamily = "automation_triggers"
 	FamilyBundles            ManifestFamily = "bundles"
+	FamilyWindowLayouts      ManifestFamily = "window_layouts"
 	FamilyBridgeInstances    ManifestFamily = "bridge_instances"
 	FamilyBundleActivations  ManifestFamily = "bundle_activations"
 )
@@ -91,6 +92,12 @@ var (
 		{
 			Kind:             resources.ResourceKind("bundle"),
 			ManifestFamily:   FamilyBundles,
+			ExtensionPublish: true,
+			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
+		},
+		{
+			Kind:             resources.ResourceKind("window_layout"),
+			ManifestFamily:   FamilyWindowLayouts,
 			ExtensionPublish: true,
 			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
 		},

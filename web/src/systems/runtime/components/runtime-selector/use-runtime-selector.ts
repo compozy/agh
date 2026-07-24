@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import { runtimeModelKey } from "./model-key";
 import { buildRuntimeListModel, type RailFilter } from "./runtime-list-model";
@@ -59,7 +59,6 @@ export function useRuntimeSelector({
   // Polite announcement text for the favorite toggle (Alt+F while focus stays in
   // search): "Favorited …" / "Unfavorited …" spoken via an aria-live region.
   const [favoriteAnnouncement, setFavoriteAnnouncement] = useState("");
-  const focusIntentRef = useRef<"provider" | "model" | "reasoning">("model");
 
   const providerById = new Map(providers.map(provider => [provider.id, provider]));
   const modelByKey = new Map(
@@ -113,8 +112,7 @@ export function useRuntimeSelector({
       exact >= 0 ? exact : listModel.flatRows.findIndex(row => row.key === activeRow.key);
   }
 
-  const openWith = (intent: "provider" | "model" | "reasoning") => {
-    focusIntentRef.current = intent;
+  const openPopup = () => {
     setRailFilter("all");
     setQuery("");
     setActiveRow(null);
@@ -123,10 +121,6 @@ export function useRuntimeSelector({
   };
 
   const close = () => setOpen(false);
-  const setFocusIntent = (intent: "provider" | "model" | "reasoning") => {
-    focusIntentRef.current = intent;
-  };
-  const getFocusIntent = () => focusIntentRef.current;
 
   const changeRail = (target: RailFilter) => {
     // The rail is a local list filter only — `all`, `fav`, and provider IDs
@@ -265,10 +259,8 @@ export function useRuntimeSelector({
   return {
     favorites,
     open,
-    openWith,
+    openPopup,
     close,
-    setFocusIntent,
-    getFocusIntent,
     railFilter,
     changeRail,
     query,

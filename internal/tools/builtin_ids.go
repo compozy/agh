@@ -374,6 +374,58 @@ const (
 	ToolIDResourcesInfo ToolID = "agh__resources_info"
 	// ToolIDResourcesSnapshot reads a filtered desired-state resource snapshot.
 	ToolIDResourcesSnapshot ToolID = "agh__resources_snapshot"
+	// ToolIDDesktopList lists persistent desktops.
+	ToolIDDesktopList ToolID = "agh__desktop_list"
+	// ToolIDDesktopCreate creates a persistent desktop.
+	ToolIDDesktopCreate ToolID = "agh__desktop_create"
+	// ToolIDDesktopUpdate renames a persistent desktop.
+	ToolIDDesktopUpdate ToolID = "agh__desktop_update"
+	// ToolIDDesktopReorder changes persistent desktop order.
+	ToolIDDesktopReorder ToolID = "agh__desktop_reorder"
+	// ToolIDDesktopSwitch changes one explicit client's active desktop.
+	ToolIDDesktopSwitch ToolID = "agh__desktop_switch"
+	// ToolIDDesktopDelete deletes a persistent desktop.
+	ToolIDDesktopDelete ToolID = "agh__desktop_delete"
+	// ToolIDDesktopClients lists connected window-manager clients.
+	ToolIDDesktopClients ToolID = "agh__desktop_clients"
+	// ToolIDWindowList lists managed windows.
+	ToolIDWindowList ToolID = "agh__window_list"
+	// ToolIDWindowOpen opens or restores a managed window.
+	ToolIDWindowOpen ToolID = "agh__window_open"
+	// ToolIDWindowNavigate persists one managed window's internal route.
+	ToolIDWindowNavigate ToolID = "agh__window_navigate"
+	// ToolIDWindowClose closes or minimizes a managed window.
+	ToolIDWindowClose ToolID = "agh__window_close"
+	// ToolIDWindowFocus focuses a managed window for one explicit client.
+	ToolIDWindowFocus ToolID = "agh__window_focus"
+	// ToolIDWindowMove moves a managed window.
+	ToolIDWindowMove ToolID = "agh__window_move"
+	// ToolIDWindowSwap swaps two managed windows.
+	ToolIDWindowSwap ToolID = "agh__window_swap"
+	// ToolIDWindowFloat toggles one managed window's floating state.
+	ToolIDWindowFloat ToolID = "agh__window_float"
+	// ToolIDWindowZoom toggles one managed window's focus desktop.
+	ToolIDWindowZoom ToolID = "agh__window_zoom"
+	// ToolIDLayoutGet reads the authoritative topology snapshot.
+	ToolIDLayoutGet ToolID = "agh__layout_get"
+	// ToolIDLayoutPreview previews one semantic layout command.
+	ToolIDLayoutPreview ToolID = "agh__layout_preview"
+	// ToolIDLayoutArrange arranges windows into a tiled group.
+	ToolIDLayoutArrange ToolID = "agh__layout_arrange"
+	// ToolIDLayoutResize resizes a split boundary.
+	ToolIDLayoutResize ToolID = "agh__layout_resize"
+	// ToolIDLayoutBalance balances a group or split.
+	ToolIDLayoutBalance ToolID = "agh__layout_balance"
+	// ToolIDLayoutUndo reverts the latest durable topology command.
+	ToolIDLayoutUndo ToolID = "agh__layout_undo"
+	// ToolIDLayoutRedo reapplies the latest reverted topology command.
+	ToolIDLayoutRedo ToolID = "agh__layout_redo"
+	// ToolIDLayoutExport exports a history-free layout document.
+	ToolIDLayoutExport ToolID = "agh__layout_export"
+	// ToolIDLayoutValidate validates a raw layout document.
+	ToolIDLayoutValidate ToolID = "agh__layout_validate"
+	// ToolIDLayoutApply atomically applies a validated layout document.
+	ToolIDLayoutApply ToolID = "agh__layout_apply"
 	// ToolIDMCPStatus probes one configured MCP server without exposing login/logout as tools.
 	ToolIDMCPStatus ToolID = "agh__mcp_status"
 	// ToolIDMCPAuthStatus reads redacted MCP auth diagnostics for one configured server.
@@ -429,6 +481,8 @@ const (
 	ToolsetIDBundles ToolsetID = "agh__bundles"
 	// ToolsetIDResources groups desired-state resource inspection tools.
 	ToolsetIDResources ToolsetID = "agh__resources"
+	// ToolsetIDWindowManager groups persistent desktop, window, and layout tools.
+	ToolsetIDWindowManager ToolsetID = "agh__window_manager"
 	// ToolsetIDMCP groups MCP probe and status diagnostics.
 	ToolsetIDMCP ToolsetID = "agh__mcp"
 	// ToolsetIDMCPAuth groups redacted MCP auth diagnostics.

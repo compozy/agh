@@ -23,7 +23,7 @@ interface LoopLinterDockProps {
  * neutral pending/failed state, never a claimed pass. The dock reports — it never computes.
  */
 export function LoopLinterDock({ lint, validateFailed, onReveal }: LoopLinterDockProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const failed = !lint.validated && validateFailed;
   const pending = !lint.validated && !validateFailed;
   const clean = lint.validated && lint.issues.length === 0;
@@ -58,6 +58,7 @@ export function LoopLinterDock({ lint, validateFailed, onReveal }: LoopLinterDoc
         onClick={() => setCollapsed(value => !value)}
         className="flex h-9 items-center gap-2.5 px-3.5"
         aria-expanded={!collapsed}
+        data-testid="loop-linter-toggle"
       >
         <Eyebrow className="text-subtle">Validation</Eyebrow>
         <span

@@ -50,6 +50,8 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 		return trimmed, nil
 	case configSetStringSlice:
 		return parseStringSliceValue(trimmed)
+	case configSetFloatSlice:
+		return parseFloatSliceValue(trimmed)
 	default:
 		return nil, fmt.Errorf("cli: unsupported config value kind %d", kind)
 	}
@@ -72,6 +74,14 @@ func parseStringSliceValue(raw string) ([]string, error) {
 		if trimmed := strings.TrimSpace(part); trimmed != "" {
 			values = append(values, trimmed)
 		}
+	}
+	return values, nil
+}
+
+func parseFloatSliceValue(raw string) ([]float64, error) {
+	var values []float64
+	if err := json.Unmarshal([]byte(raw), &values); err != nil {
+		return nil, fmt.Errorf("cli: parse float array %q: %w", raw, err)
 	}
 	return values, nil
 }

@@ -253,12 +253,14 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 	owners := ownedResourceMaps(state.inventoryByActivation)
 	if syncErr := s.store.ApplyBundleActivationResources(ctx, BundleActivationResourcePlan{
 		activeActivationIDs: cloneStringSet(state.activeActivationIDs),
+		desiredLayouts:      cloneOwnedLayoutResources(state.desiredLayouts),
 		desiredAgents:       cloneOwnedAgentResources(state.desiredAgents),
 		desiredSouls:        cloneOwnedSoulResources(state.desiredSouls),
 		desiredHeartbeats:   cloneOwnedHeartbeatResources(state.desiredHeartbeats),
 		desiredJobs:         cloneJobsForBundle(state.desiredJobs),
 		desiredTriggers:     cloneTriggersForBundle(state.desiredTriggers),
 		desiredBridges:      cloneBridgeInstancesForBundle(state.desiredBridges),
+		layoutOwners:        owners.layouts,
 		agentOwners:         owners.agents,
 		soulOwners:          owners.souls,
 		heartbeatOwners:     owners.heartbeats,
@@ -278,6 +280,7 @@ type resolvedActivation struct {
 	bundle          extensionpkg.BundleSpec
 	profile         extensionpkg.BundleProfile
 	specContentHash string
+	layouts         []ownedLayoutResource
 	agents          []ownedAgentResource
 	souls           []ownedSoulResource
 	heartbeats      []ownedHeartbeatResource
@@ -297,6 +300,7 @@ type activationDefinition struct {
 
 type reconcileState struct {
 	activeActivationIDs   map[string]struct{}
+	desiredLayouts        []ownedLayoutResource
 	desiredAgents         []ownedAgentResource
 	desiredSouls          []ownedSoulResource
 	desiredHeartbeats     []ownedHeartbeatResource
@@ -308,6 +312,7 @@ type reconcileState struct {
 }
 
 type materializedActivationResources struct {
+	layouts    []ownedLayoutResource
 	agents     []ownedAgentResource
 	souls      []ownedSoulResource
 	heartbeats []ownedHeartbeatResource

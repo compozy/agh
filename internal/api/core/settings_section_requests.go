@@ -273,6 +273,31 @@ func parseUpdateSettingsNetworkRequest(c *gin.Context) (settingspkg.SectionUpdat
 	return settingspkg.SectionUpdateRequest{SectionRequest: req, Network: &config}, nil
 }
 
+func parseUpdateSettingsWindowManagerRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
+	var body struct {
+		Config *contract.SettingsWindowManagerConfigPayload `json:"config"`
+	}
+	if err := decodeStrictJSONBody(c, &body); err != nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
+			fmt.Errorf("decode window-manager settings request: %w", err),
+		)
+	}
+	if body.Config == nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
+			errors.New("window-manager.config is required"),
+		)
+	}
+	req, err := parseSettingsSectionRequest(c, settingspkg.SectionWindowManager)
+	if err != nil {
+		return settingspkg.SectionUpdateRequest{}, err
+	}
+	config, err := windowManagerConfigFromPayload(*body.Config)
+	if err != nil {
+		return settingspkg.SectionUpdateRequest{}, err
+	}
+	return settingspkg.SectionUpdateRequest{SectionRequest: req, WindowManager: &config}, nil
+}
+
 func parseUpdateSettingsObservabilityRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
 	var body struct {
 		Config *contract.SettingsObservabilityConfigPayload `json:"config"`

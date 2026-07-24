@@ -14,7 +14,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Host: "localhost",
 			Port: 2123,
 		},
-		DesktopState: DefaultDesktopStateConfig(),
+		WindowManager: DefaultWindowManagerConfig(),
 		Defaults: DefaultsConfig{
 			Agent: DefaultAgentName,
 		},

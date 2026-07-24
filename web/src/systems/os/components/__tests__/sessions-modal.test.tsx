@@ -1,17 +1,18 @@
 // Suite: OS sessions modal
-// Invariant: the modal filters catalog truth, persists group state, and dismisses via Dialog.
-// Boundary IN: OsSessionsModal, desktop store, and routing coordinator.
+// Invariant: the modal filters catalog truth, retains group state, and dismisses via Dialog.
+// Boundary IN: OsSessionsModal, OS controller, and routing coordinator.
 // Boundary OUT: session catalog transport and full browser window journeys.
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
+import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
-import { createDesktopStore } from "../../stores/desktop-store";
 import { OsSessionsModal } from "../sessions-modal";
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
@@ -38,13 +39,15 @@ const SESSIONS: SessionPayload[] = [
   session({ id: "session-3", name: "Release notes", agent_name: "codex", badge: "stopped" }),
 ];
 
+const managers: WindowManagerRuntime[] = [];
+
 function createShell(): OsShellHandle {
-  const store = createDesktopStore();
+  const manager = new WindowManagerRuntime(new QueryClient());
+  managers.push(manager);
   const port: OsRouterPort = { navigate: () => {}, replace: () => {} };
-  store.getState().hydrate([]);
-  const coordinator = new RoutingCoordinator(store, port);
+  const coordinator = new RoutingCoordinator(manager, port);
   coordinator.completeHydration();
-  return { store, coordinator, flushPersistence: () => {} };
+  return { store: manager, manager, coordinator };
 }
 
 function renderModal(shell: OsShellHandle, open = true) {
@@ -61,6 +64,10 @@ function renderModal(shell: OsShellHandle, open = true) {
 }
 
 describe("OsSessionsModal", () => {
+  afterEach(() => {
+    for (const manager of managers.splice(0)) manager.destroy();
+  });
+
   it("Should filter live by title or agent and restore the full catalog when cleared (UT-067)", async () => {
     const user = userEvent.setup();
     const shell = createShell();

@@ -76,6 +76,7 @@ func cloneBundleSpecs(values []BundleSpec) []BundleSpec {
 					Primary: strings.TrimSpace(profile.Channels.Primary),
 					Items:   normalizeBundleChannels(profile.Channels.Items),
 				},
+				Layouts:  cloneBundleLayouts(profile.Layouts),
 				Jobs:     append([]BundleJob(nil), profile.Jobs...),
 				Triggers: append([]BundleTrigger(nil), profile.Triggers...),
 				Bridges:  normalizeBundleBridges(profile.Bridges),

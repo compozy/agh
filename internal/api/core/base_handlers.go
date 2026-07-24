@@ -58,7 +58,7 @@ type BaseHandlerConfig struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
-	DesktopState                 DesktopStateService
+	WindowManager                WindowManagerService
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	AgentDefinitionSync          AgentDefinitionSync
@@ -135,7 +135,7 @@ type BaseHandlers struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
-	DesktopState                 DesktopStateService
+	WindowManager                WindowManagerService
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	AgentDefinitionSync          AgentDefinitionSync
@@ -178,7 +178,7 @@ type BaseHandlers struct {
 	streamDone           <-chan struct{}
 	httpPort             atomic.Int64
 	activeSessionStreams atomic.Int64
-	desktopStateStreams  *desktopStateStreamLifecycle
+	windowManagerStreams *windowManagerStreamLifecycle
 }
 
 // NewBaseHandlers builds a shared handler set with transport-specific defaults applied.
@@ -222,7 +222,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		SettingsUpdate:               cfg.SettingsUpdate,
 		Vault:                        cfg.Vault,
 		Workspaces:                   cfg.Workspaces,
-		DesktopState:                 cfg.DesktopState,
+		WindowManager:                cfg.WindowManager,
 		Onboarding:                   cfg.Onboarding,
 		AgentCatalog:                 cfg.AgentCatalog,
 		AgentDefinitionSync:          cfg.AgentDefinitionSync,
@@ -256,7 +256,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	}
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
-	handlers.desktopStateStreams = newDesktopStateStreamLifecycle()
+	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
 	handlers.httpPort.Store(int64(cfg.HTTPPort))
 	return handlers
 }
@@ -344,15 +344,15 @@ func (h *BaseHandlers) SetStreamDone(done <-chan struct{}) {
 	h.settingsMu.Lock()
 	h.streamDone = done
 	h.settingsMu.Unlock()
-	if h.desktopStateStreams != nil {
-		h.desktopStateStreams.reset()
+	if h.windowManagerStreams != nil {
+		h.windowManagerStreams.reset()
 	}
 }
 
-// ShutdownDesktopStateStreams stops upgrades and waits for every desktop-state pump.
-func (h *BaseHandlers) ShutdownDesktopStateStreams(ctx context.Context) error {
-	if h == nil || h.desktopStateStreams == nil {
+// ShutdownWindowManagerStreams stops upgrades and waits for every window-manager stream.
+func (h *BaseHandlers) ShutdownWindowManagerStreams(ctx context.Context) error {
+	if h == nil || h.windowManagerStreams == nil {
 		return nil
 	}
-	return h.desktopStateStreams.shutdown(ctx)
+	return h.windowManagerStreams.shutdown(ctx)
 }

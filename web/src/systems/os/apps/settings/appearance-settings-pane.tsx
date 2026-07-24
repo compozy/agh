@@ -102,9 +102,8 @@ function WallpaperPicker({
 }
 
 /**
- * The Appearance pane (US-015): wallpaper per space, dock magnification, and
- * the in-product reduced-motion preference — all desktop-doc state persisted
- * with the active space and applied live. The system reduced-motion
+ * The Appearance pane (US-015): shell-session wallpaper, Dock magnification,
+ * and the in-product reduced-motion preference. The system reduced-motion
  * preference always wins over the toggle (US-015.EC-1).
  */
 export function AppearanceSettingsPane() {
@@ -116,7 +115,7 @@ export function AppearanceSettingsPane() {
       <div className="flex max-w-2xl flex-col gap-8" data-testid="os-appearance-pane">
         <FieldRow
           label="Wallpaper"
-          description="Backdrop for this workspace's space. Each space keeps its own."
+          description="Backdrop for the current shell session."
           control={
             <WallpaperPicker value={appearance.wallpaper} onChange={appearance.setWallpaper} />
           }

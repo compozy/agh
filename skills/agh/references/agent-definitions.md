@@ -14,7 +14,7 @@
 
 ## Files And Precedence
 
-AGH agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. Global agents live under $AGH_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.agh/agents/<name>/AGENT.md.
+AGH agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. User-authored global agents live under $AGH_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.agh/agents/<name>/AGENT.md. Extension-provided agents participate as global candidates while keeping their extension-local AGENT.md as the effective authored definition.
 
 Runtime configuration starts from $AGH_HOME/config.toml, then workspace configuration can overlay it with <workspace>/.agh/config.toml. Agent-local skills and MCP sidecars are resolved after the effective agent definition is chosen.
 
@@ -93,7 +93,7 @@ Use structured CLI output for agent lifecycle work:
 Create, update, and duplicate accept repeatable `--disable-skill <name>` flags. On update,
 providing the flag replaces `skills.disabled`; pass `--disable-skill ""` to clear the list.
 
-`update` replaces the complete definition and requires the `definition_digest` from the last read. A 409 means the digest is stale: reload, reapply the intended change, and retry with the new digest.
+`update` replaces the complete effective authored definition, including an extension-local winner, and requires the `definition_digest` from the last read. A 409 means the digest is stale: reload, reapply the intended change, and retry with the new digest.
 
 `duplicate` copies the whole authored directory on the daemon side, including soul, heartbeat, MCP, and other sidecars, then applies explicit AGENT.md overrides. The target must not exist. `delete` removes the effective authored directory but preserves session and event history. Deleting a workspace winner can reveal a same-name global definition; inspect `unshadowed_origin` in the response.
 

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  * 12px glyphs, 7px gap. Signal tones (accent/muted/success) appear only on
  * real buttons — never on inert presentation — and focus is a distinct ring,
  * not a restatement of hover. Interactive controls keep the 12px glyph inside
- * a ≥24px target. Action association comes from the wiring in Task 04.
+ * a ≥24px target. The owning window frame supplies each semantic action.
  *
  * Compact (<960px, os-v2.css mobile block): the zoom control disappears
  * (meaningless in a stack), glyphs grow to 15px, and interactive controls get
@@ -74,6 +74,9 @@ function Light({
             // adjacent button starts are 19px apart and the glyph edge gap is 7px.
             "-mx-1.5 size-6 focus-visible:shadow-focus-ring"
       )}
+      // The window frame owns pointer activation. Keep the native click, but
+      // do not let its preceding mouse focus replace this button before click.
+      onMouseDown={event => event.preventDefault()}
       onClick={() => onSelect(action)}
     >
       <span aria-hidden="true" className={cn(glyph, ACTION_TONE[action])} />

@@ -6,8 +6,11 @@ import (
 )
 
 func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets shutdownTargets, errs *[]error) {
-	if targets.desktopState != nil {
-		appendWrappedError(errs, "daemon: close desktop-state store", targets.desktopState.Close())
+	if targets.windowManager != nil {
+		appendWrappedError(errs, "daemon: close window manager", targets.windowManager.Close())
+	}
+	if targets.windowManagerStore != nil {
+		appendWrappedError(errs, "daemon: close window-manager store", targets.windowManagerStore.Close())
 	}
 	if targets.marketplace != nil {
 		appendWrappedError(errs, "daemon: shutdown marketplace", targets.marketplace.Shutdown(ctx))
