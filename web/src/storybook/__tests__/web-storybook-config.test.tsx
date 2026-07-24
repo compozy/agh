@@ -3,16 +3,16 @@ import { createElement } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const initialize = vi.fn();
-const mswLoader = vi.fn(async () => ({}));
+const workerStart = vi.fn(async () => {});
+const setupWorker = vi.fn(() => ({ start: workerStart, use: vi.fn(), resetHandlers: vi.fn() }));
+const mswLoader = vi.fn(() => async () => ({}));
 
-vi.mock("msw-storybook-addon", () => ({
-  initialize,
-  mswLoader,
-}));
+vi.mock("msw/browser", () => ({ setupWorker }));
+vi.mock("msw-storybook-addon/csf3", () => ({ mswLoader }));
 
 const webPreviewModule = await import("../../../.storybook/preview");
 const {
+  createStorybookMswWorker,
   createStorybookQueryClient,
   createStorybookRouter,
   isBypassableStorybookRequest,
@@ -46,8 +46,12 @@ function QueryClientProbe() {
 }
 
 describe("web Storybook config", () => {
-  it("registers MSW and exposes router decorators with system handlers", () => {
-    expect(initialize).toHaveBeenCalledWith({ onUnhandledRequest: storybookUnhandledRequest });
+  it("registers MSW and exposes router decorators with system handlers", async () => {
+    expect(mswLoader).toHaveBeenCalledWith(createStorybookMswWorker);
+
+    await createStorybookMswWorker();
+
+    expect(workerStart).toHaveBeenCalledWith({ onUnhandledRequest: storybookUnhandledRequest });
     expect(storybookSystemHandlers.length).toBeGreaterThan(0);
     expect(storybookDecorators).toContain(routerDecorator);
     expect(storybookDecorators).not.toContain(queryClientDecorator);

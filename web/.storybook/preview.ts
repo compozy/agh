@@ -10,8 +10,9 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { Fragment, createElement, useState, type ReactNode } from "react";
-import { initialize, mswLoader } from "msw-storybook-addon";
+import { mswLoader } from "msw-storybook-addon/csf3";
 import type { UnhandledRequestCallback } from "msw";
+import { setupWorker } from "msw/browser";
 import { configure as configureStorybookTestingLibrary } from "storybook/test";
 
 import "../src/styles.css";
@@ -75,7 +76,11 @@ export const storybookUnhandledRequest: UnhandledRequestCallback = (request, pri
   print.warning();
 };
 
-initialize({ onUnhandledRequest: storybookUnhandledRequest });
+export async function createStorybookMswWorker() {
+  const worker = setupWorker();
+  await worker.start({ onUnhandledRequest: storybookUnhandledRequest });
+  return worker;
+}
 
 type StoryRenderer = () => ReactNode;
 export type StorybookRouterMode = "app" | "stub";
@@ -83,6 +88,12 @@ type StorybookRouterOptions = {
   kind?: StorybookRouterMode;
   initialEntries?: string[];
 };
+
+declare module "storybook/internal/csf" {
+  interface Parameters {
+    router?: StorybookRouterOptions;
+  }
+}
 
 export function createStorybookQueryClient() {
   return new QueryClient({
@@ -310,7 +321,7 @@ export const routerDecorator = (
   });
 
 export const storybookDecorators = [themeDecorator, uiProviderDecorator, routerDecorator];
-export const storybookLoaders = [mswLoader];
+export const storybookLoaders = [mswLoader(createStorybookMswWorker)];
 export { storybookSystemHandlerGroups, storybookSystemHandlers };
 
 const preview: Preview = {
