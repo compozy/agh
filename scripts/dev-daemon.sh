@@ -89,3 +89,10 @@ replace_daemon_locked() {
 if ! replace_daemon_locked; then
   exit 1
 fi
+
+if [[ -n ${AGH_AIR_READY_FIFO:-} || -n ${AGH_AIR_READY_MARKER:-} ]]; then
+  : "${AGH_AIR_READY_FIFO:?AGH_AIR_READY_FIFO must identify the development readiness channel}"
+  : "${AGH_AIR_READY_MARKER:?AGH_AIR_READY_MARKER must identify the one-shot readiness marker}"
+  bash "$repo_root/scripts/dev-readiness.sh" ready \
+    "$AGH_AIR_READY_FIFO" "$AGH_AIR_DEV_RUN_ID" "$AGH_AIR_READY_MARKER" "$binary_id"
+fi

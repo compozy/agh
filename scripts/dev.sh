@@ -10,6 +10,10 @@ cd "$repo_root"
 air_pid=
 vite_pid=
 dev_web_dir=
+readiness_dir=
+readiness_fifo=
+readiness_marker=
+readiness_fd_open=0
 air_state_dir=$(go run ./scripts/air-state-dir)
 air_build_dir="$repo_root/.tmp/air"
 dev_run_id="dev-$$-$(date +%s)"
@@ -101,6 +105,38 @@ remove_dev_web_redirect() {
   fi
 }
 
+remove_dev_readiness() {
+  local cleanup_status=0
+
+  if ((readiness_fd_open == 1)); then
+    if ! exec 9>&-; then
+      echo "dev: failed to close the readiness channel" >&2
+      cleanup_status=1
+    fi
+    readiness_fd_open=0
+  fi
+  if [[ -n "$readiness_marker" ]] && [[ -d "$readiness_marker" ]]; then
+    if ! rmdir -- "$readiness_marker"; then
+      echo "dev: failed to remove readiness marker $readiness_marker" >&2
+      cleanup_status=1
+    fi
+  fi
+  if [[ -n "$readiness_fifo" ]] && [[ -p "$readiness_fifo" ]]; then
+    if ! rm -f -- "$readiness_fifo"; then
+      echo "dev: failed to remove readiness channel $readiness_fifo" >&2
+      cleanup_status=1
+    fi
+  fi
+  if [[ -n "$readiness_dir" ]] && [[ -d "$readiness_dir" ]]; then
+    if ! rmdir -- "$readiness_dir"; then
+      echo "dev: failed to remove readiness directory $readiness_dir" >&2
+      cleanup_status=1
+    fi
+  fi
+
+  return "$cleanup_status"
+}
+
 stop_owned_daemon() {
   local binary="$air_build_dir/agh"
 
@@ -117,6 +153,9 @@ cleanup() {
   terminate_process "$air_pid" "Air"
   wait_for_process "$vite_pid" "Vite"
   wait_for_process "$air_pid" "Air"
+  if ! remove_dev_readiness && ((exit_status == 0)); then
+    exit_status=1
+  fi
   if ! stop_owned_daemon && ((exit_status == 0)); then
     exit_status=1
   fi
@@ -151,12 +190,39 @@ fi
 } > "$dev_web_dir/index.html"
 export AGH_WEB_DIST_DIR=$dev_web_dir
 
+if ! readiness_dir=$(mktemp -d "$dev_web_parent/dev-readiness.XXXXXX"); then
+  echo "dev: failed to allocate the readiness directory" >&2
+  exit 1
+fi
+readiness_fifo="$readiness_dir/events.fifo"
+readiness_marker="$readiness_dir/ready-sent"
+if ! mkfifo "$readiness_fifo"; then
+  echo "dev: failed to create the readiness channel $readiness_fifo" >&2
+  exit 1
+fi
+if ! exec 9<> "$readiness_fifo"; then
+  echo "dev: failed to open the readiness channel $readiness_fifo" >&2
+  exit 1
+fi
+readiness_fd_open=1
+export AGH_AIR_READY_FIFO=$readiness_fifo
+export AGH_AIR_READY_MARKER=$readiness_marker
+
 echo "dev: live web UI: $web_url"
 echo "dev: daemon web routes will redirect to the live UI"
 echo "dev: API traffic will be proxied to the daemon on $api_proxy_target"
 
-bash scripts/run-air.sh "$AIR_VERSION" -c .air.toml &
+bash scripts/run-air-with-events.sh "$readiness_fifo" "$dev_run_id" "$AIR_VERSION" -c .air.toml &
 air_pid=$!
+
+ready_binary_id=
+ready_status=0
+ready_binary_id=$(bash scripts/dev-readiness.sh await "$readiness_fifo" "$dev_run_id") || ready_status=$?
+if ((ready_status != 0)); then
+  echo "dev: daemon did not become ready for the current Air run" >&2
+  exit "$ready_status"
+fi
+echo "dev: daemon ready for current Air build ($ready_binary_id)"
 
 bun run --cwd web dev:raw -- --port "$web_port" --strictPort &
 vite_pid=$!

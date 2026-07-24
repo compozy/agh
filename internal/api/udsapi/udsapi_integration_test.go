@@ -1453,6 +1453,83 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 	}
 }
 
+func TestUDSShutdownCancelsPersistentStreams(t *testing.T) {
+	t.Run("Should cancel an active session catalog stream before the shutdown deadline", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		socketPath := shortSocketPath(t)
+		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg.Daemon.Socket = socketPath
+		events := make(chan session.CatalogEvent)
+		server, err := New(
+			WithHomePaths(homePaths),
+			WithConfig(&cfg),
+			WithSocketPath(socketPath),
+			WithLogger(discardLogger()),
+			WithSessionManager(stubSessionManager{
+				SubscribeCatalogFn: func(context.Context) (<-chan session.CatalogEvent, func(), error) {
+					return events, func() {}, nil
+				},
+			}),
+			WithTaskService(&stubTaskManager{}),
+			WithObserver(stubObserver{}),
+			WithWorkspaceResolver(stubWorkspaceService{}),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if err := server.Start(t.Context()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+			defer cancelCleanup()
+			if err := server.Shutdown(cleanupCtx); err != nil {
+				t.Errorf("Shutdown() during cleanup error = %v", err)
+			}
+		})
+
+		streamResponse := mustUnixRequest(
+			t,
+			newUnixClient(t, socketPath),
+			http.MethodGet,
+			"http://unix/api/sessions/catalog-stream",
+			nil,
+			nil,
+		)
+		if streamResponse.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, streamResponse)
+			t.Fatalf("stream status = %d, want %d; body=%s", streamResponse.StatusCode, http.StatusOK, body)
+		}
+		if contentType := streamResponse.Header.Get("Content-Type"); contentType != "text/event-stream" {
+			closeHTTPBody(t, streamResponse.Body)
+			t.Fatalf("stream content type = %q, want text/event-stream", contentType)
+		}
+
+		streamDone := make(chan error, 1)
+		go func() {
+			_, readErr := io.Copy(io.Discard, streamResponse.Body)
+			streamDone <- errors.Join(readErr, streamResponse.Body.Close())
+		}()
+
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+
+		select {
+		case err := <-streamDone:
+			if err != nil {
+				t.Fatalf("stream close error = %v", err)
+			}
+		case <-shutdownCtx.Done():
+			t.Fatalf("stream remained active after shutdown: %v", shutdownCtx.Err())
+		}
+	})
+}
+
 func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	apitestutil.EnableIntegrationLiveNetwork(t, runtime.registry)

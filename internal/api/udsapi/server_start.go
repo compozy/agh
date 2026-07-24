@@ -79,6 +79,7 @@ func (s *Server) Start(ctx context.Context) error {
 			return mcppkg.ContextWithPeerInfo(ctx, peer, err)
 		},
 	}
+	httpServer.RegisterOnShutdown(streamCancel)
 	serveDone := make(chan struct{})
 
 	s.handlers.setStreamDone(streamCtx.Done())

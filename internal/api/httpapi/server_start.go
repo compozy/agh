@@ -50,6 +50,7 @@ func (s *Server) Start(ctx context.Context) error {
 		ReadHeaderTimeout: defaultReadHeaderTimeout,
 		IdleTimeout:       defaultIdleTimeout,
 	}
+	httpServer.RegisterOnShutdown(streamCancel)
 	serveDone := make(chan struct{})
 
 	actualPort := s.port
