@@ -5,6 +5,7 @@ import { tasksKeys } from "@/systems/tasks";
 
 import { buildHomeLogsStreamUrl } from "../adapters/overview-api";
 import { isTaskLifecycleEvent } from "../lib/activity-classes";
+import { homeActivityEventSchema } from "../lib/home-activity-schema";
 import { dashboardKeys } from "../lib/query-keys";
 import { HOME_ACTIVITY_LIMIT, homeActivityOptions } from "../lib/query-options";
 import type { HomeActivityEvent } from "../types";
@@ -95,6 +96,11 @@ export function useHomeLive({
       }
       try {
         const payload = JSON.parse(event.data) as HomeActivityEvent;
+        const validation = homeActivityEventSchema.safeParse(payload);
+        if (!validation.success) {
+          notifyError(validation.error, "Rejected malformed home activity stream payload");
+          return;
+        }
         prependHomeActivityEvent(queryClient, workspaceId, payload);
         if (isTaskLifecycleEvent(payload)) {
           lastOverviewInvalidateAt.current = Date.now();

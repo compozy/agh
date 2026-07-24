@@ -44,7 +44,8 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
     <MetricGrid columns={4} data-slot="home-kpi-strip">
       <Link
         className="min-w-0 rounded-lg transition-colors duration-base hover:bg-canvas-tint focus-visible:shadow-focus-ring focus-visible:outline-none"
-        to="/agents"
+        search={{ mode: "dashboard" }}
+        to="/tasks"
       >
         <Metric
           label="Working now"

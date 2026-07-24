@@ -47,16 +47,15 @@ func (u TokenStatsUpdate) Validate() error {
 	if err := requireField(u.AgentName, "token stats agent name"); err != nil {
 		return err
 	}
-	return validateTokenStatsCost(u)
-}
-
-func validateTokenStatsCost(update TokenStatsUpdate) error {
-	return validateTokenCostShape(update.CostStatus, update.CostSource, update.CostAmount, update.CostCurrency)
+	return validateTokenCostShape(u.CostStatus, u.CostSource, u.CostAmount, u.CostCurrency)
 }
 
 func validateTokenCostShape(costStatus string, costSource string, amount *float64, currency *string) error {
 	status := strings.TrimSpace(costStatus)
 	source := strings.TrimSpace(costSource)
+	if status != costStatus || source != costSource {
+		return errors.New("store: token cost status and source must not carry surrounding whitespace")
+	}
 	switch status {
 	case tokenCostStatusActual:
 		if source != tokenCostSourceAgentReported || !validTokenStatsMoney(amount, currency) {

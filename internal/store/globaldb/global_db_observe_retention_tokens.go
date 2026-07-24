@@ -49,6 +49,8 @@ func (g *ObserveRepo) SweepObservability(
 		err = fmt.Errorf("store: delete old token_stats rows: %w", err)
 		return store.ObservabilityRetentionSweepResult{}, err
 	}
+	// token_usage_daily is keyed by daemon-local day buckets, so the cutoff is
+	// compared in LocalDay form (not the RFC3339 timestamp the other tables use).
 	if result.DeletedTokenUsageDaily, err = queries.DeleteTokenUsageDailyBefore(
 		ctx,
 		store.LocalDay(result.CutoffAt),
@@ -78,25 +80,27 @@ func (g *ObserveRepo) UpdateTokenStats(ctx context.Context, update store.TokenSt
 	if err := update.Validate(); err != nil {
 		return err
 	}
+	if err := g.queries.UpsertTokenStats(ctx, g.tokenStatsParams(update)); err != nil {
+		return fmt.Errorf("store: upsert token stats for session %q: %w", update.SessionID, err)
+	}
+	return nil
+}
+
+func (g *ObserveRepo) tokenStatsParams(update store.TokenStatsUpdate) sqlcgen.UpsertTokenStatsParams {
 	if update.UpdatedAt.IsZero() {
 		update.UpdatedAt = g.now()
 	}
 	if update.Turns <= 0 {
 		update.Turns = 1
 	}
-
-	if err := g.queries.UpsertTokenStats(ctx, sqlcgen.UpsertTokenStatsParams{
+	return sqlcgen.UpsertTokenStatsParams{
 		ID: store.NewID("tok"), SessionID: update.SessionID, AgentName: update.AgentName,
 		InputTokens: nullableObserveInt64(update.InputTokens), OutputTokens: nullableObserveInt64(update.OutputTokens),
 		TotalTokens: nullableObserveInt64(update.TotalTokens), TotalCost: nullableObserveFloat64(update.CostAmount),
 		CostCurrency: nullableObserveStringPointer(update.CostCurrency), CostStatus: update.CostStatus,
 		CostSource: update.CostSource, TurnCount: update.Turns,
 		UpdatedAt: store.FormatTimestamp(update.UpdatedAt),
-	}); err != nil {
-		return fmt.Errorf("store: upsert token stats for session %q: %w", update.SessionID, err)
 	}
-
-	return nil
 }
 
 // ListTokenStats returns aggregated token usage rows.

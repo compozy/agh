@@ -62,6 +62,25 @@ export function runElapsedSeconds(run: LoopRunRecord, nowMs: number): number {
   return Math.round((last - created) / 1000);
 }
 
+/**
+ * Uses the terminal status event because the status CAS does not refresh
+ * `last_progress_at`; malformed or missing events fall back to the durable span.
+ */
+export function terminalRunElapsedSeconds(
+  run: LoopRunRecord,
+  terminalAt: string | undefined,
+  nowMs: number
+): number {
+  if (run.status !== "running" && terminalAt) {
+    const created = Date.parse(run.created_at);
+    const ended = Date.parse(terminalAt);
+    if (!Number.isNaN(created) && !Number.isNaN(ended) && ended >= created) {
+      return Math.round((ended - created) / 1000);
+    }
+  }
+  return runElapsedSeconds(run, nowMs);
+}
+
 /** `22m 14s` / `1h 04m` — the ticking clock voice from the prototypes. */
 export function formatClockDuration(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
@@ -127,20 +146,17 @@ export function buildRunUsage(run: LoopRunRecord, elapsedSeconds: number): LoopR
 /** The one Usage note (§6 copy + prototype state variants); null on terminal runs. */
 export function usageNote(run: LoopRunRecord): string | null {
   if (isTerminalLoopStatus(run.status)) return null;
-  switch (run.status) {
-    case "watching":
-      return "Watching costs nothing — time only counts while the run is working.";
-    case "paused":
-      return "Paused runs use nothing. Limits pick up where they left off on resume.";
-    case "needs-approval":
-      if (run.budget_on_exceeded === "escalate") {
-        return "Cost is an estimate (tokens × rate), never a cap. This run escalates limits to you instead of failing.";
-      }
-      break;
-    default:
-      break;
+  if (run.status === "watching") {
+    return "Watching costs nothing — time only counts while the run is working.";
   }
-  return run.budget_on_exceeded === "escalate"
+  if (run.status === "paused") {
+    return "Paused runs use nothing. Limits pick up where they left off on resume.";
+  }
+  const escalate = run.budget_on_exceeded === "escalate";
+  if (run.status === "needs-approval" && escalate) {
+    return "Cost is an estimate (tokens × rate), never a cap. This run escalates limits to you instead of failing.";
+  }
+  return escalate
     ? "Cost is an estimate (tokens × rate), never a cap. If a limit is reached, this run pauses and asks you — it doesn't fail silently."
     : "Cost is an estimate (tokens × rate), never a cap. If a limit is reached, this run stops as exhausted.";
 }

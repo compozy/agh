@@ -16,14 +16,15 @@ export interface PanelProps extends Omit<React.ComponentProps<"section">, "title
 }
 
 function hasSlot(value: React.ReactNode): boolean {
-  return value !== undefined && value !== null;
+  return value !== undefined && value !== null && value !== false;
 }
 
 /**
  * Flat panel container — the warm `--canvas-soft` card behind dashboard zones
  * and grouped rows. Head and foot are optional hairline-separated slots; the
  * foot pins to the bottom (`mt-auto`) so paired panels in a grid close flush.
- * Identity H1s never live here; panel titles follow the body H2 ladder.
+ * Identity H1s never live here; panel titles render an h3 styled with the
+ * `text-section-head` token so pages keep a single h1/h2 outline.
  */
 export function Panel({
   title,

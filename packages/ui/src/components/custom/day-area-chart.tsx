@@ -1,6 +1,11 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import {
+  DAY_CHART_AXIS_LINE,
+  DAY_CHART_TICK,
+  dayChartEndpointTickFormatter,
+} from "./day-chart-axis";
 import { CHART_TOOLTIP_CONTENT_STYLE } from "./chart-tooltip-style";
 
 export interface DayAreaChartDatum {
@@ -31,13 +36,11 @@ const LazyArea = React.lazy(async () => {
         <AreaChart data={[...data]} margin={{ top: 6, right: 20, bottom: 0, left: 20 }}>
           <CartesianGrid stroke="var(--color-viz-grid)" strokeWidth={1} vertical={false} />
           <XAxis
-            axisLine={{ stroke: "var(--color-line-strong)" }}
+            axisLine={DAY_CHART_AXIS_LINE}
             dataKey="date"
             interval={0}
-            tick={{ fill: "var(--color-faint)", fontFamily: "var(--font-mono)", fontSize: 9.5 }}
-            tickFormatter={(value: string, index: number) =>
-              index === 0 || index === data.length - 1 ? value : ""
-            }
+            tick={DAY_CHART_TICK}
+            tickFormatter={dayChartEndpointTickFormatter(data.length)}
             tickLine={false}
           />
           {withTooltip ? (
@@ -78,6 +81,7 @@ export function DayAreaChart({
   formatValue,
   withTooltip = true,
   className,
+  style,
   ...props
 }: DayAreaChartProps) {
   return (
@@ -86,7 +90,7 @@ export function DayAreaChart({
       className={cn("w-full", className)}
       data-slot="day-area-chart"
       role="img"
-      style={{ height }}
+      style={{ height, ...style }}
       {...props}
     >
       <React.Suspense fallback={<div aria-hidden="true" className="size-full" />}>

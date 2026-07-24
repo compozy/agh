@@ -1,11 +1,12 @@
+import type { ComponentProps } from "react";
 import { Link } from "@tanstack/react-router";
 
-import { Eyebrow, MonoId, PropertyRow } from "@agh/ui";
+import { cn, Eyebrow, MonoId, PropertyRow } from "@agh/ui";
 
 import type { LoopRunInputRow } from "../../lib/loop-run-about";
 import type { LoopRunRecord } from "../../types";
 
-interface LoopRunAboutRailProps {
+interface LoopRunAboutRailProps extends ComponentProps<"div"> {
   run: LoopRunRecord;
   /** `v3 · pinned` (executed definition) or `v3` (loop fallback); omitted while loading. */
   versionLabel?: string;
@@ -34,13 +35,19 @@ export function LoopRunAboutRail({
   inputRows,
   startedBy,
   workspaceLabel,
+  className,
+  ...props
 }: LoopRunAboutRailProps) {
   return (
-    <div className="border-t border-line-soft px-4.5 py-4" data-testid="loop-run-about">
+    <div
+      className={cn("border-t border-line-soft px-4.5 py-4", className)}
+      data-testid="loop-run-about"
+      {...props}
+    >
       <Eyebrow className="mb-2 block text-subtle">About this run</Eyebrow>
       <PropertyRow label="Loop">
         <Link
-          className="truncate text-small-body font-medium text-fg hover:text-fg-strong"
+          className="inline-flex min-h-6 items-center truncate rounded-xs text-small-body font-medium text-fg hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"
           data-testid="loop-run-about-loop"
           params={{ name: run.loop_name }}
           to="/loops/$name"
@@ -78,7 +85,9 @@ export function LoopRunAboutRail({
       <PropertyRow label="Started by" data-testid="loop-run-about-started-by">
         {startedBy}
       </PropertyRow>
-      <PropertyRow label="Workspace">{workspaceLabel}</PropertyRow>
+      <PropertyRow label="Workspace" data-testid="loop-run-about-workspace">
+        {workspaceLabel}
+      </PropertyRow>
       <PropertyRow label="Run id" mono>
         <MonoId
           className="text-muted"

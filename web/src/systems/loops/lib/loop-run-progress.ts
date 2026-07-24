@@ -14,8 +14,6 @@ export type LoopProgressSegmentState = "clean" | "active" | "redo" | "failed" | 
 export interface LoopRunProgressModel {
   /** One entry per fan-out branch; null hides the bar (no fan-out in this run). */
   segments: LoopProgressSegmentState[] | null;
-  cleanCount: number;
-  totalCount: number;
   leftMeta: string;
   rightMeta: string;
   ariaLabel: string;
@@ -33,7 +31,8 @@ export function latestGateVerdict(
 }
 
 const CLEAN_STATUSES = new Set(["succeeded", "reused"]);
-const ACTIVE_STATUSES = new Set(["running", "enqueued", "awaiting_child"]);
+// `awaiting_child` is already covered by the `awaiting_` prefix rule in segmentState.
+const ACTIVE_STATUSES = new Set(["running", "enqueued"]);
 
 function segmentState(
   status: string,
@@ -50,8 +49,7 @@ function segmentState(
 }
 
 interface FanOutBranches {
-  nodeId: string;
-  /** Branch status keyed by `item_index`, ordered ascending. */
+  /** Branch statuses ordered by ascending `item_index`. */
   statuses: string[];
 }
 
@@ -71,15 +69,15 @@ function latestFanOut(
       byNode.set(output.node_id, branches);
     }
   }
-  let widest: { nodeId: string; branches: Map<number, string> } | null = null;
-  for (const [nodeId, branches] of byNode) {
-    if (branches.size > 1 && (!widest || branches.size > widest.branches.size)) {
-      widest = { nodeId, branches };
+  let widest: Map<number, string> | null = null;
+  for (const branches of byNode.values()) {
+    if (branches.size > 1 && (!widest || branches.size > widest.size)) {
+      widest = branches;
     }
   }
   if (!widest) return null;
-  const statuses = [...widest.branches.entries()].sort(([a], [b]) => a - b).map(([, s]) => s);
-  return { nodeId: widest.nodeId, statuses };
+  const statuses = [...widest.entries()].sort(([a], [b]) => a - b).map(([, s]) => s);
+  return { statuses };
 }
 
 function openPointsClause(openPoints: number, past: boolean): string {
@@ -140,8 +138,6 @@ export function buildRunProgress(
     const round = `Round ${Math.max(run.generation, 1)}`;
     return {
       segments: null,
-      cleanCount: 0,
-      totalCount: 0,
       leftMeta: round,
       rightMeta: rightMeta(run, openPoints),
       ariaLabel: round,
@@ -155,8 +151,6 @@ export function buildRunProgress(
   const left = leftMeta(run, cleanCount, segments.length, activeCount);
   return {
     segments,
-    cleanCount,
-    totalCount: segments.length,
     leftMeta: left,
     rightMeta: rightMeta(run, openPoints),
     ariaLabel: `Groups: ${left}`,

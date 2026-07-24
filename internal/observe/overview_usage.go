@@ -71,7 +71,7 @@ func overviewUsageCost(groups []store.TokenUsageCostGroup) (*float64, string, st
 			return nil, "", unknown
 		}
 		total := group.TotalCost
-		return &total, group.Currency, group.CostStatus
+		return &total, group.CostCurrency, group.CostStatus
 	case string(modelcatalog.CostStatusIncluded):
 		return nil, "", group.CostStatus
 	default:

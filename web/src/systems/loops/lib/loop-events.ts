@@ -1,4 +1,4 @@
-import type { LoopRunEventFrame } from "../types";
+import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
 
 /**
  * The SSE contract the run page consumes (techspec §observability). The stream
@@ -33,6 +33,9 @@ export interface LoopApprovalRequest {
   prompt?: string;
   facts: LoopApprovalFact[];
 }
+
+/** The closed HITL verdict vocabulary (ADR-017 §9.8): resume / revise / halt. */
+export type LoopGateDecision = "approve" | "request_changes" | "reject";
 
 export interface LoopGoalTurnLive {
   seq: number;
@@ -98,8 +101,28 @@ export function emptyLoopRunLiveState(): LoopRunLiveState {
 /** Bounds retained structural frames; a run past this keeps its newest history. */
 const MAX_STORY_FRAMES = 500;
 
-/** Kinds excluded from frame retention (aggregated elsewhere, no story row). */
-const UNRETAINED_KINDS = new Set<string>(["token_tick", "channel_msg"]);
+/**
+ * Bounds the live goal-turn replay slice. A goal node can emit an unbounded
+ * stream of turns; without this cap the automatic SSE state would grow without
+ * limit on a long run. Explicitly paged durable turns live in the query cache
+ * and are merged separately, so this only trims the auto-accumulated tail.
+ */
+const MAX_GOAL_TURNS = 500;
+
+/**
+ * Kinds excluded from frame retention: they update a dedicated slice and carry no
+ * story row, so they must not consume the bounded window and evict `node_running`
+ * (a goal node can emit many turns after it starts). The `Set<LoopRunEventKind>`
+ * element type keeps the closed policy honest — a kind outside the union fails at
+ * compile time — and the `ReadonlySet<LoopRunEventKind>` annotation carries that
+ * closed type through `.has`, so membership is a compile-time closed-kind check.
+ */
+const UNRETAINED_KINDS: ReadonlySet<LoopRunEventKind> = new Set<LoopRunEventKind>([
+  "token_tick",
+  "channel_msg",
+  "goal_turn_started",
+  "goal_turn_completed",
+]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
@@ -211,7 +234,9 @@ function applyGoalTurn(
     startedAt: previous?.startedAt || str(frame.at),
     endedAt: completed ? str(frame.at) || null : null,
   };
-  if (index < 0) return [...turns, next];
+  // Append trims to the newest window; an in-place update keeps the length, so it
+  // never grows and needs no trim.
+  if (index < 0) return [...turns, next].slice(-MAX_GOAL_TURNS);
   return turns.map((turn, turnIndex) => (turnIndex === index ? next : turn));
 }
 
@@ -236,7 +261,11 @@ export function applyLoopEventFrame(
   const payload = asRecord(frame.payload);
   const next: LoopRunLiveState = {
     ...state,
-    frames: UNRETAINED_KINDS.has(kind) ? state.frames : retainFrame(state.frames, frame),
+    // kind is a runtime-guarded SSE string; membership is tested against the
+    // closed LoopRunEventKind policy set.
+    frames: UNRETAINED_KINDS.has(kind as LoopRunEventKind)
+      ? state.frames
+      : retainFrame(state.frames, frame),
   };
   if (!payload) return next;
   switch (kind) {

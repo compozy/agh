@@ -95014,9 +95014,6 @@
                                     },
                                     "type": "array"
                                   },
-                                  "agent_name": {
-                                    "type": "string"
-                                  },
                                   "detail": {
                                     "type": "string"
                                   },
@@ -95155,6 +95152,9 @@
                             "success_pct": {
                               "format": "double",
                               "type": "number"
+                            },
+                            "window_days": {
+                              "type": "integer"
                             }
                           },
                           "required": [
@@ -95162,7 +95162,8 @@
                             "completed",
                             "days",
                             "failed",
-                            "success_pct"
+                            "success_pct",
+                            "window_days"
                           ],
                           "type": "object"
                         },
@@ -95234,10 +95235,14 @@
                                 "session_id"
                               ],
                               "type": "object"
+                            },
+                            "window_days": {
+                              "type": "integer"
                             }
                           },
                           "required": [
-                            "buckets"
+                            "buckets",
+                            "window_days"
                           ],
                           "type": "object"
                         },

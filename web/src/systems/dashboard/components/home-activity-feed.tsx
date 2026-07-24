@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 
 import {
   Collapsible,
@@ -13,14 +13,40 @@ import {
 } from "@agh/ui";
 
 import { homeActivityTone, isQuietActivityEvent } from "../lib/activity-classes";
-import type { HomeActivityEvent } from "../types";
+import type { HomeActivityEvent, HomeSurfaceStatus } from "../types";
 
 export interface HomeActivityFeedProps {
   events: HomeActivityEvent[];
+  status?: HomeSurfaceStatus;
+  errorMessage?: string | null;
 }
 
 const LOUD_EVENT_LIMIT = 8;
 const RECENT_WINDOW_MS = 60 * 60 * 1000;
+
+// The separator marks the first loud event older than the recent window. It only
+// reads "Earlier today" when that event is still on the local calendar day.
+function earlierSeparatorLabel(timestamp: string | undefined): string {
+  const at = Date.parse(timestamp ?? "");
+  if (Number.isNaN(at)) {
+    return "Earlier";
+  }
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  return at < startOfToday.getTime() ? "Earlier" : "Earlier today";
+}
+
+function partitionActivity(events: HomeActivityEvent[]): {
+  loud: HomeActivityEvent[];
+  quiet: HomeActivityEvent[];
+} {
+  const loud: HomeActivityEvent[] = [];
+  const quiet: HomeActivityEvent[] = [];
+  for (const event of events) {
+    (isQuietActivityEvent(event) ? quiet : loud).push(event);
+  }
+  return { loud, quiet };
+}
 
 function eventTitle(event: HomeActivityEvent): string {
   const summary = event.summary?.trim();
@@ -72,15 +98,20 @@ function ActivityRow({ event, quiet }: { event: HomeActivityEvent; quiet?: boole
  * traffic and config reads fold behind an explicit disclosure so the feed
  * stays honest without shouting.
  */
-export function HomeActivityFeed({ events }: HomeActivityFeedProps) {
-  const loud = events.filter(event => !isQuietActivityEvent(event)).slice(0, LOUD_EVENT_LIMIT);
-  const quiet = events.filter(event => isQuietActivityEvent(event));
+export function HomeActivityFeed({
+  events,
+  status = "ready",
+  errorMessage,
+}: HomeActivityFeedProps) {
+  const { loud, quiet } = partitionActivity(events);
+  const loudVisible = loud.slice(0, LOUD_EVENT_LIMIT);
 
   const now = Date.now();
-  const separatorIndex = loud.findIndex(event => {
+  const separatorIndex = loudVisible.findIndex(event => {
     const at = Date.parse(event.timestamp);
     return !Number.isNaN(at) && now - at > RECENT_WINDOW_MS;
   });
+  const separatorLabel = earlierSeparatorLabel(loudVisible[separatorIndex]?.timestamp);
 
   return (
     <Section
@@ -90,15 +121,21 @@ export function HomeActivityFeed({ events }: HomeActivityFeedProps) {
       label="Activity"
     >
       <Panel bodyClassName="flex flex-1 flex-col p-0" className="flex-1 overflow-hidden">
-        {loud.length === 0 && quiet.length === 0 ? (
+        {status === "error" ? (
+          <Empty
+            description={errorMessage ?? "The daemon did not return recent activity."}
+            icon={AlertTriangle}
+            title="Unable to load activity"
+          />
+        ) : loudVisible.length === 0 && quiet.length === 0 ? (
           <Empty description="Events land here as agents work." title="No recent activity" />
         ) : (
           <div className="flex flex-1 flex-col divide-y divide-line-soft">
-            {loud.map((event, index) => (
+            {loudVisible.map((event, index) => (
               <div key={event.id}>
                 {index === separatorIndex && index > 0 ? (
                   <div className="flex items-center gap-2.5 border-b border-line-soft px-4 py-1.5">
-                    <Eyebrow className="text-faint">Earlier today</Eyebrow>
+                    <Eyebrow className="text-faint">{separatorLabel}</Eyebrow>
                     <span aria-hidden="true" className="h-px flex-1 bg-line-soft" />
                   </div>
                 ) : null}

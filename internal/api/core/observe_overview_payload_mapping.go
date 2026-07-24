@@ -1,13 +1,11 @@
 package core
 
 import (
-	"errors"
+	"maps"
 
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/observe"
 )
-
-var errOverviewUsageWindow = errors.New("usage_window must be 7, 30, or 90")
 
 // ObserveOverviewPayloadFromView converts the observe read model into the shared payload.
 func ObserveOverviewPayloadFromView(view *observe.OverviewView) contract.ObserveOverviewPayload {
@@ -40,7 +38,7 @@ func ObserveOverviewPayloadFromView(view *observe.OverviewView) contract.Observe
 func overviewAttentionPayload(attention observe.OverviewAttention) contract.OverviewAttentionPayload {
 	payload := contract.OverviewAttentionPayload{
 		Total:  attention.Total,
-		ByKind: attention.ByKind,
+		ByKind: maps.Clone(attention.ByKind),
 		Items:  make([]contract.OverviewAttentionItemPayload, 0, len(attention.Items)),
 	}
 	if payload.ByKind == nil {
@@ -54,7 +52,6 @@ func overviewAttentionPayload(attention observe.OverviewAttention) contract.Over
 			TaskID:     item.TaskID,
 			RunID:      item.RunID,
 			SessionID:  item.SessionID,
-			AgentName:  item.AgentName,
 			OccurredAt: item.OccurredAt,
 			Actions:    append([]string(nil), item.Actions...),
 		})
@@ -64,6 +61,7 @@ func overviewAttentionPayload(attention observe.OverviewAttention) contract.Over
 
 func overviewOutcomesPayload(outcomes observe.OverviewOutcomes) contract.OverviewOutcomesPayload {
 	payload := contract.OverviewOutcomesPayload{
+		WindowDays: outcomes.WindowDays,
 		Days:       make([]contract.OverviewOutcomeDayPayload, 0, len(outcomes.Days)),
 		Completed:  outcomes.Completed,
 		Failed:     outcomes.Failed,
@@ -87,7 +85,7 @@ func overviewUsagePayload(usage observe.OverviewUsage) contract.OverviewUsagePay
 		RetentionDays: usage.RetentionDays,
 		Truncated:     usage.Truncated,
 		TotalTokens:   usage.TotalTokens,
-		EstimatedCost: cloneFloatPtr(usage.EstimatedCost),
+		EstimatedCost: cloneFloat64Ptr(usage.EstimatedCost),
 		CostCurrency:  usage.CostCurrency,
 		CostStatus:    usage.CostStatus,
 		Days:          make([]contract.OverviewUsageDayPayload, 0, len(usage.Days)),
@@ -111,7 +109,8 @@ func overviewUsagePayload(usage observe.OverviewUsage) contract.OverviewUsagePay
 
 func overviewPulsePayload(pulse observe.OverviewPulse) contract.OverviewPulsePayload {
 	payload := contract.OverviewPulsePayload{
-		Buckets: make([]contract.OverviewPulseBucketPayload, 0, len(pulse.Buckets)),
+		WindowDays: pulse.WindowDays,
+		Buckets:    make([]contract.OverviewPulseBucketPayload, 0, len(pulse.Buckets)),
 	}
 	for _, bucket := range pulse.Buckets {
 		payload.Buckets = append(payload.Buckets, contract.OverviewPulseBucketPayload{
@@ -136,12 +135,4 @@ func overviewPulsePayload(pulse observe.OverviewPulse) contract.OverviewPulsePay
 		}
 	}
 	return payload
-}
-
-func cloneFloatPtr(value *float64) *float64 {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
 }

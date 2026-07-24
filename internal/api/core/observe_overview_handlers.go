@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,7 +13,7 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-const taskActionOverview = "overview"
+var errOverviewUsageWindow = errors.New("usage_window must be 7, 30, or 90")
 
 // ObserveOverview returns the observer-backed home overview read model.
 func (h *BaseHandlers) ObserveOverview(c *gin.Context) {
@@ -70,10 +71,8 @@ func parseOverviewUsageWindow(raw string) (int, error) {
 	if err != nil {
 		return 0, NewTaskValidationError(err)
 	}
-	switch window {
-	case 7, 30, 90:
-		return window, nil
-	default:
+	if err := observe.ValidateUsageWindowDays(window); err != nil {
 		return 0, NewTaskValidationError(errOverviewUsageWindow)
 	}
+	return window, nil
 }

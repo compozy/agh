@@ -22,10 +22,10 @@ function usageFigure(usage: HomeOverview["usage"]): string {
     }
     return `${usage.days.length} days`;
   }
-  return `≈ ${cost.toFixed(2)} ${usage.cost_currency ?? ""} estimated · ${usage.days.length} days`.replace(
-    "  ",
-    " "
-  );
+  const head = ["≈", cost.toFixed(2), usage.cost_currency, "estimated"]
+    .filter(part => part !== undefined && part !== null && part !== "")
+    .join(" ");
+  return `${head} · ${usage.days.length} days`;
 }
 
 /**

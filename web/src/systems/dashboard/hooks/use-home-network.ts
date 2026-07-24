@@ -2,12 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { networkStatusOptions, useNetworkUsage } from "@/systems/network";
 
-import type { HomeNetworkBudget, HomeNetworkRow } from "../components/home-network-panel";
+import type { HomeNetworkRow } from "../lib/home-network";
 
 export interface HomeNetworkModel {
   rows: HomeNetworkRow[];
-  budget: HomeNetworkBudget | null;
-  enabled: boolean;
 }
 
 export function useHomeNetwork(messagesToday: number | undefined): HomeNetworkModel {
@@ -54,5 +52,5 @@ export function useHomeNetwork(messagesToday: number | undefined): HomeNetworkMo
     });
   }
 
-  return { rows, budget: null, enabled: status?.enabled ?? false };
+  return { rows };
 }

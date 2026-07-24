@@ -10,6 +10,11 @@ import (
 )
 
 func (o *Observer) overviewAttention(ctx context.Context, query OverviewQuery) (OverviewAttention, error) {
+	taskScope, err := taskScopeFromCatalogScope(query.TaskScope)
+	if err != nil {
+		return OverviewAttention{}, err
+	}
+
 	page, err := o.QueryTaskInbox(ctx, TaskInboxQuery{
 		Scope:       query.TaskScope,
 		WorkspaceID: query.WorkspaceID,
@@ -19,14 +24,25 @@ func (o *Observer) overviewAttention(ctx context.Context, query OverviewQuery) (
 		return OverviewAttention{}, fmt.Errorf("observe: query attention inbox: %w", err)
 	}
 
-	needsAttention, err := o.registry.ListTasks(ctx, taskpkg.Query{
-		Scope:       taskScopeFromCatalogScope(query.TaskScope),
-		WorkspaceID: query.WorkspaceID,
-		Status:      taskpkg.TaskStatusNeedsAttention,
-		Limit:       overviewAttentionScan,
-	})
-	if err != nil {
-		return OverviewAttention{}, fmt.Errorf("observe: list needs-attention tasks: %w", err)
+	// needs_input mirrors the actor-scoped inbox ownership so it cannot surface
+	// needs-attention tasks the caller's inbox would withhold. An unmapped or
+	// anonymous actor cannot own tasks: skip the scan entirely rather than let an
+	// empty owner filter fall through to every needs-attention task in scope.
+	ownerKind := taskpkg.OwnerKindForActor(query.Actor.Kind)
+	ownerRef := strings.TrimSpace(query.Actor.Ref)
+	var needsAttention []taskpkg.Summary
+	if ownerKind != "" && ownerRef != "" {
+		needsAttention, err = o.registry.ListTasks(ctx, taskpkg.Query{
+			Scope:       taskScope,
+			WorkspaceID: query.WorkspaceID,
+			Status:      taskpkg.TaskStatusNeedsAttention,
+			OwnerKind:   ownerKind,
+			OwnerRef:    ownerRef,
+			Limit:       overviewAttentionScan,
+		})
+		if err != nil {
+			return OverviewAttention{}, fmt.Errorf("observe: list needs-attention tasks: %w", err)
+		}
 	}
 
 	attention := OverviewAttention{ByKind: map[string]int{}}
@@ -45,7 +61,6 @@ func (o *Observer) overviewAttention(ctx context.Context, query OverviewQuery) (
 			for _, item := range group.Items {
 				items = appendAttentionItem(items, seen, failureAttentionItem(item))
 			}
-		default:
 		}
 	}
 
@@ -68,20 +83,22 @@ func (o *Observer) overviewAttention(ctx context.Context, query OverviewQuery) (
 	}
 
 	attention.Items = items
+	// Total sums exact inbox facet counts (approval, failure) with the bounded
+	// owner-scoped needs_input scan (capped at overviewAttentionScan).
 	for _, count := range attention.ByKind {
 		attention.Total += count
 	}
 	return attention, nil
 }
 
-func taskScopeFromCatalogScope(scope taskpkg.CatalogScope) taskpkg.Scope {
+func taskScopeFromCatalogScope(scope taskpkg.CatalogScope) (taskpkg.Scope, error) {
 	switch scope {
 	case taskpkg.CatalogScopeGlobal:
-		return taskpkg.ScopeGlobal
+		return taskpkg.ScopeGlobal, nil
 	case taskpkg.CatalogScopeWorkspace:
-		return taskpkg.ScopeWorkspace
+		return taskpkg.ScopeWorkspace, nil
 	default:
-		return ""
+		return "", fmt.Errorf("observe: unsupported task catalog scope %q", scope)
 	}
 }
 

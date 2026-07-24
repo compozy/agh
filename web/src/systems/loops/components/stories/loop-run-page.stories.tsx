@@ -1,7 +1,11 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { LoopRunPageBody } from "../run-page/loop-run-page-body";
+import { useTopbarSlot, type TopbarSlotValue } from "@agh/ui";
+
+import { StoryTopbarHost } from "@/storybook/story-layout";
+
+import { LoopRunControls, LoopRunOverflowMenu, LoopRunPageBody, LoopStatusPill } from "../../index";
 import {
   buildScenarioProps,
   exhaustedScenario,
@@ -30,9 +34,51 @@ function ScenarioPage({
 }) {
   const [inspectOpen, setInspectOpen] = useState(inspectInitiallyOpen);
   const props = buildScenarioProps(scenario);
+  const topbarIdentity: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack"> = {
+    onBack: () => {},
+    crumbs: [
+      { id: "loops", label: "Loops", onSelect: () => {} },
+      { id: "runs", label: "Runs", onSelect: () => {} },
+    ],
+    crumb: props.run.id,
+  };
+
+  useTopbarSlot({
+    ...topbarIdentity,
+    status: <LoopStatusPill status={props.run.status} data-testid="loop-run-status-pill" />,
+    actions: (
+      <div className="flex items-center gap-2">
+        <LoopRunControls
+          status={props.run.status}
+          pauseRequested={props.run.pause_requested}
+          onPause={() => {}}
+          onResume={() => {}}
+          onStop={() => {}}
+        />
+        <LoopRunOverflowMenu
+          loopName={props.run.loop_name}
+          onInspect={() => setInspectOpen(true)}
+        />
+      </div>
+    ),
+  });
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-canvas">
+      <LoopRunPageBody {...props} inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }} />
+    </div>
+  );
+}
+
+function LoopRunPageStory({
+  scenario,
+  inspectInitiallyOpen = false,
+}: Parameters<typeof ScenarioPage>[0]) {
   return (
     <div className="flex h-dvh flex-col bg-canvas">
-      <LoopRunPageBody {...props} inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }} />
+      <StoryTopbarHost title="Loops">
+        <ScenarioPage scenario={scenario} inspectInitiallyOpen={inspectInitiallyOpen} />
+      </StoryTopbarHost>
     </div>
   );
 }
@@ -47,33 +93,41 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Running: Story = {
-  render: () => <ScenarioPage scenario={runningScenario()} />,
+  args: {},
+  render: () => <LoopRunPageStory scenario={runningScenario()} />,
 };
 
 export const NeedsApproval: Story = {
-  render: () => <ScenarioPage scenario={needsApprovalScenario()} />,
+  args: {},
+  render: () => <LoopRunPageStory scenario={needsApprovalScenario()} />,
 };
 
 export const Watching: Story = {
-  render: () => <ScenarioPage scenario={watchingScenario()} />,
+  args: {},
+  render: () => <LoopRunPageStory scenario={watchingScenario()} />,
 };
 
 export const Paused: Story = {
-  render: () => <ScenarioPage scenario={pausedScenario()} />,
+  args: {},
+  render: () => <LoopRunPageStory scenario={pausedScenario()} />,
 };
 
 export const Failed: Story = {
-  render: () => <ScenarioPage scenario={failedScenario()} />,
+  args: {},
+  render: () => <LoopRunPageStory scenario={failedScenario()} />,
 };
 
 export const Exhausted: Story = {
-  render: () => <ScenarioPage scenario={exhaustedScenario()} />,
+  args: {},
+  render: () => <LoopRunPageStory scenario={exhaustedScenario()} />,
 };
 
 export const NoOp: Story = {
-  render: () => <ScenarioPage scenario={noOpScenario()} />,
+  args: {},
+  render: () => <LoopRunPageStory scenario={noOpScenario()} />,
 };
 
 export const InspectOpen: Story = {
-  render: () => <ScenarioPage scenario={runningScenario()} inspectInitiallyOpen />,
+  args: {},
+  render: () => <LoopRunPageStory scenario={runningScenario()} inspectInitiallyOpen />,
 };

@@ -18,14 +18,20 @@ func (g *ObserveRepo) UpsertTokenUsageDaily(ctx context.Context, update store.To
 	if err := update.Validate(); err != nil {
 		return err
 	}
+	if err := g.queries.UpsertTokenUsageDaily(ctx, g.tokenUsageDailyParams(update)); err != nil {
+		return fmt.Errorf("store: upsert token usage daily for day %q: %w", update.Day, err)
+	}
+	return nil
+}
+
+func (g *ObserveRepo) tokenUsageDailyParams(update store.TokenUsageDailyUpdate) sqlcgen.UpsertTokenUsageDailyParams {
 	if update.UpdatedAt.IsZero() {
 		update.UpdatedAt = g.now()
 	}
 	if update.Turns <= 0 {
 		update.Turns = 1
 	}
-
-	if err := g.queries.UpsertTokenUsageDaily(ctx, sqlcgen.UpsertTokenUsageDailyParams{
+	return sqlcgen.UpsertTokenUsageDailyParams{
 		Day:          strings.TrimSpace(update.Day),
 		WorkspaceID:  strings.TrimSpace(update.WorkspaceID),
 		AgentName:    strings.TrimSpace(update.AgentName),
@@ -38,10 +44,7 @@ func (g *ObserveRepo) UpsertTokenUsageDaily(ctx context.Context, update store.To
 		CostSource:   update.CostSource,
 		TurnCount:    update.Turns,
 		UpdatedAt:    store.FormatTimestamp(update.UpdatedAt),
-	}); err != nil {
-		return fmt.Errorf("store: upsert token usage daily for day %q: %w", update.Day, err)
 	}
-	return nil
 }
 
 // ListTokenUsageByDay returns summed daily token usage inside the rollup window.
@@ -68,9 +71,9 @@ func (g *ObserveRepo) ListTokenUsageByDay(
 	for _, row := range rows {
 		days = append(days, store.TokenUsageDay{
 			Day:          row.Day,
-			InputTokens:  int64(row.InputTokens.Float64),
-			OutputTokens: int64(row.OutputTokens.Float64),
-			TotalTokens:  int64(row.TotalTokens.Float64),
+			InputTokens:  row.InputTokens,
+			OutputTokens: row.OutputTokens,
+			TotalTokens:  row.TotalTokens,
 		})
 	}
 	return days, nil
@@ -100,7 +103,7 @@ func (g *ObserveRepo) ListTokenUsageByAgent(
 	for _, row := range rows {
 		totals = append(totals, store.TokenUsageAgentTotal{
 			AgentName:   strings.TrimSpace(row.AgentName),
-			TotalTokens: int64(row.TotalTokens.Float64),
+			TotalTokens: row.TotalTokens,
 		})
 	}
 	return totals, nil
@@ -131,9 +134,9 @@ func (g *ObserveRepo) SumTokenUsageCost(
 		groups = append(groups, store.TokenUsageCostGroup{
 			CostStatus:      row.CostStatus,
 			CostSource:      row.CostSource,
-			Currency:        row.CostCurrency,
-			TotalCost:       row.TotalCost.Float64,
-			RowsWithoutCost: int64(row.RowsWithoutCost.Float64),
+			CostCurrency:    row.CostCurrency,
+			TotalCost:       row.TotalCost,
+			RowsWithoutCost: row.RowsWithoutCost,
 			RowsTotal:       row.RowsTotal,
 		})
 	}
@@ -153,7 +156,7 @@ func (g *ObserveRepo) CountTaskRunOutcomesByDay(
 	}
 
 	rows, err := g.queries.CountTaskRunOutcomesByDay(ctx, sqlcgen.CountTaskRunOutcomesByDayParams{
-		Since:       nullableObserveString(store.FormatTimestamp(query.Since)),
+		Since:       store.FormatTimestamp(query.Since),
 		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
 	})
 	if err != nil {
@@ -162,15 +165,11 @@ func (g *ObserveRepo) CountTaskRunOutcomesByDay(
 
 	days := make([]store.TaskRunOutcomeDay, 0, len(rows))
 	for _, row := range rows {
-		day, err := overviewDayString(row.Day)
-		if err != nil {
-			return nil, fmt.Errorf("store: scan task run outcome day: %w", err)
-		}
 		days = append(days, store.TaskRunOutcomeDay{
-			Day:       day,
-			Completed: int(row.Completed.Float64),
-			Failed:    int(row.Failed.Float64),
-			Canceled:  int(row.Canceled.Float64),
+			Day:       row.Day,
+			Completed: int(row.Completed),
+			Failed:    int(row.Failed),
+			Canceled:  int(row.Canceled),
 		})
 	}
 	return days, nil
@@ -189,7 +188,7 @@ func (g *ObserveRepo) CountTasksClosedByDay(
 	}
 
 	rows, err := g.queries.CountTasksClosedByDay(ctx, sqlcgen.CountTasksClosedByDayParams{
-		Since:       nullableObserveString(store.FormatTimestamp(query.Since)),
+		Since:       store.FormatTimestamp(query.Since),
 		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
 	})
 	if err != nil {
@@ -198,11 +197,7 @@ func (g *ObserveRepo) CountTasksClosedByDay(
 
 	days := make([]store.TaskClosedDay, 0, len(rows))
 	for _, row := range rows {
-		day, err := overviewDayString(row.Day)
-		if err != nil {
-			return nil, fmt.Errorf("store: scan task closed day: %w", err)
-		}
-		days = append(days, store.TaskClosedDay{Day: day, Closed: int(row.Closed)})
+		days = append(days, store.TaskClosedDay{Day: row.Day, Closed: int(row.Closed)})
 	}
 	return days, nil
 }
@@ -248,11 +243,10 @@ func (g *ObserveRepo) LatestEventSummaryAt(ctx context.Context, workspaceID stri
 	if err != nil {
 		return time.Time{}, fmt.Errorf("store: query latest event summary timestamp: %w", err)
 	}
-	raw, ok := latest.(string)
-	if !ok || strings.TrimSpace(raw) == "" {
+	if strings.TrimSpace(latest) == "" {
 		return time.Time{}, nil
 	}
-	parsed, err := store.ParseTimestamp(raw)
+	parsed, err := store.ParseTimestamp(latest)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("store: parse latest event summary timestamp: %w", err)
 	}
@@ -299,7 +293,7 @@ func (g *ObserveRepo) CountHookDispatchesSince(
 	}
 	return store.HookDispatchCounts{
 		Runs:     int(row.Runs),
-		Failures: int(row.Failures.Float64),
+		Failures: int(row.Failures),
 	}, nil
 }
 
@@ -332,45 +326,19 @@ func (g *ObserveRepo) LongestUserSessionSince(
 	if err != nil {
 		return nil, fmt.Errorf("store: parse longest session start: %w", err)
 	}
-	runtimeSeconds, err := overviewInt64(row.RuntimeSeconds)
-	if err != nil {
-		return nil, fmt.Errorf("store: scan longest session runtime: %w", err)
-	}
 	return &store.LongestSessionSample{
 		SessionID:      row.ID,
 		AgentName:      strings.TrimSpace(row.AgentName),
 		StartedAt:      startedAt,
-		RuntimeSeconds: runtimeSeconds,
+		RuntimeSeconds: row.RuntimeSeconds,
 	}, nil
 }
 
+// overviewTokenDelta treats a nil delta as a zero contribution; negative deltas
+// are rejected upstream by TokenUsageDailyUpdate.Validate.
 func overviewTokenDelta(value *int64) int64 {
-	if value == nil || *value < 0 {
+	if value == nil {
 		return 0
 	}
 	return *value
-}
-
-func overviewDayString(value any) (string, error) {
-	switch typed := value.(type) {
-	case string:
-		return typed, nil
-	case []byte:
-		return string(typed), nil
-	default:
-		return "", fmt.Errorf("unexpected day column type %T", value)
-	}
-}
-
-func overviewInt64(value any) (int64, error) {
-	switch typed := value.(type) {
-	case int64:
-		return typed, nil
-	case float64:
-		return int64(typed), nil
-	case nil:
-		return 0, nil
-	default:
-		return 0, fmt.Errorf("unexpected integer column type %T", value)
-	}
 }

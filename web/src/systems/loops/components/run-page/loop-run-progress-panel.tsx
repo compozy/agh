@@ -29,7 +29,7 @@ export function LoopRunProgressPanel({ title, doneWhen, progress }: LoopRunProgr
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
         <div className="px-4.5 pt-4 pb-4.25">
           <h2
-            className="text-item-title font-medium tracking-[-0.014em] text-pretty text-fg-strong"
+            className="text-item-title font-medium tracking-tight text-pretty text-fg-strong"
             data-testid="loop-run-goal"
           >
             {title}

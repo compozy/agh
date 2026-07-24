@@ -7,6 +7,7 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -159,8 +160,9 @@ func TestQueryObserveOverviewValidation(t *testing.T) {
 
 		query := fixture.query()
 		query.UsageWindowDays = 13
-		if _, err := fixture.observer.QueryObserveOverview(observeTestContext(t), query); err == nil {
-			t.Fatal("QueryObserveOverview(window 13) error = nil, want validation error")
+		_, err := fixture.observer.QueryObserveOverview(observeTestContext(t), query)
+		if err == nil || !strings.Contains(err.Error(), "unsupported usage window 13") {
+			t.Fatalf("QueryObserveOverview(window 13) error = %v, want unsupported usage window 13", err)
 		}
 	})
 }
@@ -183,10 +185,19 @@ func TestQueryObserveOverviewComposition(t *testing.T) {
 		if view.Today != (OverviewToday{}) {
 			t.Fatalf("Today = %+v, want zeros", view.Today)
 		}
-		if len(view.Outcomes.Days) != 0 || view.Outcomes.SuccessPct != 0 {
-			t.Fatalf("Outcomes = %+v, want empty", view.Outcomes)
+		if len(view.Outcomes.Days) != overviewOutcomeWindowDays ||
+			view.Outcomes.WindowDays != overviewOutcomeWindowDays {
+			t.Fatalf(
+				"Outcomes.Days = %d, want %d zero-filled days",
+				len(view.Outcomes.Days),
+				overviewOutcomeWindowDays,
+			)
 		}
-		if view.Usage.EstimatedCost != nil || view.Usage.CostStatus != "unknown" {
+		if view.Outcomes.Completed != 0 || view.Outcomes.Failed != 0 ||
+			view.Outcomes.Canceled != 0 || view.Outcomes.SuccessPct != 0 {
+			t.Fatalf("Outcomes = %+v, want empty totals", view.Outcomes)
+		}
+		if view.Usage.EstimatedCost != nil || view.Usage.CostStatus != string(modelcatalog.CostStatusUnknown) {
 			t.Fatalf("Usage cost = %+v/%q, want nil/unknown", view.Usage.EstimatedCost, view.Usage.CostStatus)
 		}
 		if view.Usage.WindowDays != 30 || !view.Usage.Truncated || view.Usage.RetentionDays != 7 {
@@ -198,7 +209,7 @@ func TestQueryObserveOverviewComposition(t *testing.T) {
 		if view.Pulse.Busiest != nil || view.Pulse.LongestSession != nil {
 			t.Fatalf("Pulse insights = %+v, want omitted", view.Pulse)
 		}
-		if view.Freshness.Status != "empty" {
+		if view.Freshness.Status != freshnessStatusEmpty {
 			t.Fatalf("Freshness.Status = %q, want empty", view.Freshness.Status)
 		}
 		if view.System.RetentionDays != 7 {
@@ -251,8 +262,12 @@ func TestQueryObserveOverviewComposition(t *testing.T) {
 		if view.Outcomes.SuccessPct != 75 {
 			t.Fatalf("Outcomes.SuccessPct = %v, want 75", view.Outcomes.SuccessPct)
 		}
-		if len(view.Outcomes.Days) != 2 {
-			t.Fatalf("Outcomes.Days = %+v, want 2 buckets", view.Outcomes.Days)
+		if len(view.Outcomes.Days) != overviewOutcomeWindowDays {
+			t.Fatalf(
+				"Outcomes.Days = %d, want %d zero-filled buckets",
+				len(view.Outcomes.Days),
+				overviewOutcomeWindowDays,
+			)
 		}
 	})
 
@@ -383,6 +398,7 @@ func TestQueryObserveOverviewComposition(t *testing.T) {
 			ID:     "task-input",
 			Title:  "Competitor research",
 			Status: taskpkg.TaskStatusNeedsAttention,
+			Owner:  &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "tester"},
 			NeedsAttention: &taskpkg.NeedsAttention{
 				Reason: "question from peer",
 				At:     fixture.now.Add(-time.Hour),
@@ -423,6 +439,48 @@ func TestQueryObserveOverviewComposition(t *testing.T) {
 		needsInput := itemsByKind[OverviewAttentionKindNeedsInput]
 		if needsInput.TaskID != "task-input" || strings.Join(needsInput.Actions, ",") != "open" {
 			t.Fatalf("needs-input item = %+v, want open action", needsInput)
+		}
+	})
+
+	t.Run("Should withhold needs_input tasks owned by another actor", func(t *testing.T) {
+		t.Parallel()
+		fixture := newOverviewFixture(t)
+		ctx := observeTestContext(t)
+
+		fixture.seedTask(t, taskpkg.Task{
+			ID:     "task-foreign",
+			Title:  "Someone else's escalation",
+			Status: taskpkg.TaskStatusNeedsAttention,
+			Owner:  &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "intruder"},
+			NeedsAttention: &taskpkg.NeedsAttention{
+				Reason: "not yours",
+				At:     fixture.now.Add(-time.Hour),
+				By:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "intruder"},
+			},
+		})
+		fixture.seedTask(t, taskpkg.Task{
+			ID:     "task-mine",
+			Title:  "My escalation",
+			Status: taskpkg.TaskStatusNeedsAttention,
+			Owner:  &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "tester"},
+			NeedsAttention: &taskpkg.NeedsAttention{
+				Reason: "yours",
+				At:     fixture.now.Add(-time.Hour),
+				By:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
+			},
+		})
+
+		view, err := fixture.observer.QueryObserveOverview(ctx, fixture.query())
+		if err != nil {
+			t.Fatalf("QueryObserveOverview() error = %v", err)
+		}
+		if got := view.Attention.ByKind[OverviewAttentionKindNeedsInput]; got != 1 {
+			t.Fatalf("needs_input = %d, want 1 (only the caller-owned task)", got)
+		}
+		for _, item := range view.Attention.Items {
+			if item.TaskID == "task-foreign" {
+				t.Fatalf("attention leaked a task owned by another actor: %+v", item)
+			}
 		}
 	})
 }

@@ -1,5 +1,6 @@
 import { Panel, Section } from "@agh/ui";
 
+import { formatHomeDurationSeconds } from "../lib/home-formatters";
 import type { HomeOverview, HomePulseBucket } from "../types";
 
 export interface HomePulseHeatmapProps {
@@ -9,6 +10,9 @@ export interface HomePulseHeatmapProps {
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 /** Monday-first display order over the backend's Sunday-first weekday index. */
 const WEEKDAY_ROWS = [1, 2, 3, 4, 5, 6, 0] as const;
+/** Fixed weekday-label track + 24 hour cells, sized by the home-pulse tokens. */
+const PULSE_GRID_COLUMNS =
+  "var(--size-home-pulse-label) repeat(24, minmax(var(--size-home-pulse-cell-min), 1fr))";
 
 function cellBackground(events: number, max: number): string | undefined {
   if (events <= 0 || max <= 0) {
@@ -16,15 +20,6 @@ function cellBackground(events: number, max: number): string | undefined {
   }
   const share = 5 + Math.round((events / max) * 50);
   return `color-mix(in srgb, var(--color-viz-cell) ${share}%, transparent)`;
-}
-
-function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
 }
 
 /**
@@ -54,9 +49,9 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
         <div className="overflow-x-auto px-4 pt-4 pb-1.5">
           <div
             aria-label={`Activity heatmap by hour and weekday over the last 14 days; ${busiestLabel}`}
-            className="grid min-w-[640px] gap-[3px]"
+            className="grid min-w-[var(--size-home-pulse-min-w)] gap-[var(--space-home-pulse-gap)]"
             role="img"
-            style={{ gridTemplateColumns: "34px repeat(24, minmax(18px, 1fr))" }}
+            style={{ gridTemplateColumns: PULSE_GRID_COLUMNS }}
           >
             {WEEKDAY_ROWS.map(weekday => (
               <HeatmapRow byCell={byCell} key={weekday} max={max} weekday={weekday} />
@@ -97,7 +92,7 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
               <span>
                 Longest session{" "}
                 <span className="font-medium text-fg">
-                  {formatDuration(pulse.longest_session.duration_seconds)}
+                  {formatHomeDurationSeconds(pulse.longest_session.duration_seconds, "compact")}
                 </span>{" "}
                 <span className="font-mono text-micro tabular-nums text-subtle">
                   {pulse.longest_session.agent_name} · {pulse.longest_session.date}
@@ -127,7 +122,7 @@ function HeatmapRow({
         const events = byCell.get(`${weekday}:${hour}`)?.events ?? 0;
         return (
           <div
-            className="h-[15px] rounded-xs bg-input-fill"
+            className="h-[var(--size-home-pulse-cell)] rounded-xs bg-input-fill"
             key={hour}
             style={{ background: cellBackground(events, max) }}
             title={`${WEEKDAY_LABELS[weekday]} ${String(hour).padStart(2, "0")}:00 · ${events} events`}

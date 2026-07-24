@@ -5,8 +5,8 @@ import {
   Bot,
   Clock3,
   Globe,
+  Home,
   KeyRound,
-  LayoutDashboard,
   ListChecks,
   Repeat2,
   Settings,
@@ -152,7 +152,7 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   dashboard: {
     id: "dashboard",
     title: "Home",
-    icon: LayoutDashboard,
+    icon: Home,
     paths: ["/"],
     dock: { group: 1 },
     preload: preloadDashboard,

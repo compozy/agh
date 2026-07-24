@@ -70,12 +70,29 @@ func seedOverviewSession(
 	updatedAt time.Time,
 ) {
 	t.Helper()
+	seedOverviewSessionWithState(
+		t, globalDB, sessionID, workspaceID, agentName, sessionType, "stopped", createdAt, updatedAt,
+	)
+}
+
+func seedOverviewSessionWithState(
+	t *testing.T,
+	globalDB *GlobalDB,
+	sessionID string,
+	workspaceID string,
+	agentName string,
+	sessionType string,
+	state string,
+	createdAt time.Time,
+	updatedAt time.Time,
+) {
+	t.Helper()
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO sessions (
 			id, agent_name, workspace_id, session_type, state, created_at, updated_at
-		) VALUES (?, ?, ?, ?, 'stopped', ?, ?)`,
-		sessionID, agentName, workspaceID, sessionType,
+		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		sessionID, agentName, workspaceID, sessionType, state,
 		store.FormatTimestamp(createdAt), store.FormatTimestamp(updatedAt),
 	); err != nil {
 		t.Fatalf("seed session %q error = %v", sessionID, err)
@@ -152,6 +169,62 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 		}
 		if len(groups) != 1 || groups[0].CostStatus != "estimated" || groups[0].TotalCost != 1.0 {
 			t.Fatalf("SumTokenUsageCost() = %+v, want one estimated group totalling 1.0", groups)
+		}
+	})
+
+	t.Run("Should roll back token_stats when the daily rollup write fails", func(t *testing.T) {
+		t.Parallel()
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+
+		// Force the second statement of RecordTokenUsage (the daily rollup insert) to
+		// abort, so the whole transaction — including the token_stats upsert — must roll back.
+		// A non-TEMP trigger lives in this unique DB's schema, so it applies to whichever
+		// pooled connection RecordTokenUsage acquires (a TEMP trigger would be connection-local).
+		if _, err := globalDB.db.ExecContext(ctx,
+			`CREATE TRIGGER fail_token_usage_daily BEFORE INSERT ON token_usage_daily `+
+				`BEGIN SELECT RAISE(ABORT, 'forced daily rollup failure'); END;`,
+		); err != nil {
+			t.Fatalf("create abort trigger error = %v", err)
+		}
+		t.Cleanup(func() {
+			if _, err := globalDB.db.ExecContext(
+				testutil.Context(t), `DROP TRIGGER IF EXISTS fail_token_usage_daily`,
+			); err != nil {
+				t.Errorf("drop abort trigger error = %v", err)
+			}
+		})
+
+		err := globalDB.RecordTokenUsage(ctx,
+			store.TokenStatsUpdate{
+				SessionID: "sess-atomic", AgentName: "writer",
+				TotalTokens: new(int64(140)), CostStatus: "unknown", CostSource: "none",
+				UpdatedAt: time.Now(),
+			},
+			store.TokenUsageDailyUpdate{
+				Day: "2026-07-24", AgentName: "writer",
+				TotalTokens: new(int64(140)), CostStatus: "unknown", CostSource: "none",
+				UpdatedAt: time.Now(),
+			},
+		)
+		if err == nil {
+			t.Fatal("RecordTokenUsage() error = nil, want the forced daily rollup failure")
+		}
+
+		stats, err := globalDB.ListTokenStats(ctx, store.TokenStatsQuery{SessionID: "sess-atomic", Limit: 10})
+		if err != nil {
+			t.Fatalf("ListTokenStats() error = %v", err)
+		}
+		if len(stats) != 0 {
+			t.Fatalf("token_stats rows = %d, want 0 (RecordTokenUsage must roll back both writes)", len(stats))
+		}
+
+		daily, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{SinceDay: "2026-07-24"})
+		if err != nil {
+			t.Fatalf("ListTokenUsageByDay() error = %v", err)
+		}
+		if len(daily) != 0 {
+			t.Fatalf("token_usage_daily rows = %d, want 0 (neither write may persist)", len(daily))
 		}
 	})
 
@@ -597,6 +670,35 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 		}
 		if none != nil {
 			t.Fatalf("LongestUserSessionSince(scoped) = %+v, want nil", none)
+		}
+	})
+
+	t.Run("Should measure active user session runtime against now", func(t *testing.T) {
+		t.Parallel()
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		// The pre-registered session is dated 2026-04-03; inject a now far enough
+		// ahead that it falls outside the 13-day window and cannot compete.
+		now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+		globalDB.now = func() time.Time { return now }
+		workspaceID := registerSessionForGlobalTests(t, globalDB, "sess-overview-active")
+
+		start := now.Add(-90 * time.Minute)
+		// Active session: updated_at is stale, so runtime must measure against now, not updated_at.
+		seedOverviewSessionWithState(t, globalDB, "sess-active", workspaceID, "writer", "user", "active",
+			start, start.Add(5*time.Minute))
+
+		longest, err := globalDB.LongestUserSessionSince(ctx, store.OverviewSinceQuery{
+			Since: store.LocalDayStart(now, 13),
+		})
+		if err != nil {
+			t.Fatalf("LongestUserSessionSince() error = %v", err)
+		}
+		if longest == nil || longest.SessionID != "sess-active" {
+			t.Fatalf("LongestUserSessionSince() = %+v, want sess-active", longest)
+		}
+		if longest.RuntimeSeconds != int64((90 * time.Minute).Seconds()) {
+			t.Fatalf("RuntimeSeconds = %d, want 5400 (now - start, not updated_at)", longest.RuntimeSeconds)
 		}
 	})
 }

@@ -13,6 +13,7 @@ import {
 
 import type { LoopGateVerdict } from "../../lib/loop-events";
 import { type LoopGraph, fanOutSummary, findWatchNode } from "../../lib/loop-graph";
+import { onExceededPolicy } from "../../lib/loop-limits";
 import type {
   LoopDefinition,
   LoopRunEventFrame,
@@ -63,6 +64,16 @@ function fanOutTileValue(graph: LoopGraph | null): string {
   return fanOutSummary(node) ?? node.id;
 }
 
+/**
+ * Single-line `budget_on_exceeded` label for the inspect "On limit" tile. Mirrors
+ * the split `value`/`ceiling` copy `buildLoopLimits` renders on the limits rail
+ * (`lib/loop-limits.ts`) — the two are the same policy→outcome vocabulary.
+ */
+function onExceededPolicyLabel(policy: LoopRunRecord["budget_on_exceeded"]): string {
+  const { policy: label, target } = onExceededPolicy(policy);
+  return `${label} ${target}`;
+}
+
 function buildTiles(
   run: LoopRunRecord,
   definition: LoopDefinition | undefined,
@@ -83,11 +94,7 @@ function buildTiles(
     { label: "Concurrency", value: definition?.concurrency || "—" },
     { label: "Watch source", value: watchTileValue(graph) },
     { label: "Fan-out", value: fanOutTileValue(graph) },
-    {
-      label: "On limit",
-      value:
-        run.budget_on_exceeded === "escalate" ? "escalate → needs-approval" : "halt → exhausted",
-    },
+    { label: "On limit", value: onExceededPolicyLabel(run.budget_on_exceeded) },
     {
       label: "No-progress window",
       value:

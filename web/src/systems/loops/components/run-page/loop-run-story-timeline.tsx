@@ -1,7 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 import { Activity, Bell, Check, Eye, Pause, Play, Square, TriangleAlert, X } from "lucide-react";
 
-import { Empty, formatAbsoluteTime, formatRelativeTime, type PillTone } from "@agh/ui";
+import { cn, Empty, formatAbsoluteTime, formatRelativeTime, type PillTone } from "@agh/ui";
 
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import type { LoopStoryIcon, LoopStoryRow } from "../../lib/loop-run-story";
@@ -65,11 +65,11 @@ function StoryRow({ row, turnsSlot }: { row: LoopStoryRow; turnsSlot: ReactNode 
   const Icon = ICONS[row.icon];
   return (
     <div
-      className={[
+      className={cn(
         "relative grid grid-cols-[22px_minmax(0,1fr)_auto] items-start gap-3 py-2.25",
         "before:absolute before:top-0 before:bottom-0 before:left-[10.5px] before:w-px",
-        "before:bg-line-strong first:before:top-3.5 last:before:bottom-auto last:before:h-3.5",
-      ].join(" ")}
+        "before:bg-line-strong first:before:top-3.5 last:before:bottom-auto last:before:h-3.5"
+      )}
       data-kind={row.kind}
       data-testid="loop-story-row"
     >
@@ -119,7 +119,15 @@ export function LoopRunStoryTimeline({
   isLoadingMoreGoalTurns = false,
   onLoadMoreGoalTurns,
 }: LoopRunStoryTimelineProps) {
+  // Pure pre-pass: the newest row of each goal node hosts the Turns disclosure.
+  const turnsHostKeys = new Set<string>();
   const seenGoalNodes = new Set<string>();
+  for (const row of rows) {
+    if (row.nodeId !== undefined && goalNodeIds.has(row.nodeId) && !seenGoalNodes.has(row.nodeId)) {
+      seenGoalNodes.add(row.nodeId);
+      turnsHostKeys.add(row.key);
+    }
+  }
   return (
     <LoopRunSection label="What happened" data-testid="loop-run-story">
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
@@ -132,30 +140,23 @@ export function LoopRunStoryTimeline({
           />
         ) : (
           <div className="px-4 pt-1.5 pb-2.5">
-            {rows.map(row => {
-              const hostsTurns =
-                row.nodeId !== undefined &&
-                goalNodeIds.has(row.nodeId) &&
-                !seenGoalNodes.has(row.nodeId);
-              if (hostsTurns && row.nodeId) seenGoalNodes.add(row.nodeId);
-              return (
-                <StoryRow
-                  key={row.key}
-                  row={row}
-                  turnsSlot={
-                    hostsTurns ? (
-                      <LoopRunTurnsDisclosure
-                        hasMore={hasMoreGoalTurns}
-                        isLoadingMore={isLoadingMoreGoalTurns}
-                        live={isLive}
-                        onLoadMore={onLoadMoreGoalTurns}
-                        turns={goalTurns.filter(turn => turn.nodeId === row.nodeId)}
-                      />
-                    ) : null
-                  }
-                />
-              );
-            })}
+            {rows.map(row => (
+              <StoryRow
+                key={row.key}
+                row={row}
+                turnsSlot={
+                  turnsHostKeys.has(row.key) ? (
+                    <LoopRunTurnsDisclosure
+                      hasMore={hasMoreGoalTurns}
+                      isLoadingMore={isLoadingMoreGoalTurns}
+                      isLive={isLive}
+                      onLoadMore={onLoadMoreGoalTurns}
+                      turns={goalTurns.filter(turn => turn.nodeId === row.nodeId)}
+                    />
+                  ) : null
+                }
+              />
+            ))}
           </div>
         )}
       </div>

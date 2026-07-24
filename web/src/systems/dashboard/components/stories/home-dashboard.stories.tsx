@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { SessionCreateProvider, type SessionCreateContextValue } from "@/systems/session";
+
 import type { HomeAgentRow } from "../../hooks/use-home-agents";
 import type { HomeSystemModel } from "../../hooks/use-home-system";
-import type { HomeRunCardModel } from "../../hooks/use-home-working-now";
+import type { HomeRunCardModel, HomeWorkingNowStatus } from "../../types";
 import { makeHomeOverview } from "../../mocks/fixtures";
 import type { HomeActivityEvent } from "../../types";
 import { HomeActivityFeed } from "../home-activity-feed";
@@ -19,8 +21,16 @@ import { HomeWorkingNow } from "../home-working-now";
 
 const NOW = Date.parse("2026-07-23T12:00:00Z");
 
+const STORY_SESSION_CREATE: SessionCreateContextValue = {
+  openForAgent: () => {},
+  isCreating: false,
+  pendingAgentName: null,
+  hasActiveWorkspace: true,
+};
+
 const overview = makeHomeOverview({
   pulse: {
+    window_days: 14,
     buckets: Array.from({ length: 7 * 24 }, (_, index) => {
       const weekday = Math.floor(index / 24);
       const hour = index % 24;
@@ -217,33 +227,52 @@ const systemModel: HomeSystemModel = {
   ],
 };
 
-function HomeDashboardStory({ systemOpen = false }: { systemOpen?: boolean }) {
+interface HomeDashboardStoryProps {
+  systemOpen?: boolean;
+  workingNowStatus?: HomeWorkingNowStatus;
+  workingNowErrorMessage?: string;
+}
+
+function HomeDashboardStory({
+  systemOpen = false,
+  workingNowStatus = "ready",
+  workingNowErrorMessage,
+}: HomeDashboardStoryProps) {
+  const workingNowIsError = workingNowStatus === "error";
+  const visibleWorkingNowCards = workingNowIsError ? [] : workingNowCards;
   return (
-    <div className="mx-auto w-full max-w-[1240px] px-9 pt-6 pb-20">
-      <HomePageMeta today={new Date(NOW)} workspaceName="launch-hq" />
-      <div className="flex flex-col gap-6">
-        <HomeAttentionZone attention={overview.attention} />
-        <HomeKpiStrip
-          overview={overview}
-          workingNowDetail="2 sessions · 1 task run"
-          workingNowTotal={3}
-        />
-        <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-          <HomeWorkingNow cards={workingNowCards} total={3} />
-          <HomeNetworkPanel budget={null} rows={networkRows} />
+    <SessionCreateProvider value={STORY_SESSION_CREATE}>
+      <div className="mx-auto w-full max-w-[1240px] px-9 pt-6 pb-20">
+        <HomePageMeta today={new Date(NOW)} workspaceName="launch-hq" />
+        <div className="flex flex-col gap-6">
+          <HomeAttentionZone attention={overview.attention} />
+          <HomeKpiStrip
+            overview={overview}
+            workingNowDetail="2 sessions · 1 task run"
+            workingNowTotal={3}
+          />
+          <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
+            <HomeWorkingNow
+              cards={visibleWorkingNowCards}
+              errorMessage={workingNowErrorMessage}
+              status={workingNowStatus}
+              total={visibleWorkingNowCards.length}
+            />
+            <HomeNetworkPanel rows={networkRows} />
+          </div>
+          <HomePulseHeatmap pulse={overview.pulse} />
+          <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
+            <HomeOutcomesChart outcomes={overview.outcomes} />
+            <HomeUsageChart onWindowChange={() => {}} usage={overview.usage} window={30} />
+          </div>
+          <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
+            <HomeAgentsPanel rows={agentRows} />
+            <HomeActivityFeed events={activityEvents} />
+          </div>
+          <HomeSystemPanel onOpenChange={() => {}} open={systemOpen} system={systemModel} />
         </div>
-        <HomePulseHeatmap pulse={overview.pulse} />
-        <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-          <HomeOutcomesChart outcomes={overview.outcomes} />
-          <HomeUsageChart onWindowChange={() => {}} usage={overview.usage} window={30} />
-        </div>
-        <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-          <HomeAgentsPanel rows={agentRows} />
-          <HomeActivityFeed events={activityEvents} />
-        </div>
-        <HomeSystemPanel onOpenChange={() => {}} open={systemOpen} system={systemModel} />
       </div>
-    </div>
+    </SessionCreateProvider>
   );
 }
 
@@ -268,4 +297,15 @@ export const FullPage: Story = {};
 
 export const SystemExpanded: Story = {
   render: () => <HomeDashboardStory systemOpen />,
+};
+
+export const WorkingNowPartial: Story = {
+  args: { workingNowStatus: "partial" },
+};
+
+export const WorkingNowError: Story = {
+  args: {
+    workingNowStatus: "error",
+    workingNowErrorMessage: "The daemon did not return active work.",
+  },
 };

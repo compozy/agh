@@ -1,9 +1,13 @@
+import type { ComponentProps } from "react";
 import { Search } from "lucide-react";
+
+import { Button, cn } from "@agh/ui";
 
 import type {
   LoopApprovalFact,
   LoopApprovalRequest,
   LoopCoordinatorFailure,
+  LoopGateDecision,
   LoopGateVerdict,
 } from "../../lib/loop-events";
 import type { LoopGraph } from "../../lib/loop-graph";
@@ -16,11 +20,12 @@ import type {
   LoopDefinition,
   LoopRunEventFrame,
   LoopRunRecord,
+  LoopRunStatus,
   LoopWatchEventsState,
 } from "../../types";
 import { LoopRunAboutRail } from "./loop-run-about-rail";
 import { LoopRunInspectSheet } from "./loop-run-inspect-sheet";
-import { LoopRunNeedsYouCard, type LoopGateDecision } from "./loop-run-needs-you-card";
+import { LoopRunNeedsYouCard } from "./loop-run-needs-you-card";
 import { LoopRunNextNote } from "./loop-run-next-note";
 import { LoopRunNowCard } from "./loop-run-now-card";
 import { LoopRunOutcomeCard } from "./loop-run-outcome-card";
@@ -31,7 +36,13 @@ import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
 import { LoopRunUsageRail } from "./loop-run-usage-rail";
 
 /** Statuses that render the terminal extra card at the top of the main column (§7). */
-const OUTCOME_STATUSES = new Set(["failed", "blocked", "exhausted", "stalled", "no-op"]);
+const OUTCOME_STATUSES = new Set<LoopRunStatus>([
+  "failed",
+  "blocked",
+  "exhausted",
+  "stalled",
+  "no-op",
+]);
 
 export interface LoopRunGoalTurnsPaging {
   hasMore: boolean;
@@ -47,7 +58,7 @@ export interface LoopRunInspectState {
 /** The one in-flight page action; the matching control disables while set. */
 export type LoopRunPendingAction = "approve" | "start-new-run";
 
-export interface LoopRunPageBodyProps {
+export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "children"> {
   run: LoopRunRecord;
   definition?: LoopDefinition;
   graph: LoopGraph | null;
@@ -78,6 +89,7 @@ export interface LoopRunPageBodyProps {
   nextNote: string | null;
   showNowCard: boolean;
   terminalFromStatus?: string;
+  terminalAt?: string;
   inspect: LoopRunInspectState;
   pendingAction?: LoopRunPendingAction;
   onDecision: (decision: LoopGateDecision, gateId: string) => void;
@@ -95,29 +107,65 @@ function shortDigest(digest: string): string {
  * What happens next — and the 320px Usage + About rail with the Inspect foot.
  * Purely presentational; the location wires the view-model hook into it.
  */
-export function LoopRunPageBody(props: LoopRunPageBodyProps) {
-  const { run, story, goalTurnsPaging, inspect } = props;
+export function LoopRunPageBody({
+  run,
+  definition,
+  graph,
+  isLive,
+  subject,
+  hasWatchSource,
+  elapsedLabel,
+  stepElapsedLabel,
+  progress,
+  story,
+  goalIds,
+  goalTurns,
+  goalTurnsPaging,
+  usageRows,
+  usageNote,
+  approvalRequest,
+  approvalFallbackFacts,
+  failure,
+  latestVerdict,
+  watchEvents,
+  watchCadence,
+  frames,
+  inputRows,
+  startedBy,
+  workspaceLabel,
+  versionLabel,
+  nextNote,
+  showNowCard,
+  terminalFromStatus,
+  terminalAt,
+  inspect,
+  pendingAction,
+  onDecision,
+  onStartNewRun,
+  className,
+  ...divProps
+}: LoopRunPageBodyProps) {
   const status = run.status;
-  const contract = props.definition?.contract;
+  const contract = definition?.contract;
   const nowTurnsSlot =
     story.now?.isGoalNode === true ? (
       <LoopRunTurnsDisclosure
         hasMore={goalTurnsPaging?.hasMore}
         isLoadingMore={goalTurnsPaging?.isLoading}
-        live={props.isLive}
+        isLive={isLive}
         onLoadMore={goalTurnsPaging?.onLoadMore}
-        turns={props.goalTurns.filter(turn => turn.nodeId === story.now?.nodeId)}
+        turns={goalTurns.filter(turn => turn.nodeId === story.now?.nodeId)}
       />
     ) : undefined;
 
-  const nowCard = props.showNowCard ? (
+  const nowCard = showNowCard ? (
     <LoopRunNowCard
       run={run}
       now={story.now}
-      watchLastWakeAt={props.watchEvents?.last_wake_at ?? undefined}
-      watchCadence={props.watchCadence}
-      stepElapsedLabel={props.stepElapsedLabel}
-      isLive={props.isLive}
+      watchLastWakeAt={watchEvents?.last_wake_at ?? undefined}
+      watchCadence={watchCadence}
+      stepElapsedLabel={stepElapsedLabel}
+      isLive={isLive}
     >
       {nowTurnsSlot}
     </LoopRunNowCard>
@@ -125,77 +173,80 @@ export function LoopRunPageBody(props: LoopRunPageBodyProps) {
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+      className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", className)}
       data-testid="loop-run-detail-content"
+      {...divProps}
     >
       <div className="mx-auto w-full max-w-[1240px] px-9 pt-6 pb-18 max-[1080px]:px-5">
         <LoopRunSubhead
           run={run}
-          subject={props.subject}
-          hasWatchSource={props.hasWatchSource}
-          elapsedLabel={props.elapsedLabel}
+          subject={subject}
+          hasWatchSource={hasWatchSource}
+          elapsedLabel={elapsedLabel}
         />
         <div className="mt-5.5 grid grid-cols-1 items-start gap-8 min-[1080px]:grid-cols-[minmax(0,1fr)_320px]">
           <main className="flex min-w-0 flex-col gap-6.5">
             {status === "needs-approval" ? (
               <LoopRunNeedsYouCard
                 run={run}
-                request={props.approvalRequest}
-                fallbackFacts={props.approvalFallbackFacts}
-                isPending={props.pendingAction === "approve"}
-                onDecision={props.onDecision}
+                request={approvalRequest}
+                fallbackFacts={approvalFallbackFacts}
+                isPending={pendingAction === "approve"}
+                onDecision={onDecision}
               />
             ) : null}
             {OUTCOME_STATUSES.has(status) ? (
               <LoopRunOutcomeCard
                 run={run}
-                failure={props.failure}
-                durationLabel={props.elapsedLabel}
-                fromStatus={props.terminalFromStatus}
+                failure={failure}
+                fromStatus={terminalFromStatus}
+                terminalAt={terminalAt}
                 noProgressWindow={contract?.no_progress.window}
-                repeatedIssueIds={props.latestVerdict?.blockingIssues.map(issue => issue.id) ?? []}
-                onStartNewRun={props.onStartNewRun}
-                isStartPending={props.pendingAction === "start-new-run"}
+                repeatedIssueIds={latestVerdict?.blockingIssues.map(issue => issue.id) ?? []}
+                onStartNewRun={onStartNewRun}
+                isStartPending={pendingAction === "start-new-run"}
               />
             ) : null}
             {status === "paused" ? nowCard : null}
             <LoopRunProgressPanel
               title={contract?.goal ?? `Run ${run.loop_name}`}
               doneWhen={contract?.definition_of_done}
-              progress={props.progress}
+              progress={progress}
             />
             {status !== "paused" ? nowCard : null}
             <LoopRunStoryTimeline
               rows={story.rows}
-              isLive={props.isLive}
-              goalNodeIds={props.goalIds}
-              goalTurns={props.goalTurns}
+              isLive={isLive}
+              goalNodeIds={goalIds}
+              goalTurns={goalTurns}
               hasMoreGoalTurns={goalTurnsPaging?.hasMore}
               isLoadingMoreGoalTurns={goalTurnsPaging?.isLoading}
               onLoadMoreGoalTurns={goalTurnsPaging?.onLoadMore}
             />
-            <LoopRunNextNote note={props.nextNote} />
+            <LoopRunNextNote note={nextNote} />
           </main>
           <aside data-testid="loop-run-detail-rail">
             <div className="rounded-lg border border-line bg-canvas-soft">
-              <LoopRunUsageRail rows={props.usageRows} note={props.usageNote} />
+              <LoopRunUsageRail rows={usageRows} note={usageNote} />
               <LoopRunAboutRail
                 run={run}
-                versionLabel={props.versionLabel}
-                inputRows={props.inputRows}
-                startedBy={props.startedBy}
-                workspaceLabel={props.workspaceLabel}
+                versionLabel={versionLabel}
+                inputRows={inputRows}
+                startedBy={startedBy}
+                workspaceLabel={workspaceLabel}
               />
               <div className="flex items-center justify-between border-t border-line-soft px-3 py-2.5">
-                <button
-                  className="inline-flex items-center gap-1.25 rounded-xs text-badge font-medium text-muted hover:text-fg-strong"
+                <Button
+                  className="min-h-6"
                   data-testid="loop-run-open-inspect"
                   onClick={() => inspect.onOpenChange(true)}
+                  size="sm"
                   type="button"
+                  variant="ghost"
                 >
                   <Search aria-hidden="true" className="size-3" />
                   Inspect
-                </button>
+                </Button>
                 {run.definition_digest ? (
                   <span className="font-mono text-pill-group-badge text-faint">
                     digest {shortDigest(run.definition_digest)}
@@ -210,11 +261,11 @@ export function LoopRunPageBody(props: LoopRunPageBodyProps) {
         open={inspect.open}
         onOpenChange={inspect.onOpenChange}
         run={run}
-        definition={props.definition}
-        graph={props.graph}
-        latestVerdict={props.latestVerdict}
-        watchEvents={props.watchEvents}
-        frames={props.frames}
+        definition={definition}
+        graph={graph}
+        latestVerdict={latestVerdict}
+        watchEvents={watchEvents}
+        frames={frames}
       />
     </div>
   );

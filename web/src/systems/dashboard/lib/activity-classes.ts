@@ -33,22 +33,7 @@ export function homeActivityTone(event: Pick<HomeActivityEvent, "outcome">): Hom
   }
 }
 
-const ATTENTION_EVENT_TYPES = new Set([
-  "task.approved",
-  "task.rejected",
-  "task.canceled",
-  "task.needs_attention",
-  "task.run_enqueued",
-  "task.run_claimed",
-  "task.run_started",
-  "task.run_completed",
-  "task.run_failed",
-  "task.run_canceled",
-  "task.run_operator_retry",
-  "task.run_recovered_from_attention",
-]);
-
-/** Task lifecycle events that must refresh attention, outcome, and today aggregates immediately. */
+/** Task-family events that must refresh attention, outcome, and today aggregates immediately. */
 export function isTaskLifecycleEvent(event: Pick<HomeActivityEvent, "type">): boolean {
-  return ATTENTION_EVENT_TYPES.has(event.type) || event.type.startsWith("task.");
+  return event.type.startsWith("task.");
 }

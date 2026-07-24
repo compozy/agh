@@ -101,6 +101,20 @@ function nowView(props: LoopRunNowCardProps): NowView | null {
   }
 }
 
+/** Shared chrome for the "Happening now" outbound child-run / task-run links. */
+const NOW_OUTBOUND_LINK_CLASS =
+  "mt-2.25 inline-flex items-center gap-1.25 text-badge font-medium text-muted hover:text-fg-strong";
+
+/** Icon + label body shared by both outbound links; the route/testid stay at each call site. */
+function NowOutboundLinkContent({ label }: { label: string }) {
+  return (
+    <>
+      <ArrowUpRight aria-hidden="true" className="size-3" />
+      {label}
+    </>
+  );
+}
+
 /**
  * The "Happening now" card (§2/§7): the live step while running, the watching
  * card while parked on events, the paused explainer, and the queued slot note.
@@ -139,23 +153,21 @@ export function LoopRunNowCard(props: LoopRunNowCardProps) {
             ) : null}
             {run.status === "running" && now?.childRunId ? (
               <Link
-                className="mt-2.25 inline-flex items-center gap-1.25 text-badge font-medium text-muted hover:text-fg-strong"
+                className={NOW_OUTBOUND_LINK_CLASS}
                 data-testid="loop-run-now-child-link"
                 params={{ runId: now.childRunId }}
                 to="/loop-runs/$runId"
               >
-                <ArrowUpRight aria-hidden="true" className="size-3" />
-                View child run
+                <NowOutboundLinkContent label="View child run" />
               </Link>
             ) : run.status === "running" && now?.taskLink ? (
               <Link
-                className="mt-2.25 inline-flex items-center gap-1.25 text-badge font-medium text-muted hover:text-fg-strong"
+                className={NOW_OUTBOUND_LINK_CLASS}
                 data-testid="loop-run-now-task-link"
                 params={{ id: now.taskLink.taskId, runId: now.taskLink.taskRunId }}
                 to="/tasks/$id/runs/$runId"
               >
-                <ArrowUpRight aria-hidden="true" className="size-3" />
-                View task run
+                <NowOutboundLinkContent label="View task run" />
               </Link>
             ) : null}
             {children}

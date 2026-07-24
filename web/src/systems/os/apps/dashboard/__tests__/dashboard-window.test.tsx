@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TopbarSlotProvider } from "@agh/ui";
 
@@ -22,8 +22,13 @@ vi.mock("@/systems/session", () => ({
   }),
 }));
 
+// Spy on the body so this suite proves the shell's connection gate (body mounts
+// only while connected; disconnect surface replaces it otherwise) instead of the
+// stub's markup — testing-boss R22: test the behavior, never the mock.
+const homeDashboardSpy = vi.fn(() => null);
+
 vi.mock("@/systems/dashboard", () => ({
-  HomeDashboard: () => <div data-testid="home-body" />,
+  HomeDashboard: () => homeDashboardSpy(),
 }));
 
 import { DashboardWindow } from "../dashboard-window";
@@ -37,16 +42,21 @@ function renderWindow() {
 }
 
 describe("DashboardWindow", () => {
-  it("Should render the home dashboard body while connected", () => {
+  beforeEach(() => {
+    homeDashboardSpy.mockClear();
+  });
+
+  it("Should mount the home dashboard body while connected", () => {
     connection.status = "connected";
     renderWindow();
-    expect(screen.getByTestId("home-body")).toBeInTheDocument();
+    expect(homeDashboardSpy).toHaveBeenCalled();
+    expect(screen.queryByTestId("home-error")).toBeNull();
   });
 
   it("Should render the disconnect surface when the daemon is unreachable", () => {
     connection.status = "disconnected";
     renderWindow();
     expect(screen.getByTestId("home-error")).toBeInTheDocument();
-    expect(screen.queryByTestId("home-body")).toBeNull();
+    expect(homeDashboardSpy).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,8 +99,8 @@ func TestObserveOverviewHandler(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		if payload.Error == "" {
-			t.Fatalf("error payload = %+v, want a validation message", payload)
+		if !strings.Contains(payload.Error, "usage_window must be 7, 30, or 90") {
+			t.Fatalf("error payload = %+v, want usage_window validation message", payload)
 		}
 	})
 }

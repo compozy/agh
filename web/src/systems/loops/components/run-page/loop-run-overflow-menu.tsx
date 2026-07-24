@@ -1,5 +1,5 @@
 import { CodeXml, Ellipsis, Search, Workflow } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
 import {
   Button,
@@ -20,7 +20,6 @@ interface LoopRunOverflowMenuProps {
  * Renders for every status, including terminal runs whose controls are gone.
  */
 export function LoopRunOverflowMenu({ loopName, onInspect }: LoopRunOverflowMenuProps) {
-  const navigate = useNavigate();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -33,18 +32,14 @@ export function LoopRunOverflowMenu({ loopName, onInspect }: LoopRunOverflowMenu
       <DropdownMenuContent align="end" className="min-w-49">
         <DropdownMenuItem
           data-testid="loop-run-view-graph"
-          onClick={() => {
-            void navigate({ to: "/loops/$name/editor", params: { name: loopName } });
-          }}
+          render={<Link params={{ name: loopName }} to="/loops/$name/editor" />}
         >
           <Workflow aria-hidden="true" className="size-3.5" />
           View graph
         </DropdownMenuItem>
         <DropdownMenuItem
           data-testid="loop-run-view-definition"
-          onClick={() => {
-            void navigate({ to: "/loops/$name", params: { name: loopName } });
-          }}
+          render={<Link params={{ name: loopName }} to="/loops/$name" />}
         >
           <CodeXml aria-hidden="true" className="size-3.5" />
           View definition

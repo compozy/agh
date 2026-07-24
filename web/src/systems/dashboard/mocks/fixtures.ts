@@ -28,6 +28,7 @@ export function makeHomeOverview(overrides: Partial<HomeOverview> = {}): HomeOve
     },
     today: { runs_completed: 5, runs_failed: 1, tasks_closed: 3 },
     outcomes: {
+      window_days: 14,
       days: [
         { date: "2026-07-22", completed: 6, failed: 1, canceled: 0 },
         { date: "2026-07-23", completed: 5, failed: 1, canceled: 1 },
@@ -55,6 +56,7 @@ export function makeHomeOverview(overrides: Partial<HomeOverview> = {}): HomeOve
       ],
     },
     pulse: {
+      window_days: 14,
       buckets: [{ weekday: 2, hour: 14, events: 42 }],
       busiest: { weekday: 2, hour: 14, events: 42 },
       longest_session: {

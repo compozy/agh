@@ -2,6 +2,7 @@ package observe
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -117,39 +118,40 @@ func (o *Observer) aggregateObservedUsage(
 	}
 
 	costAmount, costCurrency, costStatus, costSource := o.observedCostFields(ctx, snapshot, event.Usage)
-	if err := o.registry.UpdateTokenStats(ctx, store.TokenStatsUpdate{
-		SessionID:    sessionID,
-		AgentName:    snapshot.agentName,
-		InputTokens:  event.Usage.InputTokens,
-		OutputTokens: event.Usage.OutputTokens,
-		TotalTokens:  event.Usage.TotalTokens,
-		CostAmount:   costAmount,
-		CostCurrency: costCurrency,
-		CostStatus:   costStatus,
-		CostSource:   costSource,
-		Turns:        1,
-		UpdatedAt:    usageTimestamp,
-	}); err != nil {
-		return err
+	// Commit the session aggregate and the daily rollup atomically so a rollup
+	// failure cannot leave overview usage undercounting committed token_stats.
+	if err := o.registry.RecordTokenUsage(ctx,
+		store.TokenStatsUpdate{
+			SessionID:    sessionID,
+			AgentName:    snapshot.agentName,
+			InputTokens:  event.Usage.InputTokens,
+			OutputTokens: event.Usage.OutputTokens,
+			TotalTokens:  event.Usage.TotalTokens,
+			CostAmount:   costAmount,
+			CostCurrency: costCurrency,
+			CostStatus:   costStatus,
+			CostSource:   costSource,
+			Turns:        1,
+			UpdatedAt:    usageTimestamp,
+		},
+		store.TokenUsageDailyUpdate{
+			Day:          store.LocalDay(usageTimestamp),
+			WorkspaceID:  snapshot.workspaceID,
+			AgentName:    snapshot.agentName,
+			InputTokens:  event.Usage.InputTokens,
+			OutputTokens: event.Usage.OutputTokens,
+			TotalTokens:  event.Usage.TotalTokens,
+			CostAmount:   costAmount,
+			CostCurrency: costCurrency,
+			CostStatus:   costStatus,
+			CostSource:   costSource,
+			Turns:        1,
+			UpdatedAt:    usageTimestamp,
+		},
+	); err != nil {
+		return fmt.Errorf("observe: record token usage: %w", err)
 	}
-	rollupStore, ok := o.registry.(OverviewStore)
-	if !ok {
-		return nil
-	}
-	return rollupStore.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{
-		Day:          store.LocalDay(usageTimestamp),
-		WorkspaceID:  snapshot.workspaceID,
-		AgentName:    snapshot.agentName,
-		InputTokens:  event.Usage.InputTokens,
-		OutputTokens: event.Usage.OutputTokens,
-		TotalTokens:  event.Usage.TotalTokens,
-		CostAmount:   costAmount,
-		CostCurrency: costCurrency,
-		CostStatus:   costStatus,
-		CostSource:   costSource,
-		Turns:        1,
-		UpdatedAt:    usageTimestamp,
-	})
+	return nil
 }
 
 func findObservedModel(models []modelcatalog.Model, provider string, model string) *modelcatalog.Model {

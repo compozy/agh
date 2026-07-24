@@ -1,6 +1,12 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import {
+  DAY_CHART_AXIS_LINE,
+  DAY_CHART_BAR_RADIUS,
+  DAY_CHART_TICK,
+  dayChartEndpointTickFormatter,
+} from "./day-chart-axis";
 import { CHART_TOOLTIP_CONTENT_STYLE } from "./chart-tooltip-style";
 
 export interface DayStackedBarsSeries {
@@ -36,13 +42,11 @@ const LazyBars = React.lazy(async () => {
           margin={{ top: 4, right: 0, bottom: 0, left: 0 }}
         >
           <XAxis
-            axisLine={{ stroke: "var(--color-line-strong)" }}
+            axisLine={DAY_CHART_AXIS_LINE}
             dataKey="date"
             interval={0}
-            tick={{ fill: "var(--color-faint)", fontFamily: "var(--font-mono)", fontSize: 9.5 }}
-            tickFormatter={(value: string, index: number) =>
-              index === 0 || index === data.length - 1 ? value : ""
-            }
+            tick={DAY_CHART_TICK}
+            tickFormatter={dayChartEndpointTickFormatter(data.length)}
             tickLine={false}
           />
           {withTooltip ? (
@@ -59,7 +63,7 @@ const LazyBars = React.lazy(async () => {
               isAnimationActive={false}
               key={entry.key}
               name={entry.label ?? entry.key}
-              radius={[2, 2, 0, 0]}
+              radius={DAY_CHART_BAR_RADIUS}
               stackId="day"
             />
           ))}
@@ -82,6 +86,7 @@ export function DayStackedBars({
   ariaLabel,
   withTooltip = true,
   className,
+  style,
   ...props
 }: DayStackedBarsProps) {
   return (
@@ -90,7 +95,7 @@ export function DayStackedBars({
       className={cn("w-full", className)}
       data-slot="day-stacked-bars"
       role="img"
-      style={{ height }}
+      style={{ height, ...style }}
       {...props}
     >
       <React.Suspense fallback={<div aria-hidden="true" className="size-full" />}>

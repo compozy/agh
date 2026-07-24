@@ -3,6 +3,7 @@ package observe
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compozy/agh/internal/store"
@@ -11,10 +12,6 @@ import (
 const (
 	daysPerWeek = 7
 	hoursPerDay = 24
-
-	freshnessStatusCurrent = "current"
-	freshnessStatusEmpty   = "empty"
-	freshnessStatusStale   = "stale"
 )
 
 func (o *Observer) overviewPulse(
@@ -33,7 +30,7 @@ func (o *Observer) overviewPulse(
 		return OverviewPulse{}, fmt.Errorf("observe: query pulse buckets: %w", err)
 	}
 
-	pulse := OverviewPulse{Buckets: zeroFilledPulseBuckets(counted)}
+	pulse := OverviewPulse{WindowDays: overviewPulseWindowDays, Buckets: zeroFilledPulseBuckets(counted)}
 	pulse.Busiest = busiestPulseBucket(pulse.Buckets)
 
 	longest, err := overviewStore.LongestUserSessionSince(ctx, store.OverviewSinceQuery{
@@ -103,29 +100,38 @@ func (o *Observer) overviewFreshness(
 		return TaskDashboardFreshness{}, fmt.Errorf("observe: query latest activity: %w", err)
 	}
 
-	hasLiveWork := false
-	if o.sessionSource != nil {
-		hasLiveWork = len(o.sessionSource.List()) > 0
-	}
+	hasLiveWork := o.hasLiveWorkspaceWork(workspaceID)
 
 	staleAfter := max(o.taskDashboardConfig.staleAfter, 0)
 	observedAt := now.UTC()
 	age := safeSince(observedAt, latest)
 
-	freshness := TaskDashboardFreshness{
+	status, stale := classifyTaskDashboardFreshness(latest, hasLiveWork, age, staleAfter)
+	return TaskDashboardFreshness{
 		ObservedAt:       observedAt,
 		LatestActivityAt: latest,
 		AgeMilli:         age.Milliseconds(),
 		StaleAfterMilli:  staleAfter.Milliseconds(),
 		HasLiveWork:      hasLiveWork,
-		Status:           freshnessStatusCurrent,
+		Status:           status,
+		Stale:            stale,
+	}, nil
+}
+
+// hasLiveWorkspaceWork reports whether any in-memory session in the requested
+// scope is in a live state. An empty workspaceID matches the global home scope.
+func (o *Observer) hasLiveWorkspaceWork(workspaceID string) bool {
+	if o.sessionSource == nil {
+		return false
 	}
-	switch {
-	case latest.IsZero():
-		freshness.Status = freshnessStatusEmpty
-	case hasLiveWork && staleAfter > 0 && age > staleAfter:
-		freshness.Status = freshnessStatusStale
-		freshness.Stale = true
+	for _, info := range o.sessionSource.List() {
+		if info == nil || !isLiveSessionState(string(info.State)) {
+			continue
+		}
+		if workspaceID != "" && strings.TrimSpace(info.WorkspaceID) != workspaceID {
+			continue
+		}
+		return true
 	}
-	return freshness, nil
+	return false
 }

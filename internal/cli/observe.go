@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/observe"
 	"github.com/spf13/cobra"
 )
 
@@ -12,9 +13,15 @@ const (
 	observeCommandKey         = "observe"
 	observeOverviewCommandKey = "overview"
 	observeSectionKey         = "section"
+	observeSectionMeta        = "meta"
+	observeSectionNetwork     = "network"
 	observeUsageSectionKey    = "usage"
 	observeTokensLabel        = "tokens"
 	observeApprovalsLabel     = "approvals"
+	observeWindowLabel        = "window"
+	observeLabelCompleted     = "completed"
+	observeLabelFailed        = "failed"
+	observeCostUnknown        = "unknown"
 )
 
 func newObserveCommand(deps commandDeps) *cobra.Command {
@@ -42,6 +49,11 @@ func newObserveOverviewCommand(deps commandDeps) *cobra.Command {
   # Scope aggregates to one workspace with a 7-day usage window
   agh observe overview --workspace launch-hq --usage-window 7`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if usageWindow != 0 {
+				if err := observe.ValidateUsageWindowDays(usageWindow); err != nil {
+					return fmt.Errorf("--usage-window must be 7, 30, or 90")
+				}
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
@@ -66,6 +78,13 @@ func observeOverviewBundle(overview *contract.ObserveOverviewPayload) outputBund
 	return outputBundle{
 		jsonValue: overview,
 		jsonl: func(cmd *cobra.Command) error {
+			if err := writeJSONLine(cmd, map[string]any{
+				observeSectionKey: observeSectionMeta,
+				"schema_version":  overview.SchemaVersion,
+				"generated_at":    overview.GeneratedAt,
+			}); err != nil {
+				return err
+			}
 			sections := []struct {
 				name  string
 				value any
@@ -75,7 +94,7 @@ func observeOverviewBundle(overview *contract.ObserveOverviewPayload) outputBund
 				{"outcomes", overview.Outcomes},
 				{observeUsageSectionKey, overview.Usage},
 				{"pulse", overview.Pulse},
-				{configNetworkKey, overview.Network},
+				{observeSectionNetwork, overview.Network},
 				{"system", overview.System},
 				{"freshness", overview.Freshness},
 			}
@@ -109,16 +128,19 @@ func renderObserveOverviewHuman(overview *contract.ObserveOverviewPayload) strin
 			{Label: "tasks closed", Value: fmt.Sprintf("%d", overview.Today.TasksClosed)},
 		}),
 		renderHumanSection(
-			fmt.Sprintf("Outcomes · last %d days", len(overview.Outcomes.Days)),
+			fmt.Sprintf("Outcomes · last %d days", overview.Outcomes.WindowDays),
 			[]keyValue{
-				{Label: onboardingCompletedKey, Value: fmt.Sprintf("%d", overview.Outcomes.Completed)},
-				{Label: supportStatusFailed, Value: fmt.Sprintf("%d", overview.Outcomes.Failed)},
+				{Label: observeLabelCompleted, Value: fmt.Sprintf("%d", overview.Outcomes.Completed)},
+				{Label: observeLabelFailed, Value: fmt.Sprintf("%d", overview.Outcomes.Failed)},
 				{Label: "canceled", Value: fmt.Sprintf("%d", overview.Outcomes.Canceled)},
 				{Label: "success", Value: fmt.Sprintf("%.0f%%", overview.Outcomes.SuccessPct)},
 			},
 		),
 		renderHumanSection("Usage", renderOverviewUsageRows(&overview.Usage)),
-		renderHumanSection("Pulse · last 14 days", renderOverviewPulseRows(&overview.Pulse)),
+		renderHumanSection(
+			fmt.Sprintf("Pulse · last %d days", overview.Pulse.WindowDays),
+			renderOverviewPulseRows(&overview.Pulse),
+		),
 		renderHumanSection("System", []keyValue{
 			{Label: "network messages today", Value: fmt.Sprintf("%d", overview.Network.MessagesToday)},
 			{
@@ -136,7 +158,7 @@ func renderObserveOverviewHuman(overview *contract.ObserveOverviewPayload) strin
 
 func renderOverviewUsageRows(usage *contract.OverviewUsagePayload) []keyValue {
 	rows := []keyValue{
-		{Label: "window", Value: fmt.Sprintf("%dd", usage.WindowDays)},
+		{Label: observeWindowLabel, Value: fmt.Sprintf("%dd", usage.WindowDays)},
 		{Label: observeTokensLabel, Value: fmt.Sprintf("%d", usage.TotalTokens)},
 		{Label: "cost", Value: renderOverviewCost(usage)},
 	}
@@ -190,7 +212,7 @@ func renderOverviewCost(usage *contract.OverviewUsagePayload) string {
 		if usage.CostStatus != "" {
 			return usage.CostStatus
 		}
-		return providerModelAvailabilityUnknown
+		return observeCostUnknown
 	}
 	return fmt.Sprintf("%.2f %s (%s)", *usage.EstimatedCost, usage.CostCurrency, usage.CostStatus)
 }

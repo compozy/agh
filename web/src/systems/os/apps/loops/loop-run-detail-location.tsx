@@ -158,6 +158,7 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: Lo
       nextNote={page.nextNote}
       showNowCard={page.showNowCard}
       terminalFromStatus={page.terminalFromStatus}
+      terminalAt={page.terminalAt}
       inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }}
       pendingAction={page.pendingAction}
       onDecision={page.handleDecision}

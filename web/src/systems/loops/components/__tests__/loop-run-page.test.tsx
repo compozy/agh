@@ -234,30 +234,31 @@ describe("LoopRunNeedsYouCard", () => {
 });
 
 describe("LoopRunOutcomeCard", () => {
-  it("Should tell what went wrong with recovery, restart, and the Vault link", () => {
+  it("Should tell what went wrong with recovery and restart, and never an invented Vault CTA", () => {
     render(
       <LoopRunOutcomeCard
-        run={run({ status: "failed" })}
+        run={run({ status: "failed", created_at: "2026-01-01T00:00:00Z" })}
         failure={{
           kind: "coordinator_failure",
-          code: "provider_auth",
-          cause: "GitHub authentication expired while fetching review threads.",
-          recovery: "Fix the GitHub credential in Vault, then start a new run.",
+          code: "coordinator_failed",
+          cause: "The Loop coordinator failed before it could settle the run.",
+          recovery: "Inspect daemon logs for the correlated coordinator run, then start a new run.",
         }}
-        durationLabel="26m 41s"
         fromStatus="running"
+        terminalAt="2026-01-01T00:26:41Z"
         repeatedIssueIds={[]}
         onStartNewRun={vi.fn()}
       />
     );
     expect(screen.getByTestId("loop-run-outcome-title")).toHaveTextContent("Failed after 26m 41s");
     expect(
-      screen.getByText("GitHub authentication expired while fetching review threads.")
+      screen.getByText("The Loop coordinator failed before it could settle the run.")
     ).toBeInTheDocument();
     expect(screen.getByTestId("loop-run-start-new")).toBeInTheDocument();
-    expect(screen.getByText("Open Vault")).toBeInTheDocument();
+    // No Loops producer emits a Vault-repairable failure, so the CTA must be gone.
+    expect(screen.queryByText("Open Vault")).not.toBeInTheDocument();
     expect(
-      screen.getByText("status_changed · running → failed · cause provider_auth")
+      screen.getByText("status_changed · running → failed · cause coordinator_failed")
     ).toBeInTheDocument();
   });
 
@@ -267,7 +268,6 @@ describe("LoopRunOutcomeCard", () => {
       <LoopRunOutcomeCard
         run={run({ status: "exhausted", generation: 50, iteration_cap: 50 })}
         failure={null}
-        durationLabel="1h 02m"
         repeatedIssueIds={[]}
         onStartNewRun={onStartNewRun}
       />
@@ -277,12 +277,57 @@ describe("LoopRunOutcomeCard", () => {
     expect(onStartNewRun).toHaveBeenCalledTimes(1);
   });
 
+  it("Should not invent a Time limit when the terminal frame lands before the wall budget", () => {
+    render(
+      <LoopRunOutcomeCard
+        run={run({
+          status: "exhausted",
+          budget_wall_sec: 999_999,
+          iteration_cap: 0,
+          budget_tokens: 0,
+          created_at: "2026-01-01T00:00:00Z",
+        })}
+        failure={null}
+        terminalAt="2026-01-01T00:04:12Z"
+        repeatedIssueIds={[]}
+        onStartNewRun={vi.fn()}
+      />
+    );
+    const title = screen.getByTestId("loop-run-outcome-title");
+    expect(title).toHaveTextContent("Run exhausted after 4m 12s");
+    expect(title).not.toHaveTextContent("Time limit");
+  });
+
+  it("Should report the Time limit from the terminal frame even when last_progress predates the cap", () => {
+    // The status CAS never refreshes last_progress_at: the durable span (created →
+    // last_progress) sits under the 30m cap, but the terminal status_changed `at`
+    // is the truth and crosses it, so the run must read as a Time limit.
+    render(
+      <LoopRunOutcomeCard
+        run={run({
+          status: "exhausted",
+          budget_wall_sec: 1_800,
+          iteration_cap: 0,
+          budget_tokens: 0,
+          created_at: "2026-01-01T00:00:00Z",
+          last_progress_at: "2026-01-01T00:20:00Z",
+        })}
+        failure={null}
+        terminalAt="2026-01-01T00:31:00Z"
+        repeatedIssueIds={[]}
+        onStartNewRun={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("loop-run-outcome-title")).toHaveTextContent(
+      "Time limit reached after 31m 00s"
+    );
+  });
+
   it("Should render the stalled explainer with the repeated blocking ids", () => {
     render(
       <LoopRunOutcomeCard
         run={run({ status: "stalled" })}
         failure={null}
-        durationLabel="40m 00s"
         noProgressWindow={2}
         repeatedIssueIds={["issue_022", "issue_024"]}
         onStartNewRun={vi.fn()}
@@ -298,7 +343,6 @@ describe("LoopRunOutcomeCard", () => {
       <LoopRunOutcomeCard
         run={run({ status: "no-op" })}
         failure={null}
-        durationLabel="0m 12s"
         repeatedIssueIds={[]}
         onStartNewRun={vi.fn()}
       />
@@ -375,8 +419,9 @@ describe("LoopRunAboutRail", () => {
     );
     expect(screen.getByTestId("loop-run-about-version")).toHaveTextContent("v4 · pinned");
     expect(screen.getByTestId("loop-run-input-pr")).toHaveTextContent("128");
-    expect(screen.getByText("A webhook")).toBeInTheDocument();
-    expect(screen.getByText("Home")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-about-started-by")).toHaveTextContent("A webhook");
+    expect(screen.getByTestId("loop-run-about-workspace")).toHaveTextContent("Home");
+    expect(screen.getByTestId("loop-run-about-id")).toHaveTextContent(run().id);
   });
 });
 

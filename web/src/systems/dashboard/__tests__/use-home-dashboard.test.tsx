@@ -3,10 +3,13 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { statusFixture } from "@/systems/status/mocks/fixtures";
+
 import { makeHomeOverview } from "../mocks/fixtures";
 
 const getHomeOverview = vi.fn();
 const getHomeActivity = vi.fn();
+const fetchStatus = vi.fn();
 
 vi.mock("../adapters/overview-api", async importOriginal => {
   const actual = await importOriginal<typeof import("../adapters/overview-api")>();
@@ -16,6 +19,16 @@ vi.mock("../adapters/overview-api", async importOriginal => {
       getHomeOverview(...args),
     getHomeActivity: (...args: Parameters<typeof actual.getHomeActivity>) =>
       getHomeActivity(...args),
+  };
+});
+
+// The home dir now flows from the awaited daemon status query (not the Zustand
+// store), so drive it through the real status adapter.
+vi.mock("@/systems/status/adapters/daemon-api", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/status/adapters/daemon-api")>();
+  return {
+    ...actual,
+    fetchStatus: (...args: Parameters<typeof actual.fetchStatus>) => fetchStatus(...args),
   };
 });
 
@@ -30,7 +43,6 @@ vi.mock("@/systems/workspace", async importOriginal => {
   return {
     ...actual,
     useActiveWorkspace: () => activeWorkspaceState,
-    useUserHomeDir: () => "/Users/tester",
   };
 });
 
@@ -60,11 +72,20 @@ describe("useHomeDashboard", () => {
     getHomeOverview.mockReset();
     getHomeActivity.mockReset();
     getHomeActivity.mockResolvedValue([]);
+    fetchStatus.mockReset();
+    // Full status payload (useHomeSystem reads health/automation/memory) with the
+    // home dir aligned to the active workspace root so scope resolves to global.
+    fetchStatus.mockResolvedValue({
+      ...statusFixture,
+      daemon: { ...statusFixture.daemon, user_home_dir: "/Users/tester" },
+    });
     activeWorkspaceState.activeWorkspace = {
       id: "ws-home",
       root_dir: "/Users/tester",
       name: "home",
     };
+    activeWorkspaceState.activeWorkspaceId = "ws-home";
+    activeWorkspaceState.isLoading = false;
   });
 
   it("Should resolve the home workspace to the global scope and expose the overview", async () => {
@@ -100,6 +121,39 @@ describe("useHomeDashboard", () => {
     expect(result.current.scope.workspaceParam).toBe("ws-proj");
     expect(getHomeOverview).toHaveBeenCalledWith(
       expect.objectContaining({ workspace: "ws-proj" }),
+      expect.anything()
+    );
+  });
+
+  it("Should never issue a global overview or activity read for a project workspace on first mount", async () => {
+    // Workspace-isolation guard: the queries stay disabled until the awaited home
+    // dir settles the scope to the project, so the daemon never sees an
+    // undefined-workspace (whole-system) overview/activity read during mount.
+    activeWorkspaceState.activeWorkspace = {
+      id: "ws-proj",
+      root_dir: "/Users/tester/dev/proj",
+      name: "proj",
+    };
+    activeWorkspaceState.activeWorkspaceId = "ws-proj";
+    getHomeOverview.mockResolvedValue(makeHomeOverview());
+
+    const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
+    await waitFor(() => {
+      expect(result.current.overviewStatus).toBe("ready");
+    });
+
+    for (const [filter] of getHomeOverview.mock.calls) {
+      expect(filter).toMatchObject({ workspace: "ws-proj" });
+    }
+    for (const [filter] of getHomeActivity.mock.calls) {
+      expect(filter).toMatchObject({ workspace_id: "ws-proj" });
+    }
+    expect(getHomeOverview).not.toHaveBeenCalledWith(
+      expect.objectContaining({ workspace: undefined }),
+      expect.anything()
+    );
+    expect(getHomeActivity).not.toHaveBeenCalledWith(
+      expect.objectContaining({ workspace_id: undefined }),
       expect.anything()
     );
   });

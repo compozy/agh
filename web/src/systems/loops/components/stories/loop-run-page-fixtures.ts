@@ -1,31 +1,29 @@
-import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
-
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import {
   applyLoopEventFrame,
   emptyLoopRunLiveState,
   type LoopRunLiveState,
 } from "../../lib/loop-events";
-import { findWatchNode, goalNodeIds, readLoopGraph } from "../../lib/loop-graph";
-import { buildInputRows, humanizeStartOrigin, watchedSubject } from "../../lib/loop-run-about";
-import { buildRunProgress, latestGateVerdict } from "../../lib/loop-run-progress";
-import { buildNextNote, buildRunStory } from "../../lib/loop-run-story";
-import {
-  buildRunUsage,
-  formatClockDuration,
-  runElapsedSeconds,
-  usageNote,
-  usageSnapshotFacts,
-} from "../../lib/loop-run-usage";
-import { isTerminalLoopStatus } from "../../lib/loop-formatters";
+import { projectLoopRunPageView } from "../../lib/loop-run-page-view";
+import { deriveCostEstimate } from "../../lib/loop-run-usage";
 import type { LoopRunPageBodyProps } from "../run-page/loop-run-page-body";
 import type {
-  LoopDefinition,
   LoopRunEventFrame,
   LoopRunGeneration,
   LoopRunRecord,
   LoopWatchEventsState,
 } from "../../types";
+import {
+  createFrameFactory,
+  generationsFor,
+  minutesAgo,
+  nodePayload,
+  REVISE_ISSUES,
+  reviewsWatchDefinition,
+  reviewsWatchRun,
+  roundOneFrames,
+  STORY_NOW,
+} from "./loop-run-page-fixture-world";
 
 /**
  * The `reviews-watch` story world mirroring the canonical prototypes
@@ -33,229 +31,6 @@ import type {
  * #128 in three fan-out groups. The data is fixture flavor; every derivation
  * below runs through the production libs, exactly like the page hook.
  */
-
-const NOW = Date.now();
-
-function minutesAgo(minutes: number): string {
-  return new Date(NOW - minutes * 60_000).toISOString();
-}
-
-export const reviewsWatchDefinition = {
-  apiVersion: "agh.loop/v1",
-  kind: "Loop",
-  meta: {
-    name: "reviews-watch",
-    version: 3,
-    description: "Watches a PR and resolves every review comment.",
-    catalog: { category: "watch" },
-  },
-  concurrency: "forbid",
-  inputs: {
-    pr: { type: "string", required: true, description: "The pull request to watch." },
-    fixer: { type: "ref", ref: { kind: "agent" }, description: "The fix agent." },
-  },
-  contract: {
-    goal: "Resolve every review comment on PR #128",
-    definition_of_done:
-      "Done when a fresh CodeRabbit review of the current changes reports zero unresolved comments.",
-    stop_when: "review.unresolved == 0",
-    iteration_cap: 0,
-    budget: { tokens: 1_500_000, wall_clock_sec: 2_700, on_exceeded: "escalate" },
-    no_progress: { window: 2, hash_fields: ["gate_verdict"] },
-    terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
-    verification: [
-      {
-        id: "all_issues_handled",
-        type: "agent-judge",
-        agent: "agent-judge",
-        rubric: "Every comment has a decision; valid ones a fix with tests.",
-      },
-    ],
-  },
-  graph: {
-    nodes: [
-      {
-        id: "watch_pr",
-        class: "source",
-        kind: "watch-events",
-        watch: { poll: "30s", settle: "20s" },
-        events: [{ kind: "review.completed" }],
-      },
-      { id: "fetch_issues", class: "action", kind: "run-agent" },
-      {
-        id: "split_batches",
-        class: "control",
-        kind: "fan-out",
-        batch_size: 10,
-        max_parallel: 1,
-        max_fan_out: 64,
-      },
-      { id: "fix_batches", class: "action", kind: "run-agent" },
-      {
-        id: "check_all",
-        class: "control",
-        kind: "gate",
-        verdict_policy: "revise_until_clean",
-        criteria: [{ id: "all_issues_handled", type: "agent-judge" }],
-      },
-      { id: "resolve_threads", class: "action", kind: "run-agent" },
-      { id: "push_changes", class: "action", kind: "run-agent" },
-    ],
-    edges: [
-      { from: "watch_pr", to: "fetch_issues" },
-      { from: "fetch_issues", to: "split_batches" },
-      { from: "split_batches", to: "fix_batches" },
-      { from: "fix_batches", to: "check_all" },
-      { from: "check_all", to: "resolve_threads" },
-      { from: "resolve_threads", to: "push_changes" },
-    ],
-  },
-} as unknown as LoopDefinition;
-
-export function reviewsWatchRun(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
-  return {
-    id: "r-7c4e19",
-    workspace_id: "ws_default",
-    loop_name: "reviews-watch",
-    status: "running",
-    generation: 2,
-    reattempt_strategy: "failed_only",
-    created_at: minutesAgo(22),
-    started_at: minutesAgo(22),
-    last_progress_at: minutesAgo(4),
-    started_by_kind: "user",
-    started_by_ref: "operator",
-    started_origin_kind: "webhook",
-    started_origin_ref: "pr-opened",
-    definition_version: 3,
-    definition_digest: "sha256:4f9c2a1e8b",
-    iteration_cap: 0,
-    budget_tokens: 1_500_000,
-    budget_wall_sec: 2_700,
-    budget_on_exceeded: "escalate",
-    tokens_used: 268_000,
-    pause_requested: false,
-    inputs: { pr: "128", fixer: "review-fixer" },
-    resolved_network_participation: buildLocalNetworkParticipationFixture(),
-    ...overrides,
-  };
-}
-
-let frameSeq = 0;
-
-function frame(
-  kind: LoopRunEventFrame["kind"],
-  minutes: number,
-  payload: Record<string, unknown>
-): LoopRunEventFrame {
-  frameSeq += 1;
-  return {
-    id: `loopevt_${frameSeq}`,
-    seq: frameSeq,
-    kind,
-    loop_run_id: "r-7c4e19",
-    workspace_id: "ws_default",
-    at: minutesAgo(minutes),
-    payload,
-  };
-}
-
-function nodePayload(
-  nodeId: string,
-  generation: number,
-  extra: Record<string, unknown> = {}
-): Record<string, unknown> {
-  return { node_id: nodeId, generation, ...extra };
-}
-
-const REVISE_ISSUES = [
-  { id: "issue_022", note: "no decision recorded in the group harvest" },
-  { id: "issue_024", note: "triaged valid but no fix landed" },
-];
-
-/**
- * Round-1 history shared by every state: wake → fetch → groups → check.
- * `offset` shifts the whole round into the past so each scenario's later
- * frames stay chronologically after it (seq order == time order).
- */
-function roundOneFrames(offset = 0): LoopRunEventFrame[] {
-  return [
-    frame("status_changed", offset + 22, {
-      from: "watching",
-      to: "running",
-      status: "running",
-      cause: "watch_events",
-    }),
-    frame(
-      "node_succeeded",
-      offset + 22,
-      nodePayload("fetch_issues", 1, { task_id: "task_fetch", task_run_id: "tr_101" })
-    ),
-    frame(
-      "node_succeeded",
-      offset + 10,
-      nodePayload("fix_batches", 1, { item_index: 1, task_id: "task_fix", task_run_id: "tr_102" })
-    ),
-    frame(
-      "node_succeeded",
-      offset + 10,
-      nodePayload("fix_batches", 1, { item_index: 2, task_id: "task_fix", task_run_id: "tr_103" })
-    ),
-    frame(
-      "node_failed",
-      offset + 6,
-      nodePayload("fix_batches", 1, {
-        item_index: 3,
-        task_id: "task_fix",
-        task_run_id: "tr_104",
-        output_ref: JSON.stringify({
-          kind: "action_failure",
-          code: "incomplete_batch",
-          cause: "2 of its 4 comments weren't fully handled.",
-          recovery: "Re-run the failed group.",
-        }),
-      })
-    ),
-    frame("gate_verdict", offset + 5, {
-      node_id: "check_all",
-      generation: 1,
-      verdict: "revise",
-      confidence: 0.91,
-      criteria: [
-        {
-          id: "all_issues_handled",
-          type: "agent-judge",
-          status: "revise",
-          note: "two open points",
-        },
-      ],
-      blocking_issues: REVISE_ISSUES,
-    }),
-  ];
-}
-
-function generationsFor(branchThree: string): LoopRunGeneration[] {
-  return [
-    {
-      generation: 2,
-      outputs: [
-        { node_id: "fetch_issues", status: "reused", generation: 2 },
-        { node_id: "fix_batches", status: "reused", generation: 2, item_index: 1 },
-        { node_id: "fix_batches", status: "reused", generation: 2, item_index: 2 },
-        {
-          node_id: "fix_batches",
-          status: branchThree,
-          generation: 2,
-          item_index: 3,
-          task_run_id: "tr_204",
-        },
-        { node_id: "check_all", status: "pending", generation: 2 },
-        { node_id: "resolve_threads", status: "pending", generation: 2 },
-        { node_id: "push_changes", status: "pending", generation: 2 },
-      ],
-    },
-  ];
-}
 
 export interface LoopRunStoryScenario {
   run: LoopRunRecord;
@@ -266,9 +41,9 @@ export interface LoopRunStoryScenario {
 }
 
 export function runningScenario(): LoopRunStoryScenario {
-  frameSeq = 0;
+  const frame = createFrameFactory();
   const frames = [
-    ...roundOneFrames(),
+    ...roundOneFrames(frame),
     frame("generation_started", 4, { generation: 2, reattempt_strategy: "failed_only" }),
     frame(
       "node_running",
@@ -285,9 +60,9 @@ export function runningScenario(): LoopRunStoryScenario {
 }
 
 export function needsApprovalScenario(): LoopRunStoryScenario {
-  frameSeq = 0;
+  const frame = createFrameFactory();
   const frames = [
-    ...roundOneFrames(20),
+    ...roundOneFrames(frame, 20),
     frame("gate_verdict", 7, {
       node_id: "check_all",
       generation: 2,
@@ -311,7 +86,7 @@ export function needsApprovalScenario(): LoopRunStoryScenario {
       facts: [
         { label: "Time used", value: "45m of 45m" },
         { label: "Tokens", value: "412K / 1.5M" },
-        { label: "Cost", value: "~$1.71 est." },
+        { label: "Cost", value: `${deriveCostEstimate(412_000)} est.` },
         { label: "Round", value: "3" },
       ],
     }),
@@ -338,9 +113,9 @@ export function needsApprovalScenario(): LoopRunStoryScenario {
 }
 
 export function watchingScenario(): LoopRunStoryScenario {
-  frameSeq = 0;
+  const frame = createFrameFactory();
   const frames = [
-    ...roundOneFrames(16),
+    ...roundOneFrames(frame, 16),
     frame("generation_started", 20, { generation: 2, reattempt_strategy: "failed_only" }),
     frame(
       "node_succeeded",
@@ -379,20 +154,6 @@ export function watchingScenario(): LoopRunStoryScenario {
       cause: "contract",
     }),
   ];
-  const generations: LoopRunGeneration[] = [
-    {
-      generation: 2,
-      outputs: [
-        { node_id: "fetch_issues", status: "reused", generation: 2 },
-        { node_id: "fix_batches", status: "reused", generation: 2, item_index: 1 },
-        { node_id: "fix_batches", status: "reused", generation: 2, item_index: 2 },
-        { node_id: "fix_batches", status: "succeeded", generation: 2, item_index: 3 },
-        { node_id: "check_all", status: "succeeded", generation: 2 },
-        { node_id: "resolve_threads", status: "succeeded", generation: 2 },
-        { node_id: "push_changes", status: "succeeded", generation: 2 },
-      ],
-    },
-  ];
   return {
     run: reviewsWatchRun({
       status: "watching",
@@ -402,7 +163,7 @@ export function watchingScenario(): LoopRunStoryScenario {
       last_progress_at: minutesAgo(16),
     }),
     frames,
-    generations,
+    generations: generationsFor("succeeded", "succeeded"),
     watchEvents: {
       subscriptions: [{ kind: "event.post_record", filter: "payload.pr == input.pr" }],
       cursors: { workspace_events: 4_182 },
@@ -412,9 +173,9 @@ export function watchingScenario(): LoopRunStoryScenario {
 }
 
 export function pausedScenario(): LoopRunStoryScenario {
-  frameSeq = 0;
+  const frame = createFrameFactory();
   const frames = [
-    ...roundOneFrames(5),
+    ...roundOneFrames(frame, 5),
     frame("generation_started", 8, { generation: 2, reattempt_strategy: "failed_only" }),
     frame("status_changed", 3, {
       from: "running",
@@ -437,9 +198,9 @@ export function pausedScenario(): LoopRunStoryScenario {
 }
 
 export function failedScenario(): LoopRunStoryScenario {
-  frameSeq = 0;
+  const frame = createFrameFactory();
   const frames = [
-    ...roundOneFrames(61),
+    ...roundOneFrames(frame, 61),
     frame("generation_started", 62, { generation: 2, reattempt_strategy: "failed_only" }),
     frame(
       "node_running",
@@ -453,9 +214,10 @@ export function failedScenario(): LoopRunStoryScenario {
       cause: "coordinator_failure",
       failure: {
         kind: "coordinator_failure",
-        code: "provider_auth",
-        cause: "GitHub authentication expired while fetching review threads.",
-        recovery: "Fix the GitHub credential in Vault, then start a new run.",
+        code: "watch_poll_failed",
+        cause: "The watch source failed before it could produce a generation.",
+        recovery:
+          "Verify the Loop watch provider and workspace prerequisites, then start a new run.",
       },
     }),
   ];
@@ -473,9 +235,9 @@ export function failedScenario(): LoopRunStoryScenario {
 }
 
 export function exhaustedScenario(): LoopRunStoryScenario {
-  frameSeq = 0;
+  const frame = createFrameFactory();
   const frames = [
-    ...roundOneFrames(10),
+    ...roundOneFrames(frame, 26),
     frame("status_changed", 30, {
       from: "running",
       to: "exhausted",
@@ -498,7 +260,7 @@ export function exhaustedScenario(): LoopRunStoryScenario {
 }
 
 export function noOpScenario(): LoopRunStoryScenario {
-  frameSeq = 0;
+  const frame = createFrameFactory();
   const frames = [
     frame("status_changed", 50, {
       from: "watching",
@@ -535,58 +297,31 @@ function reduceLiveState(frames: readonly LoopRunEventFrame[]): LoopRunLiveState
 
 type ScenarioBodyProps = Omit<LoopRunPageBodyProps, "inspect">;
 
-/** Derives the full page-body prop set from a scenario via the production libs. */
+/**
+ * Derives the full page-body prop set from a scenario through the same
+ * `projectLoopRunPageView` the live page hook uses, then adds the fixture-only
+ * chrome (workspace label, pinned version, no-op handlers). One derivation path
+ * means the stories cannot drift from production.
+ */
 export function buildScenarioProps(scenario: LoopRunStoryScenario): ScenarioBodyProps {
   const { run, generations, watchEvents } = scenario;
   const live = reduceLiveState(scenario.frames);
-  const graph = readLoopGraph(reviewsWatchDefinition);
-  const story = buildRunStory(live.frames, {
-    status: run.status,
-    reattemptStrategy: run.reattempt_strategy,
-    graph,
-    generations,
-  });
-  const verdict = latestGateVerdict(live.gateVerdicts);
-  const openPoints = verdict ? verdict.blockingIssues.length : null;
-  const elapsedSeconds = runElapsedSeconds(run, NOW);
-  const isLive = !isTerminalLoopStatus(run.status);
-  const watchNode = findWatchNode(graph);
-  const showNextNote =
-    run.status === "running" || run.status === "watching" || run.status === "queued";
-  const stepStartedMs = story.now ? Date.parse(story.now.startedAt) : Number.NaN;
-  return {
+  const { effectiveRun, ...view } = projectLoopRunPageView({
     run,
+    generations,
+    live,
     definition: reviewsWatchDefinition,
-    graph,
-    isLive,
-    subject: watchedSubject(run, reviewsWatchDefinition),
-    hasWatchSource: watchNode !== null,
-    elapsedLabel: formatClockDuration(elapsedSeconds),
-    stepElapsedLabel:
-      run.status === "running" && !Number.isNaN(stepStartedMs)
-        ? formatClockDuration((NOW - stepStartedMs) / 1000)
-        : null,
-    progress: buildRunProgress(run, generations, openPoints),
-    story,
-    goalIds: goalNodeIds(graph),
+    nowMs: STORY_NOW,
+  });
+  return {
+    ...view,
+    run: effectiveRun,
+    definition: reviewsWatchDefinition,
     goalTurns: scenario.goalTurns ?? [],
-    usageRows: buildRunUsage(run, elapsedSeconds),
-    usageNote: usageNote(run),
-    approvalRequest: live.needsApproval,
-    approvalFallbackFacts: usageSnapshotFacts(run, elapsedSeconds),
-    failure: live.failure,
-    latestVerdict: verdict,
     watchEvents,
-    watchCadence:
-      typeof watchNode?.watch?.poll === "string" ? `checks every ${watchNode.watch.poll}` : null,
     frames: live.frames,
-    inputRows: buildInputRows(run, reviewsWatchDefinition),
-    startedBy: humanizeStartOrigin(run),
     workspaceLabel: "Home",
     versionLabel: `v${run.definition_version} · pinned`,
-    nextNote: showNextNote ? buildNextNote(graph, generations) : null,
-    showNowCard: run.status === "running" || run.status === "watching" || run.status === "paused",
-    terminalFromStatus: isTerminalLoopStatus(run.status) ? "running" : undefined,
     onDecision: () => undefined,
     onStartNewRun: () => undefined,
   };

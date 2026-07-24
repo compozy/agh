@@ -9,5 +9,5 @@ export const CHART_TOOLTIP_CONTENT_STYLE: React.CSSProperties = {
   color: "var(--color-muted)",
   fontFamily: "var(--font-mono)",
   fontSize: "var(--text-micro)",
-  padding: "6px 8px",
+  padding: "var(--space-chart-tooltip-y) var(--space-chart-tooltip-x)",
 };

@@ -7,6 +7,7 @@ import {
   deriveCostEstimate,
   formatClockDuration,
   runElapsedSeconds,
+  terminalRunElapsedSeconds,
   usageNote,
   usageSnapshotFacts,
 } from "../loop-run-usage";
@@ -26,6 +27,41 @@ describe("runElapsedSeconds", () => {
     expect(runElapsedSeconds({ ...base, status: "running" }, now)).toBe(22 * 60 + 14);
     expect(runElapsedSeconds({ ...base, status: "watching" }, now)).toBe(18 * 60);
     expect(runElapsedSeconds({ ...base, status: "failed" }, now)).toBe(18 * 60);
+  });
+});
+
+describe("terminalRunElapsedSeconds", () => {
+  const base = run({
+    created_at: "2026-07-22T14:00:00Z",
+    started_at: "2026-07-22T14:10:00Z",
+    last_progress_at: "2026-07-22T14:18:00Z",
+  });
+  const now = Date.parse("2026-07-22T14:32:14Z");
+
+  it("Should measure a terminal run from the terminal frame at, not the stale last_progress span", () => {
+    // Durable span (created → last_progress) is 18m; the terminal frame lands at 31m.
+    expect(
+      terminalRunElapsedSeconds({ ...base, status: "exhausted" }, "2026-07-22T14:31:00Z", now)
+    ).toBe(31 * 60);
+  });
+
+  it("Should fall back to the durable span when the terminal frame is absent or malformed", () => {
+    expect(terminalRunElapsedSeconds({ ...base, status: "exhausted" }, undefined, now)).toBe(
+      18 * 60
+    );
+    expect(terminalRunElapsedSeconds({ ...base, status: "exhausted" }, "not-a-date", now)).toBe(
+      18 * 60
+    );
+    // A terminal instant before creation cannot be the real end; keep the durable span.
+    expect(
+      terminalRunElapsedSeconds({ ...base, status: "exhausted" }, "2026-07-22T13:00:00Z", now)
+    ).toBe(18 * 60);
+  });
+
+  it("Should ignore the terminal frame for a running run and keep ticking against started_at", () => {
+    expect(
+      terminalRunElapsedSeconds({ ...base, status: "running" }, "2026-07-22T14:31:00Z", now)
+    ).toBe(22 * 60 + 14);
   });
 });
 

@@ -38796,7 +38796,6 @@ export interface operations {
                 };
                 items: {
                   actions: string[];
-                  agent_name?: string;
                   detail?: string;
                   kind: string;
                   /** Format: date-time */
@@ -38838,6 +38837,7 @@ export interface operations {
                 failed: number;
                 /** Format: double */
                 success_pct: number;
+                window_days: number;
               };
               pulse: {
                 buckets: {
@@ -38857,6 +38857,7 @@ export interface operations {
                   duration_seconds: number;
                   session_id: string;
                 } | null;
+                window_days: number;
               };
               schema_version: string;
               system: {

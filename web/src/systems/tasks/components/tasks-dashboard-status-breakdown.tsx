@@ -1,4 +1,4 @@
-import { Panel, cn, Eyebrow, type PillTone, Pill } from "@agh/ui";
+import { cn, Eyebrow, Panel, Pill, type PillTone } from "@agh/ui";
 
 import { formatPercent, taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";

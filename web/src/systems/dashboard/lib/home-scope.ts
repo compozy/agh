@@ -9,16 +9,18 @@ export interface HomeScope {
 }
 
 /**
- * The home workspace maps to the global scope: the overview endpoint receives
- * no workspace param and aggregates the whole system, mirroring how the tasks
- * surfaces resolve `taskScopeForActiveWorkspace`.
+ * Maps the home workspace to global scope and project workspaces to their id.
+ * Returns `null` until both the active workspace and daemon home are known.
  */
 export function homeScopeForActiveWorkspace(
   activeWorkspace: ActiveWorkspaceScopeCandidate | null | undefined,
   userHomeDir: string | undefined
-): HomeScope {
+): HomeScope | null {
   const scope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
-  if (!scope || scope.scope === "global") {
+  if (!scope) {
+    return null;
+  }
+  if (scope.scope === "global") {
     return { workspaceParam: "", taskScope: { scope: "global" } };
   }
   return { workspaceParam: scope.workspace, taskScope: scope };

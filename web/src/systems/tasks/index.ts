@@ -244,7 +244,8 @@ export type { TaskCommandState, TaskPrimaryCommand } from "./lib/task-command-st
 export { projectTaskExceptionPills } from "./lib/task-detail-pills";
 export type { TaskExceptionPill } from "./lib/task-detail-pills";
 export { DEFAULT_TASK_LIST_LIMIT, defaultTaskCatalogFilter } from "./lib/task-catalog-filter";
-export { taskScopeForActiveWorkspace, type ActiveTaskScopeFilter } from "./lib/workspace-scope";
+export { taskScopeForActiveWorkspace } from "./lib/workspace-scope";
+export type { ActiveTaskScopeFilter } from "./lib/workspace-scope";
 
 export {
   DEFAULT_TASK_TEMPLATE_ID,

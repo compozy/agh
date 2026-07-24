@@ -3,34 +3,17 @@ import { ChevronRight } from "lucide-react";
 
 import { Button, Panel, Pill, Section } from "@agh/ui";
 
-export interface HomeNetworkRow {
-  key: string;
-  label: string;
-  value: string;
-  tone?: "success" | "warning";
-  mono?: boolean;
-}
-
-export interface HomeNetworkBudget {
-  used: number;
-  limit: number;
-  resetNote: string | null;
-}
+import type { HomeNetworkRow } from "../lib/home-network";
 
 export interface HomeNetworkPanelProps {
   rows: HomeNetworkRow[];
-  budget: HomeNetworkBudget | null;
 }
 
 /**
  * Zone 3b — network coordination at a glance. Rows render only for counters
- * the daemon actually reports; the wake budget meter appears when a workspace
- * budget exists.
+ * the daemon actually reports.
  */
-export function HomeNetworkPanel({ rows, budget }: HomeNetworkPanelProps) {
-  const budgetShare =
-    budget && budget.limit > 0 ? Math.min(1, Math.max(0, budget.used / budget.limit)) : 0;
-
+export function HomeNetworkPanel({ rows }: HomeNetworkPanelProps) {
   return (
     <Section
       bodyClassName="flex flex-1 flex-col"
@@ -71,31 +54,6 @@ export function HomeNetworkPanel({ rows, budget }: HomeNetworkPanelProps) {
               </div>
             ))
           )}
-          {budget ? (
-            <div className="px-4 py-3" data-slot="home-network-budget">
-              <div className="mb-2 flex items-center justify-between gap-3 text-small-body text-muted">
-                <span>
-                  Wakes this week
-                  {budget.resetNote ? (
-                    <span className="text-faint"> · {budget.resetNote}</span>
-                  ) : null}
-                </span>
-                <span className="font-mono text-mono-id tabular-nums text-subtle">
-                  {budget.used} / {budget.limit}
-                </span>
-              </div>
-              <div
-                aria-label={`${budget.used} of ${budget.limit} network wakes used`}
-                className="h-1.5 overflow-hidden rounded-pill bg-canvas-tint"
-                role="img"
-              >
-                <div
-                  className="h-full rounded-pill bg-viz-bar"
-                  style={{ width: `${budgetShare * 100}%` }}
-                />
-              </div>
-            </div>
-          ) : null}
         </div>
       </Panel>
     </Section>

@@ -5,7 +5,7 @@ import "time"
 // ObserveOverviewSchemaVersion identifies the home overview payload contract revision.
 const ObserveOverviewSchemaVersion = "observe-overview/v1"
 
-// ObserveOverviewPayload is the workspace-scoped home overview read model.
+// ObserveOverviewPayload is the home overview read model (global by default; optional workspace scope).
 type ObserveOverviewPayload struct {
 	SchemaVersion string                        `json:"schema_version"`
 	GeneratedAt   time.Time                     `json:"generated_at"`
@@ -34,7 +34,6 @@ type OverviewAttentionItemPayload struct {
 	TaskID     string    `json:"task_id,omitempty"`
 	RunID      string    `json:"run_id,omitempty"`
 	SessionID  string    `json:"session_id,omitempty"`
-	AgentName  string    `json:"agent_name,omitempty"`
 	OccurredAt time.Time `json:"occurred_at"`
 	Actions    []string  `json:"actions"`
 }
@@ -48,6 +47,7 @@ type OverviewTodayPayload struct {
 
 // OverviewOutcomesPayload summarizes terminal run outcomes for the fixed window.
 type OverviewOutcomesPayload struct {
+	WindowDays int                         `json:"window_days"`
 	Days       []OverviewOutcomeDayPayload `json:"days"`
 	Completed  int                         `json:"completed"`
 	Failed     int                         `json:"failed"`
@@ -91,6 +91,7 @@ type OverviewAgentSharePayload struct {
 
 // OverviewPulsePayload summarizes hour-by-weekday activity plus derived insights.
 type OverviewPulsePayload struct {
+	WindowDays     int                            `json:"window_days"`
 	Buckets        []OverviewPulseBucketPayload   `json:"buckets"`
 	Busiest        *OverviewPulseBucketPayload    `json:"busiest,omitempty"`
 	LongestSession *OverviewLongestSessionPayload `json:"longest_session,omitempty"`

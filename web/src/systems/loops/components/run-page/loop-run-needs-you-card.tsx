@@ -2,12 +2,13 @@ import { Check, PenLine, X } from "lucide-react";
 
 import { Button, Eyebrow, StatusCard } from "@agh/ui";
 
-import type { LoopApprovalFact, LoopApprovalRequest } from "../../lib/loop-events";
+import type {
+  LoopApprovalFact,
+  LoopApprovalRequest,
+  LoopGateDecision,
+} from "../../lib/loop-events";
 import type { LoopRunRecord } from "../../types";
 import { LoopRunSection } from "./loop-run-section";
-
-/** The closed HITL verdict vocabulary (ADR-017 §9.8): resume / revise / halt. */
-export type LoopGateDecision = "approve" | "request_changes" | "reject";
 
 interface LoopRunNeedsYouCardProps {
   run: LoopRunRecord;
@@ -19,8 +20,36 @@ interface LoopRunNeedsYouCardProps {
   onDecision: (decision: LoopGateDecision, gateId: string) => void;
 }
 
+/** The closed ADR-017 §9.8 verdict set, rendered as the card's action buttons in order. */
+const GATE_DECISIONS = [
+  {
+    decision: "approve",
+    testId: "loop-approval-approve",
+    variant: "primary",
+    className: undefined,
+    icon: Check,
+    label: "Approve & resume",
+  },
+  {
+    decision: "request_changes",
+    testId: "loop-approval-request-changes",
+    variant: "outline",
+    className: undefined,
+    icon: PenLine,
+    label: "Request changes",
+  },
+  {
+    decision: "reject",
+    testId: "loop-approval-reject",
+    variant: "outline",
+    className: "text-danger hover:border-danger/40 hover:text-danger",
+    icon: X,
+    label: "Reject & halt",
+  },
+] as const;
+
 /**
- * The "Needs you" card (§2/§7): a warning scard at the top of the main column
+ * The "Needs you" card (§2/§7): a warning StatusCard at the top of the main column
  * with the approver's prompt, the decision facts, and the closed decision set —
  * Approve & resume / Request changes / Reject & halt — wired with the gate id.
  */
@@ -46,16 +75,10 @@ export function LoopRunNeedsYouCard({
         <div className="text-ws-name font-medium text-warning">
           {request?.title ?? "Approve to continue this run?"}
         </div>
-        {request?.prompt ? (
-          <StatusCard.Body className="mt-1 max-w-[62ch] leading-relaxed">
-            {request.prompt}
-          </StatusCard.Body>
-        ) : (
-          <StatusCard.Body className="mt-1 max-w-[62ch] leading-relaxed">
-            The run parked and asks you first. Approving continues the round with the same limits;
-            rejecting ends the run.
-          </StatusCard.Body>
-        )}
+        <StatusCard.Body className="mt-1 max-w-[62ch] leading-relaxed">
+          {request?.prompt ??
+            "The run parked and asks you first. Approving continues the round with the same limits; rejecting ends the run."}
+        </StatusCard.Body>
         {facts.length > 0 ? (
           <div className="mt-3 flex flex-wrap gap-x-5.5 gap-y-2">
             {facts.map(fact => (
@@ -67,40 +90,21 @@ export function LoopRunNeedsYouCard({
           </div>
         ) : null}
         <StatusCard.Action className="mt-3.5">
-          <Button
-            data-testid="loop-approval-approve"
-            disabled={isPending}
-            onClick={() => onDecision("approve", gateId)}
-            size="sm"
-            type="button"
-            variant="primary"
-          >
-            <Check aria-hidden="true" className="size-3.5" />
-            Approve &amp; resume
-          </Button>
-          <Button
-            data-testid="loop-approval-request-changes"
-            disabled={isPending}
-            onClick={() => onDecision("request_changes", gateId)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <PenLine aria-hidden="true" className="size-3.5" />
-            Request changes
-          </Button>
-          <Button
-            className="text-danger hover:border-danger/40 hover:text-danger"
-            data-testid="loop-approval-reject"
-            disabled={isPending}
-            onClick={() => onDecision("reject", gateId)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <X aria-hidden="true" className="size-3.5" />
-            Reject &amp; halt
-          </Button>
+          {GATE_DECISIONS.map(({ decision, testId, variant, className, icon: Icon, label }) => (
+            <Button
+              key={decision}
+              className={className}
+              data-testid={testId}
+              disabled={isPending}
+              onClick={() => onDecision(decision, gateId)}
+              size="sm"
+              type="button"
+              variant={variant}
+            >
+              <Icon aria-hidden="true" className="size-3.5" />
+              {label}
+            </Button>
+          ))}
         </StatusCard.Action>
         <div className="mt-3 font-mono text-pill-group-badge text-faint">{micro}</div>
       </StatusCard>

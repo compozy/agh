@@ -1,4 +1,4 @@
-import type { LoopEffectiveConfig } from "../types";
+import type { LoopEffectiveConfig, LoopRunRecord } from "../types";
 import { UNBOUNDED_CAP } from "./loop-catalog";
 import { resolveLoopEffectiveConfig } from "./loop-effective-config";
 
@@ -59,10 +59,27 @@ export interface LoopLimitRow {
  * default from saved configuration with its daemon ceiling. Cost is display-only (no
  * enforced USD cap, §9.5.2); fan-out breadth is bounded by the loaded task count.
  */
+/**
+ * The single policy→outcome vocabulary for `budget_on_exceeded`, shared by the
+ * limits rail (split value/ceiling) and the inspect "On limit" tile (one line).
+ * The param is the closed daemon union (`"halt" | "escalate"`), so an unmapped
+ * policy fails at compile time rather than silently folding to `halt`.
+ */
+export function onExceededPolicy(policy: LoopRunRecord["budget_on_exceeded"]): {
+  policy: "escalate" | "halt";
+  target: string;
+} {
+  return {
+    policy,
+    target: policy === "escalate" ? "→ needs-approval" : "→ exhausted",
+  };
+}
+
 export function buildLoopLimits(effectiveConfig: LoopEffectiveConfig): LoopLimitRow[] {
   const effective = resolveLoopEffectiveConfig(effectiveConfig);
-  const onExceeded = effective.budget_on_exceeded === "escalate" ? "escalate" : "halt";
-  const onExceededTarget = onExceeded === "escalate" ? "→ needs-approval" : "→ exhausted";
+  const { policy: onExceeded, target: onExceededTarget } = onExceededPolicy(
+    effective.budget_on_exceeded
+  );
   return [
     {
       label: "Iteration cap",

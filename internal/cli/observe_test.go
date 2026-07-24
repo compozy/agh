@@ -20,8 +20,10 @@ func overviewTestPayload() contract.ObserveOverviewPayload {
 			ByKind: map[string]int{"approval": 1, "needs_input": 1, "failure": 1},
 			Items:  []contract.OverviewAttentionItemPayload{},
 		},
-		Today:    contract.OverviewTodayPayload{RunsCompleted: 5, RunsFailed: 1, TasksClosed: 3},
-		Outcomes: contract.OverviewOutcomesPayload{Completed: 118, Failed: 7, Canceled: 4, SuccessPct: 91.5},
+		Today: contract.OverviewTodayPayload{RunsCompleted: 5, RunsFailed: 1, TasksClosed: 3},
+		Outcomes: contract.OverviewOutcomesPayload{
+			WindowDays: 14, Completed: 118, Failed: 7, Canceled: 4, SuccessPct: 91.5,
+		},
 		Usage: contract.OverviewUsagePayload{
 			WindowDays:    30,
 			RetentionDays: 7,
@@ -32,7 +34,8 @@ func overviewTestPayload() contract.ObserveOverviewPayload {
 			CostStatus:    "estimated",
 		},
 		Pulse: contract.OverviewPulsePayload{
-			Busiest: &contract.OverviewPulseBucketPayload{Weekday: 2, Hour: 14, Events: 42},
+			WindowDays: 14,
+			Busiest:    &contract.OverviewPulseBucketPayload{Weekday: 2, Hour: 14, Events: 42},
 			LongestSession: &contract.OverviewLongestSessionPayload{
 				SessionID:       "sess-long",
 				AgentName:       "writer",
@@ -130,12 +133,19 @@ func TestObserveOverviewCommand(t *testing.T) {
 		}
 
 		lines := strings.Split(strings.TrimSpace(stdout), "\n")
-		if len(lines) != 8 {
-			t.Fatalf("jsonl lines = %d, want 8 sections:\n%s", len(lines), stdout)
+		if len(lines) != 9 {
+			t.Fatalf("jsonl lines = %d, want meta + 8 sections:\n%s", len(lines), stdout)
+		}
+		var meta map[string]any
+		if err := json.Unmarshal([]byte(lines[0]), &meta); err != nil {
+			t.Fatalf("json.Unmarshal(meta line) error = %v", err)
+		}
+		if meta["section"] != "meta" || meta["schema_version"] != contract.ObserveOverviewSchemaVersion {
+			t.Fatalf("meta line = %v, want section meta with schema_version", meta)
 		}
 		var first map[string]any
-		if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
-			t.Fatalf("json.Unmarshal(first line) error = %v", err)
+		if err := json.Unmarshal([]byte(lines[1]), &first); err != nil {
+			t.Fatalf("json.Unmarshal(first section) error = %v", err)
 		}
 		if first["section"] != "attention" {
 			t.Fatalf("first section = %v, want attention", first["section"])

@@ -49,11 +49,17 @@ func (q *OverviewQuery) Validate() error {
 	if q.UsageWindowDays == 0 {
 		q.UsageWindowDays = overviewDefaultUsageDays
 	}
-	switch q.UsageWindowDays {
+	return ValidateUsageWindowDays(q.UsageWindowDays)
+}
+
+// ValidateUsageWindowDays reports whether days is an accepted overview usage
+// window. It is the single allowlist shared by the daemon, API, and CLI.
+func ValidateUsageWindowDays(days int) error {
+	switch days {
 	case 7, 30, 90:
 		return nil
 	default:
-		return fmt.Errorf("observe: unsupported usage window %d (expected 7, 30, or 90)", q.UsageWindowDays)
+		return fmt.Errorf("observe: unsupported usage window %d (expected 7, 30, or 90)", days)
 	}
 }
 
@@ -85,7 +91,6 @@ type OverviewAttentionItem struct {
 	TaskID     string
 	RunID      string
 	SessionID  string
-	AgentName  string
 	OccurredAt time.Time
 	Actions    []string
 }
@@ -99,6 +104,7 @@ type OverviewToday struct {
 
 // OverviewOutcomes summarizes terminal run outcomes across the fixed window.
 type OverviewOutcomes struct {
+	WindowDays int
 	Days       []store.TaskRunOutcomeDay
 	Completed  int
 	Failed     int
@@ -128,6 +134,7 @@ type OverviewAgentShare struct {
 
 // OverviewPulse summarizes hour-by-weekday activity plus derived insights.
 type OverviewPulse struct {
+	WindowDays     int
 	Buckets        []store.EventHourWeekdayBucket
 	Busiest        *store.EventHourWeekdayBucket
 	LongestSession *OverviewLongestSession

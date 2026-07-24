@@ -16,14 +16,14 @@ SELECT CAST(strftime('%w', timestamp, 'localtime') AS INTEGER) AS weekday,
   COUNT(1) AS events
 FROM event_summaries
 WHERE timestamp >= ?1
-  AND (?2 = '' OR workspace_id = ?2)
+  AND (CAST(?2 AS TEXT) = '' OR workspace_id = CAST(?2 AS TEXT))
 GROUP BY weekday, hour
 ORDER BY weekday, hour
 `
 
 type CountEventSummariesByHourWeekdayParams struct {
 	Since       string `json:"since"`
-	WorkspaceID any    `json:"workspace_id"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type CountEventSummariesByHourWeekdayRow struct {
@@ -57,21 +57,21 @@ func (q *Queries) CountEventSummariesByHourWeekday(ctx context.Context, arg Coun
 
 const countHookDispatchSince = `-- name: CountHookDispatchSince :one
 SELECT COUNT(1) AS runs,
-  SUM(CASE WHEN outcome = 'failure' THEN 1 ELSE 0 END) AS failures
+  CAST(COALESCE(SUM(CASE WHEN outcome = 'failure' THEN 1 ELSE 0 END), 0) AS INTEGER) AS failures
 FROM event_summaries
 WHERE type = 'hook.dispatch.complete'
   AND timestamp >= ?1
-  AND (?2 = '' OR workspace_id = ?2)
+  AND (CAST(?2 AS TEXT) = '' OR workspace_id = CAST(?2 AS TEXT))
 `
 
 type CountHookDispatchSinceParams struct {
 	Since       string `json:"since"`
-	WorkspaceID any    `json:"workspace_id"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type CountHookDispatchSinceRow struct {
-	Runs     int64           `json:"runs"`
-	Failures sql.NullFloat64 `json:"failures"`
+	Runs     int64 `json:"runs"`
+	Failures int64 `json:"failures"`
 }
 
 func (q *Queries) CountHookDispatchSince(ctx context.Context, arg CountHookDispatchSinceParams) (CountHookDispatchSinceRow, error) {
@@ -85,12 +85,12 @@ const countNetworkAuditSince = `-- name: CountNetworkAuditSince :one
 SELECT COUNT(1) AS messages
 FROM network_audit_log
 WHERE timestamp >= ?1
-  AND (?2 = '' OR workspace_id = ?2)
+  AND (CAST(?2 AS TEXT) = '' OR workspace_id = CAST(?2 AS TEXT))
 `
 
 type CountNetworkAuditSinceParams struct {
 	Since       string `json:"since"`
-	WorkspaceID any    `json:"workspace_id"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 func (q *Queries) CountNetworkAuditSince(ctx context.Context, arg CountNetworkAuditSinceParams) (int64, error) {
@@ -101,30 +101,30 @@ func (q *Queries) CountNetworkAuditSince(ctx context.Context, arg CountNetworkAu
 }
 
 const countTaskRunOutcomesByDay = `-- name: CountTaskRunOutcomesByDay :many
-SELECT date(ended_at, 'localtime') AS day,
-  SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
-  SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
-  SUM(CASE WHEN status = 'canceled' THEN 1 ELSE 0 END) AS canceled
+SELECT CAST(date(ended_at, 'localtime') AS TEXT) AS day,
+  CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) AS completed,
+  CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) AS failed,
+  CAST(SUM(CASE WHEN status = 'canceled' THEN 1 ELSE 0 END) AS INTEGER) AS canceled
 FROM task_runs
 WHERE ended_at IS NOT NULL
-  AND ended_at >= ?1
+  AND ended_at >= CAST(?1 AS TEXT)
   AND status IN ('completed', 'failed', 'canceled')
   AND run_kind = 'worker'
-  AND (?2 = '' OR COALESCE(workspace_id, '') = ?2)
+  AND (CAST(?2 AS TEXT) = '' OR COALESCE(workspace_id, '') = CAST(?2 AS TEXT))
 GROUP BY date(ended_at, 'localtime')
 ORDER BY day
 `
 
 type CountTaskRunOutcomesByDayParams struct {
-	Since       sql.NullString `json:"since"`
-	WorkspaceID any            `json:"workspace_id"`
+	Since       string `json:"since"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type CountTaskRunOutcomesByDayRow struct {
-	Day       any             `json:"day"`
-	Completed sql.NullFloat64 `json:"completed"`
-	Failed    sql.NullFloat64 `json:"failed"`
-	Canceled  sql.NullFloat64 `json:"canceled"`
+	Day       string `json:"day"`
+	Completed int64  `json:"completed"`
+	Failed    int64  `json:"failed"`
+	Canceled  int64  `json:"canceled"`
 }
 
 func (q *Queries) CountTaskRunOutcomesByDay(ctx context.Context, arg CountTaskRunOutcomesByDayParams) ([]CountTaskRunOutcomesByDayRow, error) {
@@ -156,24 +156,24 @@ func (q *Queries) CountTaskRunOutcomesByDay(ctx context.Context, arg CountTaskRu
 }
 
 const countTasksClosedByDay = `-- name: CountTasksClosedByDay :many
-SELECT date(closed_at, 'localtime') AS day, COUNT(1) AS closed
+SELECT CAST(date(closed_at, 'localtime') AS TEXT) AS day, COUNT(1) AS closed
 FROM tasks
 WHERE closed_at IS NOT NULL
-  AND closed_at >= ?1
+  AND closed_at >= CAST(?1 AS TEXT)
   AND status = 'completed'
-  AND (?2 = '' OR COALESCE(workspace_id, '') = ?2)
+  AND (CAST(?2 AS TEXT) = '' OR COALESCE(workspace_id, '') = CAST(?2 AS TEXT))
 GROUP BY date(closed_at, 'localtime')
 ORDER BY day
 `
 
 type CountTasksClosedByDayParams struct {
-	Since       sql.NullString `json:"since"`
-	WorkspaceID any            `json:"workspace_id"`
+	Since       string `json:"since"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type CountTasksClosedByDayRow struct {
-	Day    any   `json:"day"`
-	Closed int64 `json:"closed"`
+	Day    string `json:"day"`
+	Closed int64  `json:"closed"`
 }
 
 func (q *Queries) CountTasksClosedByDay(ctx context.Context, arg CountTasksClosedByDayParams) ([]CountTasksClosedByDayRow, error) {
@@ -213,22 +213,22 @@ func (q *Queries) DeleteTokenUsageDailyBefore(ctx context.Context, cutoffDay str
 
 const listTokenUsageDailyByAgent = `-- name: ListTokenUsageDailyByAgent :many
 SELECT agent_name,
-  SUM(total_tokens) AS total_tokens
+  CAST(SUM(total_tokens) AS INTEGER) AS total_tokens
 FROM token_usage_daily
 WHERE day >= ?1
-  AND (?2 = '' OR workspace_id = ?2)
+  AND (CAST(?2 AS TEXT) = '' OR workspace_id = CAST(?2 AS TEXT))
 GROUP BY agent_name
 ORDER BY SUM(total_tokens) DESC, agent_name
 `
 
 type ListTokenUsageDailyByAgentParams struct {
 	SinceDay    string `json:"since_day"`
-	WorkspaceID any    `json:"workspace_id"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type ListTokenUsageDailyByAgentRow struct {
-	AgentName   string          `json:"agent_name"`
-	TotalTokens sql.NullFloat64 `json:"total_tokens"`
+	AgentName   string `json:"agent_name"`
+	TotalTokens int64  `json:"total_tokens"`
 }
 
 func (q *Queries) ListTokenUsageDailyByAgent(ctx context.Context, arg ListTokenUsageDailyByAgentParams) ([]ListTokenUsageDailyByAgentRow, error) {
@@ -256,26 +256,26 @@ func (q *Queries) ListTokenUsageDailyByAgent(ctx context.Context, arg ListTokenU
 
 const listTokenUsageDailyByDay = `-- name: ListTokenUsageDailyByDay :many
 SELECT day,
-  SUM(input_tokens) AS input_tokens,
-  SUM(output_tokens) AS output_tokens,
-  SUM(total_tokens) AS total_tokens
+  CAST(SUM(input_tokens) AS INTEGER) AS input_tokens,
+  CAST(SUM(output_tokens) AS INTEGER) AS output_tokens,
+  CAST(SUM(total_tokens) AS INTEGER) AS total_tokens
 FROM token_usage_daily
 WHERE day >= ?1
-  AND (?2 = '' OR workspace_id = ?2)
+  AND (CAST(?2 AS TEXT) = '' OR workspace_id = CAST(?2 AS TEXT))
 GROUP BY day
 ORDER BY day
 `
 
 type ListTokenUsageDailyByDayParams struct {
 	SinceDay    string `json:"since_day"`
-	WorkspaceID any    `json:"workspace_id"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type ListTokenUsageDailyByDayRow struct {
-	Day          string          `json:"day"`
-	InputTokens  sql.NullFloat64 `json:"input_tokens"`
-	OutputTokens sql.NullFloat64 `json:"output_tokens"`
-	TotalTokens  sql.NullFloat64 `json:"total_tokens"`
+	Day          string `json:"day"`
+	InputTokens  int64  `json:"input_tokens"`
+	OutputTokens int64  `json:"output_tokens"`
+	TotalTokens  int64  `json:"total_tokens"`
 }
 
 func (q *Queries) ListTokenUsageDailyByDay(ctx context.Context, arg ListTokenUsageDailyByDayParams) ([]ListTokenUsageDailyByDayRow, error) {
@@ -308,27 +308,27 @@ func (q *Queries) ListTokenUsageDailyByDay(ctx context.Context, arg ListTokenUsa
 
 const longestUserSessionSince = `-- name: LongestUserSessionSince :many
 SELECT id, agent_name, created_at,
-  MAX(0, CAST(strftime('%s', CASE WHEN state = 'active' THEN ?1 ELSE updated_at END) AS INTEGER) -
-    CAST(strftime('%s', created_at) AS INTEGER)) AS runtime_seconds
+  CAST(MAX(0, CAST(strftime('%s', CASE WHEN state = 'active' THEN CAST(?1 AS TEXT) ELSE updated_at END) AS INTEGER) -
+    CAST(strftime('%s', created_at) AS INTEGER)) AS INTEGER) AS runtime_seconds
 FROM sessions
 WHERE session_type = 'user'
   AND created_at >= ?2
-  AND (?3 = '' OR workspace_id = ?3)
+  AND (CAST(?3 AS TEXT) = '' OR workspace_id = CAST(?3 AS TEXT))
 ORDER BY runtime_seconds DESC, created_at DESC
 LIMIT 1
 `
 
 type LongestUserSessionSinceParams struct {
-	Now         any    `json:"now"`
+	Now         string `json:"now"`
 	Since       string `json:"since"`
-	WorkspaceID any    `json:"workspace_id"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type LongestUserSessionSinceRow struct {
 	ID             string `json:"id"`
 	AgentName      string `json:"agent_name"`
 	CreatedAt      string `json:"created_at"`
-	RuntimeSeconds any    `json:"runtime_seconds"`
+	RuntimeSeconds int64  `json:"runtime_seconds"`
 }
 
 func (q *Queries) LongestUserSessionSince(ctx context.Context, arg LongestUserSessionSinceParams) ([]LongestUserSessionSinceRow, error) {
@@ -360,41 +360,41 @@ func (q *Queries) LongestUserSessionSince(ctx context.Context, arg LongestUserSe
 }
 
 const maxEventSummaryTimestamp = `-- name: MaxEventSummaryTimestamp :one
-SELECT COALESCE(MAX(timestamp), '') AS latest
+SELECT CAST(COALESCE(MAX(timestamp), '') AS TEXT) AS latest
 FROM event_summaries
-WHERE (?1 = '' OR workspace_id = ?1)
+WHERE (CAST(?1 AS TEXT) = '' OR workspace_id = CAST(?1 AS TEXT))
 `
 
-func (q *Queries) MaxEventSummaryTimestamp(ctx context.Context, workspaceID any) (any, error) {
+func (q *Queries) MaxEventSummaryTimestamp(ctx context.Context, workspaceID string) (string, error) {
 	row := q.db.QueryRowContext(ctx, maxEventSummaryTimestamp, workspaceID)
-	var latest any
+	var latest string
 	err := row.Scan(&latest)
 	return latest, err
 }
 
 const sumTokenUsageDailyCost = `-- name: SumTokenUsageDailyCost :many
 SELECT cost_status, cost_source, COALESCE(cost_currency, '') AS cost_currency,
-  SUM(COALESCE(total_cost, 0)) AS total_cost,
-  SUM(CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END) AS rows_without_cost,
+  CAST(SUM(COALESCE(total_cost, 0)) AS REAL) AS total_cost,
+  CAST(SUM(CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END) AS INTEGER) AS rows_without_cost,
   COUNT(1) AS rows_total
 FROM token_usage_daily
 WHERE day >= ?1
-  AND (?2 = '' OR workspace_id = ?2)
+  AND (CAST(?2 AS TEXT) = '' OR workspace_id = CAST(?2 AS TEXT))
 GROUP BY cost_status, cost_source, COALESCE(cost_currency, '')
 `
 
 type SumTokenUsageDailyCostParams struct {
 	SinceDay    string `json:"since_day"`
-	WorkspaceID any    `json:"workspace_id"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type SumTokenUsageDailyCostRow struct {
-	CostStatus      string          `json:"cost_status"`
-	CostSource      string          `json:"cost_source"`
-	CostCurrency    string          `json:"cost_currency"`
-	TotalCost       sql.NullFloat64 `json:"total_cost"`
-	RowsWithoutCost sql.NullFloat64 `json:"rows_without_cost"`
-	RowsTotal       int64           `json:"rows_total"`
+	CostStatus      string  `json:"cost_status"`
+	CostSource      string  `json:"cost_source"`
+	CostCurrency    string  `json:"cost_currency"`
+	TotalCost       float64 `json:"total_cost"`
+	RowsWithoutCost int64   `json:"rows_without_cost"`
+	RowsTotal       int64   `json:"rows_total"`
 }
 
 func (q *Queries) SumTokenUsageDailyCost(ctx context.Context, arg SumTokenUsageDailyCostParams) ([]SumTokenUsageDailyCostRow, error) {
@@ -445,6 +445,8 @@ ON CONFLICT(day, workspace_id, agent_name) DO UPDATE SET
     WHEN token_usage_daily.cost_status != excluded.cost_status
       OR token_usage_daily.cost_source != excluded.cost_source
       OR COALESCE(token_usage_daily.cost_currency, '') != COALESCE(excluded.cost_currency, '')
+      OR (token_usage_daily.total_cost IS NOT NULL AND excluded.total_cost IS NOT NULL
+        AND token_usage_daily.total_cost + excluded.total_cost > 1.7976931348623157e308)
       THEN NULL
     WHEN excluded.total_cost IS NULL THEN token_usage_daily.total_cost
     WHEN token_usage_daily.total_cost IS NULL THEN excluded.total_cost
@@ -454,6 +456,8 @@ ON CONFLICT(day, workspace_id, agent_name) DO UPDATE SET
     WHEN token_usage_daily.cost_status != excluded.cost_status
       OR token_usage_daily.cost_source != excluded.cost_source
       OR COALESCE(token_usage_daily.cost_currency, '') != COALESCE(excluded.cost_currency, '')
+      OR (token_usage_daily.total_cost IS NOT NULL AND excluded.total_cost IS NOT NULL
+        AND token_usage_daily.total_cost + excluded.total_cost > 1.7976931348623157e308)
       THEN NULL
     ELSE COALESCE(excluded.cost_currency, token_usage_daily.cost_currency)
   END,
@@ -461,6 +465,8 @@ ON CONFLICT(day, workspace_id, agent_name) DO UPDATE SET
     WHEN token_usage_daily.cost_status != excluded.cost_status
       OR token_usage_daily.cost_source != excluded.cost_source
       OR COALESCE(token_usage_daily.cost_currency, '') != COALESCE(excluded.cost_currency, '')
+      OR (token_usage_daily.total_cost IS NOT NULL AND excluded.total_cost IS NOT NULL
+        AND token_usage_daily.total_cost + excluded.total_cost > 1.7976931348623157e308)
       THEN 'unknown'
     ELSE token_usage_daily.cost_status
   END,
@@ -468,6 +474,8 @@ ON CONFLICT(day, workspace_id, agent_name) DO UPDATE SET
     WHEN token_usage_daily.cost_status != excluded.cost_status
       OR token_usage_daily.cost_source != excluded.cost_source
       OR COALESCE(token_usage_daily.cost_currency, '') != COALESCE(excluded.cost_currency, '')
+      OR (token_usage_daily.total_cost IS NOT NULL AND excluded.total_cost IS NOT NULL
+        AND token_usage_daily.total_cost + excluded.total_cost > 1.7976931348623157e308)
       THEN 'none'
     ELSE token_usage_daily.cost_source
   END,
@@ -490,6 +498,14 @@ type UpsertTokenUsageDailyParams struct {
 	UpdatedAt    string          `json:"updated_at"`
 }
 
+// Cost provenance mismatch (keep identical across total_cost/cost_currency/cost_status/cost_source):
+//
+//	token_usage_daily.cost_status != excluded.cost_status
+//	OR token_usage_daily.cost_source != excluded.cost_source
+//	OR COALESCE(token_usage_daily.cost_currency, '') != COALESCE(excluded.cost_currency, '')
+//	OR float64 overflow on the additive total_cost (mirrors token_stats)
+//
+// On mismatch: total_cost/cost_currency -> NULL, cost_status -> 'unknown', cost_source -> 'none'.
 func (q *Queries) UpsertTokenUsageDaily(ctx context.Context, arg UpsertTokenUsageDailyParams) error {
 	_, err := q.db.ExecContext(ctx, upsertTokenUsageDaily,
 		arg.Day,

@@ -1,20 +1,21 @@
 import { Check, RotateCcw } from "lucide-react";
-import { Link } from "@tanstack/react-router";
 
-import { Button, buttonVariants, StatusCard, type StatusCardTone } from "@agh/ui";
+import { Button, StatusCard, type StatusCardTone } from "@agh/ui";
 
 import type { LoopCoordinatorFailure } from "../../lib/loop-events";
+import { formatClockDuration, terminalRunElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRunRecord } from "../../types";
+import { LoopRunQuietNote } from "./loop-run-quiet-note";
 import { LoopRunSection } from "./loop-run-section";
 
 interface LoopRunOutcomeCardProps {
   run: LoopRunRecord;
   /** Run-level failure from the terminal status frame; null when none streamed. */
   failure: LoopCoordinatorFailure | null;
-  /** Frozen run duration (`26m 41s`). */
-  durationLabel: string;
   /** The terminal transition's `from` status, read from the retained frame. */
   fromStatus?: string;
+  /** The terminal transition's `at`; drives the true frozen duration + Time-limit check. */
+  terminalAt?: string;
   /** `contract.no_progress.window` from the pinned definition (stalled card). */
   noProgressWindow?: number;
   /** Blocking-issue ids from the last check (stalled card evidence). */
@@ -34,16 +35,20 @@ interface OutcomeView {
   showStartNewRun: boolean;
 }
 
-/** The exhausted card names the limit that tripped, from the run's own caps. */
-function exhaustedLimit(run: LoopRunRecord): string {
+/** Names only a cap the run actually crossed; exhausted also has non-budget causes. */
+function exhaustedLimit(run: LoopRunRecord, elapsedSeconds: number): string | null {
   if (run.iteration_cap > 0 && run.generation >= run.iteration_cap) return "Round cap";
   if (run.budget_tokens > 0 && run.tokens_used >= run.budget_tokens) return "Token budget";
-  if (run.budget_wall_sec > 0) return "Time limit";
-  return "A limit";
+  if (run.budget_wall_sec > 0 && elapsedSeconds >= run.budget_wall_sec) return "Time limit";
+  return null;
 }
 
-function outcomeView(props: LoopRunOutcomeCardProps): OutcomeView | null {
-  const { run, failure, durationLabel, noProgressWindow } = props;
+function outcomeView(
+  props: LoopRunOutcomeCardProps,
+  elapsedSeconds: number,
+  durationLabel: string
+): OutcomeView | null {
+  const { run, failure, noProgressWindow } = props;
   switch (run.status) {
     case "failed":
       return {
@@ -68,17 +73,27 @@ function outcomeView(props: LoopRunOutcomeCardProps): OutcomeView | null {
         recovery: failure?.recovery,
         showStartNewRun: false,
       };
-    case "exhausted":
+    case "exhausted": {
+      const limit = exhaustedLimit(run, elapsedSeconds);
       return {
         sectionLabel: "Why it stopped",
         tone: "warning",
         cardClass: "border border-warning/25 bg-warning-tint",
         titleClass: "text-warning",
-        title: `${exhaustedLimit(run)} reached after ${durationLabel}`,
-        body: "This loop's limit policy stops the run as exhausted instead of asking. Finished work is kept.",
+        title: failure?.cause
+          ? `${failure.cause} after ${durationLabel}`
+          : limit
+            ? `${limit} reached after ${durationLabel}`
+            : `Run exhausted after ${durationLabel}`,
+        body:
+          failure?.cause ??
+          (limit
+            ? "This loop's limit policy stops the run as exhausted instead of asking. Finished work is kept."
+            : "This run stopped as exhausted. Finished work is kept."),
         recovery: failure?.recovery,
         showStartNewRun: true,
       };
+    }
     case "stalled":
       return {
         sectionLabel: "Why it stopped",
@@ -104,21 +119,19 @@ function outcomeView(props: LoopRunOutcomeCardProps): OutcomeView | null {
  * run" re-posts the same inputs as a fresh run.
  */
 export function LoopRunOutcomeCard(props: LoopRunOutcomeCardProps) {
-  const { run, failure, fromStatus, repeatedIssueIds, onStartNewRun, isStartPending } = props;
+  const { run, failure, fromStatus, terminalAt, repeatedIssueIds, onStartNewRun, isStartPending } =
+    props;
   if (run.status === "no-op") {
     return (
-      <div
-        className="flex items-start gap-2.25 rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted"
-        data-testid="loop-run-noop-note"
-      >
-        <Check aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
-        <span>Ran, nothing to do — the run finished without changes.</span>
-      </div>
+      <LoopRunQuietNote data-testid="loop-run-noop-note" icon={Check}>
+        Ran, nothing to do — the run finished without changes.
+      </LoopRunQuietNote>
     );
   }
-  const view = outcomeView(props);
+  const elapsedSeconds = terminalRunElapsedSeconds(run, terminalAt, Date.now());
+  const durationLabel = formatClockDuration(elapsedSeconds);
+  const view = outcomeView(props, elapsedSeconds, durationLabel);
   if (!view) return null;
-  const vaultRecovery = view.recovery !== undefined && /vault/i.test(view.recovery);
   const micro = [
     `status_changed · ${fromStatus ?? "?"} → ${run.status}`,
     failure ? `cause ${failure.code}` : null,
@@ -150,26 +163,19 @@ export function LoopRunOutcomeCard(props: LoopRunOutcomeCardProps) {
           ))}
         </div>
       ) : null}
-      {view.showStartNewRun || vaultRecovery ? (
+      {view.showStartNewRun ? (
         <StatusCard.Action className="mt-3.5">
-          {view.showStartNewRun ? (
-            <Button
-              data-testid="loop-run-start-new"
-              disabled={isStartPending}
-              onClick={onStartNewRun}
-              size="sm"
-              type="button"
-              variant="primary"
-            >
-              <RotateCcw aria-hidden="true" className="size-3.5" />
-              Start a new run
-            </Button>
-          ) : null}
-          {vaultRecovery ? (
-            <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/vault">
-              Open Vault
-            </Link>
-          ) : null}
+          <Button
+            data-testid="loop-run-start-new"
+            disabled={isStartPending}
+            onClick={onStartNewRun}
+            size="sm"
+            type="button"
+            variant="primary"
+          >
+            <RotateCcw aria-hidden="true" className="size-3.5" />
+            Start a new run
+          </Button>
         </StatusCard.Action>
       ) : null}
       <div className="mt-3 font-mono text-pill-group-badge text-faint">{micro}</div>

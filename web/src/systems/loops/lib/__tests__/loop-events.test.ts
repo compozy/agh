@@ -1,19 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { applyLoopEventFrame, emptyLoopRunLiveState } from "../loop-events";
-import type { LoopRunEventFrame, LoopRunEventKind } from "../../types";
-
-function frame(kind: LoopRunEventKind, payload: unknown, seq = 1): LoopRunEventFrame {
-  return {
-    id: `ev-${seq}`,
-    seq,
-    kind,
-    loop_run_id: "looprun_running",
-    workspace_id: "ws_default",
-    at: "2026-07-06T14:38:00Z",
-    payload,
-  };
-}
+import type { LoopRunEventKind } from "../../types";
+import { loopEventFrame as frame } from "./loop-event-frame";
 
 describe("applyLoopEventFrame", () => {
   it("Should retain structural frames in seq order, bounded to the newest history", () => {
@@ -35,6 +24,29 @@ describe("applyLoopEventFrame", () => {
     state = applyLoopEventFrame(state, frame("node_running", { node_id: "fix" }, 3));
     expect(state.frames.map(f => f.kind)).toEqual(["node_running"]);
     expect(state.tokensUsed).toBe(1_000);
+  });
+
+  it("Should bound a goal-turn flood to the newest slice while never evicting node_running", () => {
+    let state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("node_running", { node_id: "goal" }, 1)
+    );
+    // A goal node emits an unbounded stream of turns after it starts. They
+    // aggregate into goalTurns and must never consume the frame retention
+    // window — and the goalTurns slice itself must stay bounded (newest 500).
+    for (let seq = 2; seq <= 700; seq++) {
+      const kind: LoopRunEventKind = seq % 2 === 0 ? "goal_turn_started" : "goal_turn_completed";
+      state = applyLoopEventFrame(
+        state,
+        frame(kind, { node_id: "goal", prompt_id: `prompt_${seq}`, turn: seq }, seq)
+      );
+    }
+    expect(state.frames.map(f => f.kind)).toEqual(["node_running"]);
+    // 699 unique turns collapse to the newest 500; the oldest are dropped.
+    expect(state.goalTurns).toHaveLength(500);
+    expect(state.goalTurns.at(-1)?.promptId).toBe("prompt_700");
+    expect(state.goalTurns[0].promptId).toBe("prompt_201");
+    expect(state.goalTurns.some(turn => turn.promptId === "prompt_2")).toBe(false);
   });
 
   it("Should skip reconnect-replay duplicates by seq", () => {

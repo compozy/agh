@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { homeScopeForActiveWorkspace } from "../lib/home-scope";
-import { normalizeHomeUsageWindow } from "../types";
 
 const HOME_DIR = "/Users/tester";
 
@@ -12,8 +11,9 @@ function workspace(id: string, rootDir: string) {
 describe("homeScopeForActiveWorkspace", () => {
   it("Should map the home workspace to the global scope with an empty param", () => {
     const scope = homeScopeForActiveWorkspace(workspace("ws-home", HOME_DIR), HOME_DIR);
-    expect(scope.workspaceParam).toBe("");
-    expect(scope.taskScope).toEqual({ scope: "global" });
+    expect(scope).not.toBeNull();
+    expect(scope?.workspaceParam).toBe("");
+    expect(scope?.taskScope).toEqual({ scope: "global" });
   });
 
   it("Should scope a project workspace by its id", () => {
@@ -21,21 +21,14 @@ describe("homeScopeForActiveWorkspace", () => {
       workspace("ws-proj", "/Users/tester/dev/proj"),
       HOME_DIR
     );
-    expect(scope.workspaceParam).toBe("ws-proj");
-    expect(scope.taskScope).toEqual({ scope: "workspace", workspace: "ws-proj" });
+    expect(scope?.workspaceParam).toBe("ws-proj");
+    expect(scope?.taskScope).toEqual({ scope: "workspace", workspace: "ws-proj" });
   });
 
-  it("Should fall back to the global scope while resolution is incomplete", () => {
-    expect(homeScopeForActiveWorkspace(undefined, HOME_DIR).workspaceParam).toBe("");
-    expect(homeScopeForActiveWorkspace(workspace("ws", "/x"), undefined).workspaceParam).toBe("");
-  });
-});
-
-describe("normalizeHomeUsageWindow", () => {
-  it("Should keep supported windows and fall back to 30 otherwise", () => {
-    expect(normalizeHomeUsageWindow(7)).toBe(7);
-    expect(normalizeHomeUsageWindow(90)).toBe(90);
-    expect(normalizeHomeUsageWindow(13)).toBe(30);
-    expect(normalizeHomeUsageWindow(Number.NaN)).toBe(30);
+  it("Should return null while resolution is incomplete, never the global scope", () => {
+    // Undetermined must NOT collapse to global: that let a project workspace
+    // issue whole-system reads before its home dir arrived. Callers gate on null.
+    expect(homeScopeForActiveWorkspace(undefined, HOME_DIR)).toBeNull();
+    expect(homeScopeForActiveWorkspace(workspace("ws", "/x"), undefined)).toBeNull();
   });
 });

@@ -1,24 +1,22 @@
-import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
 import { Button, Panel, Section, StatusDot, Time } from "@agh/ui";
 
-import { useApproveTask, useRejectTask } from "@/systems/tasks";
-
+import { useHomeAttentionActions } from "../hooks/use-home-attention-actions";
+import type { HomeAttentionResolvedKind } from "../hooks/use-home-attention-actions";
 import type { HomeAttention, HomeAttentionItem } from "../types";
 
 export interface HomeAttentionZoneProps {
   attention: HomeAttention;
 }
 
-type ResolvedKind = "approved" | "rejected";
-
 interface HomeAttentionRowProps {
   item: HomeAttentionItem;
-  resolved: ResolvedKind | undefined;
+  resolved: HomeAttentionResolvedKind | undefined;
   onApprove: (taskId: string) => void;
   onReject: (taskId: string) => void;
+  onRetry: (runId: string) => void;
   isMutating: boolean;
 }
 
@@ -42,6 +40,7 @@ function HomeAttentionRow({
   resolved,
   onApprove,
   onReject,
+  onRetry,
   isMutating,
 }: HomeAttentionRowProps) {
   if (resolved) {
@@ -62,6 +61,8 @@ function HomeAttentionRow({
     );
   }
 
+  const taskId = item.task_id;
+  const runId = item.run_id;
   return (
     <div
       className="grid grid-cols-[14px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 transition-colors duration-base hover:bg-row-hover max-[760px]:grid-cols-[14px_minmax(0,1fr)_auto]"
@@ -75,33 +76,35 @@ function HomeAttentionRow({
         <Time iso={item.occurred_at} />
       </span>
       <span className="flex items-center gap-1.5">
-        {item.actions.includes("approve") && item.task_id ? (
+        {item.actions.includes("approve") && taskId ? (
           <Button
             disabled={isMutating}
-            onClick={() => onApprove(item.task_id ?? "")}
+            onClick={() => onApprove(taskId)}
             size="sm"
             variant="primary"
           >
             Approve
           </Button>
         ) : null}
-        {item.actions.includes("reject") && item.task_id ? (
-          <Button
-            disabled={isMutating}
-            onClick={() => onReject(item.task_id ?? "")}
-            size="sm"
-            variant="ghost"
-          >
+        {item.actions.includes("reject") && taskId ? (
+          <Button disabled={isMutating} onClick={() => onReject(taskId)} size="sm" variant="ghost">
             Reject
           </Button>
         ) : null}
-        <Button
-          render={<Link params={{ id: item.task_id ?? "" }} to="/tasks/$id" />}
-          size="sm"
-          variant="ghost"
-        >
-          Open
-        </Button>
+        {item.actions.includes("retry") && runId ? (
+          <Button disabled={isMutating} onClick={() => onRetry(runId)} size="sm" variant="primary">
+            Retry
+          </Button>
+        ) : null}
+        {item.actions.includes("open") && taskId ? (
+          <Button
+            render={<Link params={{ id: taskId }} to="/tasks/$id" />}
+            size="sm"
+            variant="ghost"
+          >
+            Open
+          </Button>
+        ) : null}
       </span>
     </div>
   );
@@ -109,30 +112,22 @@ function HomeAttentionRow({
 
 /**
  * Zone 1 — everything currently waiting on the user, with the daemon-accepted
- * verbs inline. Approve/reject resolve the row optimistically; the overview
- * refetch reconciles the counters.
+ * verbs (approve/reject/retry/open) inline. Approve/reject resolve the row
+ * optimistically; every settled decision reconciles the overview counters.
  */
 export function HomeAttentionZone({ attention }: HomeAttentionZoneProps) {
-  const approveTask = useApproveTask();
-  const rejectTask = useRejectTask();
-  const [resolvedById, setResolvedById] = useState<Record<string, ResolvedKind>>({});
+  const { resolvedById, pendingIds, onApprove, onReject, onRetry } = useHomeAttentionActions();
+
+  const inbox = (
+    <Button render={<Link search={{ mode: "inbox" }} to="/tasks" />} size="sm" variant="ghost">
+      Open inbox
+      <ChevronRight aria-hidden="true" />
+    </Button>
+  );
 
   if (attention.total === 0 && attention.items.length === 0) {
     return (
-      <Section
-        count={0}
-        label="Needs you"
-        right={
-          <Button
-            render={<Link search={{ mode: "inbox" }} to="/tasks" />}
-            size="sm"
-            variant="ghost"
-          >
-            Open inbox
-            <ChevronRight aria-hidden="true" />
-          </Button>
-        }
-      >
+      <Section count={0} label="Needs you" right={inbox}>
         <Panel bodyClassName="px-4 py-3.5">
           <p className="text-small-body text-subtle">Nothing needs you right now.</p>
         </Panel>
@@ -140,40 +135,21 @@ export function HomeAttentionZone({ attention }: HomeAttentionZoneProps) {
     );
   }
 
-  const resolveRow = (taskId: string, kind: ResolvedKind) => {
-    setResolvedById(current => ({ ...current, [taskId]: kind }));
-  };
-
   return (
-    <Section
-      count={attention.total}
-      label="Needs you"
-      right={
-        <Button render={<Link search={{ mode: "inbox" }} to="/tasks" />} size="sm" variant="ghost">
-          Open inbox
-          <ChevronRight aria-hidden="true" />
-        </Button>
-      }
-    >
+    <Section count={attention.total} label="Needs you" right={inbox}>
       <Panel bodyClassName="p-0" className="overflow-hidden">
         <div className="divide-y divide-line-soft">
           {attention.items.map(item => (
             <HomeAttentionRow
-              isMutating={approveTask.isPending || rejectTask.isPending}
+              isMutating={
+                (item.task_id != null && pendingIds.has(item.task_id)) ||
+                (item.run_id != null && pendingIds.has(item.run_id))
+              }
               item={item}
               key={`${item.kind}:${item.task_id ?? item.title}`}
-              onApprove={taskId => {
-                approveTask.mutate(
-                  { id: taskId },
-                  { onSuccess: () => resolveRow(taskId, "approved") }
-                );
-              }}
-              onReject={taskId => {
-                rejectTask.mutate(
-                  { id: taskId },
-                  { onSuccess: () => resolveRow(taskId, "rejected") }
-                );
-              }}
+              onApprove={onApprove}
+              onReject={onReject}
+              onRetry={onRetry}
               resolved={item.task_id ? resolvedById[item.task_id] : undefined}
             />
           ))}

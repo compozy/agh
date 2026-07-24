@@ -7,7 +7,7 @@ import { GoalTurnTimeline } from "./goal-turn-timeline";
 
 interface LoopRunTurnsDisclosureProps {
   turns: readonly GoalTurnTimelineItem[];
-  live: boolean;
+  isLive: boolean;
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
@@ -20,7 +20,7 @@ interface LoopRunTurnsDisclosureProps {
  */
 export function LoopRunTurnsDisclosure({
   turns,
-  live,
+  isLive,
   hasMore = false,
   isLoadingMore = false,
   onLoadMore,
@@ -28,7 +28,7 @@ export function LoopRunTurnsDisclosure({
   if (turns.length === 0 && !hasMore) return null;
   return (
     <Collapsible data-testid="loop-run-turns-disclosure">
-      <CollapsibleTrigger className="group mt-2 inline-flex items-center gap-1.5 rounded-xs text-badge font-medium text-muted hover:text-fg-strong">
+      <CollapsibleTrigger className="group mt-2 inline-flex min-h-6 items-center gap-1.5 rounded-xs px-1 text-badge font-medium text-muted hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring">
         Turns
         <span className="font-mono text-mono-id tabular-nums text-faint">{turns.length}</span>
         <ChevronDown
@@ -37,7 +37,7 @@ export function LoopRunTurnsDisclosure({
         />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <GoalTurnTimeline className="mt-3" live={live} turns={turns} />
+        <GoalTurnTimeline className="mt-3" live={isLive} turns={turns} />
         {hasMore && onLoadMore ? (
           <Button
             className="mt-2"

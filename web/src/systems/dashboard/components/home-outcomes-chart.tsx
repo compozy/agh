@@ -47,7 +47,7 @@ export function HomeOutcomesChart({ outcomes }: HomeOutcomesChartProps) {
             <DayStackedBars
               ariaLabel={`Stacked daily bars of run outcomes for the last 14 days: ${outcomes.completed} completed, ${outcomes.failed} failed, ${outcomes.canceled} canceled`}
               className="min-h-[120px] flex-1"
-              data={outcomes.days.map(day => ({ ...day }))}
+              data={outcomes.days}
               series={OUTCOME_SERIES}
             />
             <div className="flex flex-wrap items-center gap-4 text-small-body text-muted">

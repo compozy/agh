@@ -1,20 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { LoopDefinition, LoopRunEventFrame, LoopRunEventKind } from "../../types";
+import type { LoopDefinition } from "../../types";
 import { readLoopGraph } from "../loop-graph";
 import { buildNextNote, buildRunStory, humanizeLoopNodeId } from "../loop-run-story";
-
-function frame(kind: LoopRunEventKind, payload: unknown, seq: number): LoopRunEventFrame {
-  return {
-    id: `ev-${seq}`,
-    seq,
-    kind,
-    loop_run_id: "looprun_1",
-    workspace_id: "ws_default",
-    at: `2026-07-22T14:${String(seq).padStart(2, "0")}:00Z`,
-    payload,
-  };
-}
+import { loopEventFrame as frame } from "./loop-event-frame";
 
 function watchGraph() {
   return readLoopGraph({
@@ -44,9 +33,14 @@ function watchGraph() {
 }
 
 describe("humanizeLoopNodeId", () => {
-  it("Should turn snake and kebab ids into spaced labels", () => {
+  it("Should collapse mixed separators, trim edges, and space snake and kebab ids", () => {
     expect(humanizeLoopNodeId("fix_batches")).toBe("fix batches");
     expect(humanizeLoopNodeId("push-changes")).toBe("push changes");
+    // Consecutive and mixed separators collapse to a single space.
+    expect(humanizeLoopNodeId("fix__batches")).toBe("fix batches");
+    expect(humanizeLoopNodeId("resolve-_review__threads")).toBe("resolve review threads");
+    // Leading and trailing separators are trimmed, not rendered as gaps.
+    expect(humanizeLoopNodeId("_watch_pr_")).toBe("watch pr");
   });
 });
 
@@ -233,9 +227,10 @@ describe("buildRunStory", () => {
           cause: "coordinator_failure",
           failure: {
             kind: "coordinator_failure",
-            code: "provider_auth",
-            cause: "GitHub authentication expired while fetching review threads.",
-            recovery: "Fix the GitHub credential in Vault, then start a new run.",
+            code: "coordinator_failed",
+            cause: "The Loop coordinator failed before it could settle the run.",
+            recovery:
+              "Inspect daemon logs for the correlated coordinator run, then start a new run.",
           },
         },
         1
@@ -245,7 +240,7 @@ describe("buildRunStory", () => {
     expect(story.rows[0]).toMatchObject({
       title: "Run failed",
       tone: "danger",
-      sub: "GitHub authentication expired while fetching review threads.",
+      sub: "The Loop coordinator failed before it could settle the run.",
       micro: "status_changed · running → failed",
     });
     expect(story.now).toBeNull();

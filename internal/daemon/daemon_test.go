@@ -6890,7 +6890,11 @@ func (r *recordingRegistry) ListEventSummaries(context.Context, store.EventSumma
 	return nil, nil
 }
 
-func (r *recordingRegistry) UpdateTokenStats(context.Context, store.TokenStatsUpdate) error {
+func (r *recordingRegistry) RecordTokenUsage(
+	context.Context,
+	store.TokenStatsUpdate,
+	store.TokenUsageDailyUpdate,
+) error {
 	return nil
 }
 

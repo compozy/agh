@@ -1,9 +1,11 @@
-import { formatAbsoluteTime, formatRelativeTime } from "@agh/ui";
+import type { ComponentProps } from "react";
+
+import { cn, formatAbsoluteTime, formatRelativeTime } from "@agh/ui";
 
 import { isTerminalLoopStatus } from "../../lib/loop-formatters";
 import type { LoopRunRecord } from "../../types";
 
-interface LoopRunSubheadProps {
+interface LoopRunSubheadProps extends ComponentProps<"div"> {
   run: LoopRunRecord;
   /** The watched-subject line (`PR 128`); null hides the segment. */
   subject: string | null;
@@ -48,13 +50,19 @@ export function LoopRunSubhead({
   subject,
   hasWatchSource,
   elapsedLabel,
+  className,
+  ...props
 }: LoopRunSubheadProps) {
   const terminal = isTerminalLoopStatus(run.status);
   const elapsed = elapsedSegment(run, elapsedLabel);
   return (
     <div
-      className="flex flex-wrap items-center gap-2 border-b border-line pb-3.5 text-form-label text-subtle"
+      className={cn(
+        "flex flex-wrap items-center gap-2 border-b border-line pb-3.5 text-form-label text-subtle",
+        className
+      )}
       data-testid="loop-run-subhead"
+      {...props}
     >
       <span className="font-mono text-mono-id tabular-nums">{run.id}</span>
       {subject ? (
@@ -62,7 +70,7 @@ export function LoopRunSubhead({
           <Dot />
           <span data-testid="loop-run-subject">
             {hasWatchSource ? "Watching " : null}
-            <b className="font-medium text-muted">{subject}</b>
+            <span className="font-medium text-muted">{subject}</span>
           </span>
         </>
       ) : null}

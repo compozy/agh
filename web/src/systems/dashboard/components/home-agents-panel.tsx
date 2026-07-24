@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { Button, Empty, Eyebrow, OwnerAvatar, Panel, Section } from "@agh/ui";
+import { Button, cn, Empty, Eyebrow, OwnerAvatar, Panel, Section } from "@agh/ui";
 
 import type { HomeAgentRow } from "../hooks/use-home-agents";
 
@@ -100,15 +100,18 @@ export function HomeAgentsPanel({ rows }: HomeAgentsPanelProps) {
 function AgentCount({
   value,
   tone,
-  className = "",
+  className,
+  ...props
 }: {
   value: number;
   tone?: "danger";
-  className?: string;
-}) {
+} & React.ComponentProps<"span">) {
   const color = tone === "danger" ? "text-danger" : value === 0 ? "text-faint" : "text-muted";
   return (
-    <span className={`text-right font-mono text-mono-id tabular-nums ${color} ${className}`}>
+    <span
+      className={cn("text-right font-mono text-mono-id tabular-nums", color, className)}
+      {...props}
+    >
       {value}
     </span>
   );

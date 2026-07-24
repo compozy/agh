@@ -1,18 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ConnectionStatus } from "@agh/ui";
 
-import { useDaemonHealth } from "@/systems/status";
-import { useActiveWorkspace, useUserHomeDir } from "@/systems/workspace";
+import { useDaemonHealth, useDaemonStatus } from "@/systems/status";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 import { homeScopeForActiveWorkspace, type HomeScope } from "../lib/home-scope";
 import { homeActivityOptions, homeOverviewOptions } from "../lib/query-options";
-import type { HomeActivityEvent, HomeOverview, HomeSurfaceStatus, HomeUsageWindow } from "../types";
+import type {
+  HomeActivityEvent,
+  HomeOverview,
+  HomeSurfaceStatus,
+  HomeUsageWindow,
+  HomeWorkingNowModel,
+} from "../types";
 import { useHomeAgents, type HomeAgentsModel } from "./use-home-agents";
 import { useHomeLive } from "./use-home-live";
 import { useHomeNetwork, type HomeNetworkModel } from "./use-home-network";
 import { useHomePrefsActions, useHomeSystemOpen, useHomeUsageWindow } from "./use-home-prefs-store";
 import { useHomeSystem, type HomeSystemModel } from "./use-home-system";
-import { useHomeWorkingNow, type HomeWorkingNowModel } from "./use-home-working-now";
+import { useHomeWorkingNow } from "./use-home-working-now";
 
 export interface HomeDashboardModel {
   scope: HomeScope;
@@ -24,6 +30,7 @@ export interface HomeDashboardModel {
   overviewErrorMessage: string | null;
   activity: HomeActivityEvent[] | undefined;
   activityStatus: HomeSurfaceStatus;
+  activityErrorMessage: string | null;
   activeWorkspaceName: string | null;
   workingNow: HomeWorkingNowModel;
   network: HomeNetworkModel;
@@ -43,16 +50,22 @@ function surfaceStatus(isLoading: boolean, isError: boolean, hasData: boolean): 
   return isLoading ? "loading" : "ready";
 }
 
+// Stable argument for disabled queries while workspace scope is undetermined.
+const UNSETTLED_HOME_SCOPE: HomeScope = { workspaceParam: "", taskScope: { scope: "global" } };
+
 export function useHomeDashboard(): HomeDashboardModel {
   const { connectionStatus } = useDaemonHealth();
-  const { activeWorkspace, isLoading: workspacesLoading } = useActiveWorkspace();
-  const userHomeDir = useUserHomeDir();
+  const { activeWorkspace } = useActiveWorkspace();
+  // Await daemon-owned home metadata before selecting global or workspace scope.
+  const daemonStatus = useDaemonStatus();
+  const userHomeDir = daemonStatus.data?.user_home_dir ?? undefined;
   const usageWindow = useHomeUsageWindow();
   const systemOpen = useHomeSystemOpen();
   const { setUsageWindow, setSystemOpen } = useHomePrefsActions();
 
-  const scope = homeScopeForActiveWorkspace(activeWorkspace, userHomeDir);
-  const scopeSettled = !workspacesLoading;
+  const resolvedScope = homeScopeForActiveWorkspace(activeWorkspace, userHomeDir);
+  const scopeSettled = resolvedScope !== null;
+  const scope = resolvedScope ?? UNSETTLED_HOME_SCOPE;
 
   const overviewQuery = useQuery(
     homeOverviewOptions(
@@ -69,7 +82,7 @@ export function useHomeDashboard(): HomeDashboardModel {
 
   useHomeLive({ workspaceId: scope.workspaceParam, enabled: scopeSettled });
 
-  const workingNow = useHomeWorkingNow(scope);
+  const workingNow = useHomeWorkingNow(scope, scopeSettled);
   const overview = overviewQuery.data;
   const network = useHomeNetwork(overview?.network.messages_today);
   const agents = useHomeAgents();
@@ -97,6 +110,7 @@ export function useHomeDashboard(): HomeDashboardModel {
       activityQuery.isError,
       activityQuery.data !== undefined
     ),
+    activityErrorMessage: activityQuery.error instanceof Error ? activityQuery.error.message : null,
     activeWorkspaceName: activeWorkspace?.name ?? null,
     workingNow,
     network,

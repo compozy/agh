@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
 
+import { LoopRunQuietNote } from "./loop-run-quiet-note";
 import { LoopRunSection } from "./loop-run-section";
 
 interface LoopRunNextNoteProps {
@@ -15,10 +16,7 @@ export function LoopRunNextNote({ note }: LoopRunNextNoteProps) {
   if (!note) return null;
   return (
     <LoopRunSection label="What happens next" data-testid="loop-run-next">
-      <div className="flex items-start gap-2.25 rounded-md border border-line-soft bg-canvas-soft px-3.5 py-3 text-small-body leading-relaxed text-muted">
-        <ArrowRight aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
-        <span>{note}</span>
-      </div>
+      <LoopRunQuietNote icon={ArrowRight}>{note}</LoopRunQuietNote>
     </LoopRunSection>
   );
 }

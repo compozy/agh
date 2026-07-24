@@ -32,9 +32,16 @@ import {
 import { DEFAULT_MEMORY_LIST_LIMIT, memoriesListOptions, useMemories } from "@/systems/knowledge";
 import { useNotificationPresets } from "@/systems/notifications";
 import { useOnboardingStatus } from "@/systems/onboarding";
+import { homeActivityOptions, homeOverviewOptions, useHomePrefsStore } from "@/systems/dashboard";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
-import { useTaskDashboard, useTaskInboxBadge, useTasks } from "@/systems/tasks";
+import { statusOptions } from "@/systems/status";
+import {
+  taskDashboardOptions,
+  useTaskDashboard,
+  useTaskInboxBadge,
+  useTasks,
+} from "@/systems/tasks";
 import {
   useSettingsApplyRecords,
   useSettingsGeneral,
@@ -328,17 +335,24 @@ const cases: PreloadCase[] = [
     ],
   },
   {
-    name: "home → workspace/agent/exact-active-session options",
+    name: "home → status/workspace/agent/exact-active-session options",
     load: queryClient => invokeLoader(HomeRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useWorkspaces();
         useAgents(workspace.id);
+        // Must mirror useHomeWorkingNow exactly: sort last_activity, limit 6,
+        // workspace-scoped. A limit/sort drift here reintroduces the refetch.
         useSessions(workspace.id, {
-          filters: { state: "active", type: "user", limit: 1 },
+          filters: { state: "active", type: "user", sort: "last_activity", limit: 6 },
         });
       }),
-    requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgents, adapterMocks.fetchSessions],
+    requests: [
+      adapterMocks.fetchStatus,
+      adapterMocks.fetchWorkspaces,
+      adapterMocks.fetchAgents,
+      adapterMocks.fetchSessions,
+    ],
   },
   {
     name: "knowledge → exact default-global infinite catalog options",
@@ -992,6 +1006,17 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
+  it("Should reject Home navigation when its required scope status fails", async () => {
+    const queryClient = createQueryClient();
+    const failure = new Error("daemon status unavailable");
+    adapterMocks.fetchStatus.mockRejectedValue(failure);
+
+    await expect(invokeLoader(HomeRoute, context(queryClient))).rejects.toBe(failure);
+
+    expect(queryClient.getQueryState(statusOptions().queryKey)?.error).toBe(failure);
+    queryClient.clear();
+  });
+
   it("Should skip the full task catalog preload for inbox mode", async () => {
     const queryClient = createQueryClient();
 
@@ -1091,6 +1116,35 @@ describe("route query preloading", () => {
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
     expect(adapterMocks.fetchAgents).toHaveBeenCalledTimes(1);
     unmount();
+    queryClient.clear();
+  });
+
+  it("Should warm the home dashboard under the project scope, never the global scope", async () => {
+    // workspace.root_dir (/workspace) differs from the daemon home dir
+    // (/home/operator), so the home surface renders a project workspace. Its
+    // overview, activity, and task-dashboard reads must warm under the workspace
+    // key — the undefined-workspace (whole-system) key must never be created.
+    const queryClient = createQueryClient();
+    await invokeLoader(HomeRoute, context(queryClient));
+
+    const usageWindow = useHomePrefsStore.getState().usageWindow;
+    const scopedKeys = [
+      homeOverviewOptions({ workspace: workspace.id, usageWindow }).queryKey,
+      homeActivityOptions({ workspace_id: workspace.id }).queryKey,
+      taskDashboardOptions({ scope: "workspace", workspace: workspace.id }).queryKey,
+    ];
+    const globalKeys = [
+      homeOverviewOptions({ workspace: undefined, usageWindow }).queryKey,
+      homeActivityOptions({ workspace_id: undefined }).queryKey,
+      taskDashboardOptions({ scope: "global" }).queryKey,
+    ];
+
+    for (const key of scopedKeys) {
+      expect(queryClient.getQueryState(key)).toBeDefined();
+    }
+    for (const key of globalKeys) {
+      expect(queryClient.getQueryState(key)).toBeUndefined();
+    }
     queryClient.clear();
   });
 });

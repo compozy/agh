@@ -16,7 +16,14 @@ vi.mock("recharts", async () => {
     }
     return <div style={{ width: 320, height: 120 }}>{children}</div>;
   }
-  return { ...actual, ResponsiveContainer: MockResponsiveContainer };
+  // Render the tooltip formatter output so the numeric→label path is assertable
+  // without simulating a recharts hover in jsdom.
+  function MockTooltip({ formatter }: { formatter?: (value: number) => [string, string] }) {
+    if (!formatter) return null;
+    const [label] = formatter(12_000);
+    return <div data-slot="mock-tooltip">{label}</div>;
+  }
+  return { ...actual, ResponsiveContainer: MockResponsiveContainer, Tooltip: MockTooltip };
 });
 
 import { DayAreaChart } from "../day-area-chart";
@@ -76,5 +83,21 @@ describe("DayAreaChart", () => {
       );
       expect(strokes).toContain("var(--color-viz-line)");
     });
+  });
+
+  it("Should format tooltip values through formatValue", async () => {
+    const formatValue = vi.fn((value: number) => `${value} tok`);
+    const { container } = render(
+      <DayAreaChart
+        ariaLabel="Tokens per day"
+        data={[{ date: "Jul 16", value: 12_000 }]}
+        formatValue={formatValue}
+      />
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="mock-tooltip"]')?.textContent).toBe("12000 tok");
+    });
+    expect(formatValue).toHaveBeenCalledWith(12_000);
   });
 });

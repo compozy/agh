@@ -36,10 +36,16 @@ type TokenUsageDailyUpdate struct {
 	UpdatedAt    time.Time
 }
 
-// Validate ensures the rollup update carries a canonical day bucket and cost shape.
+// Validate ensures the rollup update carries a canonical day bucket, non-negative
+// token deltas, and a valid cost shape.
 func (u TokenUsageDailyUpdate) Validate() error {
 	if _, err := time.Parse(time.DateOnly, strings.TrimSpace(u.Day)); err != nil {
 		return fmt.Errorf("store: token usage day must be a YYYY-MM-DD bucket: %w", err)
+	}
+	for _, delta := range []*int64{u.InputTokens, u.OutputTokens, u.TotalTokens} {
+		if delta != nil && *delta < 0 {
+			return errors.New("store: token usage deltas must be non-negative")
+		}
 	}
 	return validateTokenCostShape(u.CostStatus, u.CostSource, u.CostAmount, u.CostCurrency)
 }
@@ -90,7 +96,7 @@ type TokenUsageAgentTotal struct {
 type TokenUsageCostGroup struct {
 	CostStatus      string
 	CostSource      string
-	Currency        string
+	CostCurrency    string
 	TotalCost       float64
 	RowsWithoutCost int64
 	RowsTotal       int64

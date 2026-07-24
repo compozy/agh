@@ -22,7 +22,7 @@ function fanOutGeneration(statuses: string[], generation = 2): LoopRunGeneration
 }
 
 describe("buildRunProgress", () => {
-  it("Should render one equal segment per branch with §5.2 states", () => {
+  it("Should render one equal segment per branch with clean/active states", () => {
     const model = buildRunProgress(
       run({ status: "running", generation: 2, reattempt_strategy: "failed_only" }),
       [fanOutGeneration(["succeeded", "reused", "running"])],

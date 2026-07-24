@@ -40,7 +40,8 @@ function scalarEntries(run: LoopRunRecord): [string, string | number | boolean][
 
 /**
  * The loop-declared primary input rendered `key value` (`PR 128`) — required
- * declared scalars win, then any declared scalar, then the first scalar input.
+ * declared scalars win, then any declared scalar, then the lexicographically
+ * first scalar input (entries are key-sorted for stable About rows).
  */
 export function watchedSubject(
   run: LoopRunRecord,

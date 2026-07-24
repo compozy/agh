@@ -1,6 +1,7 @@
+import type { ComponentProps } from "react";
 import { AlertTriangle } from "lucide-react";
 
-import { DataSurface, Skeleton } from "@agh/ui";
+import { cn, DataSurface, Skeleton } from "@agh/ui";
 
 import { useHomeDashboard } from "../hooks/use-home-dashboard";
 import { HomeActivityFeed } from "./home-activity-feed";
@@ -37,7 +38,7 @@ function HomeDashboardSkeleton() {
  * needs-you → KPI strip → working-now | network → pulse → outcomes | usage →
  * agents | activity → system.
  */
-export function HomeDashboard() {
+export function HomeDashboard({ className, ...props }: ComponentProps<"div">) {
   const model = useHomeDashboard();
   const { workingNow, network, agents, system } = model;
 
@@ -46,9 +47,13 @@ export function HomeDashboard() {
     model.overviewStatus === "ready" && overview ? "ready" : model.overviewStatus;
 
   return (
-    <div className="mx-auto w-full max-w-[1240px] px-9 pt-6 pb-20" data-testid="home-body">
+    <div
+      className={cn("mx-auto w-full max-w-[1240px] px-9 pt-6 pb-20", className)}
+      data-testid="home-body"
+      {...props}
+    >
       <HomePageMeta workspaceName={model.scope.workspaceParam ? model.activeWorkspaceName : null} />
-      <DataSurface state={overviewState === "ready" ? "ready" : overviewState}>
+      <DataSurface state={overviewState}>
         <div data-surface-state="loading">
           <HomeDashboardSkeleton />
         </div>
@@ -63,12 +68,17 @@ export function HomeDashboard() {
               <HomeAttentionZone attention={overview.attention} />
               <HomeKpiStrip
                 overview={overview}
-                workingNowDetail={workingNowDetail(workingNow.cards.length, workingNow.total)}
+                workingNowDetail={workingNowDetail(workingNow.sessionCount, workingNow.runCount)}
                 workingNowTotal={workingNow.total}
               />
               <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-                <HomeWorkingNow cards={workingNow.cards} total={workingNow.total} />
-                <HomeNetworkPanel budget={network.budget} rows={network.rows} />
+                <HomeWorkingNow
+                  cards={workingNow.cards}
+                  errorMessage={workingNow.errorMessage}
+                  status={workingNow.status}
+                  total={workingNow.total}
+                />
+                <HomeNetworkPanel rows={network.rows} />
               </div>
               <HomePulseHeatmap pulse={overview.pulse} />
               <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
@@ -81,7 +91,11 @@ export function HomeDashboard() {
               </div>
               <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
                 <HomeAgentsPanel rows={agents.rows} />
-                <HomeActivityFeed events={model.activity ?? []} />
+                <HomeActivityFeed
+                  errorMessage={model.activityErrorMessage}
+                  events={model.activity ?? []}
+                  status={model.activityStatus}
+                />
               </div>
               <HomeSystemPanel
                 onOpenChange={model.setSystemOpen}
@@ -96,13 +110,17 @@ export function HomeDashboard() {
   );
 }
 
-function workingNowDetail(sessionCards: number, total: number): string {
-  const runs = Math.max(0, total - sessionCards);
-  if (total === 0) {
+function workingNowDetail(sessions: number, runs: number): string {
+  if (sessions + runs === 0) {
     return "no live work";
   }
+  const sessionLabel = `${sessions} session${sessions === 1 ? "" : "s"}`;
+  const runLabel = `${runs} task run${runs === 1 ? "" : "s"}`;
   if (runs === 0) {
-    return `${sessionCards} session${sessionCards === 1 ? "" : "s"}`;
+    return sessionLabel;
   }
-  return `${sessionCards} session${sessionCards === 1 ? "" : "s"} · ${runs} task run${runs === 1 ? "" : "s"}`;
+  if (sessions === 0) {
+    return runLabel;
+  }
+  return `${sessionLabel} · ${runLabel}`;
 }

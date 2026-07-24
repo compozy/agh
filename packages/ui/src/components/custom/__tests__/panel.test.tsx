@@ -27,10 +27,10 @@ describe("Panel", () => {
   it("Should pin the foot row after the body", () => {
     const { container } = render(<Panel foot={<a href="/tasks">View tasks</a>}>rows</Panel>);
 
+    const body = container.querySelector('[data-slot="panel-body"]');
     const foot = container.querySelector('[data-slot="panel-foot"]');
     expect(foot?.textContent).toBe("View tasks");
-    expect(foot?.className).toContain("mt-auto");
-    expect(foot?.className).toContain("border-t");
+    expect(body?.nextElementSibling).toBe(foot);
   });
 
   it("Should override body padding through bodyClassName", () => {

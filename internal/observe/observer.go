@@ -28,7 +28,7 @@ type Registry interface {
 	ReconcileSessions(ctx context.Context, sessions []store.SessionInfo) (store.ReconcileResult, error)
 	WriteEventSummary(ctx context.Context, summary store.EventSummary) error
 	ListEventSummaries(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
-	UpdateTokenStats(ctx context.Context, update store.TokenStatsUpdate) error
+	RecordTokenUsage(ctx context.Context, stats store.TokenStatsUpdate, daily store.TokenUsageDailyUpdate) error
 	ListTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error)
 	WritePermissionLog(ctx context.Context, entry store.PermissionLogEntry) error
 	ListPermissionLog(ctx context.Context, query store.PermissionLogQuery) ([]store.PermissionLogEntry, error)

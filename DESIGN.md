@@ -295,7 +295,14 @@ tokens:
       space-pill-group-segment-sm-x: "8px"
       space-pill-group-segment-md-x: "10px"
       space-pill-group-badge-x: "4px"
+      space-home-pulse-gap: "3px"
+      size-home-pulse-label: "34px"
+      size-home-pulse-cell-min: "18px"
+      size-home-pulse-cell: "15px"
+      size-home-pulse-min-w: "640px"
       space-switch-thumb-inset: "2px"
+      space-chart-tooltip-y: "6px"
+      space-chart-tooltip-x: "8px"
   site:
     typography-clamps:
       lead: "1.1875rem"
@@ -710,7 +717,9 @@ widths come from `--site-*` tokens.
 | `--size-catalog-logo`              | `1.5rem` | `--size-provider-logo-well`             | `2.5rem` | `--size-pill-group-badge`                  | `14px`   |
 | `--height-pill-group-segment-md`   | `24px`   | `--height-pill-group-segment-sm`        | `20px`   | `--space-pill-group-track-gap`             | `1px`    |
 | `--space-pill-group-track-padding` | `2px`    | `--space-pill-group-segment-sm-x`       | `8px`    | `--space-pill-group-segment-md-x`          | `10px`   |
-| `--space-pill-group-badge-x`       | `4px`    | `--space-switch-thumb-inset`            | `2px`    |                                            |          |
+| `--space-pill-group-badge-x`       | `4px`    | `--space-home-pulse-gap`                | `3px`    | `--size-home-pulse-label`                  | `34px`   |
+| `--size-home-pulse-cell-min`       | `18px`   | `--size-home-pulse-cell`                | `15px`   | `--size-home-pulse-min-w`                  | `640px`  |
+| `--space-switch-thumb-inset`       | `2px`    | `--space-chart-tooltip-y`               | `6px`    | `--space-chart-tooltip-x`                  | `8px`    |
 
 <!-- END:tokens:component-sizes -->
 
