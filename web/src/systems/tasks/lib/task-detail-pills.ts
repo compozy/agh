@@ -1,6 +1,6 @@
 import type { PillTone } from "@agh/ui";
 
-import { taskHasApprovalPending } from "./task-formatters";
+import { taskHasApprovalPending, taskWakeIndicatorApplies } from "./task-formatters";
 import type { TaskDetailView, TaskPriority } from "../types";
 
 export interface TaskExceptionPill {
@@ -49,6 +49,18 @@ export function projectTaskExceptionPills(detail: TaskDetailView): TaskException
         : detail.summary?.paused_by_task_id
           ? `Paused through ancestor ${detail.summary.paused_by_task_id}.`
           : "Paused through an ancestor task.",
+    });
+  }
+
+  if (taskWakeIndicatorApplies(record)) {
+    const wakeEnabled = record.wake_creator !== false;
+    pills.push({
+      key: "wake",
+      label: wakeEnabled ? "Wake on" : "Wake off",
+      tone: wakeEnabled ? "info" : "neutral",
+      title: wakeEnabled
+        ? "Wake the creating agent session when this task changes."
+        : "Do not wake the creating agent session when this task changes.",
     });
   }
 

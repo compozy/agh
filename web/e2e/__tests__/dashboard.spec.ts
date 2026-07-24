@@ -5,9 +5,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Page } from "@playwright/test";
+import type { Locator } from "@playwright/test";
 
 import { sessionLifecycleTestIds } from "../fixtures/selectors";
+import { ensureAppWindow, openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { reloadDaemonServedPage } from "../fixtures/navigation";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -97,6 +98,7 @@ test("operator sees truthful Dashboard health, metrics, navigation, artifacts, a
   const workspace = await prepareDashboardRuntime(runtime);
   await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  const dash = await ensureAppWindow(appPage, "Dashboard", "dashboard");
 
   const snapshot = await captureDashboardSnapshot(runtime, workspace);
   const expectedActiveSessions = snapshot.sessions.sessions.filter(session =>
@@ -105,35 +107,35 @@ test("operator sees truthful Dashboard health, metrics, navigation, artifacts, a
   const expectedAgents = snapshot.workspaceDetail.agents?.length ?? snapshot.agents.agents.length;
   const expectedDaemonStatus = dashboardStatusKey(snapshot.health.health.status);
 
-  await expect(appPage.getByTestId("home-shell")).toBeVisible();
-  await expect(appPage.getByTestId("home-connection-indicator")).toHaveAttribute(
+  await expect(dash.getByTestId("home-shell")).toBeVisible();
+  await expect(dash.getByTestId("home-connection-indicator")).toHaveAttribute(
     "data-status",
     "connected"
   );
-  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+  await expect(dash.getByTestId("home-daemon-card")).toHaveAttribute(
     "data-status",
     expectedDaemonStatus,
     { timeout: 15_000 }
   );
-  await expect(appPage.getByTestId("home-daemon-status-label")).toHaveText(/Healthy|Degraded/);
+  await expect(dash.getByTestId("home-daemon-status-label")).toHaveText(/Healthy|Degraded/);
   expect(snapshot.health.health.version?.trim()).not.toBe("");
-  await expect(appPage.getByTestId("home-daemon-version")).toContainText(
+  await expect(dash.getByTestId("home-daemon-version")).toContainText(
     `v${snapshot.health.health.version}`
   );
-  await expect(metricValue(appPage, "home-metric-active-sessions")).toHaveText(
+  await expect(metricValue(dash, "home-metric-active-sessions")).toHaveText(
     String(expectedActiveSessions)
   );
-  await expect(metricValue(appPage, "home-metric-workspaces")).toHaveText(
+  await expect(metricValue(dash, "home-metric-workspaces")).toHaveText(
     String(snapshot.workspaces.workspaces.length)
   );
-  await expect(metricValue(appPage, "home-metric-agents")).toHaveText(String(expectedAgents));
-  await expect(metricValue(appPage, "home-metric-uptime")).not.toHaveText("—");
-  await expect(appPage.getByTestId("home-metric-active-sessions")).toContainText(
+  await expect(metricValue(dash, "home-metric-agents")).toHaveText(String(expectedAgents));
+  await expect(metricValue(dash, "home-metric-uptime")).not.toHaveText("—");
+  await expect(dash.getByTestId("home-metric-active-sessions")).toContainText(
     `in ${workspace.name}`
   );
 
-  await assertDashboardNavigation(appPage, runtime);
-  await assertDashboardViewportMatrix(appPage, browserArtifacts, runtime);
+  await assertDashboardNavigation(appPage, runtime, dash);
+  await assertDashboardViewportMatrix(appPage, browserArtifacts, runtime, dash);
   await assertDashboardFocus(appPage);
 
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", snapshot);
@@ -180,15 +182,16 @@ test("dashboard degrades one failed metric without hiding daemon health", async 
   });
 
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  const dash = await ensureAppWindow(appPage, "Dashboard", "dashboard");
 
-  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+  await expect(dash.getByTestId("home-daemon-card")).toHaveAttribute(
     "data-status",
     expectedDaemonStatus,
     { timeout: 15_000 }
   );
-  await expect(metricValue(appPage, "home-metric-active-sessions")).toHaveText("—");
-  await expect(appPage.getByTestId("home-metric-active-sessions")).toContainText("unavailable");
-  await expect(appPage.getByTestId("home-error")).toBeHidden();
+  await expect(metricValue(dash, "home-metric-active-sessions")).toHaveText("—");
+  await expect(dash.getByTestId("home-metric-active-sessions")).toContainText("unavailable");
+  await expect(dash.getByTestId("home-error")).toBeHidden();
 });
 
 test("dashboard shows reconnecting state and recovers when health requests resume", async ({
@@ -204,30 +207,31 @@ test("dashboard shows reconnecting state and recovers when health requests resum
   });
 
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  const dash = await ensureAppWindow(appPage, "Dashboard", "dashboard");
 
-  await expect(appPage.getByTestId("home-connection-indicator")).toHaveAttribute(
+  await expect(dash.getByTestId("home-connection-indicator")).toHaveAttribute(
     "data-status",
     /reconnecting|disconnected|error/,
     { timeout: 15_000 }
   );
-  const disconnectedCard = appPage.getByTestId("home-daemon-disconnected");
+  const disconnectedCard = dash.getByTestId("home-daemon-disconnected");
   if (await disconnectedCard.isVisible().catch(() => false)) {
     await expect(disconnectedCard).toContainText("agh daemon");
   } else {
-    await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+    await expect(dash.getByTestId("home-daemon-card")).toHaveAttribute(
       "data-status",
       "disconnected"
     );
-    await expect(appPage.getByTestId("home-daemon-status-label")).toHaveText("Connection error");
+    await expect(dash.getByTestId("home-daemon-status-label")).toHaveText("Connection error");
   }
 
   await appPage.unroute("**/api/status");
-  await expect(appPage.getByTestId("home-connection-indicator")).toHaveAttribute(
+  await expect(dash.getByTestId("home-connection-indicator")).toHaveAttribute(
     "data-status",
     "connected",
     { timeout: 20_000 }
   );
-  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+  await expect(dash.getByTestId("home-daemon-card")).toHaveAttribute(
     "data-status",
     expectedDaemonStatus
   );
@@ -241,15 +245,16 @@ test("dashboard refreshes after daemon restart action without stale health", asy
   const workspace = await prepareDashboardRuntime(runtime);
   await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  const dash = await ensureAppWindow(appPage, "Dashboard", "dashboard");
 
   const beforeRestart = await captureDashboardSnapshot(runtime, workspace);
   const expectedBeforeRestartStatus = dashboardStatusKey(beforeRestart.health.health.status);
-  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+  await expect(dash.getByTestId("home-daemon-card")).toHaveAttribute(
     "data-status",
     expectedBeforeRestartStatus,
     { timeout: 15_000 }
   );
-  await expect(metricValue(appPage, "home-metric-workspaces")).toHaveText(
+  await expect(metricValue(dash, "home-metric-workspaces")).toHaveText(
     String(beforeRestart.workspaces.workspaces.length)
   );
 
@@ -265,7 +270,7 @@ test("dashboard refreshes after daemon restart action without stale health", asy
   );
 
   await reloadDaemonServedPage(appPage, runtime, "/", { readyTestId: "home-shell" });
-  await expect(appPage.getByTestId("home-shell")).toBeVisible({ timeout: 15_000 });
+  await expect(dash.getByTestId("home-shell")).toBeVisible({ timeout: 15_000 });
   await browserArtifacts.captureScreenshot("dashboard-restart-polling", appPage);
 
   await expect
@@ -277,15 +282,15 @@ test("dashboard refreshes after daemon restart action without stale health", asy
 
   const afterRestart = await captureDashboardSnapshot(runtime, workspace);
   const expectedAfterRestartStatus = dashboardStatusKey(afterRestart.health.health.status);
-  await expect(appPage.getByTestId("home-connection-indicator")).toHaveAttribute(
+  await expect(dash.getByTestId("home-connection-indicator")).toHaveAttribute(
     "data-status",
     "connected"
   );
-  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+  await expect(dash.getByTestId("home-daemon-card")).toHaveAttribute(
     "data-status",
     expectedAfterRestartStatus
   );
-  await expect(metricValue(appPage, "home-metric-workspaces")).toHaveText(
+  await expect(metricValue(dash, "home-metric-workspaces")).toHaveText(
     String(afterRestart.workspaces.workspaces.length)
   );
   expect(afterRestart.daemonHTTP).toBeDefined();
@@ -306,46 +311,32 @@ test("workspace-scoped Dashboard metrics change when the active workspace change
 
   await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await selectDashboardWorkspace(appPage, beta.id);
+  let dash = await ensureAppWindow(appPage, "Dashboard", "dashboard");
+  await switchWorkspace(appPage, beta.id, beta.name);
+  dash = await ensureAppWindow(appPage, "Dashboard", "dashboard");
 
   const betaSnapshot = await captureDashboardSnapshot(runtime, beta);
   const betaActiveSessions = betaSnapshot.sessions.sessions.filter(session =>
     activeSessionStates.has(session.state)
   ).length;
   expect(betaActiveSessions).toBe(0);
-  await expect(appPage.getByTestId(`workspace-avatar-${beta.id}`)).toHaveAttribute(
-    "aria-pressed",
-    "true"
-  );
-  await expect(metricValue(appPage, "home-metric-active-sessions")).toHaveText(
+  await expect(metricValue(dash, "home-metric-active-sessions")).toHaveText(
     String(betaActiveSessions)
   );
-  await expect(appPage.getByTestId("home-metric-active-sessions")).toContainText(`in ${beta.name}`);
+  await expect(dash.getByTestId("home-metric-active-sessions")).toContainText(`in ${beta.name}`);
 
-  await selectDashboardWorkspace(appPage, alpha.id);
+  await switchWorkspace(appPage, alpha.id, alpha.name);
+  dash = await ensureAppWindow(appPage, "Dashboard", "dashboard");
   const alphaSnapshot = await captureDashboardSnapshot(runtime, alpha);
   const alphaActiveSessions = alphaSnapshot.sessions.sessions.filter(session =>
     activeSessionStates.has(session.state)
   ).length;
   expect(alphaActiveSessions).toBeGreaterThan(0);
-  await expect(appPage.getByTestId(`workspace-avatar-${alpha.id}`)).toHaveAttribute(
-    "aria-pressed",
-    "true"
-  );
-  await expect(metricValue(appPage, "home-metric-active-sessions")).toHaveText(
+  await expect(metricValue(dash, "home-metric-active-sessions")).toHaveText(
     String(alphaActiveSessions)
   );
-  await expect(appPage.getByTestId("home-metric-active-sessions")).toContainText(
-    `in ${alpha.name}`
-  );
+  await expect(dash.getByTestId("home-metric-active-sessions")).toContainText(`in ${alpha.name}`);
 });
-
-async function selectDashboardWorkspace(appPage: Page, workspaceID: string): Promise<void> {
-  const switcher = appPage.getByTestId("workspace-switcher");
-  await switcher.click();
-  await appPage.getByTestId(`workspace-command-item-${workspaceID}`).click();
-  await expect(switcher).toHaveAttribute("aria-expanded", "false");
-}
 
 async function prepareDashboardRuntime(runtime: BrowserRuntime): Promise<WorkspacePayload> {
   if (!runtime.paths?.homeDir) {
@@ -476,30 +467,31 @@ function dashboardStatusKey(status: string | undefined): "healthy" | "degraded" 
   return "degraded";
 }
 
-function metricValue(page: import("@playwright/test").Page, testId: string) {
-  return page.getByTestId(testId).locator('[data-slot="metric-value"]');
+function metricValue(root: Locator, testId: string) {
+  return root.getByTestId(testId).locator('[data-slot="metric-value"]');
 }
 
 async function assertDashboardNavigation(
   page: import("@playwright/test").Page,
-  runtime: BrowserRuntime
+  runtime: BrowserRuntime,
+  dash: Locator
 ): Promise<void> {
-  await page.getByTestId("nav-agents").click();
+  const agentsWin = await openAppWindow(page, "Agents", "agents");
   await expect.poll(() => new URL(page.url()).pathname).toBe("/agents");
-  await page.getByTestId(`agent-fleet-row-link-${dashboardAgentAlpha}`).click();
+  await agentsWin.getByTestId(`agent-fleet-row-link-${dashboardAgentAlpha}`).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe(`/agents/${dashboardAgentAlpha}`);
 
-  await page.getByTestId("nav-network").click();
+  await openAppWindow(page, "Network", "network");
   await expect.poll(() => new URL(page.url()).pathname).toBe("/network");
 
-  await page.getByTestId("nav-tasks").click();
+  await openAppWindow(page, "Tasks", "tasks");
   await expect.poll(() => new URL(page.url()).pathname).toBe("/tasks");
 
-  await page.getByTestId("nav-settings").click();
+  await openAppWindow(page, "Settings", "settings");
   await expect.poll(() => new URL(page.url()).pathname).toBe("/settings/general");
 
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("home-shell")).toBeVisible();
+  await expect(dash.getByTestId("home-shell")).toBeVisible();
 }
 
 async function assertDashboardViewportMatrix(
@@ -507,7 +499,8 @@ async function assertDashboardViewportMatrix(
   browserArtifacts: {
     captureScreenshot(name?: string, page?: import("@playwright/test").Page): Promise<unknown>;
   },
-  runtime: BrowserRuntime
+  runtime: BrowserRuntime,
+  dash: Locator
 ): Promise<void> {
   const viewports = [
     { width: 375, height: 812, name: "mobile" },
@@ -518,24 +511,27 @@ async function assertDashboardViewportMatrix(
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-    await expect(page.getByTestId("home-daemon-card")).toBeVisible();
-    await expect(page.getByTestId("home-metric-active-sessions")).toBeVisible();
-    await expect(page.getByTestId("home-metric-workspaces")).toBeVisible();
-    await expect(page.getByTestId("home-metric-agents")).toBeVisible();
-    await expect(page.getByTestId("home-metric-uptime")).toBeVisible();
+    await expect(dash).toBeVisible();
+    await expect(dash.getByTestId("home-daemon-card")).toBeVisible();
+    await expect(dash.getByTestId("home-metric-active-sessions")).toBeVisible();
+    await expect(dash.getByTestId("home-metric-workspaces")).toBeVisible();
+    await expect(dash.getByTestId("home-metric-agents")).toBeVisible();
+    await expect(dash.getByTestId("home-metric-uptime")).toBeVisible();
     await browserArtifacts.captureScreenshot(`dashboard-${viewport.name}`, page);
   }
 }
 
 async function assertDashboardFocus(page: import("@playwright/test").Page): Promise<void> {
-  const dashboardNav = page.getByTestId("nav-dashboard");
-  await expect(dashboardNav).toHaveAccessibleName("Dashboard");
+  // No persistent sidebar in the window shell: the Dock's Dashboard launcher is
+  // the focusable "Dashboard" control (its aria-label mirrors the app title).
+  const dashboardLauncher = page.getByRole("button", { name: "Dashboard", exact: true });
+  await expect(dashboardLauncher).toHaveAccessibleName("Dashboard");
   await expect
     .poll(
       async () => {
         try {
-          await dashboardNav.focus();
-          return await dashboardNav.evaluate(element => element === document.activeElement);
+          await dashboardLauncher.focus();
+          return await dashboardLauncher.evaluate(element => element === document.activeElement);
         } catch {
           return false;
         }

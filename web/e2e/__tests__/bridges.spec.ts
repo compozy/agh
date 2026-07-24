@@ -17,6 +17,7 @@ import type {
 
 import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { bridgeOperatorSelectors } from "../fixtures/selectors";
+import { openAppWindow, windowTitle } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import {
   browserBridgeOperatorFlowScenario,
@@ -96,14 +97,15 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   browserArtifacts,
   runtime,
 }) => {
-  const bridgeUI = bridgeOperatorSelectors(appPage);
+  const shellUI = bridgeOperatorSelectors(appPage);
   const seeded = await seedBrowserBridgeOperatorFlow(runtime);
 
-  await useGlobalWorkspaceIfPrompted(bridgeUI);
+  await useGlobalWorkspaceIfPrompted(shellUI);
 
-  await expect(bridgeUI.osDesktop).toBeVisible();
-  await expect(bridgeUI.navBridges).toBeVisible();
-  await bridgeUI.navBridges.click();
+  await expect(shellUI.osDesktop).toBeVisible();
+  const bridgesWin = await openAppWindow(appPage, "Bridges", "bridges");
+  const bridgeUI = bridgeOperatorSelectors(bridgesWin);
+  const bridgeStatus = bridgesWin.locator('[data-slot="topbar-status"]');
 
   await expect(appPage).toHaveURL(/\/bridges$/);
   await expect(bridgeUI.listPanel).toBeVisible();
@@ -135,7 +137,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   await expect(appPage).toHaveURL(
     new RegExp(`/bridges/${encodeURIComponent(createdPayload.bridge.id)}$`)
   );
-  await expect(bridgeUI.detailPanel).toContainText(createdBridgeName);
+  await expect(windowTitle(bridgesWin)).toContainText(createdBridgeName);
   await browserArtifacts.captureScreenshot("bridge-create-dialog-saved", appPage);
 
   await bridgeUI.backToList.click();
@@ -151,14 +153,15 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   await expect(bridgeUI.item(seeded.bridge.id)).toContainText("0 routes");
   await bridgeUI.item(seeded.bridge.id).click();
   await expect(appPage).toHaveURL(new RegExp(`/bridges/${encodeURIComponent(seeded.bridge.id)}$`));
-  await expect(bridgeUI.detailPanel).toContainText(
+  await expect(windowTitle(bridgesWin)).toContainText(
     browserBridgeOperatorFlowScenario.bridge.initialName
   );
-  await expect(bridgeUI.detailPanel).toContainText("disabled");
+  await expect(bridgeStatus).toContainText("disabled");
   await expect(bridgeUI.detailPanel).toContainText(/Last delivery\s*Never/);
   await browserArtifacts.captureScreenshot("bridge-operator-seeded", appPage);
 
-  await bridgeUI.editBridgeButton.click();
+  await bridgeUI.detailOverflow.click();
+  await appPage.getByTestId("edit-bridge-btn").click();
   await expect(bridgeUI.editDialog).toBeVisible();
 
   await bridgeUI.editDisplayNameInput.fill(browserBridgeOperatorFlowScenario.bridge.editedName);
@@ -169,7 +172,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   await bridgeUI.submitBridgeEdit.click();
 
   await expect(bridgeUI.editDialog).toBeHidden();
-  await expect(bridgeUI.detailPanel).toContainText(
+  await expect(windowTitle(bridgesWin)).toContainText(
     browserBridgeOperatorFlowScenario.bridge.editedName
   );
   await expect(bridgeUI.detailPanel).toContainText(
@@ -195,7 +198,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
     .toBe("ready");
 
   await expect
-    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", {
+    .poll(async () => (await bridgeStatus.textContent()) ?? "", {
       timeout: 45_000,
     })
     .toContain("ready");
@@ -244,9 +247,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
       /Last delivery\s*Never/.test((await bridgeUI.detailPanel.textContent()) ?? "")
     )
     .toBe(false);
-  await expect
-    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
-    .toContain("ready");
+  await expect.poll(async () => (await bridgeStatus.textContent()) ?? "").toContain("ready");
   const routeSnapshots = await collectBridgeRouteSnapshots(runtime, seeded.bridge.id);
   expect(routeSnapshots.http.routes.some(route => route.session_id === ingress.sessionId)).toBe(
     true
@@ -268,15 +269,17 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   browserArtifacts,
   runtime,
 }) => {
-  const bridgeUI = bridgeOperatorSelectors(appPage);
+  const shellUI = bridgeOperatorSelectors(appPage);
   const seeded = await seedBrowserBridgeOperatorFlow(runtime, {
     displayName: "Telegram Seed Provider Anchor",
   });
   const providerKey = `${seeded.provider.extension_name}::${seeded.provider.platform}`;
   const createdName = "Telegram Browser Lifecycle";
 
-  await useGlobalWorkspaceIfPrompted(bridgeUI);
-  await bridgeUI.navBridges.click();
+  await useGlobalWorkspaceIfPrompted(shellUI);
+  const bridgesWin = await openAppWindow(appPage, "Bridges", "bridges");
+  const bridgeUI = bridgeOperatorSelectors(bridgesWin);
+  const bridgeStatus = bridgesWin.locator('[data-slot="topbar-status"]');
   await expect(appPage).toHaveURL(/\/bridges$/);
   await expect(bridgeUI.listPanel).toBeVisible();
 
@@ -315,7 +318,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await expect(bridgeUI.createDialog).toBeHidden();
   const createdBridge = await waitForBridgeByName(runtime, createdName);
   await expect(appPage).toHaveURL(new RegExp(`/bridges/${encodeURIComponent(createdBridge.id)}$`));
-  await expect(bridgeUI.detailPanel).toContainText(createdName);
+  await expect(windowTitle(bridgesWin)).toContainText(createdName);
   await expect(bridgeUI.detailPanel).toContainText("UNBOUND");
   await browserArtifacts.captureScreenshot("bridge-created-unbound", appPage);
 
@@ -364,23 +367,21 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await bridgeUI.enableBridgeButton.click();
   await waitForBridgeStatus(runtime, createdBridge.id, "ready");
   await expect
-    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })
+    .poll(async () => (await bridgeStatus.textContent()) ?? "", { timeout: 45_000 })
     .toContain("ready");
 
   await bridgeUI.detailOverflow.click();
-  await bridgeUI.disableBridgeButton.click();
+  await appPage.getByTestId("disable-bridge-btn").click();
   await waitForBridgeStatus(runtime, createdBridge.id, "disabled");
-  await expect
-    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
-    .toContain("disabled");
+  await expect.poll(async () => (await bridgeStatus.textContent()) ?? "").toContain("disabled");
 
   await bridgeUI.enableBridgeButton.click();
   await waitForBridgeStatus(runtime, createdBridge.id, "ready");
   await bridgeUI.detailOverflow.click();
-  await bridgeUI.restartBridgeButton.click();
+  await appPage.getByTestId("restart-bridge-btn").click();
   await waitForBridgeStatus(runtime, createdBridge.id, "ready");
   await expect
-    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })
+    .poll(async () => (await bridgeStatus.textContent()) ?? "", { timeout: 45_000 })
     .toContain("ready");
   await browserArtifacts.captureScreenshot("bridge-ready-after-restart", appPage);
 
@@ -402,11 +403,11 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await expect(bridgeUI.restartRequired).toBeVisible();
 
   await bridgeUI.detailOverflow.click();
-  await bridgeUI.restartBridgeButton.click();
+  await appPage.getByTestId("restart-bridge-btn").click();
   const authRequired = await waitForBridgeStatus(runtime, createdBridge.id, "auth_required");
   expect(authRequired.health.status).toBe("auth_required");
   await expect
-    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
+    .poll(async () => (await bridgeStatus.textContent()) ?? "")
     .toContain("auth required");
   await browserArtifacts.captureScreenshot("bridge-auth-required-after-secret-delete", appPage);
 
@@ -418,10 +419,10 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
     bridgeUI.secretBinding(browserBridgeOperatorFlowScenario.secretBinding.name)
   ).toContainText("BOUND");
   await bridgeUI.detailOverflow.click();
-  await bridgeUI.restartBridgeButton.click();
+  await appPage.getByTestId("restart-bridge-btn").click();
   await waitForBridgeStatus(runtime, createdBridge.id, "ready");
   await expect
-    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })
+    .poll(async () => (await bridgeStatus.textContent()) ?? "", { timeout: 45_000 })
     .toContain("ready");
 
   await assertBridgeDetailResponsive(appPage, bridgeUI, createdBridge.id);

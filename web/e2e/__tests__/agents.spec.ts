@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+import { ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
@@ -32,8 +33,11 @@ test("agent navigation renders the managed default agent after first-run setup",
   await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(ui);
 
-  await expect(appPage.getByTestId("agent-fleet-empty")).toHaveCount(0);
-  await expect(ui.agentRow("general")).toBeVisible();
+  const agentsWin = appPage.getByTestId("os-window-app:agents");
+  await expect(agentsWin).toBeVisible();
+  const fleet = sessionLifecycleSelectors(agentsWin);
+  await expect(agentsWin.getByTestId("agent-fleet-empty")).toHaveCount(0);
+  await expect(fleet.agentRow("general")).toBeVisible();
 });
 
 test("dashboard reports the agents endpoint failure during shell bootstrap", async ({
@@ -52,11 +56,14 @@ test("dashboard reports the agents endpoint failure during shell bootstrap", asy
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   const ui = sessionLifecycleSelectors(page);
   await useGlobalWorkspaceIfPrompted(ui);
+  const dashboardWin = await ensureAppWindow(page, "Dashboard", "dashboard");
 
-  await expect(page.getByRole("heading", { name: "Unable to load dashboard" })).toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(page.getByText("agents unavailable")).toBeVisible();
+  await expect(dashboardWin.getByRole("heading", { name: "Unable to load dashboard" })).toBeVisible(
+    {
+      timeout: 20_000,
+    }
+  );
+  await expect(dashboardWin.getByText("agents unavailable")).toBeVisible();
 });
 
 test.describe("seeded agent detail", () => {
@@ -86,12 +93,13 @@ test.describe("seeded agent detail", () => {
     const ui = sessionLifecycleSelectors(appPage);
 
     await useGlobalWorkspaceIfPrompted(ui);
-    await appPage.getByTestId("nav-agents").click();
+    const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+    const fleet = sessionLifecycleSelectors(agentsWin);
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
 
-    await expect(ui.agentRow("agent-detail-primary")).toBeVisible();
-    await expect(ui.agentRow("agent-detail-secondary")).toBeVisible();
-    await ui.agentRow("agent-detail-primary").click();
+    await expect(fleet.agentRow("agent-detail-primary")).toBeVisible();
+    await expect(fleet.agentRow("agent-detail-secondary")).toBeVisible();
+    await fleet.agentRow("agent-detail-primary").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/agent-detail-primary");
 
     await expect(appPage.getByTestId("agent-detail-page")).toBeVisible();
@@ -113,7 +121,7 @@ test.describe("seeded agent detail", () => {
     await expect.poll(() => new URL(appPage.url()).searchParams.get("tab")).toBe("sessions");
     await expect(appPage.getByTestId("agent-sessions-empty")).toBeVisible();
 
-    await appPage.getByTestId("agent-page-new-session").click();
+    await fleet.agentPageNewSession.click();
     const trigger = appPage.getByTestId("session-create-agent-select");
     await expect(trigger).toBeVisible();
     await trigger.click();
@@ -130,10 +138,12 @@ test.describe("seeded agent detail", () => {
   test("operator edits agent settings, saves, and returns to overview", async ({ appPage }) => {
     const ui = sessionLifecycleSelectors(appPage);
     await useGlobalWorkspaceIfPrompted(ui);
-    await appPage.getByTestId("nav-agents").click();
-    await ui.agentRow("agent-detail-primary").click();
+    const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+    const fleet = sessionLifecycleSelectors(agentsWin);
+    await fleet.agentRow("agent-detail-primary").click();
     await expect(appPage.getByTestId("agent-detail-page")).toBeVisible();
 
+    await appPage.getByTestId("agent-page-overflow").click();
     await appPage.getByTestId("agent-page-edit-settings").click();
     await expect
       .poll(() => new URL(appPage.url()).pathname)
@@ -176,8 +186,9 @@ test.describe("seeded agent detail", () => {
   test("operator duplicates an agent from the overflow menu", async ({ appPage }) => {
     const ui = sessionLifecycleSelectors(appPage);
     await useGlobalWorkspaceIfPrompted(ui);
-    await appPage.getByTestId("nav-agents").click();
-    await ui.agentRow("agent-detail-primary").click();
+    const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+    const fleet = sessionLifecycleSelectors(agentsWin);
+    await fleet.agentRow("agent-detail-primary").click();
 
     await appPage.getByTestId("agent-page-overflow").click();
     await appPage.getByTestId("agent-page-duplicate").click();
@@ -191,8 +202,10 @@ test.describe("seeded agent detail", () => {
   }) => {
     const ui = sessionLifecycleSelectors(appPage);
     await useGlobalWorkspaceIfPrompted(ui);
-    await appPage.getByTestId("nav-agents").click();
-    await ui.agentRow("agent-detail-secondary").click();
+    const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+    const fleet = sessionLifecycleSelectors(agentsWin);
+    await fleet.agentRow("agent-detail-secondary").click();
+    await appPage.getByTestId("agent-page-overflow").click();
     await appPage.getByTestId("agent-page-edit-settings").click();
     await appPage.getByTestId("agent-settings-nav-danger").click();
     await appPage.getByTestId("agent-settings-delete").click();
@@ -202,7 +215,7 @@ test.describe("seeded agent detail", () => {
     await expect(appPage.getByTestId("agent-delete-confirm")).toBeEnabled();
     await appPage.getByTestId("agent-delete-confirm").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
-    await expect(ui.agentRow("agent-detail-secondary")).toHaveCount(0);
+    await expect(fleet.agentRow("agent-detail-secondary")).toHaveCount(0);
   });
 
   test("operator creates an agent with a persisted model and reasoning default", async ({
@@ -225,7 +238,7 @@ test.describe("seeded agent detail", () => {
     await expect(appPage.getByTestId("agent-create-runtime")).toBeVisible();
 
     const runtimeTrigger = appPage.getByTestId("agent-create-runtime-select");
-    await runtimeTrigger.locator('button[data-focus="model"]').first().click();
+    await runtimeTrigger.click();
     await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
     await appPage
       .locator(`[data-provider="${mockAgentProvider}"][data-model="${reasoningCatalogModel}"]`)
@@ -236,7 +249,7 @@ test.describe("seeded agent detail", () => {
     await reasoningStrip.locator('button[data-rz="high"]').click();
     await appPage.keyboard.press("Escape");
     await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
-    await expect(runtimeTrigger.locator('button[data-focus="reasoning"]')).toContainText("High");
+    await expect(runtimeTrigger).toContainText("High");
 
     await appPage.getByTestId("agent-create-next").click();
     await appPage.getByTestId("agent-create-prompt").fill("Keep runtime selection truthful.");
@@ -318,11 +331,12 @@ test.describe("fleet scan journey", () => {
   }) => {
     const ui = sessionLifecycleSelectors(appPage);
     await useGlobalWorkspaceIfPrompted(ui);
-    await appPage.getByTestId("nav-agents").click();
+    const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+    const fleet = sessionLifecycleSelectors(agentsWin);
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
 
-    await expect(ui.agentRow("fleet-release")).toBeVisible();
-    await expect(ui.agentRow("fleet-ops")).toBeVisible();
+    await expect(fleet.agentRow("fleet-release")).toBeVisible();
+    await expect(fleet.agentRow("fleet-ops")).toBeVisible();
 
     await appPage.getByTestId("listing-view-cards").click();
     await expect.poll(() => new URL(appPage.url()).searchParams.get("view")).toBe("cards");
@@ -330,12 +344,12 @@ test.describe("fleet scan journey", () => {
     await expect(appPage.getByTestId("agent-fleet-card-fleet-release")).toBeVisible();
     await appPage.getByTestId("listing-view-rows").click();
     await expect.poll(() => new URL(appPage.url()).searchParams.get("view")).toBeNull();
-    await expect(ui.agentRow("fleet-release")).toBeVisible();
+    await expect(fleet.agentRow("fleet-release")).toBeVisible();
 
     await appPage.getByTestId("agent-fleet-search").fill("release");
     await expect.poll(() => new URL(appPage.url()).searchParams.get("q")).toBe("release");
-    await expect(ui.agentRow("fleet-release")).toBeVisible();
-    await expect(ui.agentRow("fleet-ops")).toHaveCount(0);
+    await expect(fleet.agentRow("fleet-release")).toBeVisible();
+    await expect(fleet.agentRow("fleet-ops")).toHaveCount(0);
 
     await appPage.getByTestId("agent-fleet-filters-add").click();
     await appPage.getByRole("option", { name: "Category" }).click();
@@ -348,9 +362,9 @@ test.describe("fleet scan journey", () => {
     await expect(appPage.getByTestId("agent-fleet-filtered-empty")).toBeVisible();
     await appPage.getByTestId("agent-fleet-clear-filters").click();
     await expect.poll(() => new URL(appPage.url()).search).toBe("");
-    await expect(ui.agentRow("fleet-ops")).toBeVisible();
+    await expect(fleet.agentRow("fleet-ops")).toBeVisible();
 
-    await ui.agentRow("fleet-release").click();
+    await fleet.agentRow("fleet-release").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/fleet-release");
   });
 });

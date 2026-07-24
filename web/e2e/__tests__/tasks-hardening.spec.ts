@@ -8,7 +8,12 @@ import { promisify } from "node:util";
 
 import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { tasksOperatorSelectors } from "../fixtures/selectors";
-import { seedBrowserTasksOperatorFlow, type BrowserRuntime } from "../fixtures/runtime";
+import { ensureAppWindow, switchWorkspace } from "../fixtures/os-navigation";
+import {
+  seedBrowserTasksOperatorFlow,
+  waitForSeedSessionActive,
+  type BrowserRuntime,
+} from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -179,6 +184,7 @@ test("operator retries failed work and sees an auditable run review gate", async
 }) => {
   const ui = tasksOperatorSelectors(appPage);
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-tasks-retry-workspace-"));
+  const workspace = await runtime.resolveWorkspace(workspaceRoot);
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
     sessionAgentName: tasksSessionAgentName,
     workspaceRootDir: workspaceRoot,
@@ -188,6 +194,7 @@ test("operator retries failed work and sees an auditable run review gate", async
     tasksSessionAgentName,
     seeded.session.workspace_id
   );
+  await waitForSeedSessionActive(runtime, workerSession.id);
   await useGlobalWorkspaceIfPrompted(ui);
 
   const task = await createTask(runtime, {
@@ -210,9 +217,8 @@ test("operator retries failed work and sees an auditable run review gate", async
     .toBe("failed");
 
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await appPage.getByTestId("workspace-switcher").click();
-  await appPage.getByTestId(`workspace-command-item-${seeded.session.workspace_id}`).click();
-  await expect(appPage.getByTestId("workspace-switcher")).toHaveAttribute("aria-expanded", "false");
+  await switchWorkspace(appPage, seeded.session.workspace_id, workspace.name);
+  await ensureAppWindow(appPage, "Tasks", "tasks");
   await ui.modeInbox.click();
   await expect(ui.inboxLane("failed_runs")).toBeVisible();
   await expect(ui.inboxItem(task.id)).toBeVisible();
@@ -367,7 +373,6 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
   });
   await useGlobalWorkspaceIfPrompted(appPage);
   await expect(ui.detailContent).toBeVisible();
-  await ui.detailTab("children").click();
   await expect(ui.detailChildItem(child.id)).toBeVisible();
   await expect(ui.detailChildLink(child.id)).toHaveAttribute(
     "href",
@@ -388,7 +393,6 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
     waitUntil: "domcontentloaded",
   });
   await expect(ui.detailContent).toBeVisible();
-  await ui.detailTab("dependencies").click();
   await expect(ui.detailDependencyItem(dependency.id)).toBeVisible();
   await expect(ui.detailDependencyLink(dependency.id)).toHaveAttribute(
     "href",
@@ -431,6 +435,7 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
       }),
     })
   ).session;
+  await waitForSeedSessionActive(runtime, blockedSession.id);
   const blockedClaimResponse = await fetch(runtime.url("/api/agent/tasks/claim-next"), {
     method: "POST",
     headers: {
@@ -448,6 +453,7 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
   expect(blockedClaimBody).toBe("");
 
   const editedTitle = uniqueTitle("Graph child edited");
+  await ui.detailOverflow.click();
   await ui.detailEdit.click();
   await expect(ui.createEditorSurface).toBeVisible();
   await ui.createTitle.fill(editedTitle);
@@ -459,7 +465,7 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
   await ui.createSubmit.click();
   expect((await editResponsePromise).ok()).toBe(true);
   await expect.poll(async () => (await getTask(runtime, child.id)).task.title).toBe(editedTitle);
-  await expect(ui.detailContent).toContainText(editedTitle);
+  await expect(ui.detailTitle).toContainText(editedTitle);
 
   const disposable = await createTask(runtime, {
     description: "Disposable task for delete hardening.",
@@ -599,7 +605,7 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
 
 // E2E-web-1 (_tests.md §4.1): typed blocked_reasons chips project every open
 // source simultaneously (dependency + approval + block), truthfully from payload.
-test("task detail renders blocked_reasons chips for dependency, approval, and block sources", async ({
+test("task detail renders blocked_reasons bands for dependency, approval, and block sources", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -635,14 +641,12 @@ test("task detail renders blocked_reasons chips for dependency, approval, and bl
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.detailContent).toBeVisible();
 
-  const blockedReasons = appPage.getByTestId("tasks-detail-blocked-reasons");
-  await expect(blockedReasons).toBeVisible();
-  await expect(appPage.getByTestId("tasks-detail-blocked-reason")).toHaveCount(3);
-  for (const source of ["dependency", "approval", "block"]) {
-    await expect(blockedReasons.locator(`[data-source="${source}"]`)).toHaveCount(1);
-  }
-  await expect(blockedReasons).toContainText("Waiting on operator input");
-  await browserArtifacts.captureScreenshot("tasks-blocked-reasons-chips", appPage);
+  await expect(appPage.getByTestId("tasks-detail-now-approval")).toBeVisible();
+  await expect(appPage.locator('[data-testid^="tasks-detail-now-dependency-"]')).toHaveCount(1);
+  const explicitBlock = appPage.locator('[data-testid^="tasks-detail-now-block-"]');
+  await expect(explicitBlock).toHaveCount(1);
+  await expect(explicitBlock).toContainText("Waiting on operator input");
+  await browserArtifacts.captureScreenshot("tasks-blocked-reasons-bands", appPage);
 });
 
 // E2E-web-2 (_tests.md §4.2): the needs_attention badge + Recover action clear
@@ -671,8 +675,8 @@ test("task detail exposes the needs_attention badge and a Recover action that cl
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.detailContent).toBeVisible();
 
-  const badge = appPage.getByTestId("tasks-detail-needs-attention");
-  const recover = appPage.getByTestId("tasks-detail-recover");
+  const badge = appPage.getByTestId("tasks-detail-now-stuck");
+  const recover = appPage.getByTestId("tasks-detail-now-recover");
   await expect(badge).toBeVisible();
   await expect(recover).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-needs-attention-badge", appPage);
@@ -692,7 +696,7 @@ test("task detail exposes the needs_attention badge and a Recover action that cl
     });
     await observerPage.goto(runtime.url(detailPath), { waitUntil: "domcontentloaded" });
     await useGlobalWorkspaceIfPrompted(observerPage);
-    const observerBadge = observerPage.getByTestId("tasks-detail-needs-attention");
+    const observerBadge = observerPage.getByTestId("tasks-detail-now-stuck");
     await expect(observerBadge).toBeVisible();
     await observerStreamReady;
 
@@ -733,6 +737,7 @@ test("task detail reflects the wake_creator opt-out on agent-created tasks", asy
   }
   const workspace = await runtime.resolveWorkspace(homeDir);
   const session = await createSession(runtime, tasksSessionAgentName, workspace.id);
+  await waitForSeedSessionActive(runtime, session.id);
 
   const wakeOffTask = await createAgentTask(runtime, session.id, tasksSessionAgentName, {
     scope: "global",
@@ -758,7 +763,7 @@ test("task detail reflects the wake_creator opt-out on agent-created tasks", asy
   });
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.detailContent).toBeVisible();
-  const wakeOffPill = appPage.getByTestId("tasks-detail-wake");
+  const wakeOffPill = appPage.getByTestId("tasks-detail-pill-wake");
   await expect(wakeOffPill).toBeVisible();
   await expect(wakeOffPill).toContainText("Wake off");
   await browserArtifacts.captureScreenshot("tasks-wake-opt-out", appPage);
@@ -767,7 +772,7 @@ test("task detail reflects the wake_creator opt-out on agent-created tasks", asy
     waitUntil: "domcontentloaded",
   });
   await expect(ui.detailContent).toBeVisible();
-  const wakeOnPill = appPage.getByTestId("tasks-detail-wake");
+  const wakeOnPill = appPage.getByTestId("tasks-detail-pill-wake");
   await expect(wakeOnPill).toBeVisible();
   await expect(wakeOnPill).toContainText("Wake on");
 });

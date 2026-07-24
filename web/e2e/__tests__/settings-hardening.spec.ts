@@ -53,7 +53,7 @@ test("operator applies Memory, Network, Automation, and Observability settings w
   }>("/api/settings/network");
   const nextMaxReplayAge = networkBefore.config.max_replay_age + 1;
   await appPage.goto(runtime.url("/settings/network"), { waitUntil: "domcontentloaded" });
-  await expect(appPage.getByTestId("settings-page-network-enrollment-note")).toBeVisible();
+  await expect(appPage.getByTestId("settings-page-network-hero")).toBeVisible();
   await expect(appPage.getByTestId("settings-page-network-greet-interval")).toHaveCount(0);
   await expect(appPage.getByTestId("settings-page-network-max-queue-depth")).toHaveCount(0);
   await appPage.getByTestId("settings-page-network-max-replay-age").fill(String(nextMaxReplayAge));
@@ -69,6 +69,10 @@ test("operator applies Memory, Network, Automation, and Observability settings w
   }>("/api/settings/automation");
   const nextMaxConcurrent = automationBefore.config.max_concurrent_jobs + 1;
   await appPage.goto(runtime.url("/settings/automation"), { waitUntil: "domcontentloaded" });
+  await appPage
+    .getByTestId("settings-page-automation-advanced")
+    .getByTestId("settings-advanced-toggle")
+    .click();
   await expect(appPage.getByTestId("settings-page-automation-max-concurrent-input")).toBeVisible();
   await appPage
     .getByTestId("settings-page-automation-max-concurrent-input")
@@ -368,8 +372,9 @@ async function captureSettingsViewportMatrix(
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
     await appPage.goto(runtime.url(pathname), { waitUntil: "domcontentloaded" });
-    await expect(appPage.getByTestId("settings-shell")).toBeVisible();
-    await expect(appPage.getByTestId("settings-section-nav")).toBeVisible();
+    const settingsWin = appPage.getByTestId("os-window-app:settings");
+    await expect(settingsWin.getByTestId("settings-shell")).toBeVisible();
+    await expect(settingsWin.getByTestId("settings-section-nav")).toBeVisible();
     await browserArtifacts.captureScreenshot(`settings-viewport-${width}`, appPage);
   }
 }

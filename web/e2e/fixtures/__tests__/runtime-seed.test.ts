@@ -22,6 +22,7 @@ import {
   seedBrowserSettingsFixtures,
   seedBrowserTasksOperatorFlow,
   seedBrowserRuntimeHome,
+  waitForSeedSessionActive,
   type BrowserRuntimeSeedClient,
 } from "../runtime-seed";
 
@@ -195,15 +196,33 @@ describe("browser runtime seed helpers", () => {
   });
 
   it("creates seeded workspace and session state through public runtime surfaces", async () => {
-    const requestJSON = vi.fn(async () => ({
-      session: {
-        id: "sess_browser_01",
-        agent_name: "browser-lifecycle-agent",
-        workspace_id: "ws_home",
-        state: "active",
-        name: "browser-session",
-      },
-    }));
+    let sessionStatePolls = 0;
+    const requestJSON = vi.fn(async (pathname: string) => {
+      if (pathname === "/api/sessions") {
+        return {
+          session: {
+            id: "sess_browser_01",
+            agent_name: "browser-lifecycle-agent",
+            workspace_id: "ws_home",
+            state: "starting",
+            name: "browser-session",
+          },
+        };
+      }
+      if (pathname === "/api/sessions/sess_browser_01") {
+        sessionStatePolls += 1;
+        return {
+          session: {
+            id: "sess_browser_01",
+            agent_name: "browser-lifecycle-agent",
+            workspace_id: "ws_home",
+            state: sessionStatePolls >= 2 ? "active" : "starting",
+            name: "browser-session",
+          },
+        };
+      }
+      throw new Error(`unexpected request ${pathname}`);
+    });
     const resolveWorkspace = vi.fn(async () => ({
       id: "ws_home",
       root_dir: "/tmp/browser-home",
@@ -236,6 +255,37 @@ describe("browser runtime seed helpers", () => {
     );
     expect(seeded.workspace?.id).toBe("ws_home");
     expect(seeded.session?.id).toBe("sess_browser_01");
+    expect(seeded.session?.state).toBe("active");
+    // The seed only returns after the session is active: it polls the session
+    // record (starting → active) rather than trusting the creation response.
+    expect(sessionStatePolls).toBeGreaterThanOrEqual(2);
+    expect(requestJSON).toHaveBeenCalledWith("/api/sessions/sess_browser_01");
+  });
+
+  it("fails session readiness immediately with the durable stopped diagnostic", async () => {
+    const requestJSON = vi.fn(async () => ({
+      session: {
+        id: "sess_browser_stopped",
+        agent_name: "browser-lifecycle-agent",
+        workspace_id: "ws_home",
+        state: "stopped",
+        failure: {
+          kind: "protocol_failure",
+          summary: "ACP negotiation failed",
+        },
+      },
+    }));
+
+    await expect(
+      waitForSeedSessionActive(
+        { requestJSON: requestJSON as BrowserRuntimeSeedClient["requestJSON"] },
+        "sess_browser_stopped",
+        1_000
+      )
+    ).rejects.toThrow(
+      'seed session sess_browser_stopped entered "stopped" before activating; failure protocol_failure: ACP negotiation failed'
+    );
+    expect(requestJSON).toHaveBeenCalledTimes(1);
   });
 
   it("seeds sandbox profiles through the settings collection API", async () => {
@@ -661,6 +711,7 @@ describe("browser runtime seed helpers", () => {
       name: "agh-browser-task-workspace",
       root_dir: "/tmp/agh-browser-task-workspace",
     }));
+    let sessionStatePolls = 0;
     const requestJSON = vi.fn(async (pathname: string, init?: RequestInit) => {
       if (pathname === "/api/sessions") {
         return {
@@ -668,7 +719,18 @@ describe("browser runtime seed helpers", () => {
             id: "sess_browser_tasks_01",
             agent_name: "browser-lifecycle-agent",
             workspace_id: "ws_browser_tasks",
-            state: "active",
+            state: "starting",
+          },
+        };
+      }
+      if (pathname === "/api/sessions/sess_browser_tasks_01") {
+        sessionStatePolls += 1;
+        return {
+          session: {
+            id: "sess_browser_tasks_01",
+            agent_name: "browser-lifecycle-agent",
+            workspace_id: "ws_browser_tasks",
+            state: sessionStatePolls >= 2 ? "active" : "starting",
           },
         };
       }
@@ -906,6 +968,7 @@ describe("browser runtime seed helpers", () => {
     expect(seeded.runningRun.id).toBe("run_browser_tasks_01");
     expect(seeded.runningRunDetail.session?.session_id).toBe("sess_browser_tasks_01");
     expect(seeded.session.id).toBe("sess_browser_tasks_01");
+    expect(seeded.session.state).toBe("active");
     expect(seeded.dashboard.active_runs.total).toBe(1);
     expect(seeded.approvalInbox.groups?.[0]?.items?.[0]?.task.id).toBe("task_browser_approval");
 
@@ -947,6 +1010,13 @@ describe("browser runtime seed helpers", () => {
       expect.objectContaining({
         method: "POST",
       })
+    );
+    // The readiness gate must poll the session to `active` before the
+    // session-authenticated claim-next call — never fire claim-next on `starting`.
+    expect(sessionStatePolls).toBeGreaterThanOrEqual(2);
+    const taskSeedCallOrder = requestJSON.mock.calls.map(([pathname]) => pathname);
+    expect(taskSeedCallOrder.indexOf("/api/sessions/sess_browser_tasks_01")).toBeLessThan(
+      taskSeedCallOrder.indexOf("/api/agent/tasks/claim-next")
     );
     expect(requestJSON).not.toHaveBeenCalledWith(
       "/api/task-runs/run_browser_tasks_01/start",

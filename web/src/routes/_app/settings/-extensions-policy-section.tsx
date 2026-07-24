@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import { Link } from "@tanstack/react-router";
 
 import {
   SettingLinkRow,
@@ -111,7 +112,7 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
           data-testid="settings-page-extensions-link-installed"
           description="Everything installed on this daemon."
           label="Installed extensions"
-          to="/marketplace/extensions"
+          render={<Link to="/marketplace/extensions" />}
         />
       </SettingsGroup>
     </>

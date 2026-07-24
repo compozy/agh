@@ -66,6 +66,10 @@ interface SeededSessionPayload {
   workspace_id: string;
   state: string;
   name?: string | null;
+  failure?: {
+    kind: string;
+    summary?: string | null;
+  } | null;
 }
 
 interface BrowserMockAgentSeed {
@@ -437,6 +441,7 @@ const TASKS_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const BRIDGE_OPERATOR_FLOW_TIMEOUT_MS = 45_000;
 const SETTINGS_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const BROWSER_SEED_POLL_MS = 150;
+const BROWSER_SEED_SESSION_ACTIVE_TIMEOUT_MS = 30_000;
 const BRIDGE_EXTENSION_NAME = "telegram-reference";
 const BRIDGE_PLATFORM = "telegram";
 
@@ -779,9 +784,13 @@ export async function applyBrowserRuntimeSeed(
     }),
   });
 
+  // Gate before handing the session to specs: none of them may hit an
+  // agent-authenticated endpoint while the session is still `starting`.
+  const session = await waitForSeedSessionActive(runtime, payload.session.id);
+
   return {
     workspace,
-    session: payload.session,
+    session,
   };
 }
 
@@ -1133,7 +1142,7 @@ export async function seedBrowserTasksOperatorFlow(
 
   const timeoutMs = seed.timeoutMs ?? TASKS_OPERATOR_FLOW_TIMEOUT_MS;
   const sessionWorkspace = await resolveBrowserTasksWorkspace(runtime, seed, timeoutMs);
-  const session = (
+  const createdSession = (
     await runtime.requestJSON<{ session: SeededSessionPayload }>("/api/sessions", {
       method: "POST",
       body: JSON.stringify({
@@ -1142,6 +1151,10 @@ export async function seedBrowserTasksOperatorFlow(
       }),
     })
   ).session;
+
+  // The claim-next call below authenticates as this session; it 401s with
+  // `identity_stale` until background-role activation commits. Gate on active.
+  const activeSession = await waitForSeedSessionActive(runtime, createdSession.id, timeoutMs);
 
   const referenceTask = await createBrowserTask(runtime, {
     description: "Seeded ready task for list and dashboard coverage.",
@@ -1198,7 +1211,7 @@ export async function seedBrowserTasksOperatorFlow(
   await runtime.requestJSON<{ claim: { run: TaskRun } }>("/api/agent/tasks/claim-next", {
     method: "POST",
     headers: {
-      "X-AGH-Session-ID": session.id,
+      "X-AGH-Session-ID": activeSession.id,
       "X-AGH-Agent": sessionAgentName,
     },
     body: JSON.stringify({
@@ -1213,7 +1226,7 @@ export async function seedBrowserTasksOperatorFlow(
         `/api/task-runs/${encodeURIComponent(runningRun.id)}`
       );
       const detail = payload.run;
-      return detail.session?.session_id === session.id &&
+      return detail.session?.session_id === activeSession.id &&
         ["claimed", "queued", "running", "starting"].includes(detail.run.status)
         ? detail
         : null;
@@ -1261,7 +1274,7 @@ export async function seedBrowserTasksOperatorFlow(
     runningRun,
     runningRunDetail,
     runningTask,
-    session,
+    session: activeSession,
   };
 }
 
@@ -2321,6 +2334,58 @@ async function waitForSeedCondition<T>(
 
   const detail = lastError instanceof Error ? `; last error: ${lastError.message}` : "";
   throw new Error(`timed out waiting for ${label}${detail}`);
+}
+
+/**
+ * Block until an accepted seeded session is durably `active`. Accepted sessions
+ * report `starting` until activation commits, and agent-authenticated
+ * endpoints reject with `identity_stale` until the session is `active`. Poll the
+ * real session record — never a sleep — and fail fast (throw) if the session ends
+ * up `stopped`, surfacing a broken session as a setup failure rather than a later
+ * 401. Exported so specs that create their own session can gate it before calling
+ * agent-authenticated endpoints.
+ */
+export async function waitForSeedSessionActive(
+  runtime: Pick<BrowserRuntimeSeedClient, "requestJSON">,
+  sessionId: string,
+  timeoutMs = BROWSER_SEED_SESSION_ACTIVE_TIMEOUT_MS
+): Promise<SeededSessionPayload> {
+  const deadline = Date.now() + timeoutMs;
+  let lastState = "unknown";
+  let lastError: unknown;
+
+  while (Date.now() < deadline) {
+    let session: SeededSessionPayload | undefined;
+    try {
+      ({ session } = await runtime.requestJSON<{ session: SeededSessionPayload }>(
+        `/api/sessions/${encodeURIComponent(sessionId)}`
+      ));
+      lastState = session.state;
+      lastError = undefined;
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (session?.state === "active") {
+      return session;
+    }
+    if (session?.state === "stopped") {
+      const failureKind = session.failure?.kind?.trim() || "unknown";
+      const failureSummary = session.failure?.summary?.trim() || "no failure summary";
+      throw new Error(
+        `seed session ${sessionId} entered "stopped" before activating; ` +
+          `failure ${failureKind}: ${failureSummary}`
+      );
+    }
+
+    await delay(BROWSER_SEED_POLL_MS);
+  }
+
+  const detail = lastError instanceof Error ? `; last error: ${lastError.message}` : "";
+  throw new Error(
+    `timed out waiting for seed session ${sessionId} to become active ` +
+      `(last state: ${lastState})${detail}`
+  );
 }
 
 async function delay(ms: number): Promise<void> {

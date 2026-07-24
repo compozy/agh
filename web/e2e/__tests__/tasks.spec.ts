@@ -1,7 +1,12 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { sessionLifecycleSelectors, tasksOperatorSelectors } from "../fixtures/selectors";
+import {
+  sessionLifecycleSelectors,
+  sessionWindowSelectors,
+  tasksOperatorSelectors,
+} from "../fixtures/selectors";
+import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
@@ -59,16 +64,15 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   runtime,
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
-  const tasksUI = tasksOperatorSelectors(appPage);
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
     sessionAgentName: tasksSessionAgentName,
   });
 
-  await useGlobalWorkspaceIfPrompted(tasksUI);
+  await useGlobalWorkspaceIfPrompted(appPage);
 
-  await expect(tasksUI.osDesktop).toBeVisible();
-  await expect(tasksUI.navTasks).toBeVisible();
-  await tasksUI.navTasks.click();
+  await expect(sessionUI.osDesktop).toBeVisible();
+  const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
+  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
 
   await expect(appPage).toHaveURL(/\/tasks$/);
   await expect(tasksUI.modeList).toHaveAttribute("aria-current", "page");
@@ -106,7 +110,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
     throw new Error(`Expected a created draft task for "${createdDraftTitle}".`);
   }
 
-  await expect(tasksUI.detailContent).toContainText(createdDraftTitle);
+  await expect(tasksUI.detailTitle).toHaveText(createdDraftTitle);
   await expect(tasksUI.detailPublish).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-draft-created", appPage);
 
@@ -140,7 +144,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await browserArtifacts.captureScreenshot("tasks-draft-published", appPage);
 
   await expect(tasksUI.detailContent).toBeVisible();
-  await expect(tasksUI.detailContent).toContainText(createdDraftTitle);
+  await expect(tasksUI.detailTitle).toHaveText(createdDraftTitle);
   await expect(tasksUI.detailTab("overview")).toBeVisible();
   await expect(tasksUI.detailTab("runs")).toBeVisible();
   await expect(tasksUI.detailTab("activity")).toBeVisible();
@@ -173,7 +177,8 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(tasksSessionPath(seeded.session.id));
-  await expect(sessionUI.chatHeader).toBeVisible();
+  const sessionWin = sessionWindowSelectors(sessionWindow(appPage, seeded.session.id));
+  await expect(sessionWin.chatView).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-linked-session", appPage);
 
   await appPage.goto(runtime.url("/tasks"), {
@@ -262,7 +267,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
     throw new Error(`Expected a deletable draft task for "${deleteDraftTitle}".`);
   }
 
-  await expect(tasksUI.detailContent).toContainText(deleteDraftTitle);
+  await expect(tasksUI.detailTitle).toHaveText(deleteDraftTitle);
   await tasksUI.detailOverflow.click();
   await tasksUI.detailDelete.click();
   await expect(tasksUI.detailDeleteDialog).toBeVisible();

@@ -14,8 +14,13 @@ import {
   TopbarOverflowIcon,
 } from "@agh/ui";
 
-import { HEAD_STATUS_TONE_TEXT, taskStatusLabel, taskStatusSignal } from "../lib/task-formatters";
-import type { TaskCommandState } from "../lib/task-command-state";
+import {
+  HEAD_STATUS_TONE_TEXT,
+  taskHandoffActionCopy,
+  taskStatusLabel,
+  taskStatusSignal,
+} from "../lib/task-formatters";
+import type { TaskCommandState, TaskPrimaryCommand } from "../lib/task-command-state";
 import type { TaskStatus } from "../types";
 
 /** Single source of task status in the window head (w2-status contract). */
@@ -83,6 +88,20 @@ const PRIMARY_PENDING_LABEL: Record<
   retry: "Retrying…",
   start: "Starting…",
 };
+
+function primaryActionTitle(primary: TaskPrimaryCommand): string | undefined {
+  switch (primary.kind) {
+    case "publish":
+    case "approve":
+    case "start":
+    case "retry":
+      return taskHandoffActionCopy(primary.kind).tooltip;
+    case "open_run":
+    case "resume":
+    case "recover":
+      return undefined;
+  }
+}
 
 /**
  * The one accent target in the head, driven by the task command state machine.
@@ -174,6 +193,7 @@ export function TaskPageActions({ command, handlers, pending = {} }: TaskPageAct
           disabled={anyPending}
           onClick={onClick}
           size="sm"
+          title={primaryActionTitle(primary)}
           type="button"
         >
           {primaryPending ? <Spinner aria-hidden="true" className="size-3" /> : null}

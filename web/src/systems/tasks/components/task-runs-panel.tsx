@@ -33,6 +33,7 @@ export interface TaskRunsPanelProps {
   isStartPending?: boolean;
   workerName?: string | null;
   runDurations?: ReadonlyMap<string, string | undefined>;
+  emptyDescription?: string;
 }
 
 const RUN_COLUMNS = ["Attempt", "Status", "Claimed by", "Started", "Duration", "Result"] as const;
@@ -174,6 +175,7 @@ export function TaskRunsPanel({
   isStartPending = false,
   workerName,
   runDurations,
+  emptyDescription,
 }: TaskRunsPanelProps) {
   if (isLoading && runs.length === 0) {
     return <TaskRowsLoadingSkeleton label="Loading runs" testId="tasks-runs-loading" />;
@@ -196,9 +198,10 @@ export function TaskRunsPanel({
         icon={Play}
         title="Not started yet"
         description={
-          workerName
+          emptyDescription ??
+          (workerName
             ? `Start a run to have ${workerName} work on this task.`
-            : "Start a run to have a worker pick this task up."
+            : "Start a run to have a worker pick this task up.")
         }
         action={
           onStartRun ? (

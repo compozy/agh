@@ -1,8 +1,19 @@
 import type { Locator, Page } from "@playwright/test";
 
+// Shell-global surfaces: the desktop root and the first-run workspace onboarding.
+// These legitimately live at page scope (they exist before any window opens).
 export const sessionLifecycleTestIds = {
   osDesktop: "os-desktop",
-  chatHeader: "chat-header",
+  workspaceManualPathInput: "workspace-manual-path-input",
+  workspaceOnboarding: "workspace-onboarding",
+  workspaceRegisterManual: "workspace-register-manual",
+  workspaceUseGlobal: "workspace-use-global",
+} as const;
+
+// Session-window surfaces. Every one of these renders inside an owning
+// `os-window-session:<sessionId>` window and must be scoped to it — a page-level
+// match would resolve to a second session window (strict-mode violation).
+export const sessionWindowTestIds = {
   chatView: "chat-view",
   composerClearButton: "composer-clear-button",
   composerSendButton: "composer-send-button",
@@ -15,17 +26,19 @@ export const sessionLifecycleTestIds = {
   resumeButton: "resume-button",
   stopButton: "stop-button",
   topbarOverflow: "session-topbar-overflow",
-  workspaceManualPathInput: "workspace-manual-path-input",
-  workspaceOnboarding: "workspace-onboarding",
-  workspaceRegisterManual: "workspace-register-manual",
-  workspaceUseGlobal: "workspace-use-global",
 } as const;
 
 export interface SessionLifecycleSelectors {
   agentPageNewSession: Locator;
   agentRow(agentName: string): Locator;
   osDesktop: Locator;
-  chatHeader: Locator;
+  workspaceManualPathInput: Locator;
+  workspaceOnboarding: Locator;
+  workspaceRegisterManual: Locator;
+  workspaceUseGlobal: Locator;
+}
+
+export interface SessionWindowSelectors {
   chatView: Locator;
   composerClearButton: Locator;
   composerSendButton: Locator;
@@ -38,10 +51,6 @@ export interface SessionLifecycleSelectors {
   resumeButton: Locator;
   stopButton: Locator;
   topbarOverflow: Locator;
-  workspaceManualPathInput: Locator;
-  workspaceOnboarding: Locator;
-  workspaceRegisterManual: Locator;
-  workspaceUseGlobal: Locator;
 }
 
 export const networkOperatorTestIds = {
@@ -70,7 +79,6 @@ export const networkOperatorTestIds = {
   inspectorPanelMembers: "network-inspector-panel-members",
   inspectorPanelWork: "network-inspector-panel-work",
   inspectorWorkTab: "network-inspector-tab-work",
-  navNetwork: "nav-network",
   noChannelsState: "network-no-channels-state",
   newDirectButton: "network-directs-new-direct",
   newDirectDialog: "network-new-direct-dialog",
@@ -117,8 +125,6 @@ export const automationOperatorTestIds = {
   jobScheduleTime: "job-schedule-time",
   jobScopeGlobal: "job-scope-global",
   jobScopeWorkspace: "job-scope-workspace",
-  navJobs: "nav-jobs",
-  navTriggers: "nav-triggers",
   submitJobForm: "submit-job-form",
   submitTriggerForm: "submit-trigger-form",
   triggerAgentInput: "trigger-agent-input",
@@ -175,7 +181,6 @@ export const bridgeOperatorTestIds = {
   disableBridgeButton: "disable-bridge-btn",
   editBridgeButton: "edit-bridge-btn",
   enableBridgeButton: "enable-bridge-btn",
-  navBridges: "nav-bridges",
   openSendTestButton: "open-send-test-btn",
   openTestDeliveryButton: "open-test-delivery-btn",
   restartBridgeButton: "restart-bridge-btn",
@@ -214,7 +219,6 @@ export const knowledgeOperatorTestIds = {
   editDialog: "knowledge-edit-dialog",
   guard: "knowledge-guard",
   listPanel: "knowledge-list-panel",
-  navKnowledge: "nav-knowledge",
   searchInput: "knowledge-search-input",
   searchInfo: "knowledge-search-info",
   shell: "knowledge-shell",
@@ -259,7 +263,6 @@ export const sandboxOperatorTestIds = {
   editorSyncModeInput: "sandbox-editor-sync-mode-input",
   empty: "sandbox-page-empty",
   list: "sandbox-page-list",
-  navSandbox: "nav-sandbox",
   restartNotice: "settings-page-sandbox-restart-notice",
   shell: "sandbox-shell",
   total: "sandbox-page-total",
@@ -298,7 +301,6 @@ export interface NetworkOperatorSelectors {
   inspectorPanelMembers: Locator;
   inspectorPanelWork: Locator;
   inspectorWorkTab: Locator;
-  navNetwork: Locator;
   noChannelsState: Locator;
   newDirectButton: Locator;
   newDirectDialog: Locator;
@@ -351,8 +353,6 @@ export interface AutomationOperatorSelectors {
   jobsListRows: Locator;
   jobsShell: Locator;
   itemLink(id: string): Locator;
-  navJobs: Locator;
-  navTriggers: Locator;
   run(id: string): Locator;
   runHistory: Locator;
   runNow(id: string): Locator;
@@ -415,7 +415,6 @@ export interface BridgeOperatorSelectors {
   manifestHandoff: Locator;
   manifestJson: Locator;
   manifestOpenBridge: Locator;
-  navBridges: Locator;
   openSendTestButton: Locator;
   openTestDeliveryButton: Locator;
   providerCard(providerKey: string): Locator;
@@ -469,7 +468,6 @@ export interface KnowledgeOperatorSelectors {
   guard: Locator;
   item(memoryKey: string): Locator;
   listPanel: Locator;
-  navKnowledge: Locator;
   revertDecision(decisionId: string): Locator;
   searchInput: Locator;
   searchInfo: Locator;
@@ -522,7 +520,6 @@ export interface SandboxOperatorSelectors {
   editorSyncModeInput: Locator;
   empty: Locator;
   list: Locator;
-  navSandbox: Locator;
   profile(name: string): Locator;
   profileMetadata(name: string): Locator;
   profileSource(name: string): Locator;
@@ -536,7 +533,6 @@ export interface SandboxOperatorSelectors {
 }
 
 export const settingsShellTestIds = {
-  navSettings: "nav-settings",
   shell: "settings-shell",
   shellOutlet: "settings-shell-outlet",
   sectionNav: "settings-section-nav",
@@ -559,7 +555,7 @@ export const settingsSkillsTestIds = {
   disabledMessage: "settings-page-skills-disabled-message",
   disabledSave: "settings-page-skills-disabled-save",
   policyMessage: "settings-page-skills-policy-message",
-  policySave: "settings-page-skills-policy-save",
+  save: "settings-page-skills-save",
   policyRegistryInput: "settings-page-skills-marketplace-registry-input",
   policyBaseURLInput: "settings-page-skills-marketplace-base-url-input",
   operationalLink: "settings-page-skills-link-skills",
@@ -580,11 +576,13 @@ export const settingsProvidersTestIds = {
   create: "settings-page-providers-create",
   actionResult: "settings-page-providers-action-result",
   actionResultDismiss: "settings-page-providers-action-result-dismiss",
-  editor: "settings-providers-editor",
+  editor: "provider-detail-dialog",
+  editorEdit: "provider-detail-edit",
+  editorDelete: "provider-detail-delete",
   editorNameInput: "settings-providers-editor-name-input",
   editorCommandInput: "settings-providers-editor-command-input",
   editorModelInput: "settings-providers-editor-model-input",
-  editorSave: "provider-inspector-save",
+  editorSave: "provider-detail-save",
   deleteDialog: "settings-providers-delete",
   deleteConfirm: "settings-providers-delete-confirm",
   restartNotice: "settings-page-providers-restart-notice",
@@ -621,12 +619,11 @@ export const settingsExtensionsTestIds = {
   policyBaseURLInput: "settings-page-extensions-policy-base-url-input",
   policyControls: "settings-page-extensions-policy-controls",
   policyRegistryInput: "settings-page-extensions-policy-registry-input",
-  policySave: "settings-page-extensions-policy-save",
+  save: "settings-page-extensions-save",
   restartNotice: "settings-page-extensions-restart-notice",
 } as const;
 
 interface SettingsShellSelectors {
-  navSettings: Locator;
   shell: Locator;
   shellOutlet: Locator;
   sectionItems: Locator;
@@ -656,7 +653,7 @@ interface SettingsSkillsSelectors {
   policyMessage: Locator;
   policyBaseURLInput: Locator;
   policyRegistryInput: Locator;
-  policySave: Locator;
+  save: Locator;
   restartNotice: Locator;
 }
 
@@ -682,6 +679,8 @@ interface SettingsProvidersSelectors {
   deleteConfirm: Locator;
   deleteDialog: Locator;
   editor: Locator;
+  editorEdit: Locator;
+  editorDelete: Locator;
   editorCommandInput: Locator;
   editorModelInput: Locator;
   editorNameInput: Locator;
@@ -727,7 +726,7 @@ interface SettingsExtensionsSelectors {
   policyBaseURLInput: Locator;
   policyControls: Locator;
   policyRegistryInput: Locator;
-  policySave: Locator;
+  save: Locator;
   restartNotice: Locator;
 }
 
@@ -744,7 +743,7 @@ export interface SettingsOperatorSelectors {
 export const tasksOperatorTestIds = {
   osDesktop: sessionLifecycleTestIds.osDesktop,
   createDescription: "task-description-input",
-  createEditorSurface: "task-editor-modal",
+  createEditorSurface: "task-editor-surface",
   createModeAdvanced: "task-mode-advanced",
   createModeSimple: "task-mode-simple",
   createSaveDraft: "task-editor-modal-submit",
@@ -757,6 +756,7 @@ export const tasksOperatorTestIds = {
   detailActiveRunChannel: "tasks-detail-active-run-channel",
   detailActiveRunEmpty: "tasks-detail-active-run-empty",
   detailActiveRunEmptyHint: "tasks-detail-active-run-empty-hint",
+  detailApprovalPill: "tasks-detail-pill-approval",
   detailContent: "tasks-detail-content",
   detailInspectDrawer: "tasks-inspect-drawer",
   detailInspectStream: "tasks-inspect-stream",
@@ -767,17 +767,19 @@ export const tasksOperatorTestIds = {
   detailDeleteConfirm: "tasks-detail-delete-confirm",
   detailDeleteDialog: "tasks-detail-delete-dialog",
   detailEdit: "tasks-detail-edit",
-  detailEnqueue: "tasks-detail-enqueue",
+  detailEnqueue: "tasks-detail-primary-start",
   detailOverflow: "tasks-detail-overflow",
-  detailLifecycle: "tasks-detail-lifecycle",
-  detailLifecycleHint: "tasks-detail-lifecycle-hint",
-  detailPublish: "tasks-detail-publish",
+  detailNowApproval: "tasks-detail-now-approval",
+  detailNowRun: "tasks-detail-now-run",
+  detailPublish: "tasks-detail-primary-publish",
+  detailStatus: "tasks-detail-status",
+  detailTitle: "tasks-detail-title",
   detailPreviewCoordination: "tasks-detail-preview-coordination",
   detailPreviewDeeplink: "tasks-detail-preview-deeplink",
   detailPreviewLifecycle: "tasks-detail-preview-lifecycle",
   detailPreviewPanel: "tasks-detail-preview-panel",
   detailPreviewPublish: "tasks-detail-preview-publish",
-  detailRunsEmpty: "tasks-detail-runs-empty",
+  detailRunsEmpty: "tasks-runs-empty",
   detailTabRuns: "tasks-detail-tab-runs",
   detailSetupEdit: "tasks-setup-edit",
   detailSetupForm: "tasks-setup-form",
@@ -794,13 +796,12 @@ export const tasksOperatorTestIds = {
   multiAgentNoActive: "tasks-multi-agent-no-active",
   multiAgentPanel: "tasks-multi-agent-panel",
   multiAgentSummary: "tasks-multi-agent-summary",
-  navTasks: "nav-tasks",
   openCreate: "tasks-open-create",
   runDetailContent: "tasks-run-detail-content",
-  runDetailCancel: "task-run-detail-cancel",
-  runDetailOverflow: "task-run-detail-overflow",
+  runDetailCancel: "tasks-run-cancel",
+  runDetailOverflow: "tasks-run-overflow",
   runReviews: "tasks-run-reviews",
-  runSessionDrilldown: "task-run-detail-open-session",
+  runSessionDrilldown: "tasks-run-open-session",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
@@ -831,8 +832,10 @@ export interface TasksOperatorSelectors {
   detailActiveRunChannel: Locator;
   detailActiveRunEmpty: Locator;
   detailActiveRunEmptyHint: Locator;
+  detailApprovalPill: Locator;
   detailBreadcrumbTasks: Locator;
   detailContent: Locator;
+  detailTitle: Locator;
   detailInspectDrawer: Locator;
   detailInspectStream: Locator;
   detailCoordination: Locator;
@@ -844,9 +847,10 @@ export interface TasksOperatorSelectors {
   detailEdit: Locator;
   detailEnqueue: Locator;
   detailOverflow: Locator;
-  detailLifecycle: Locator;
-  detailLifecycleHint: Locator;
+  detailNowApproval: Locator;
+  detailNowRun: Locator;
   detailPublish: Locator;
+  detailStatus: Locator;
   detailPreviewCoordination: Locator;
   detailPreviewDeeplink: Locator;
   detailPreviewLifecycle: Locator;
@@ -854,7 +858,6 @@ export interface TasksOperatorSelectors {
   detailPreviewPublish: Locator;
   detailRunsChannel(runId: string): Locator;
   detailRunsEmpty: Locator;
-  detailRunsLink(runId: string): Locator;
   detailTab(tabId: string): Locator;
   detailTabRuns: Locator;
   detailSetupEdit: Locator;
@@ -885,7 +888,6 @@ export interface TasksOperatorSelectors {
   multiAgentPanel: Locator;
   multiAgentSummary: Locator;
   multiAgentAgentLink(taskId: string): Locator;
-  navTasks: Locator;
   openCreate: Locator;
   runDetailContent: Locator;
   runDetailCancel: Locator;
@@ -906,23 +908,36 @@ export function sessionLifecycleSelectors(
     agentPageNewSession: page.getByTestId("agent-page-new-session"),
     agentRow: (agentName: string) => page.getByTestId(`agent-fleet-row-link-${agentName}`),
     osDesktop: page.getByTestId(sessionLifecycleTestIds.osDesktop),
-    chatHeader: page.getByTestId(sessionLifecycleTestIds.chatView),
-    chatView: page.getByTestId(sessionLifecycleTestIds.chatView),
-    composerClearButton: page.getByTestId(sessionLifecycleTestIds.composerClearButton),
-    composerSendButton: page.getByRole("button", { name: "Send message" }),
-    composerTextarea: page.getByRole("textbox", { name: "Session prompt" }),
-    deleteButton: page.getByTestId(sessionLifecycleTestIds.deleteButton),
-    permissionAllowAlways: page.getByTestId(sessionLifecycleTestIds.permissionAllowAlways),
-    permissionAllowOnce: page.getByTestId(sessionLifecycleTestIds.permissionAllowOnce),
-    permissionPrompt: page.getByTestId(sessionLifecycleTestIds.permissionPrompt),
-    processingIndicator: page.getByTestId(sessionLifecycleTestIds.processingIndicator),
-    resumeButton: page.getByTestId(sessionLifecycleTestIds.resumeButton),
-    stopButton: page.getByTestId(sessionLifecycleTestIds.stopButton),
-    topbarOverflow: page.getByTestId(sessionLifecycleTestIds.topbarOverflow),
     workspaceManualPathInput: page.getByTestId(sessionLifecycleTestIds.workspaceManualPathInput),
     workspaceOnboarding: page.getByTestId(sessionLifecycleTestIds.workspaceOnboarding),
     workspaceRegisterManual: page.getByTestId(sessionLifecycleTestIds.workspaceRegisterManual),
     workspaceUseGlobal: page.getByTestId(sessionLifecycleTestIds.workspaceUseGlobal),
+  };
+}
+
+/**
+ * Controls that live inside one session window. `win` is REQUIRED — pass the
+ * owning `os-window-session:<sessionId>` locator (`sessionWindow(page, id)` from
+ * `./os-navigation`) so every locator resolves within that window and never
+ * matches a second session window at page scope.
+ */
+export function sessionWindowSelectors(
+  win: Locator,
+  portalRoot: Pick<Page, "getByTestId"> = win
+): SessionWindowSelectors {
+  return {
+    chatView: win.getByTestId(sessionWindowTestIds.chatView),
+    composerClearButton: portalRoot.getByTestId(sessionWindowTestIds.composerClearButton),
+    composerSendButton: win.getByRole("button", { name: "Send message" }),
+    composerTextarea: win.getByRole("textbox", { name: "Session prompt" }),
+    deleteButton: portalRoot.getByTestId(sessionWindowTestIds.deleteButton),
+    permissionAllowAlways: win.getByTestId(sessionWindowTestIds.permissionAllowAlways),
+    permissionAllowOnce: win.getByTestId(sessionWindowTestIds.permissionAllowOnce),
+    permissionPrompt: win.getByTestId(sessionWindowTestIds.permissionPrompt),
+    processingIndicator: win.getByTestId(sessionWindowTestIds.processingIndicator),
+    resumeButton: win.getByTestId(sessionWindowTestIds.resumeButton),
+    stopButton: win.getByTestId(sessionWindowTestIds.stopButton),
+    topbarOverflow: win.getByTestId(sessionWindowTestIds.topbarOverflow),
   };
 }
 
@@ -1065,7 +1080,6 @@ export function networkOperatorSelectors(
     inspectorPanelMembers: page.getByTestId(networkOperatorTestIds.inspectorPanelMembers),
     inspectorPanelWork: page.getByTestId(networkOperatorTestIds.inspectorPanelWork),
     inspectorWorkTab: page.getByTestId(networkOperatorTestIds.inspectorWorkTab),
-    navNetwork: page.getByTestId(networkOperatorTestIds.navNetwork),
     noChannelsState: page.getByTestId(networkOperatorTestIds.noChannelsState),
     newDirectButton: page.getByTestId(networkOperatorTestIds.newDirectButton),
     newDirectDialog: page.getByTestId(networkOperatorTestIds.newDirectDialog),
@@ -1110,7 +1124,6 @@ export function knowledgeOperatorSelectors(
     guard: page.getByTestId(knowledgeOperatorTestIds.guard),
     item: (memoryKey: string) => page.getByTestId(`memory-item-${memoryKey}`),
     listPanel: page.getByTestId(knowledgeOperatorTestIds.listPanel),
-    navKnowledge: page.getByTestId(knowledgeOperatorTestIds.navKnowledge),
     revertDecision: (decisionId: string) =>
       page.getByTestId(`revert-memory-decision-${decisionId}`),
     searchInput: page.getByTestId(knowledgeOperatorTestIds.searchInput),
@@ -1172,7 +1185,6 @@ export function sandboxOperatorSelectors(
     editorSyncModeInput: page.getByTestId(sandboxOperatorTestIds.editorSyncModeInput),
     empty: page.getByTestId(sandboxOperatorTestIds.empty),
     list: page.getByTestId(sandboxOperatorTestIds.list),
-    navSandbox: page.getByTestId(sandboxOperatorTestIds.navSandbox),
     profile: (name: string) => page.getByTestId(`sandbox-page-card-${name}`),
     profileMetadata: (name: string) => page.getByTestId(`sandbox-page-card-${name}-profile`),
     profileSource: (name: string) => page.getByTestId(`sandbox-page-card-${name}-source`),
@@ -1231,8 +1243,6 @@ export function automationOperatorSelectors(
     jobScopeWorkspace: page.getByTestId(automationOperatorTestIds.jobScopeWorkspace),
     jobsListRows: page.getByTestId(automationOperatorTestIds.jobsListRows),
     jobsShell: page.getByTestId(automationOperatorTestIds.jobsShell),
-    navJobs: page.getByTestId(automationOperatorTestIds.navJobs),
-    navTriggers: page.getByTestId(automationOperatorTestIds.navTriggers),
     run: (id: string) => page.getByTestId(`automation-run-${id}`),
     runHistory: page.getByTestId(automationOperatorTestIds.automationRunHistory),
     runNow: (id: string) => page.getByTestId(`automation-run-now-${id}`),
@@ -1273,12 +1283,12 @@ export function automationOperatorSelectors(
 export function bridgeOperatorSelectors(
   page: Pick<Page, "getByRole" | "getByTestId">
 ): BridgeOperatorSelectors {
-  const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+  const windowPath = page.getByRole("navigation", { name: "Window path" });
 
   return {
     activeRoutesMetric: page.getByTestId(bridgeOperatorTestIds.bridgeMetricActiveRoutes),
     osDesktop: page.getByTestId(bridgeOperatorTestIds.osDesktop),
-    backToList: breadcrumb.getByRole("link", { exact: true, name: "Bridges" }),
+    backToList: windowPath.getByRole("button", { exact: true, name: "Bridges" }),
     createBridgeButton: page.getByTestId(bridgeOperatorTestIds.createBridgeButton),
     createDialog: page.getByTestId(bridgeOperatorTestIds.bridgeCreateDialog),
     createDeliveryModeSelect: page.getByTestId(
@@ -1318,7 +1328,6 @@ export function bridgeOperatorSelectors(
     manifestHandoff: page.getByTestId(bridgeOperatorTestIds.bridgeManifestHandoff),
     manifestJson: page.getByTestId(bridgeOperatorTestIds.bridgeManifestJson),
     manifestOpenBridge: page.getByTestId(bridgeOperatorTestIds.bridgeManifestOpenBridge),
-    navBridges: page.getByTestId(bridgeOperatorTestIds.navBridges),
     openSendTestButton: page.getByTestId(bridgeOperatorTestIds.openSendTestButton),
     openTestDeliveryButton: page.getByTestId(bridgeOperatorTestIds.openTestDeliveryButton),
     providerCard: (providerKey: string) => page.getByTestId(`bridge-provider-card-${providerKey}`),
@@ -1357,7 +1366,6 @@ export function settingsOperatorSelectors(
 ): SettingsOperatorSelectors {
   return {
     shell: {
-      navSettings: page.getByTestId(settingsShellTestIds.navSettings),
       shell: page.getByTestId(settingsShellTestIds.shell),
       shellOutlet: page.getByTestId(settingsShellTestIds.shellOutlet),
       sectionNav: page.getByTestId(settingsShellTestIds.sectionNav),
@@ -1389,7 +1397,7 @@ export function settingsOperatorSelectors(
       policyMessage: page.getByTestId(settingsSkillsTestIds.policyMessage),
       policyRegistryInput: page.getByTestId(settingsSkillsTestIds.policyRegistryInput),
       policyBaseURLInput: page.getByTestId(settingsSkillsTestIds.policyBaseURLInput),
-      policySave: page.getByTestId(settingsSkillsTestIds.policySave),
+      save: page.getByTestId(settingsSkillsTestIds.save),
       restartNotice: page.getByTestId(settingsSkillsTestIds.restartNotice),
     },
     roles: {
@@ -1412,7 +1420,9 @@ export function settingsOperatorSelectors(
       create: page.getByTestId(settingsProvidersTestIds.create),
       actionResult: page.getByTestId(settingsProvidersTestIds.actionResult),
       actionResultDismiss: page.getByTestId(settingsProvidersTestIds.actionResultDismiss),
-      editor: page.locator('[data-testid="provider-inspector-sheet"][data-mode="edit"]'),
+      editor: page.getByTestId(settingsProvidersTestIds.editor),
+      editorEdit: page.getByTestId(settingsProvidersTestIds.editorEdit),
+      editorDelete: page.getByTestId(settingsProvidersTestIds.editorDelete),
       editorNameInput: page.getByTestId(settingsProvidersTestIds.editorNameInput),
       editorCommandInput: page.getByTestId(settingsProvidersTestIds.editorCommandInput),
       editorModelInput: page.getByTestId(settingsProvidersTestIds.editorModelInput),
@@ -1462,16 +1472,17 @@ export function settingsOperatorSelectors(
       policyControls: page.getByTestId(settingsExtensionsTestIds.policyControls),
       policyRegistryInput: page.getByTestId(settingsExtensionsTestIds.policyRegistryInput),
       policyBaseURLInput: page.getByTestId(settingsExtensionsTestIds.policyBaseURLInput),
-      policySave: page.getByTestId(settingsExtensionsTestIds.policySave),
+      save: page.getByTestId(settingsExtensionsTestIds.save),
       restartNotice: page.getByTestId(settingsExtensionsTestIds.restartNotice),
     },
   };
 }
 
 export function tasksOperatorSelectors(
-  page: Pick<Page, "getByRole" | "getByTestId">
+  page: Pick<Page, "getByRole" | "getByTestId">,
+  portalRoot: Pick<Page, "getByTestId"> = page
 ): TasksOperatorSelectors {
-  const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+  const windowPath = page.getByRole("navigation", { name: "Window path" });
 
   return {
     osDesktop: page.getByTestId(tasksOperatorTestIds.osDesktop),
@@ -1496,22 +1507,25 @@ export function tasksOperatorSelectors(
     detailActiveRunChannel: page.getByTestId(tasksOperatorTestIds.detailActiveRunChannel),
     detailActiveRunEmpty: page.getByTestId(tasksOperatorTestIds.detailActiveRunEmpty),
     detailActiveRunEmptyHint: page.getByTestId(tasksOperatorTestIds.detailActiveRunEmptyHint),
-    detailBreadcrumbTasks: breadcrumb.getByRole("link", { exact: true, name: "Tasks" }),
+    detailApprovalPill: page.getByTestId(tasksOperatorTestIds.detailApprovalPill),
+    detailBreadcrumbTasks: windowPath.getByRole("button", { exact: true, name: "Tasks" }),
     detailContent: page.getByTestId(tasksOperatorTestIds.detailContent),
+    detailTitle: page.getByTestId(tasksOperatorTestIds.detailTitle),
     detailInspectDrawer: page.getByTestId(tasksOperatorTestIds.detailInspectDrawer),
     detailInspectStream: page.getByTestId(tasksOperatorTestIds.detailInspectStream),
     detailCoordination: page.getByTestId(tasksOperatorTestIds.detailCoordination),
     detailCancel: page.getByTestId(tasksOperatorTestIds.detailCancel),
-    detailDelete: page.getByTestId(tasksOperatorTestIds.detailDelete),
-    detailDeleteCancel: page.getByTestId(tasksOperatorTestIds.detailDeleteCancel),
-    detailDeleteConfirm: page.getByTestId(tasksOperatorTestIds.detailDeleteConfirm),
-    detailDeleteDialog: page.getByTestId(tasksOperatorTestIds.detailDeleteDialog),
-    detailEdit: page.getByTestId(tasksOperatorTestIds.detailEdit),
+    detailDelete: portalRoot.getByTestId(tasksOperatorTestIds.detailDelete),
+    detailDeleteCancel: portalRoot.getByTestId(tasksOperatorTestIds.detailDeleteCancel),
+    detailDeleteConfirm: portalRoot.getByTestId(tasksOperatorTestIds.detailDeleteConfirm),
+    detailDeleteDialog: portalRoot.getByTestId(tasksOperatorTestIds.detailDeleteDialog),
+    detailEdit: portalRoot.getByTestId(tasksOperatorTestIds.detailEdit),
     detailEnqueue: page.getByTestId(tasksOperatorTestIds.detailEnqueue),
     detailOverflow: page.getByTestId(tasksOperatorTestIds.detailOverflow),
-    detailLifecycle: page.getByTestId(tasksOperatorTestIds.detailLifecycle),
-    detailLifecycleHint: page.getByTestId(tasksOperatorTestIds.detailLifecycleHint),
+    detailNowApproval: page.getByTestId(tasksOperatorTestIds.detailNowApproval),
+    detailNowRun: page.getByTestId(tasksOperatorTestIds.detailNowRun),
     detailPublish: page.getByTestId(tasksOperatorTestIds.detailPublish),
+    detailStatus: page.getByTestId(tasksOperatorTestIds.detailStatus),
     detailPreviewCoordination: page.getByTestId(tasksOperatorTestIds.detailPreviewCoordination),
     detailPreviewDeeplink: page.getByTestId(tasksOperatorTestIds.detailPreviewDeeplink),
     detailPreviewLifecycle: page.getByTestId(tasksOperatorTestIds.detailPreviewLifecycle),
@@ -1519,7 +1533,6 @@ export function tasksOperatorSelectors(
     detailPreviewPublish: page.getByTestId(tasksOperatorTestIds.detailPreviewPublish),
     detailRunsChannel: (runId: string) => page.getByTestId(`tasks-detail-runs-channel-${runId}`),
     detailRunsEmpty: page.getByTestId(tasksOperatorTestIds.detailRunsEmpty),
-    detailRunsLink: (runId: string) => page.getByTestId(`tasks-detail-runs-link-${runId}`),
     detailTab: (tabId: string) => page.getByTestId(`tasks-detail-tab-${tabId}`),
     detailTabRuns: page.getByTestId(tasksOperatorTestIds.detailTabRuns),
     detailSetupEdit: page.getByTestId(tasksOperatorTestIds.detailSetupEdit),
@@ -1527,12 +1540,10 @@ export function tasksOperatorSelectors(
     detailSetupOpen: page.getByTestId(tasksOperatorTestIds.detailSetupOpen),
     detailSetupSheet: page.getByTestId(tasksOperatorTestIds.detailSetupSheet),
     detailSetupWorkerRuntime: page.getByTestId(tasksOperatorTestIds.detailSetupWorkerRuntime),
-    detailChildItem: (taskId: string) => page.getByTestId(`tasks-detail-children-item-${taskId}`),
-    detailChildLink: (taskId: string) => page.getByTestId(`tasks-detail-children-link-${taskId}`),
-    detailDependencyItem: (taskId: string) =>
-      page.getByTestId(`tasks-detail-dependencies-item-${taskId}`),
-    detailDependencyLink: (taskId: string) =>
-      page.getByTestId(`tasks-detail-dependencies-link-${taskId}`),
+    detailChildItem: (taskId: string) => page.getByTestId(`tasks-detail-subtask-${taskId}`),
+    detailChildLink: (taskId: string) => page.getByTestId(`tasks-detail-subtask-${taskId}`),
+    detailDependencyItem: (taskId: string) => page.getByTestId(`tasks-detail-dependency-${taskId}`),
+    detailDependencyLink: (taskId: string) => page.getByTestId(`tasks-detail-dependency-${taskId}`),
     inboxApprove: (taskId: string) => page.getByTestId(`tasks-inbox-item-approve-${taskId}`),
     inboxArchive: (taskId: string) => page.getByTestId(`tasks-inbox-item-archive-${taskId}`),
     inboxDismiss: (taskId: string) => page.getByTestId(`tasks-inbox-item-dismiss-${taskId}`),
@@ -1554,14 +1565,13 @@ export function tasksOperatorSelectors(
     multiAgentSummary: page.getByTestId(tasksOperatorTestIds.multiAgentSummary),
     multiAgentAgentLink: (taskId: string) =>
       page.getByTestId(`tasks-multi-agent-agent-link-${taskId}`),
-    navTasks: page.getByTestId(tasksOperatorTestIds.navTasks),
     openCreate: page.getByTestId(tasksOperatorTestIds.openCreate),
     runDetailContent: page.getByTestId(tasksOperatorTestIds.runDetailContent),
-    runDetailCancel: page.getByTestId(tasksOperatorTestIds.runDetailCancel),
+    runDetailCancel: portalRoot.getByTestId(tasksOperatorTestIds.runDetailCancel),
     runDetailOverflow: page.getByTestId(tasksOperatorTestIds.runDetailOverflow),
     runReviews: page.getByTestId(tasksOperatorTestIds.runReviews),
     runsRow: (runId: string) => page.getByTestId(`tasks-runs-row-${runId}`),
-    runReviewRow: (reviewId: string) => page.getByTestId(`tasks-run-reviews-row-${reviewId}`),
+    runReviewRow: (reviewId: string) => page.getByTestId(`tasks-run-review-${reviewId}`),
     runSessionDrilldown: page.getByTestId(tasksOperatorTestIds.runSessionDrilldown),
     taskCard: (taskId: string) => page.getByTestId(`task-card-${taskId}`),
     taskCardPublish: (taskId: string) => page.getByTestId(`task-card-publish-${taskId}`),

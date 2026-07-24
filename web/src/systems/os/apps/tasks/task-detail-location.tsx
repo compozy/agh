@@ -179,6 +179,11 @@ export function TaskDetailLocation({
                 </TabsContent>
                 <TabsContent value="runs">
                   <TaskRunsPanel
+                    emptyDescription={
+                      record.draft || record.status === "draft"
+                        ? "Saved intent only. Runs appear after you publish, start, or approve a task."
+                        : undefined
+                    }
                     errorMessage={page.runsError?.message ?? null}
                     isLoading={page.runsLoading}
                     isStartPending={page.isEnqueuePending}

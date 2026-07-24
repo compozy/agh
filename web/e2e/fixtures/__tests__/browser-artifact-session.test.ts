@@ -221,17 +221,17 @@ describe("captureRouteState", () => {
       </div>
       <section data-testid="tasks-detail-content">
         <button data-testid="tasks-detail-cancel"></button>
-        <table data-testid="tasks-detail-children-panel">
-          <tr data-testid="tasks-detail-children-item-task_child"></tr>
+        <table data-testid="tasks-detail-subtasks">
+          <tr data-testid="tasks-detail-subtask-task_child"></tr>
         </table>
-        <table data-testid="tasks-detail-dependencies-panel">
-          <tr data-testid="tasks-detail-dependencies-item-task_dependency"></tr>
+        <table data-testid="tasks-detail-dependencies">
+          <tr data-testid="tasks-detail-dependency-task_dependency"></tr>
         </table>
       </section>
       <section data-testid="tasks-run-detail-content">
-        <button data-testid="task-run-detail-cancel"></button>
-        <table data-testid="tasks-run-reviews-card">
-          <tr data-testid="tasks-run-reviews-row-review_001"></tr>
+        <button data-testid="tasks-run-cancel"></button>
+        <table data-testid="tasks-run-reviews">
+          <tr data-testid="tasks-run-review-review_001"></tr>
         </table>
       </section>
       <article data-testid="tasks-inbox-item-task_launch" data-lane="failed_runs"></article>

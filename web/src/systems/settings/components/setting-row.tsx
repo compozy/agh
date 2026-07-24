@@ -1,6 +1,7 @@
+import { mergeProps } from "@base-ui/react/merge-props";
+import { useRender } from "@base-ui/react/use-render";
 import { ChevronRight } from "lucide-react";
 import { useId, type ComponentProps, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
 
 import { cn, Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@agh/ui";
 import { associateSettingsControl } from "../lib/control-association";
@@ -154,46 +155,58 @@ interface SettingNavigationRowContentProps {
   value?: ReactNode;
 }
 
-export interface SettingLinkRowProps
-  extends
-    Omit<ComponentProps<typeof Link>, "children" | "value">,
-    SettingNavigationRowContentProps {}
+export type SettingLinkRowProps = Omit<useRender.ComponentProps<"a">, "children"> &
+  SettingNavigationRowContentProps;
 
-/** Row that leads somewhere else — a sheet, a top-level route, a marketplace. */
+/**
+ * Row that leads somewhere else — a sheet, a top-level route, a marketplace.
+ * The caller supplies its router-aware anchor through `render`; this component
+ * owns only the stable presentation and semantics of the row.
+ */
 export function SettingLinkRow({
   label,
   description,
   value,
   className,
+  render,
   ...props
 }: SettingLinkRowProps) {
-  return (
-    <Link
-      className={cn(
-        "flex min-h-setting-row w-full items-center justify-between gap-5 border-t border-line-soft px-4 py-3 text-left first:border-t-0",
-        "cursor-pointer transition-colors duration-base hover:bg-row-hover",
-        "focus-visible:outline-none focus-visible:shadow-focus-ring",
-        className
-      )}
-      data-slot="setting-link-row"
-      {...props}
-    >
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-ws-name font-medium text-fg-strong">
-          {label}
-        </span>
-        {description ? (
-          <span className="mt-0.5 block max-w-setting-description text-form-label leading-normal text-muted">
-            {description}
-          </span>
-        ) : null}
-      </span>
-      <span className="flex shrink-0 items-center gap-2">
-        {value}
-        <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />
-      </span>
-    </Link>
-  );
+  return useRender({
+    defaultTagName: "a",
+    props: mergeProps<"a">(
+      {
+        className: cn(
+          "flex min-h-setting-row w-full items-center justify-between gap-5 border-t border-line-soft px-4 py-3 text-left first:border-t-0",
+          "cursor-pointer transition-colors duration-base hover:bg-row-hover",
+          "focus-visible:outline-none focus-visible:shadow-focus-ring",
+          className
+        ),
+        children: (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-1.5 text-ws-name font-medium text-fg-strong">
+                {label}
+              </span>
+              {description ? (
+                <span className="mt-0.5 block max-w-setting-description text-form-label leading-normal text-muted">
+                  {description}
+                </span>
+              ) : null}
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              {value}
+              <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />
+            </span>
+          </>
+        ),
+      },
+      props
+    ),
+    render,
+    state: {
+      slot: "setting-link-row",
+    },
+  });
 }
 
 export interface SettingActionRowProps

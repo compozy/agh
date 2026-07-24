@@ -297,8 +297,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       document.querySelector('[data-testid="tasks-detail-content"]') !== null ||
       document.querySelector('[data-testid="tasks-run-detail-content"]') !== null ||
       document.querySelector('[data-testid="task-editor-surface"]') !== null;
-    const tasksReviewCount =
-      countByPrefix("tasks-reviews-row-") + countByPrefix("tasks-run-reviews-row-");
+    const tasksReviewCount = countByPrefix("tasks-run-review-");
     const knowledgeScope = document.querySelector('[data-testid="tab-global"][aria-pressed="true"]')
       ? "global"
       : document.querySelector('[data-testid="tab-workspace"][aria-pressed="true"]')
@@ -493,8 +492,8 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       session_name: readText("session-name"),
       stop_button_visible: document.querySelector('[data-testid="stop-button"]') !== null,
       tasks_active_mode: tasksActiveMode,
-      tasks_children_count: countByPrefix("tasks-detail-children-item-"),
-      tasks_dependencies_count: countByPrefix("tasks-detail-dependencies-item-"),
+      tasks_children_count: countByPrefix("tasks-detail-subtask-"),
+      tasks_dependencies_count: countByPrefix("tasks-detail-dependency-"),
       tasks_detail_cancel_visible:
         document.querySelector('[data-testid="tasks-detail-cancel"]') !== null,
       tasks_detail_delete_dialog_open:
@@ -503,8 +502,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       tasks_inbox_count: document.querySelectorAll('[data-testid^="tasks-inbox-item-"][data-lane]')
         .length,
       tasks_review_count: tasksReviewCount,
-      tasks_run_cancel_visible:
-        document.querySelector('[data-testid="task-run-detail-cancel"]') !== null,
+      tasks_run_cancel_visible: document.querySelector('[data-testid="tasks-run-cancel"]') !== null,
       tasks_run_detail_visible:
         document.querySelector('[data-testid="tasks-run-detail-content"]') !== null,
       tasks_selected_run: tasksSelectedRun,

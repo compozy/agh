@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { tasksOperatorSelectors } from "../fixtures/selectors";
+import { openAppWindow } from "../fixtures/os-navigation";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
@@ -39,14 +40,14 @@ test("operator uses the three-tab task detail, setup, inspect, and run review su
   browserArtifacts,
   runtime,
 }) => {
-  const tasksUI = tasksOperatorSelectors(appPage);
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
     sessionAgentName: tasksSessionAgentName,
   });
 
-  await useGlobalWorkspaceIfPrompted(tasksUI);
+  await useGlobalWorkspaceIfPrompted(appPage);
 
-  await tasksUI.navTasks.click();
+  const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
+  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
   await expect(appPage).toHaveURL(/\/tasks$/);
 
   await appPage.goto(runtime.url(`/tasks/${seeded.referenceTask.id}?tab=activity&inspect=stream`), {
@@ -78,10 +79,10 @@ test("operator uses the three-tab task detail, setup, inspect, and run review su
   await expect(tasksUI.runsRow(seeded.runningRun.id)).toBeVisible();
   await tasksUI
     .runsRow(seeded.runningRun.id)
-    .getByRole("link", { name: `Attempt ${seeded.runningRun.attempt}` })
+    .getByRole("link", { exact: true, name: `Attempt ${seeded.runningRun.attempt}` })
     .click();
   await expect(tasksUI.runDetailContent).toBeVisible();
-  await expect(tasksUI.runReviews).toContainText("No reviews recorded for this run.");
+  await expect(tasksUI.runReviews).toHaveCount(0);
 
   await browserArtifacts.captureScreenshot("tasks-three-tab-detail", appPage);
 });
