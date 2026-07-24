@@ -85,6 +85,19 @@ func TestWindowLifecycleReflow(t *testing.T) {
 			requireValidSnapshot(t, closed.Snapshot)
 		},
 	)
+	t.Run("Should reject minimizing a window whose desktop is missing", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validThreeWindowSnapshot()
+		window := snapshot.Windows["w1"]
+		window.DesktopID = "desktop-missing"
+		snapshot.Windows["w1"] = window
+		reducer := reducer{config: DefaultConfig()}
+
+		_, err := reducer.minimizeWindow(&snapshot, "w1")
+		if !errors.Is(err, ErrInvalidTopology) {
+			t.Fatalf("minimizeWindow() error = %v, want ErrInvalidTopology", err)
+		}
+	})
 }
 
 func TestWindowNavigation(t *testing.T) {

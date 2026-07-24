@@ -297,12 +297,15 @@ function splitAllocationsMeetMinimums(
   childRects: readonly PixelRect[],
   context: NodeProjectionContext
 ): boolean {
-  return node.children.every((child, index) => {
-    const childRect = childRects[index];
-    if (childRect === undefined) return false;
-    const childMinimum = minimumForNode(child, context.innerGap, context.minimums);
-    return childRect.w >= childMinimum.width && childRect.h >= childMinimum.height;
-  });
+  return (
+    childRects.length === node.children.length &&
+    node.children.every((child, index) => {
+      const childRect = childRects[index];
+      if (childRect === undefined) return false;
+      const childMinimum = minimumForNode(child, context.innerGap, context.minimums);
+      return childRect.w >= childMinimum.width && childRect.h >= childMinimum.height;
+    })
+  );
 }
 
 function projectNode(

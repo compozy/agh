@@ -72,12 +72,10 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       payload: { desktop_id: desktopId },
     });
     if (accepted.accepted && current !== null && current !== desktopId && config !== null) {
-      const fromOrder = this.view.desktops.find(desktop => desktop.id === current)?.order ?? 0;
-      const toOrder = this.view.desktops.find(desktop => desktop.id === desktopId)?.order ?? 0;
       windowManagerStore.getState().actions.setTransitionIntent({
         fromDesktopId: current,
         toDesktopId: desktopId,
-        direction: toOrder >= fromOrder ? "later" : "earlier",
+        direction: this.desktopTransitionDirection(this.view.desktops, current, desktopId),
         mode: this.reduceMotion ? "instant" : config.desktopTransition,
       });
     }

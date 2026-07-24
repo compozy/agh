@@ -40,13 +40,14 @@ export function applySeamPreviewToDesktop(
 ): LayoutDesktop {
   const delta = seamWeightDelta(seam, deltaPx);
   if (delta === 0) return desktop;
-  return {
-    ...desktop,
-    groups: desktop.groups.map(group => ({
-      ...group,
-      root: adjustSplitWeights(group.root, seam.splitId, seam.boundaryIndex, delta),
-    })),
-  };
+  let changed = false;
+  const groups = desktop.groups.map(group => {
+    const root = adjustSplitWeights(group.root, seam.splitId, seam.boundaryIndex, delta);
+    if (root === group.root) return group;
+    changed = true;
+    return { ...group, root };
+  });
+  return changed ? { ...desktop, groups } : desktop;
 }
 
 function adjustSplitWeights(
@@ -60,13 +61,19 @@ function adjustSplitWeights(
     const leading = node.weights[boundaryIndex];
     const trailing = node.weights[boundaryIndex + 1];
     if (leading === undefined || trailing === undefined) return node;
+    const nextLeading = leading + delta;
+    const nextTrailing = trailing - delta;
+    if (nextLeading === leading && nextTrailing === trailing) return node;
     const weights = [...node.weights];
-    weights[boundaryIndex] = leading + delta;
-    weights[boundaryIndex + 1] = trailing - delta;
+    weights[boundaryIndex] = nextLeading;
+    weights[boundaryIndex + 1] = nextTrailing;
     return { ...node, weights };
   }
-  return {
-    ...node,
-    children: node.children.map(child => adjustSplitWeights(child, splitId, boundaryIndex, delta)),
-  };
+  let changed = false;
+  const children = node.children.map(child => {
+    const adjusted = adjustSplitWeights(child, splitId, boundaryIndex, delta);
+    if (adjusted !== child) changed = true;
+    return adjusted;
+  });
+  return changed ? { ...node, children } : node;
 }

@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 
 import { seamWeightDelta } from "../lib/seam-preview";
 import type { ProjectedSeam } from "../lib/window-manager-types";
@@ -43,11 +50,6 @@ export function useLayoutSeam(
   const [dragging, setDragging] = useState(false);
   const vertical = seam.orientation === "vertical";
 
-  // Keep the latest end handler in a ref so cancel paths and unmount cleanup
-  // never capture a stale callback or re-run when a caller passes a fresh lambda.
-  const onSeamPreviewEndRef = useRef(onSeamPreviewEnd);
-  onSeamPreviewEndRef.current = onSeamPreviewEnd;
-
   const cancelFrame = () => {
     if (frame.current !== null) {
       cancelAnimationFrame(frame.current);
@@ -59,30 +61,32 @@ export function useLayoutSeam(
     cancelFrame();
     drag.current = null;
     setDragging(false);
-    onSeamPreviewEndRef.current();
+    onSeamPreviewEnd();
   };
 
-  // Resolve the latest cancelDrag through a ref so the Escape listener stays keyed
-  // on drag state, not on a per-render callback identity.
-  const cancelDragRef = useRef(cancelDrag);
-  cancelDragRef.current = cancelDrag;
+  const handleEscapeKeyDown = useEffectEvent((event: globalThis.KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    cancelFrame();
+    drag.current = null;
+    setDragging(false);
+    onSeamPreviewEnd();
+  });
 
   useEffect(() => {
     if (!dragging) return;
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      cancelDragRef.current();
-    };
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => handleEscapeKeyDown(event);
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [dragging]);
 
+  const cleanupActivePreview = useEffectEvent(() => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    if (drag.current !== null) onSeamPreviewEnd();
+  });
+
   // A remote commit can unmount the seam mid-drag; never leave a stale preview.
   useEffect(() => {
-    return () => {
-      if (frame.current !== null) cancelAnimationFrame(frame.current);
-      if (drag.current !== null) onSeamPreviewEndRef.current();
-    };
+    return () => cleanupActivePreview();
   }, []);
 
   return {
@@ -130,10 +134,13 @@ export function useLayoutSeam(
       if (drag.current !== null) cancelDrag();
     },
     handleKeyDown: event => {
-      const delta = resizeKeyDelta(event);
-      if (delta === null) return;
+      const weightStep = resizeKeyDelta(event);
+      if (weightStep === null) return;
       event.preventDefault();
-      onResize(seam.splitId, seam.boundaryIndex, delta);
+      const delta = seamWeightDelta(seam, weightStep * seam.axisSpan);
+      if (Math.abs(delta) > SEAM_WEIGHT_EPSILON) {
+        onResize(seam.splitId, seam.boundaryIndex, delta);
+      }
     },
   };
 }

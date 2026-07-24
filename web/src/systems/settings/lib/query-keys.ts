@@ -26,6 +26,14 @@ export const settingsKeys = {
   windowManagerLayoutsRoot: () => [...settingsKeys.section("window-manager"), "layouts"] as const,
   windowManagerLayoutProfiles: (workspaceId: string) =>
     [...settingsKeys.windowManagerLayoutsRoot(), "profiles", normalizeText(workspaceId)] as const,
+  windowManagerLayoutReview: (workspaceId: string, revision: number, fingerprint: string) =>
+    [
+      ...settingsKeys.windowManagerLayoutsRoot(),
+      "review",
+      normalizeText(workspaceId),
+      revision,
+      fingerprint,
+    ] as const,
   skillsSection: (filter: SettingsSkillsFilter = {}) =>
     [
       ...settingsKeys.section("skills"),

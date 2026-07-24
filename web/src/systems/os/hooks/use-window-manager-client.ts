@@ -53,15 +53,20 @@ export interface WindowManagerClientRegistrationState {
   reregister: () => void;
 }
 
+interface RegistrationResult {
+  workspaceId: string;
+  client: WindowManagerClientView | null;
+  status: "registering" | "registered" | "error";
+  error: Error | null;
+}
+
 export function useWindowManagerClient(
   workspaceId: string | null,
   onClientChange: (client: WindowManagerClientView | null) => void,
   onErrorChange: (error: Error | null) => void = () => {}
 ): WindowManagerClientRegistrationState {
   const [clientId] = useState(stableWindowManagerClientId);
-  const [client, setClient] = useState<WindowManagerClientView | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const [status, setStatus] = useState<WindowManagerClientRegistrationState["status"]>("idle");
+  const [registration, setRegistration] = useState<RegistrationResult | null>(null);
   const [attempt, setAttempt] = useState(0);
   const publishedWorkspace = useRef<string | null>(null);
   const retryCount = useRef(0);
@@ -71,10 +76,7 @@ export function useWindowManagerClient(
 
   useEffect(() => {
     if (workspaceId === null) {
-      setClient(null);
-      setError(null);
       publishError(null);
-      setStatus("idle");
       publishClient(null);
       publishedWorkspace.current = null;
       retryCount.current = 0;
@@ -84,14 +86,11 @@ export function useWindowManagerClient(
     const controller = new AbortController();
     let ownedCancelRetry: (() => void) | null = null;
     if (publishedWorkspace.current !== workspaceId) {
-      setClient(null);
       publishClient(null);
       publishedWorkspace.current = workspaceId;
       retryCount.current = 0;
     }
-    setError(null);
     publishError(null);
-    setStatus("registering");
 
     void registerWindowManagerClient(workspaceId, clientId, undefined, controller.signal)
       .then(view => {
@@ -99,8 +98,7 @@ export function useWindowManagerClient(
         if (view.workspaceId !== workspaceId || view.clientId !== clientId) {
           throw new Error("The daemon registered a different window-manager client.");
         }
-        setClient(view);
-        setStatus("registered");
+        setRegistration({ workspaceId, client: view, status: "registered", error: null });
         publishError(null);
         retryCount.current = 0;
         publishClient(view);
@@ -109,15 +107,14 @@ export function useWindowManagerClient(
         if (controller.signal.aborted) return;
         const nextError =
           cause instanceof Error ? cause : new Error("Unable to register this browser client.");
-        setError(nextError);
+        setRegistration({ workspaceId, client: null, status: "error", error: nextError });
         publishError(nextError);
-        setClient(null);
-        setStatus("error");
         publishClient(null);
         const delay = Math.min(8_000, 500 * 2 ** Math.min(retryCount.current, 4));
         const cancel = scheduleRetry(() => {
           if (cancelRetry.current === cancel) cancelRetry.current = null;
           retryCount.current += 1;
+          setRegistration({ workspaceId, client: null, status: "registering", error: null });
           setAttempt(current => current + 1);
         }, delay);
         ownedCancelRetry = cancel;
@@ -133,20 +130,23 @@ export function useWindowManagerClient(
     };
   }, [attempt, clientId, workspaceId]);
 
+  const current = registration?.workspaceId === workspaceId ? registration : null;
+  const status = workspaceId === null ? "idle" : (current?.status ?? "registering");
+
   return {
     clientId,
     registrationEpoch: attempt,
-    client,
+    client: current?.client ?? null,
     status,
-    error,
+    error: current?.error ?? null,
     reregister: () => {
       cancelRetry.current?.();
       cancelRetry.current = null;
       retryCount.current = 0;
-      setClient(null);
-      setError(null);
-      setStatus("registering");
-      publishClient(null);
+      if (workspaceId === null) return;
+      setRegistration({ workspaceId, client: null, status: "registering", error: null });
+      onClientChange(null);
+      onErrorChange(null);
       setAttempt(current => current + 1);
     },
   };

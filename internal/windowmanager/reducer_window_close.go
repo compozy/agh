@@ -43,7 +43,15 @@ func (r *reducer) minimizeWindow(snapshot *Snapshot, windowID WindowID) (bool, e
 	window.ReturnAnchor = anchor
 	window.FloatingRect = clampRect(window.FloatingRect)
 	snapshot.Windows[windowID] = window
-	desktopIndex, _ := desktopIndexByID(snapshot, window.DesktopID)
+	desktopIndex, exists := desktopIndexByID(snapshot, window.DesktopID)
+	if !exists {
+		return false, fmt.Errorf(
+			"window %q desktop %q: %w",
+			windowID,
+			window.DesktopID,
+			ErrInvalidTopology,
+		)
+	}
 	snapshot.Desktops[desktopIndex].Floating = append(snapshot.Desktops[desktopIndex].Floating, windowID)
 	r.changes.window(windowID)
 	r.changes.desktop(window.DesktopID)

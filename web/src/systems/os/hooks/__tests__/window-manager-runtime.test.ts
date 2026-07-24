@@ -212,6 +212,72 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should reject a queued command after the runtime binding changes", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    let resolveFirst!: (result: {
+      snapshot: WindowManagerSnapshot;
+      applied: boolean;
+      changes: {
+        desktopIds: string[];
+        windowIds: string[];
+        groupIds: string[];
+        nodeIds: string[];
+        clientIds: string[];
+      };
+      diagnostics: [];
+      client: null;
+      rebasedFrom: null;
+    }) => void;
+    vi.mocked(executeWindowManagerCommand).mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveFirst = resolve;
+      })
+    );
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const first = runtime.getState().focusWindow("app:first");
+    const stale = runtime.getState().focusWindow("app:stale");
+    await flushCommandQueue();
+
+    const nextSnapshot = { ...SNAPSHOT, workspaceId: "workspace:next" };
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:next"), nextSnapshot);
+    runtime.bind({ workspaceId: "workspace:next", clientId: "client:next" });
+    runtime.setClient({
+      workspaceId: "workspace:next",
+      clientId: "client:next",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    resolveFirst({
+      snapshot: SNAPSHOT,
+      applied: true,
+      changes: { desktopIds: [], windowIds: [], groupIds: [], nodeIds: [], clientIds: [] },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+
+    await expect(first.completion).resolves.toBe(true);
+    await expect(stale.completion).resolves.toBe(false);
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+    runtime.stop();
+  });
+
   it("Should synthesize a slide transition when reconciliation changes the active desktop", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);

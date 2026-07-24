@@ -1,4 +1,5 @@
 import { Button, Eyebrow, Input } from "@agh/ui";
+import { useRef } from "react";
 
 import type { WindowManagerLayoutEditorModel } from "../hooks/use-window-manager-layout-editor";
 import type { WindowManagerLayoutProfilesModel } from "../hooks/use-window-manager-layout-profiles";
@@ -31,6 +32,7 @@ export function WindowManagerLayoutDocumentEditor({
   editor,
   profilesEditor,
 }: WindowManagerLayoutDocumentEditorProps) {
+  const importInput = useRef<HTMLInputElement>(null);
   return (
     <div className="flex flex-col gap-6">
       <WindowManagerLayoutProfiles editor={profilesEditor} />
@@ -42,7 +44,7 @@ export function WindowManagerLayoutDocumentEditor({
         action={
           <div className="flex flex-wrap gap-2">
             <input
-              ref={editor.importInput}
+              ref={importInput}
               accept="application/json,.json"
               className="hidden"
               type="file"
@@ -57,7 +59,7 @@ export function WindowManagerLayoutDocumentEditor({
               className="min-h-11"
               type="button"
               variant="outline"
-              onClick={() => editor.importInput.current?.click()}
+              onClick={() => importInput.current?.click()}
             >
               Import JSON
             </Button>
@@ -190,7 +192,7 @@ export function WindowManagerLayoutDocumentEditor({
           className="min-h-11"
           type="button"
           variant="ghost"
-          disabled={!editor.dirty || editor.review.isPending || editor.apply.isPending}
+          disabled={!editor.dirty || editor.review.isFetching || editor.apply.isPending}
           onClick={editor.reset}
         >
           Reset
@@ -199,15 +201,15 @@ export function WindowManagerLayoutDocumentEditor({
           className="min-h-11"
           type="button"
           variant="outline"
-          disabled={editor.review.isPending || editor.apply.isPending}
-          onClick={() => editor.review.mutate()}
+          disabled={editor.review.isFetching || editor.apply.isPending}
+          onClick={() => void editor.review.refetch()}
         >
-          {editor.review.isPending ? "Reviewing…" : "Validate and preview"}
+          {editor.review.isFetching ? "Reviewing…" : "Validate and preview"}
         </Button>
         <Button
           className="min-h-11"
           type="button"
-          disabled={!editor.reviewCurrent || editor.apply.isPending || editor.review.isPending}
+          disabled={!editor.reviewCurrent || editor.apply.isPending || editor.review.isFetching}
           onClick={() => editor.apply.mutate()}
         >
           {editor.apply.isPending ? "Applying…" : "Apply reviewed layout"}

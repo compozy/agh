@@ -1,7 +1,7 @@
 // Suite: OS interaction hooks
-// Invariant: shell shortcuts and zoom hover/dispatch honor editable targets and live client state.
-// Owning layer: the current useOsShortcuts/useOsZoomMenu interaction boundary.
-import { act, fireEvent, renderHook } from "@testing-library/react";
+// Invariant: OS hooks translate keyboard, pointer, and viewport changes into current shell actions and geometry.
+// Owning layer: the browser-to-OS-hook interaction boundary.
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -19,6 +19,7 @@ import {
   OS_ZOOM_MENU_OPEN_DELAY_MS,
   useOsZoomMenu,
 } from "../use-os-zoom-menu";
+import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
 
 const CONFIG: WindowManagerConfig = {
@@ -171,7 +172,13 @@ function createShell({ live = true, withPeer = true } = {}) {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
+
+function WinLayerHarness() {
+  const { layerRef } = useOsWinLayer();
+  return <div data-testid="win-layer" ref={layerRef} />;
+}
 
 describe("useOsShortcuts", () => {
   it("Should route shell shortcuts independently of window-manager availability", () => {
@@ -275,5 +282,46 @@ describe("useOsZoomMenu", () => {
 
     act(() => unavailable.result.current.dispatchFill());
     expect(unavailableShell.state.zoomWindow).not.toHaveBeenCalled();
+  });
+});
+
+describe("useOsWinLayer", () => {
+  it("Should refresh the work-area origin when viewport chrome moves without resizing content", () => {
+    let callback!: ResizeObserverCallback;
+    let observer!: ResizeObserver;
+    class ResizeObserverMock implements ResizeObserver {
+      constructor(nextCallback: ResizeObserverCallback) {
+        callback = nextCallback;
+        observer = this;
+      }
+
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+    let rect = new DOMRect(0, 44, 1280, 700);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => rect);
+    const shell = createShell();
+    render(<WinLayerHarness />, { wrapper: shell.wrapper });
+    const layer = screen.getByTestId("win-layer");
+    const entry: ResizeObserverEntry = {
+      target: layer,
+      contentRect: new DOMRectReadOnly(0, 0, 1280, 700),
+      borderBoxSize: [],
+      contentBoxSize: [],
+      devicePixelContentBoxSize: [],
+    };
+    callback([entry], observer);
+    vi.mocked(shell.state.setDesktopBounds).mockClear();
+
+    rect = new DOMRect(24, 52, 1280, 700);
+    window.dispatchEvent(new Event("orientationchange"));
+
+    expect(shell.state.setDesktopBounds).toHaveBeenCalledWith({
+      width: 1280,
+      height: 700,
+      origin: { x: 24, y: 52 },
+    });
   });
 });

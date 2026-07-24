@@ -198,14 +198,22 @@ export abstract class WindowManagerRuntimeCore {
     if (snapshot === null || globalConfig === null) return;
     const config = effectiveWindowManagerConfig(globalConfig, snapshot.overrides);
     if (this.reduceMotion || config.desktopTransition === "instant") return;
-    const fromOrder = snapshot.desktops.find(desktop => desktop.id === fromDesktopId)?.order ?? 0;
-    const toOrder = snapshot.desktops.find(desktop => desktop.id === toDesktopId)?.order ?? 0;
     windowManagerStore.getState().actions.setTransitionIntent({
       fromDesktopId,
       toDesktopId,
-      direction: toOrder >= fromOrder ? "later" : "earlier",
+      direction: this.desktopTransitionDirection(snapshot.desktops, fromDesktopId, toDesktopId),
       mode: config.desktopTransition,
     });
+  }
+
+  protected desktopTransitionDirection(
+    desktops: readonly { id: string; order: number }[],
+    fromDesktopId: string,
+    toDesktopId: string
+  ): "earlier" | "later" {
+    const fromOrder = desktops.find(desktop => desktop.id === fromDesktopId)?.order ?? 0;
+    const toOrder = desktops.find(desktop => desktop.id === toDesktopId)?.order ?? 0;
+    return toOrder >= fromOrder ? "later" : "earlier";
   }
 
   setConnectionStatus(status: WindowManagerConnectionStatus): void {
@@ -283,23 +291,37 @@ export abstract class WindowManagerRuntimeCore {
   private commandChain: Promise<unknown> = Promise.resolve();
 
   private startDispatch(command: WindowManagerCommandInput): Promise<boolean> | null {
-    if (this.binding === null || this.snapshot() === null || this.client === null) {
+    const binding = this.binding;
+    if (binding === null || this.snapshot() === null || this.client === null) {
       this.reportClientUnavailable();
       return null;
     }
     // Rapid interactions (zoom toggle, dock activations, seam arrows) queue
     // behind the in-flight command instead of being silently dropped; each
     // queued command reads a fresh snapshot revision when it runs.
-    const run = () => this.runCommand(command);
+    const run = () => this.runCommand(command, { ...binding });
     const chained = this.commandChain.then(run, run);
     this.commandChain = chained;
     return chained;
   }
 
-  private runCommand(command: WindowManagerCommandInput): Promise<boolean> {
+  private runCommand(
+    command: WindowManagerCommandInput,
+    enqueuedBinding: WindowManagerRuntimeBinding
+  ): Promise<boolean> {
     const binding = this.binding;
+    if (binding === null) {
+      this.reportClientUnavailable();
+      return Promise.resolve(false);
+    }
+    if (
+      binding.workspaceId !== enqueuedBinding.workspaceId ||
+      binding.clientId !== enqueuedBinding.clientId
+    ) {
+      return Promise.resolve(false);
+    }
     const snapshot = this.snapshot();
-    if (binding === null || snapshot === null || this.client === null) {
+    if (snapshot === null || this.client === null) {
       this.reportClientUnavailable();
       return Promise.resolve(false);
     }

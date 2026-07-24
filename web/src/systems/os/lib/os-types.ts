@@ -180,7 +180,6 @@ export interface WindowManagerController extends OsDesktopRuntime {
 export const OS_COMPACT_BREAKPOINT = 960;
 export const OS_WINDOW_MIN_WIDTH = 280;
 export const OS_WINDOW_MIN_HEIGHT = 180;
-export const OS_WINDOW_SOFT_CAP = 12;
 
 export function osWindowId(app: OsAppId, instanceKey?: string | null): string {
   return app === "session" && instanceKey ? `session:${instanceKey}` : `app:${app}`;

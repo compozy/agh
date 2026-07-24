@@ -96,4 +96,25 @@ describe("applySeamPreviewToDesktop", () => {
     const base = desktop();
     expect(applySeamPreviewToDesktop(base, SEAM, 0)).toBe(base);
   });
+
+  it("Should preserve the desktop when the projected split is absent", () => {
+    const base = desktop();
+    expect(applySeamPreviewToDesktop(base, { ...SEAM, splitId: "split:missing" }, 99.2)).toBe(base);
+  });
+
+  it("Should preserve unaffected group identities when one split changes", () => {
+    const base = desktop();
+    const untouched = {
+      id: "group:untouched",
+      frame: { x: 0, y: 0, w: 1, h: 1 },
+      root: { id: "leaf:untouched", kind: "leaf", windowId: "window:untouched" },
+    } as const;
+    const withPeer = { ...base, groups: [...base.groups, untouched] };
+
+    const adjusted = applySeamPreviewToDesktop(withPeer, SEAM, 99.2);
+
+    expect(adjusted).not.toBe(withPeer);
+    expect(adjusted.groups[0]).not.toBe(withPeer.groups[0]);
+    expect(adjusted.groups[1]).toBe(untouched);
+  });
 });

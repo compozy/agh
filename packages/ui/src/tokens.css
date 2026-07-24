@@ -435,9 +435,13 @@
      clearance. Consumers add env(safe-area-inset-bottom) at the use site. */
   --size-dock-zone-offset: 10px;
   --size-dock-clearance: 10px;
+  /* oxfmt-ignore */
   --size-dock-band: calc(
-    var(--size-dock-item) + (2 * var(--spacing-dock-pad)) + 2px + var(--size-dock-zone-offset) +
-      var(--size-dock-clearance)
+    var(--size-dock-item)
+      + (2 * var(--spacing-dock-pad))
+      + 2px
+      + var(--size-dock-zone-offset)
+      + var(--size-dock-clearance)
   );
   /* `--spacing-*` (not `--space-*`) so Tailwind v4 emits gap/p utilities. */
   --spacing-dock-gap: 4px;

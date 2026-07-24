@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
 import { type ReasoningEffort } from "@/lib/api-contract";
 
@@ -29,7 +29,6 @@ export interface UseReasoningSliderArgs {
 }
 
 export interface ReasoningSliderModel {
-  trackRef: RefObject<HTMLDivElement | null>;
   stops: ReasoningEffort[];
   last: number;
   /** Continuous 0..1 thumb position (live while dragging, resting otherwise). */
@@ -61,7 +60,6 @@ export function useReasoningSlider({
   defaultEffort,
   onSelect,
 }: UseReasoningSliderArgs): ReasoningSliderModel {
-  const trackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startX: number; engaged: boolean } | null>(null);
   // Continuous 0..1 position while dragging; null when resting on a stop.
   const [dragP, setDragP] = useState<number | null>(null);
@@ -107,7 +105,6 @@ export function useReasoningSlider({
     dragRef.current = null;
     setDragP(null);
     commit(Math.round(positionFrom(event) * last));
-    trackRef.current?.focus();
   };
 
   const handlePointerCancel = () => {
@@ -140,7 +137,6 @@ export function useReasoningSlider({
       : `${reasoningEffortLabel(stops[valueNow])}${value === "" ? " (model default)" : ""}`;
 
   return {
-    trackRef,
     stops,
     last,
     p,
