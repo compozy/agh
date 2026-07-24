@@ -135,6 +135,7 @@ func windowManagerDefaults(cfg aghconfig.WindowManagerConfig) windowmanager.Conf
 		RaiseOnFocus:        cfg.RaiseOnFocus,
 		DragAwayPolicy:      windowmanager.DragAwayPolicy(cfg.DragAwayPolicy),
 		GroupMoveModifier:   cfg.GroupMoveModifier,
+		SwapModifier:        cfg.SwapModifier,
 		HistoryLimit:        cfg.HistoryLimit,
 		DesktopTransition:   windowmanager.DesktopTransition(cfg.DesktopTransition),
 		Gaps: windowmanager.GapsConfig{
@@ -194,6 +195,7 @@ func windowManagerConfig(defaults windowmanager.Config) (aghconfig.WindowManager
 		RaiseOnFocus:        defaults.RaiseOnFocus,
 		DragAwayPolicy:      string(defaults.DragAwayPolicy),
 		GroupMoveModifier:   defaults.GroupMoveModifier,
+		SwapModifier:        defaults.SwapModifier,
 		HistoryLimit:        defaults.HistoryLimit,
 		DesktopTransition:   string(defaults.DesktopTransition),
 		Gaps: aghconfig.WindowManagerGapsConfig{

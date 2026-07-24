@@ -32,10 +32,10 @@ const (
 	DesktopTransitionSlide     DesktopTransition   = "slide"
 	DesktopTransitionCrossfade DesktopTransition   = "crossfade"
 	DesktopTransitionInstant   DesktopTransition   = "instant"
-	groupMoveModifierMeta                          = "meta"
-	groupMoveModifierControl                       = "control"
-	groupMoveModifierAlt                           = "alt"
-	groupMoveModifierShift                         = "shift"
+	dragModifierMeta                               = "meta"
+	dragModifierControl                            = "control"
+	dragModifierAlt                                = "alt"
+	dragModifierShift                              = "shift"
 	configValueNone                                = "none"
 	bindingReserved                                = "reserved"
 )
@@ -73,6 +73,7 @@ type Config struct {
 	RaiseOnFocus        bool                `json:"raise_on_focus"`
 	DragAwayPolicy      DragAwayPolicy      `json:"drag_away_policy"`
 	GroupMoveModifier   string              `json:"group_move_modifier"`
+	SwapModifier        string              `json:"swap_modifier"`
 	HistoryLimit        int                 `json:"history_limit"`
 	DesktopTransition   DesktopTransition   `json:"desktop_transition"`
 	Gaps                GapsConfig          `json:"gaps"`
@@ -91,6 +92,7 @@ type WorkspaceConfig struct {
 	RaiseOnFocus        *bool                `json:"raise_on_focus,omitempty"`
 	DragAwayPolicy      *DragAwayPolicy      `json:"drag_away_policy,omitempty"`
 	GroupMoveModifier   *string              `json:"group_move_modifier,omitempty"`
+	SwapModifier        *string              `json:"swap_modifier,omitempty"`
 	HistoryLimit        *int                 `json:"history_limit,omitempty"`
 	DesktopTransition   *DesktopTransition   `json:"desktop_transition,omitempty"`
 	Gaps                *GapsConfig          `json:"gaps,omitempty"`
@@ -107,7 +109,8 @@ func DefaultConfig() Config {
 		FocusPolicy:         FocusClickDirectional,
 		RaiseOnFocus:        true,
 		DragAwayPolicy:      DragAwayWindow,
-		GroupMoveModifier:   groupMoveModifierAlt,
+		GroupMoveModifier:   dragModifierAlt,
+		SwapModifier:        dragModifierShift,
 		HistoryLimit:        50,
 		DesktopTransition:   DesktopTransitionSlide,
 		Gaps:                GapsConfig{Inner: 8, Top: 8, Right: 10, Bottom: 8, Left: 10},
@@ -152,12 +155,19 @@ func validateBehaviorConfig(config Config) error {
 		config.DesktopTransition != DesktopTransitionInstant {
 		return fmt.Errorf("desktop transition %q: %w", config.DesktopTransition, ErrInvalidCommand)
 	}
-	switch config.GroupMoveModifier {
-	case groupMoveModifierAlt, groupMoveModifierControl, groupMoveModifierMeta, groupMoveModifierShift, configValueNone:
-	default:
-		return fmt.Errorf("group move modifier %q: %w", config.GroupMoveModifier, ErrInvalidCommand)
+	if err := validateDragModifier("group move modifier", config.GroupMoveModifier); err != nil {
+		return err
 	}
-	return nil
+	return validateDragModifier("swap modifier", config.SwapModifier)
+}
+
+func validateDragModifier(label, modifier string) error {
+	switch modifier {
+	case dragModifierAlt, dragModifierControl, dragModifierMeta, dragModifierShift, configValueNone:
+		return nil
+	default:
+		return fmt.Errorf("%s %q: %w", label, modifier, ErrInvalidCommand)
+	}
 }
 
 func validateGeometryConfig(config Config) error {
@@ -245,6 +255,9 @@ func effectiveConfig(defaults Config, overrides WorkspaceConfig) (Config, error)
 	}
 	if overrides.GroupMoveModifier != nil {
 		result.GroupMoveModifier = *overrides.GroupMoveModifier
+	}
+	if overrides.SwapModifier != nil {
+		result.SwapModifier = *overrides.SwapModifier
 	}
 	if overrides.HistoryLimit != nil {
 		result.HistoryLimit = *overrides.HistoryLimit

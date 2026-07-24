@@ -28,14 +28,14 @@ const (
 	SettingsWindowDragAwayPolicyGroup  SettingsWindowDragAwayPolicy = "group"
 )
 
-type SettingsWindowGroupMoveModifier string
+type SettingsWindowDragModifier string
 
 const (
-	SettingsWindowGroupMoveModifierAlt     SettingsWindowGroupMoveModifier = "alt"
-	SettingsWindowGroupMoveModifierControl SettingsWindowGroupMoveModifier = "control"
-	SettingsWindowGroupMoveModifierMeta    SettingsWindowGroupMoveModifier = "meta"
-	SettingsWindowGroupMoveModifierShift   SettingsWindowGroupMoveModifier = "shift"
-	SettingsWindowGroupMoveModifierNone    SettingsWindowGroupMoveModifier = "none"
+	SettingsWindowDragModifierAlt     SettingsWindowDragModifier = "alt"
+	SettingsWindowDragModifierControl SettingsWindowDragModifier = "control"
+	SettingsWindowDragModifierMeta    SettingsWindowDragModifier = "meta"
+	SettingsWindowDragModifierShift   SettingsWindowDragModifier = "shift"
+	SettingsWindowDragModifierNone    SettingsWindowDragModifier = "none"
 )
 
 type SettingsWindowDesktopTransition string
@@ -62,7 +62,8 @@ type SettingsWindowManagerConfigPayload struct {
 	FocusFollowsPointer bool                                `json:"focus_follows_pointer"`
 	RaiseOnFocus        bool                                `json:"raise_on_focus"`
 	DragAwayPolicy      SettingsWindowDragAwayPolicy        `json:"drag_away_policy"`
-	GroupMoveModifier   SettingsWindowGroupMoveModifier     `json:"group_move_modifier"`
+	GroupMoveModifier   SettingsWindowDragModifier          `json:"group_move_modifier"`
+	SwapModifier        SettingsWindowDragModifier          `json:"swap_modifier"`
 	HistoryLimit        int                                 `json:"history_limit"`
 	DesktopTransition   SettingsWindowDesktopTransition     `json:"desktop_transition"`
 	Gaps                SettingsWindowManagerGapsPayload    `json:"gaps"`

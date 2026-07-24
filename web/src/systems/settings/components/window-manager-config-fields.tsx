@@ -16,6 +16,16 @@ interface SelectOption<V extends string> {
   label: string;
 }
 
+type DragModifier = WindowManagerConfig["swapModifier"];
+
+const DRAG_MODIFIER_OPTIONS: readonly SelectOption<DragModifier>[] = [
+  { value: "alt", label: "Alt" },
+  { value: "control", label: "Control" },
+  { value: "meta", label: "Meta" },
+  { value: "shift", label: "Shift" },
+  { value: "none", label: "None" },
+];
+
 function SelectField<V extends string>({
   label,
   description,
@@ -175,14 +185,15 @@ export function WindowManagerBehaviorFields({ draft, setDraft }: ConfigFieldsPro
         label="Group move modifier"
         description="Temporarily move the group while dragging"
         value={draft.groupMoveModifier}
-        options={[
-          { value: "alt", label: "Alt" },
-          { value: "control", label: "Control" },
-          { value: "meta", label: "Meta" },
-          { value: "shift", label: "Shift" },
-          { value: "none", label: "None" },
-        ]}
+        options={DRAG_MODIFIER_OPTIONS}
         onChange={groupMoveModifier => setDraft(current => ({ ...current, groupMoveModifier }))}
+      />
+      <SelectField
+        label="Swap modifier"
+        description="Hold while dropping onto a window to swap places"
+        value={draft.swapModifier}
+        options={DRAG_MODIFIER_OPTIONS}
+        onChange={swapModifier => setDraft(current => ({ ...current, swapModifier }))}
       />
       <SelectField
         label="Desktop transition"

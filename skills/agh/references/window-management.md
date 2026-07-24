@@ -83,6 +83,8 @@ agh window move --workspace <workspace-id> --revision <revision> --id <window-id
 agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
   --desktop <desktop-id> --group
 agh window float --workspace <workspace-id> --revision <revision> --id <window-id>
+agh window swap --workspace <workspace-id> --revision <revision> \
+  --first <window-id> --second <window-id>
 agh window close --workspace <workspace-id> --revision <revision> --id <window-id> --minimize
 agh window open --workspace <workspace-id> --revision <revision> --restore <window-id>
 ```
@@ -96,6 +98,9 @@ exclusive with `--target`, `--placement`, and `--rect`.
 `placement` is structural (`tiled`, `stacked`, or `floating`); `route` is the durable internal
 pathname plus canonical JSON-object search state. `window navigate` may include `--client` to switch
 and focus that explicit connected client atomically. Without it, navigation changes no presentation.
+With a bound client, explicit `window focus --id` and `window open --restore` also activate the
+window's owning desktop for that client; `window swap` exchanges two windows' structural places
+(the browser exposes the same command as a drag-drop while `window_manager.swap_modifier` is held).
 
 Layout operations:
 

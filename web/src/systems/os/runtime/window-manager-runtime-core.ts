@@ -8,6 +8,7 @@ import {
 } from "../adapters/window-manager-api";
 import type { OsDesktopRuntimeStore, OsWallpaper } from "../lib/os-types";
 import type { WindowManagerCommandOutcome } from "../lib/os-types";
+import { effectiveWindowManagerConfig } from "../lib/window-manager-config";
 import { reconcileWindowManagerSnapshot, windowManagerKeys } from "../lib/window-manager-query";
 import type {
   PixelRect,
@@ -90,7 +91,8 @@ export abstract class WindowManagerRuntimeCore {
     this.unsubscribePresentation = windowManagerStore.subscribe((state, previous) => {
       if (
         state.connectionStatus !== previous.connectionStatus ||
-        state.workArea !== previous.workArea
+        state.workArea !== previous.workArea ||
+        state.seamPreview !== previous.seamPreview
       ) {
         this.publish();
       }
@@ -171,12 +173,39 @@ export abstract class WindowManagerRuntimeCore {
     ) {
       return;
     }
+    const previous = this.client;
     this.client = client;
     const transition = windowManagerStore.getState().transitionIntent;
     if (transition?.mode === "instant" && client.activeDesktopId === transition.toDesktopId) {
       windowManagerStore.getState().actions.setTransitionIntent(null);
+    } else if (
+      previous !== null &&
+      previous.activeDesktopId !== client.activeDesktopId &&
+      transition === null
+    ) {
+      // Reconciled desktop changes — zoom, restore, cross-desktop focus, remote
+      // switches — synthesize a transition only when no optimistic intent is
+      // outstanding; a queued desktop.switch already staged its target, and an
+      // intermediate result must not overwrite it.
+      this.synthesizeDesktopTransition(previous.activeDesktopId, client.activeDesktopId);
     }
     this.publish();
+  }
+
+  private synthesizeDesktopTransition(fromDesktopId: string, toDesktopId: string): void {
+    const snapshot = this.snapshot();
+    const globalConfig = this.config();
+    if (snapshot === null || globalConfig === null) return;
+    const config = effectiveWindowManagerConfig(globalConfig, snapshot.overrides);
+    if (this.reduceMotion || config.desktopTransition === "instant") return;
+    const fromOrder = snapshot.desktops.find(desktop => desktop.id === fromDesktopId)?.order ?? 0;
+    const toOrder = snapshot.desktops.find(desktop => desktop.id === toDesktopId)?.order ?? 0;
+    windowManagerStore.getState().actions.setTransitionIntent({
+      fromDesktopId,
+      toDesktopId,
+      direction: toOrder >= fromOrder ? "later" : "earlier",
+      mode: config.desktopTransition,
+    });
   }
 
   setConnectionStatus(status: WindowManagerConnectionStatus): void {
@@ -241,18 +270,38 @@ export abstract class WindowManagerRuntimeCore {
     return windowManagerStore.getState().workArea?.rect ?? DEFAULT_WINDOW_MANAGER_WORK_AREA;
   }
 
+  private reportClientUnavailable(): void {
+    windowManagerStore.getState().actions.reportDiagnostic({
+      code: "client_unavailable",
+      message: "Window commands are unavailable until this browser reconnects.",
+      severity: "warning",
+      field: null,
+    });
+    this.publish();
+  }
+
+  private commandChain: Promise<unknown> = Promise.resolve();
+
   private startDispatch(command: WindowManagerCommandInput): Promise<boolean> | null {
+    if (this.binding === null || this.snapshot() === null || this.client === null) {
+      this.reportClientUnavailable();
+      return null;
+    }
+    // Rapid interactions (zoom toggle, dock activations, seam arrows) queue
+    // behind the in-flight command instead of being silently dropped; each
+    // queued command reads a fresh snapshot revision when it runs.
+    const run = () => this.runCommand(command);
+    const chained = this.commandChain.then(run, run);
+    this.commandChain = chained;
+    return chained;
+  }
+
+  private runCommand(command: WindowManagerCommandInput): Promise<boolean> {
     const binding = this.binding;
     const snapshot = this.snapshot();
     if (binding === null || snapshot === null || this.client === null) {
-      windowManagerStore.getState().actions.reportDiagnostic({
-        code: "client_unavailable",
-        message: "Window commands are unavailable until this browser reconnects.",
-        severity: "warning",
-        field: null,
-      });
-      this.publish();
-      return null;
+      this.reportClientUnavailable();
+      return Promise.resolve(false);
     }
 
     const requestId = randomWindowManagerId("wm-command");
@@ -264,7 +313,10 @@ export abstract class WindowManagerRuntimeCore {
         expectedRevision: snapshot.revision,
       })
     ) {
-      return null;
+      // A recorded revision conflict keeps the surface read-only until the
+      // user resolves it; queued commands resolve unapplied instead of racing.
+      this.clearSwitchTransition(command);
+      return Promise.resolve(false);
     }
 
     return executeWindowManagerCommand(
@@ -297,11 +349,10 @@ export abstract class WindowManagerRuntimeCore {
       .catch(error => {
         const currentBinding = windowManagerStore.getState().binding;
         if (
-          command.commandId === "desktop.switch" &&
           currentBinding?.workspaceId === binding.workspaceId &&
           currentBinding.clientId === binding.clientId
         ) {
-          windowManagerStore.getState().actions.setTransitionIntent(null);
+          this.clearSwitchTransition(command);
         }
         const diagnostic = commandDiagnostic(error);
         const storeDiagnostic = {
@@ -329,6 +380,20 @@ export abstract class WindowManagerRuntimeCore {
         this.publish();
         return false;
       });
+  }
+
+  /**
+   * Drops the optimistic transition of a failed desktop.switch, but only when
+   * the live intent still targets this command's desktop — a newer queued
+   * switch may have replaced it.
+   */
+  private clearSwitchTransition(command: WindowManagerCommandInput): void {
+    if (command.commandId !== "desktop.switch") return;
+    const intent = windowManagerStore.getState().transitionIntent;
+    const target = command.payload.desktop_id;
+    if (intent !== null && typeof target === "string" && intent.toDesktopId === target) {
+      windowManagerStore.getState().actions.setTransitionIntent(null);
+    }
   }
 
   protected dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {

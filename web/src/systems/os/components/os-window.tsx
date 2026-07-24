@@ -83,7 +83,6 @@ export function OsWindow({ windowId }: OsWindowProps) {
       size={{ width: rect.w, height: rect.h }}
       minWidth={minimum.width}
       minHeight={minimum.height}
-      bounds="parent"
       disableDragging={!win.stackActive}
       enableResizing={win.placement === "floating"}
       resizeHandleClasses={{ bottomRight: "os-window-resize-handle" }}

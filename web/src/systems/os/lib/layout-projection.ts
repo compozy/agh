@@ -251,35 +251,44 @@ function seamForBoundary(
     return null;
   const leadingMinimum = minimumForNode(leadingNode, context.innerGap, context.minimums);
   const trailingMinimum = minimumForNode(trailingNode, context.innerGap, context.minimums);
-  if (node.axis === "horizontal") {
+  const weights = normalizedWeights(node);
+  const horizontal = node.axis === "horizontal";
+  const axisSpan = childRects.reduce(
+    (sum, childRect) => sum + (horizontal ? childRect.w : childRect.h),
+    0
+  );
+  const shared = {
+    splitId: node.id,
+    boundaryIndex,
+    axisSpan,
+    leadingWeight: weights[boundaryIndex] ?? 0,
+    trailingWeight: weights[boundaryIndex + 1] ?? 0,
+    leadingWindowIds: descendantWindowIds(leadingNode),
+    trailingWindowIds: descendantWindowIds(trailingNode),
+  };
+  if (horizontal) {
     const start = leading.x + leading.w;
     const width = Math.max(0, trailing.x - start);
     return {
+      ...shared,
       id: `${node.id}:${boundaryIndex}`,
-      splitId: node.id,
-      boundaryIndex,
       orientation: "vertical",
       rect: { x: start, y: leading.y, w: width, h: leading.h },
       value: start + width / 2,
       minValue: leading.x + leadingMinimum.width + width / 2,
       maxValue: trailing.x + trailing.w - trailingMinimum.width - width / 2,
-      leadingWindowIds: descendantWindowIds(leadingNode),
-      trailingWindowIds: descendantWindowIds(trailingNode),
     };
   }
   const start = leading.y + leading.h;
   const height = Math.max(0, trailing.y - start);
   return {
+    ...shared,
     id: `${node.id}:${boundaryIndex}`,
-    splitId: node.id,
-    boundaryIndex,
     orientation: "horizontal",
     rect: { x: leading.x, y: start, w: leading.w, h: height },
     value: start + height / 2,
     minValue: leading.y + leadingMinimum.height + height / 2,
     maxValue: trailing.y + trailing.h - trailingMinimum.height - height / 2,
-    leadingWindowIds: descendantWindowIds(leadingNode),
-    trailingWindowIds: descendantWindowIds(trailingNode),
   };
 }
 

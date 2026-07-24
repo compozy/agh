@@ -37,7 +37,7 @@ func (m *Manager) executeDurable(
 	if err := m.recordCommandHistory(&working, snapshot, request, commandID, workspaceDefaults); err != nil {
 		return Result{}, err
 	}
-	projection, err := m.projectClientViews(request.WorkspaceID, working, request)
+	projection, err := m.projectClientViews(request.WorkspaceID, snapshot, working, request)
 	if err != nil {
 		return Result{}, err
 	}
@@ -164,7 +164,7 @@ func (m *Manager) commitCommand(
 		WorkspaceID: request.WorkspaceID, ExpectedRevision: expected,
 		Snapshot: snapshot, Event: event,
 	}
-	if err := m.repository.Commit(ctx, commit); err != nil {
+	if err := m.repository.Commit(ctx, &commit); err != nil {
 		if errors.Is(err, ErrRevisionConflict) {
 			return m.repositoryConflict(ctx, request.WorkspaceID, request.ExpectedRevision)
 		}

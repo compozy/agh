@@ -385,6 +385,7 @@ export function windowManagerSettingsConfigToWire(config: WindowManagerConfig) {
     raise_on_focus: config.raiseOnFocus,
     drag_away_policy: config.dragAwayPolicy,
     group_move_modifier: config.groupMoveModifier,
+    swap_modifier: config.swapModifier,
     history_limit: config.historyLimit,
     desktop_transition: config.desktopTransition,
     gaps: config.gaps,

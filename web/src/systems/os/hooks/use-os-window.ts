@@ -62,6 +62,19 @@ function dragPoint(event: OsDragEvent): { x: number; y: number } | null {
   return null;
 }
 
+/**
+ * Snap resolution, window rects, and rnd positions all live in layer
+ * coordinates; pointer events arrive in viewport coordinates. Subtracting the
+ * measured layer origin keeps every hot zone aligned with what the user sees.
+ */
+function layerPoint(event: OsDragEvent): { x: number; y: number } | null {
+  const client = dragPoint(event);
+  if (client === null) return null;
+  const origin = windowManagerStore.getState().workArea?.origin;
+  if (origin === undefined) return null;
+  return { x: client.x - origin.x, y: client.y - origin.y };
+}
+
 function modifierActive(
   event: OsDragEvent,
   modifier: "alt" | "control" | "meta" | "shift" | "none"
@@ -117,7 +130,11 @@ export function useOsWindow(windowId: string): OsWindowModel {
     );
   };
 
-  const targetAt = (point: { x: number; y: number }, capturedWorkArea: OsRect) => {
+  const targetAt = (
+    point: { x: number; y: number },
+    capturedWorkArea: OsRect,
+    swapModifierActive: boolean
+  ) => {
     const config = snapTargetConfigFromConfig(manager.getState().windowManagerConfig);
     if (config === null) return null;
     return resolveSnapTarget({
@@ -126,7 +143,21 @@ export function useOsWindow(windowId: string): OsWindowModel {
       candidates: candidates(),
       currentTarget: windowManagerStoreGesture() ?? undefined,
       config,
+      swapModifierActive,
     });
+  };
+
+  const swapModifierHeld = (event: OsDragEvent): boolean => {
+    const modifier = store.getState().windowManagerConfig?.swapModifier;
+    return modifier !== undefined && modifier !== "none" && modifierActive(event, modifier);
+  };
+
+  // Escape cancelled the gesture: snap back to the source rect instead of tracking the pointer.
+  const snapBackCancelled = (): boolean => {
+    const gesture = windowManagerStore.getState().gesture;
+    if (gesture?.status !== "cancelled" || gesture.source.windowId !== windowId) return false;
+    if (win) rndRef.current?.updatePosition({ x: win.rect.x, y: win.rect.y });
+    return true;
   };
 
   const activate = (target: EventTarget | null) => {
@@ -136,7 +167,7 @@ export function useOsWindow(windowId: string): OsWindowModel {
   };
 
   const handleDragStart: RndDragCallback = (event, _data) => {
-    const point = dragPoint(event);
+    const point = layerPoint(event);
     const state = store.getState();
     const config = state.windowManagerConfig;
     if (!point || !workArea || !win || !state.snapshot || config === null) return;
@@ -157,20 +188,29 @@ export function useOsWindow(windowId: string): OsWindowModel {
   };
 
   const handleDrag: RndDragCallback = (event, _data) => {
-    const point = dragPoint(event);
+    if (snapBackCancelled()) return;
+    const point = layerPoint(event);
     const gesture = windowManagerStore.getState().gesture;
     const currentWorkArea = windowManagerStore.getState().workArea?.rect;
     if (!point || gesture?.status !== "active" || !currentWorkArea) return;
-    actions.previewGesture(point, targetAt(point, gesture.workArea), currentWorkArea);
+    actions.previewGesture(
+      point,
+      targetAt(point, gesture.workArea, swapModifierHeld(event)),
+      currentWorkArea
+    );
   };
 
   const handleDragStop: RndDragCallback = (event, data) => {
-    const point = dragPoint(event) ?? { x: data.x, y: data.y };
+    if (snapBackCancelled()) {
+      actions.clearGesture();
+      return;
+    }
+    const point = layerPoint(event) ?? { x: data.x, y: data.y };
     const state = store.getState();
     const currentGesture = windowManagerStore.getState().gesture;
     const currentWorkArea = windowManagerStore.getState().workArea?.rect;
     if (!win || !state.snapshot || currentGesture?.status !== "active" || !currentWorkArea) return;
-    const target = targetAt(point, currentGesture.workArea);
+    const target = targetAt(point, currentGesture.workArea, swapModifierHeld(event));
     const decision = actions.finishGesture({
       finalPoint: point,
       finalTarget: target,
@@ -187,7 +227,17 @@ export function useOsWindow(windowId: string): OsWindowModel {
       return;
     }
     if (decision?.reason === "no-target") {
-      manager.getState().commitFloatingRect(windowId, { ...win.rect, x: data.x, y: data.y });
+      manager.getState().commitFloatingRect(
+        windowId,
+        { ...win.rect, x: data.x, y: data.y },
+        {
+          pointer: point,
+          grabOffset: {
+            x: Math.max(0, point.x - data.x),
+            y: Math.max(0, point.y - data.y),
+          },
+        }
+      );
     }
     actions.clearGesture();
   };

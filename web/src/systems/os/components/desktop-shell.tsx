@@ -71,6 +71,9 @@ function DesktopShellBody({ model }: { model: DesktopShellModel }) {
     gesturePreview,
     manager,
     managerSurfaces,
+    onResize,
+    onSeamPreview,
+    onSeamPreviewEnd,
     overlays,
     pager,
     reducedMotion,
@@ -111,9 +114,9 @@ function DesktopShellBody({ model }: { model: DesktopShellModel }) {
           transition={transition}
           preview={gesturePreview}
           onTransitionComplete={() => windowManagerActions.setTransitionIntent(null)}
-          onResizeLayout={(splitId, boundaryIndex, delta) =>
-            manager.getState().resizeLayout(splitId, boundaryIndex, delta)
-          }
+          onResize={onResize}
+          onSeamPreview={onSeamPreview}
+          onSeamPreviewEnd={onSeamPreviewEnd}
         />
         <DesktopManagerSurfaces
           model={managerSurfaces}

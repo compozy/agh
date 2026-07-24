@@ -9,6 +9,7 @@ type clientViewProjection struct {
 
 func (m *Manager) projectClientViews(
 	workspaceID WorkspaceID,
+	previous Snapshot,
 	snapshot Snapshot,
 	request CommandRequest,
 ) (clientViewProjection, error) {
@@ -19,7 +20,7 @@ func (m *Manager) projectClientViews(
 	defer m.mu.Unlock()
 	projection := clientViewProjection{changed: make([]ClientView, 0)}
 	for clientID, current := range m.clients[workspaceID] {
-		projected := projectDurableClientView(current, snapshot, request, clientID)
+		projected := projectDurableClientView(current, previous, snapshot, request, clientID)
 		if !clientViewsEqual(current, projected) {
 			next, err := nextPresentationRevision(current.PresentationRevision)
 			if err != nil {
@@ -38,10 +39,13 @@ func (m *Manager) projectClientViews(
 
 func projectDurableClientView(
 	view ClientView,
+	previous Snapshot,
 	snapshot Snapshot,
 	request CommandRequest,
 	clientID ClientID,
 ) ClientView {
+	// The departing-zoom follow needs the active desktop from before generic repair re-homes it.
+	originalActiveDesktopID := view.ActiveDesktopID
 	view = repairClientView(view, snapshot)
 	if request.ClientID != nil && clientID == *request.ClientID {
 		switch command := request.Payload.(type) {
@@ -51,16 +55,22 @@ func projectDurableClientView(
 				view.FocusedWindowID = &command.WindowID
 				view.FocusOrder = prependFocus(view.FocusOrder, command.WindowID)
 			}
+		case CloseWindowCommand:
+			view = followDepartingZoomOwner(view, previous, snapshot, command, originalActiveDesktopID)
 		case OpenWindowCommand:
 			windowID := command.Window.ID
 			if command.RestoreWindowID != nil {
 				windowID = *command.RestoreWindowID
 			}
-			if window, exists := snapshot.Windows[windowID]; exists &&
-				window.DesktopID == view.ActiveDesktopID &&
-				!window.Minimized {
-				view.FocusedWindowID = &windowID
-				view.FocusOrder = prependFocus(view.FocusOrder, windowID)
+			if window, exists := snapshot.Windows[windowID]; exists && !window.Minimized {
+				// Restoring a minimized window activates its desktop.
+				if command.RestoreWindowID != nil {
+					view.ActiveDesktopID = window.DesktopID
+				}
+				if window.DesktopID == view.ActiveDesktopID {
+					view.FocusedWindowID = &windowID
+					view.FocusOrder = prependFocus(view.FocusOrder, windowID)
+				}
 			}
 		case NavigateWindowCommand:
 			if window, exists := snapshot.Windows[command.WindowID]; exists && !window.Minimized {
@@ -92,14 +102,46 @@ func (m *Manager) applyClientProjection(
 }
 
 func (m *Manager) previewDurableClient(
+	previous Snapshot,
 	snapshot Snapshot,
 	request CommandRequest,
 ) (*ClientView, error) {
-	projection, err := m.projectClientViews(request.WorkspaceID, snapshot, request)
+	projection, err := m.projectClientViews(request.WorkspaceID, previous, snapshot, request)
 	if err != nil {
 		return nil, err
 	}
 	return projection.selected, nil
+}
+
+// followDepartingZoomOwner keeps the issuing client with a zoomed window when it leaves its focus desktop.
+func followDepartingZoomOwner(
+	view ClientView,
+	previous Snapshot,
+	snapshot Snapshot,
+	command CloseWindowCommand,
+	originalActiveDesktopID DesktopID,
+) ClientView {
+	previousWindow, existed := previous.Windows[command.WindowID]
+	if !existed || previousWindow.DesktopID != originalActiveDesktopID {
+		return view
+	}
+	if _, owned := ownedFocusDesktopIndex(&previous, command.WindowID); !owned {
+		return view
+	}
+	if command.Minimize {
+		if window, exists := snapshot.Windows[command.WindowID]; exists &&
+			window.DesktopID != originalActiveDesktopID {
+			view.ActiveDesktopID = window.DesktopID
+		}
+		return view
+	}
+	if previousWindow.ReturnAnchor == nil {
+		return view
+	}
+	if _, exists := desktopIndexByID(&snapshot, previousWindow.ReturnAnchor.DesktopID); exists {
+		view.ActiveDesktopID = previousWindow.ReturnAnchor.DesktopID
+	}
+	return view
 }
 
 func repairClientView(view ClientView, snapshot Snapshot) ClientView {

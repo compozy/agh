@@ -122,6 +122,55 @@ func TestNormalizeSnapshot(t *testing.T) {
 		}
 		requireValidSnapshot(t, first)
 	})
+
+	t.Run("Should keep normalized split weights byte-identical across repeated passes", func(t *testing.T) {
+		t.Parallel()
+		w1, w2, w3 := WindowID("w1"), WindowID("w2"), WindowID("w3")
+		axis := AxisHorizontal
+		snapshot := Snapshot{
+			Version:     SnapshotVersion,
+			WorkspaceID: "workspace-a",
+			Desktops: []Desktop{
+				{
+					ID:      "d1",
+					Name:    "One",
+					Purpose: DesktopPurposeStandard,
+					Groups: []LayoutGroup{
+						{
+							ID:    "g1",
+							Frame: fullRect(),
+							Root: LayoutNode{
+								ID:   "split",
+								Kind: NodeKindSplit,
+								Axis: &axis,
+								Children: []LayoutNode{
+									{ID: "n1", Kind: NodeKindLeaf, WindowID: &w1},
+									{ID: "n2", Kind: NodeKindLeaf, WindowID: &w2},
+									{ID: "n3", Kind: NodeKindLeaf, WindowID: &w3},
+								},
+								// Raw weights whose normalized sum lands within float
+								// noise of 1: a second pass must not drift them.
+								Weights: []float64{1, 2, 3},
+							},
+						},
+					},
+					Floating: []WindowID{},
+				},
+			},
+			Windows: map[WindowID]Window{
+				w1: {ID: w1, App: "Test", Route: testRoute("/test"), DesktopID: "d1", FloatingRect: fullRect()},
+				w2: {ID: w2, App: "Test", Route: testRoute("/test"), DesktopID: "d1", FloatingRect: fullRect()},
+				w3: {ID: w3, App: "Test", Route: testRoute("/test"), DesktopID: "d1", FloatingRect: fullRect()},
+			},
+		}
+		first := NormalizeSnapshot(snapshot)
+		second := NormalizeSnapshot(first)
+		firstWeights := first.Desktops[0].Groups[0].Root.Weights
+		secondWeights := second.Desktops[0].Groups[0].Root.Weights
+		if !slices.Equal(firstWeights, secondWeights) {
+			t.Fatalf("weights drifted across passes: first=%v second=%v", firstWeights, secondWeights)
+		}
+	})
 }
 
 func TestValidateSnapshot(t *testing.T) {

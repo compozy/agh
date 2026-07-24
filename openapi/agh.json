@@ -2701,6 +2701,10 @@
                   "repeat_ratios"
                 ],
                 "type": "object"
+              },
+              "swap_modifier": {
+                "nullable": true,
+                "type": "string"
               }
             },
             "type": "object"
@@ -3386,6 +3390,10 @@
                       "repeat_ratios"
                     ],
                     "type": "object"
+                  },
+                  "swap_modifier": {
+                    "nullable": true,
+                    "type": "string"
                   }
                 },
                 "type": "object"
@@ -3924,6 +3932,10 @@
                       "repeat_ratios"
                     ],
                     "type": "object"
+                  },
+                  "swap_modifier": {
+                    "nullable": true,
+                    "type": "string"
                   }
                 },
                 "type": "object"
@@ -4929,6 +4941,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -5433,6 +5449,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -5994,6 +6014,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -6498,6 +6522,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -6909,6 +6937,10 @@
                       "repeat_ratios"
                     ],
                     "type": "object"
+                  },
+                  "swap_modifier": {
+                    "nullable": true,
+                    "type": "string"
                   }
                 },
                 "type": "object"
@@ -7465,6 +7497,10 @@
                       "repeat_ratios"
                     ],
                     "type": "object"
+                  },
+                  "swap_modifier": {
+                    "nullable": true,
+                    "type": "string"
                   }
                 },
                 "type": "object"
@@ -8274,6 +8310,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -8778,6 +8818,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -9339,6 +9383,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -9843,6 +9891,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -10254,6 +10306,10 @@
                       "repeat_ratios"
                     ],
                     "type": "object"
+                  },
+                  "swap_modifier": {
+                    "nullable": true,
+                    "type": "string"
                   }
                 },
                 "type": "object"
@@ -10948,6 +11004,10 @@
                                 "repeat_ratios"
                               ],
                               "type": "object"
+                            },
+                            "swap_modifier": {
+                              "nullable": true,
+                              "type": "string"
                             }
                           },
                           "type": "object"
@@ -11452,6 +11512,10 @@
                                 "repeat_ratios"
                               ],
                               "type": "object"
+                            },
+                            "swap_modifier": {
+                              "nullable": true,
+                              "type": "string"
                             }
                           },
                           "type": "object"
@@ -12013,6 +12077,10 @@
                                 "repeat_ratios"
                               ],
                               "type": "object"
+                            },
+                            "swap_modifier": {
+                              "nullable": true,
+                              "type": "string"
                             }
                           },
                           "type": "object"
@@ -12517,6 +12585,10 @@
                                 "repeat_ratios"
                               ],
                               "type": "object"
+                            },
+                            "swap_modifier": {
+                              "nullable": true,
+                              "type": "string"
                             }
                           },
                           "type": "object"
@@ -12928,6 +13000,10 @@
                   "repeat_ratios"
                 ],
                 "type": "object"
+              },
+              "swap_modifier": {
+                "nullable": true,
+                "type": "string"
               }
             },
             "type": "object"
@@ -13663,6 +13739,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -14167,6 +14247,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -14728,6 +14812,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -15232,6 +15320,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -15643,6 +15735,10 @@
                       "repeat_ratios"
                     ],
                     "type": "object"
+                  },
+                  "swap_modifier": {
+                    "nullable": true,
+                    "type": "string"
                   }
                 },
                 "type": "object"
@@ -134262,6 +134358,16 @@
                             "repeat_ratios"
                           ],
                           "type": "object"
+                        },
+                        "swap_modifier": {
+                          "enum": [
+                            "alt",
+                            "control",
+                            "meta",
+                            "shift",
+                            "none"
+                          ],
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -134278,7 +134384,8 @@
                         "raise_on_focus",
                         "shortcuts",
                         "small_viewport_policy",
-                        "snap"
+                        "snap",
+                        "swap_modifier"
                       ],
                       "type": "object"
                     },
@@ -134544,6 +134651,16 @@
                           "repeat_ratios"
                         ],
                         "type": "object"
+                      },
+                      "swap_modifier": {
+                        "enum": [
+                          "alt",
+                          "control",
+                          "meta",
+                          "shift",
+                          "none"
+                        ],
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -134560,7 +134677,8 @@
                       "raise_on_focus",
                       "shortcuts",
                       "small_viewport_policy",
-                      "snap"
+                      "snap",
+                      "swap_modifier"
                     ],
                     "type": "object"
                   }
@@ -251537,6 +251655,10 @@
                                           "repeat_ratios"
                                         ],
                                         "type": "object"
+                                      },
+                                      "swap_modifier": {
+                                        "nullable": true,
+                                        "type": "string"
                                       }
                                     },
                                     "type": "object"
@@ -252041,6 +252163,10 @@
                                           "repeat_ratios"
                                         ],
                                         "type": "object"
+                                      },
+                                      "swap_modifier": {
+                                        "nullable": true,
+                                        "type": "string"
                                       }
                                     },
                                     "type": "object"
@@ -252602,6 +252728,10 @@
                                           "repeat_ratios"
                                         ],
                                         "type": "object"
+                                      },
+                                      "swap_modifier": {
+                                        "nullable": true,
+                                        "type": "string"
                                       }
                                     },
                                     "type": "object"
@@ -253106,6 +253236,10 @@
                                           "repeat_ratios"
                                         ],
                                         "type": "object"
+                                      },
+                                      "swap_modifier": {
+                                        "nullable": true,
+                                        "type": "string"
                                       }
                                     },
                                     "type": "object"
@@ -253517,6 +253651,10 @@
                             "repeat_ratios"
                           ],
                           "type": "object"
+                        },
+                        "swap_modifier": {
+                          "nullable": true,
+                          "type": "string"
                         }
                       },
                       "type": "object"
@@ -255709,6 +255847,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -256213,6 +256355,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -256774,6 +256920,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -257278,6 +257428,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -257689,6 +257843,10 @@
                                 "repeat_ratios"
                               ],
                               "type": "object"
+                            },
+                            "swap_modifier": {
+                              "nullable": true,
+                              "type": "string"
                             }
                           },
                           "type": "object"
@@ -258604,6 +258762,10 @@
                             "repeat_ratios"
                           ],
                           "type": "object"
+                        },
+                        "swap_modifier": {
+                          "nullable": true,
+                          "type": "string"
                         }
                       },
                       "type": "object"
@@ -259339,6 +259501,10 @@
                               "repeat_ratios"
                             ],
                             "type": "object"
+                          },
+                          "swap_modifier": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "type": "object"
@@ -260150,6 +260316,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -260654,6 +260824,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -261215,6 +261389,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -261719,6 +261897,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -262130,6 +262312,10 @@
                                 "repeat_ratios"
                               ],
                               "type": "object"
+                            },
+                            "swap_modifier": {
+                              "nullable": true,
+                              "type": "string"
                             }
                           },
                           "type": "object"
@@ -265284,6 +265470,10 @@
                               "repeat_ratios"
                             ],
                             "type": "object"
+                          },
+                          "swap_modifier": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "type": "object"
@@ -266594,6 +266784,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -267098,6 +267292,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -267659,6 +267857,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -268163,6 +268365,10 @@
                                               "repeat_ratios"
                                             ],
                                             "type": "object"
+                                          },
+                                          "swap_modifier": {
+                                            "nullable": true,
+                                            "type": "string"
                                           }
                                         },
                                         "type": "object"
@@ -268574,6 +268780,10 @@
                                 "repeat_ratios"
                               ],
                               "type": "object"
+                            },
+                            "swap_modifier": {
+                              "nullable": true,
+                              "type": "string"
                             }
                           },
                           "type": "object"
@@ -269717,6 +269927,10 @@
                                                   "repeat_ratios"
                                                 ],
                                                 "type": "object"
+                                              },
+                                              "swap_modifier": {
+                                                "nullable": true,
+                                                "type": "string"
                                               }
                                             },
                                             "type": "object"
@@ -270221,6 +270435,10 @@
                                                   "repeat_ratios"
                                                 ],
                                                 "type": "object"
+                                              },
+                                              "swap_modifier": {
+                                                "nullable": true,
+                                                "type": "string"
                                               }
                                             },
                                             "type": "object"
@@ -270782,6 +271000,10 @@
                                                   "repeat_ratios"
                                                 ],
                                                 "type": "object"
+                                              },
+                                              "swap_modifier": {
+                                                "nullable": true,
+                                                "type": "string"
                                               }
                                             },
                                             "type": "object"
@@ -271286,6 +271508,10 @@
                                                   "repeat_ratios"
                                                 ],
                                                 "type": "object"
+                                              },
+                                              "swap_modifier": {
+                                                "nullable": true,
+                                                "type": "string"
                                               }
                                             },
                                             "type": "object"
@@ -271697,6 +271923,10 @@
                                     "repeat_ratios"
                                   ],
                                   "type": "object"
+                                },
+                                "swap_modifier": {
+                                  "nullable": true,
+                                  "type": "string"
                                 }
                               },
                               "type": "object"

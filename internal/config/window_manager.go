@@ -29,7 +29,24 @@ const (
 	WindowBindingNone     = "none"
 	WindowBindingReserved = "reserved"
 	WindowBindingZoom     = "zoom"
+
+	WindowDragModifierAlt     = "alt"
+	WindowDragModifierControl = "control"
+	WindowDragModifierMeta    = "meta"
+	WindowDragModifierShift   = "shift"
+	WindowDragModifierNone    = "none"
 )
+
+// windowDragModifiers lists the modifier keys accepted by group_move_modifier and swap_modifier.
+func windowDragModifiers() []string {
+	return []string{
+		WindowDragModifierAlt,
+		WindowDragModifierControl,
+		WindowDragModifierMeta,
+		WindowDragModifierShift,
+		WindowDragModifierNone,
+	}
+}
 
 // WindowManagerConfig controls window topology behavior and browser projection defaults.
 type WindowManagerConfig struct {
@@ -41,6 +58,7 @@ type WindowManagerConfig struct {
 	RaiseOnFocus        bool                       `toml:"raise_on_focus"`
 	DragAwayPolicy      string                     `toml:"drag_away_policy"`
 	GroupMoveModifier   string                     `toml:"group_move_modifier"`
+	SwapModifier        string                     `toml:"swap_modifier"`
 	HistoryLimit        int                        `toml:"history_limit"`
 	DesktopTransition   string                     `toml:"desktop_transition"`
 	Gaps                WindowManagerGapsConfig    `toml:"gaps"`
@@ -66,9 +84,10 @@ type WindowManagerSnapConfig struct {
 	RepeatRatios []float64 `toml:"repeat_ratios"`
 }
 
-// WindowManagerBindingConfig maps edge centers whose defaults have reserved semantics.
+// WindowManagerBindingConfig maps each edge-center snap action; "reserved" blocks that edge-center snap.
 type WindowManagerBindingConfig struct {
-	TopCenter    string `toml:"top_center"`
+	TopCenter string `toml:"top_center"`
+	// BottomCenter defaults to reserved to keep the approach strip above the Dock clear of snaps.
 	BottomCenter string `toml:"bottom_center"`
 }
 
@@ -82,7 +101,8 @@ func DefaultWindowManagerConfig() WindowManagerConfig {
 		FocusFollowsPointer: false,
 		RaiseOnFocus:        true,
 		DragAwayPolicy:      WindowDragAwayWindow,
-		GroupMoveModifier:   "alt",
+		GroupMoveModifier:   WindowDragModifierAlt,
+		SwapModifier:        WindowDragModifierShift,
 		HistoryLimit:        50,
 		DesktopTransition:   WindowDesktopTransitionSlide,
 		Gaps: WindowManagerGapsConfig{
@@ -145,11 +165,14 @@ func (c WindowManagerConfig) Validate() error {
 	if err := validateWindowManagerEnum(
 		"window_manager.group_move_modifier",
 		c.GroupMoveModifier,
-		"alt",
-		"control",
-		"meta",
-		"shift",
-		"none",
+		windowDragModifiers()...,
+	); err != nil {
+		return err
+	}
+	if err := validateWindowManagerEnum(
+		"window_manager.swap_modifier",
+		c.SwapModifier,
+		windowDragModifiers()...,
 	); err != nil {
 		return err
 	}

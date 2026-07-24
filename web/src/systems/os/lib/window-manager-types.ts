@@ -28,7 +28,7 @@ export type WindowManagerEdgeCenterBinding = "none" | "reserved" | "zoom";
 export type WindowManagerSmallViewportPolicy = "stack" | "reject";
 export type WindowManagerFocusPolicy = "click_directional" | "directional";
 export type WindowManagerDesktopTransition = "slide" | "crossfade" | "instant";
-export type WindowManagerGroupMoveModifier = "alt" | "control" | "meta" | "shift" | "none";
+export type WindowManagerDragModifier = "alt" | "control" | "meta" | "shift" | "none";
 
 export interface NormalizedRect {
   x: number;
@@ -148,7 +148,8 @@ export interface WindowManagerWorkspaceConfig {
   focusFollowsPointer?: boolean;
   raiseOnFocus?: boolean;
   dragAwayPolicy?: "window" | "group";
-  groupMoveModifier?: WindowManagerGroupMoveModifier;
+  groupMoveModifier?: WindowManagerDragModifier;
+  swapModifier?: WindowManagerDragModifier;
   historyLimit?: number;
   desktopTransition?: WindowManagerDesktopTransition;
   gaps?: WindowManagerGapsConfig;
@@ -166,7 +167,8 @@ export interface WindowManagerConfig {
   focusFollowsPointer: boolean;
   raiseOnFocus: boolean;
   dragAwayPolicy: "window" | "group";
-  groupMoveModifier: WindowManagerGroupMoveModifier;
+  groupMoveModifier: WindowManagerDragModifier;
+  swapModifier: WindowManagerDragModifier;
   historyLimit: number;
   desktopTransition: WindowManagerDesktopTransition;
   gaps: WindowManagerGapsConfig;
@@ -373,6 +375,11 @@ export interface ProjectedSeam {
   value: number;
   minValue: number;
   maxValue: number;
+  /** Pixel length the split's weights map onto (axis length minus gaps). */
+  axisSpan: number;
+  /** Normalized weights of the two children adjacent to this boundary. */
+  leadingWeight: number;
+  trailingWeight: number;
   leadingWindowIds: readonly WindowId[];
   trailingWindowIds: readonly WindowId[];
 }

@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useShallow } from "zustand/shallow";
 
+import type { ProjectedSeam } from "../lib/window-manager-types";
 import { useDesktop } from "./use-desktop";
 import { useDesktopManagerSurfaces } from "./use-desktop-manager-surfaces";
 import { useDesktopOverlays } from "./use-desktop-overlays";
@@ -59,6 +60,22 @@ export function useDesktopShellBody(model: DesktopShellModel) {
     },
   });
 
+  const onResize = (splitId: string, boundaryIndex: number, delta: number) => {
+    // Clear the live seam preview only after the resize reconciles, so panes go
+    // straight from previewed to committed sizes.
+    void manager
+      .getState()
+      .resizeLayout(splitId, boundaryIndex, delta)
+      .completion.finally(() => windowManagerActions.clearSeamPreview());
+  };
+  const onSeamPreview = (seam: ProjectedSeam, deltaPx: number) =>
+    windowManagerActions.setSeamPreview({
+      splitId: seam.splitId,
+      boundaryIndex: seam.boundaryIndex,
+      deltaPx,
+    });
+  const onSeamPreviewEnd = () => windowManagerActions.clearSeamPreview();
+
   return {
     attention,
     desktop,
@@ -66,6 +83,9 @@ export function useDesktopShellBody(model: DesktopShellModel) {
     gesturePreview,
     manager,
     managerSurfaces,
+    onResize,
+    onSeamPreview,
+    onSeamPreviewEnd,
     overlays,
     pager,
     reducedMotion,

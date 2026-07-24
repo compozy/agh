@@ -1217,6 +1217,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					RaiseOnFocus:        false,
 					DragAwayPolicy:      aghconfig.WindowDragAwayGroup,
 					GroupMoveModifier:   "control",
+					SwapModifier:        "meta",
 					HistoryLimit:        77,
 					DesktopTransition:   aghconfig.WindowDesktopTransitionCrossfade,
 					Gaps: aghconfig.WindowManagerGapsConfig{
@@ -1348,7 +1349,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				FocusFollowsPointer: true,
 				RaiseOnFocus:        false,
 				DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyGroup,
-				GroupMoveModifier:   contract.SettingsWindowGroupMoveModifierControl,
+				GroupMoveModifier:   contract.SettingsWindowDragModifierControl,
+				SwapModifier:        contract.SettingsWindowDragModifierMeta,
 				HistoryLimit:        77,
 				DesktopTransition:   contract.SettingsWindowDesktopTransitionCrossfade,
 				Gaps: contract.SettingsWindowManagerGapsPayload{
@@ -2012,7 +2014,8 @@ func validSettingsWindowManagerConfigPayload() contract.SettingsWindowManagerCon
 		FocusFollowsPointer: true,
 		RaiseOnFocus:        false,
 		DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyGroup,
-		GroupMoveModifier:   contract.SettingsWindowGroupMoveModifierControl,
+		GroupMoveModifier:   contract.SettingsWindowDragModifierControl,
+		SwapModifier:        contract.SettingsWindowDragModifierMeta,
 		HistoryLimit:        77,
 		DesktopTransition:   contract.SettingsWindowDesktopTransitionCrossfade,
 		Gaps: contract.SettingsWindowManagerGapsPayload{

@@ -139,6 +139,7 @@ focus_follows_pointer = false
 raise_on_focus = true
 drag_away_policy = "window"
 group_move_modifier = "alt"
+swap_modifier = "shift"
 history_limit = 50
 desktop_transition = "slide"
 
@@ -763,6 +764,7 @@ Settings › Layouts, while agents can use `agh config` or the typed
 | `raise_on_focus`        | boolean | `true`              | `true` or `false`                         | Whether focusing a floating window raises it.             |
 | `drag_away_policy`      | string  | `window`            | `window`, `group`                         | Default detach scope for a tiled drag.                    |
 | `group_move_modifier`   | string  | `alt`               | `alt`, `control`, `meta`, `shift`, `none` | Modifier that temporarily moves the complete group.       |
+| `swap_modifier`         | string  | `shift`             | `alt`, `control`, `meta`, `shift`, `none` | Modifier that turns an occupied drop into a window swap.  |
 | `history_limit`         | integer | `50`                | `1` through `500`                         | Maximum workspace-scoped layout undo entries.             |
 | `desktop_transition`    | string  | `slide`             | `slide`, `crossfade`, `instant`           | Desktop transition; reduced motion remains authoritative. |
 
@@ -782,8 +784,10 @@ Clients apply them to the measured work area; normalized durable geometry never 
 
 ### `[window_manager.bindings]` and shortcuts
 
-`top_center` and `bottom_center` accept `zoom`, `reserved`, or `none`. A target-less `stack` action
-is invalid because stacking requires an occupied target window. `[window_manager.shortcuts]` maps
+`top_center` and `bottom_center` accept `zoom`, `reserved`, or `none`. `reserved` blocks that
+edge-center snap; the default `bottom_center = "reserved"` keeps the approach strip above the Dock
+clear (the Dock band itself is already excluded from the measured work area). A target-less `stack`
+action is invalid because stacking requires an occupied target window. `[window_manager.shortcuts]` maps
 window command-registry IDs to unique, non-empty chord strings; conflicting chords reject the whole
 candidate. Named any/landscape/portrait layout profiles are declarative `window_layout` resources,
 not a second config source.

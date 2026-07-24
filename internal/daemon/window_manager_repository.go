@@ -54,7 +54,7 @@ func (r *windowManagerRepository) Load(
 	return decodeWindowManagerSnapshot(entry.Value, workspaceID)
 }
 
-func (r *windowManagerRepository) Commit(ctx context.Context, commit windowmanager.Commit) error {
+func (r *windowManagerRepository) Commit(ctx context.Context, commit *windowmanager.Commit) error {
 	lock := r.lockFor(commit.WorkspaceID)
 	lock.Lock()
 	defer lock.Unlock()
@@ -183,7 +183,7 @@ func (r *windowManagerRepository) forgetWorkspace(workspaceID windowmanager.Work
 	r.mu.Unlock()
 }
 
-func validateWindowManagerCommit(commit windowmanager.Commit) error {
+func validateWindowManagerCommit(commit *windowmanager.Commit) error {
 	if commit.WorkspaceID == "" ||
 		commit.Snapshot.WorkspaceID != commit.WorkspaceID ||
 		commit.Event.WorkspaceID != commit.WorkspaceID {

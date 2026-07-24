@@ -56,9 +56,11 @@ export function useOsWinLayer(): OsWinLayerModel {
     const observer = new ResizeObserver(entries => {
       const entry = entries[0];
       if (!entry) return;
+      const origin = layer.getBoundingClientRect();
       store.getState().setDesktopBounds({
         width: entry.contentRect.width,
         height: entry.contentRect.height,
+        origin: { x: origin.left, y: origin.top },
       });
     });
     observer.observe(layer);

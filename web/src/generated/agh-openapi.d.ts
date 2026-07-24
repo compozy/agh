@@ -6255,6 +6255,7 @@ export interface components {
           exit_slack: number;
           repeat_ratios: number[];
         } | null;
+        swap_modifier?: string | null;
       };
       version: number;
       windows: {
@@ -6438,6 +6439,7 @@ export interface components {
             exit_slack: number;
             repeat_ratios: number[];
           } | null;
+          swap_modifier?: string | null;
         };
         version: number;
         windows: {
@@ -6583,6 +6585,7 @@ export interface components {
             exit_slack: number;
             repeat_ratios: number[];
           } | null;
+          swap_modifier?: string | null;
         };
         version: number;
         windows: {
@@ -6852,6 +6855,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -6990,6 +6994,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -7158,6 +7163,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -7296,6 +7302,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -7425,6 +7432,7 @@ export interface components {
             exit_slack: number;
             repeat_ratios: number[];
           } | null;
+          swap_modifier?: string | null;
         };
         revision: number;
         /** Format: date-time */
@@ -7575,6 +7583,7 @@ export interface components {
             exit_slack: number;
             repeat_ratios: number[];
           } | null;
+          swap_modifier?: string | null;
         };
         version: number;
         windows: {
@@ -7788,6 +7797,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -7926,6 +7936,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -8094,6 +8105,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -8232,6 +8244,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -8361,6 +8374,7 @@ export interface components {
             exit_slack: number;
             repeat_ratios: number[];
           } | null;
+          swap_modifier?: string | null;
         };
         revision: number;
         /** Format: date-time */
@@ -8546,6 +8560,7 @@ export interface components {
                 exit_slack: number;
                 repeat_ratios: number[];
               } | null;
+              swap_modifier?: string | null;
             };
             windows: {
               [key: string]: {
@@ -8684,6 +8699,7 @@ export interface components {
                 exit_slack: number;
                 repeat_ratios: number[];
               } | null;
+              swap_modifier?: string | null;
             };
             windows: {
               [key: string]: {
@@ -8852,6 +8868,7 @@ export interface components {
                 exit_slack: number;
                 repeat_ratios: number[];
               } | null;
+              swap_modifier?: string | null;
             };
             windows: {
               [key: string]: {
@@ -8990,6 +9007,7 @@ export interface components {
                 exit_slack: number;
                 repeat_ratios: number[];
               } | null;
+              swap_modifier?: string | null;
             };
             windows: {
               [key: string]: {
@@ -9119,6 +9137,7 @@ export interface components {
           exit_slack: number;
           repeat_ratios: number[];
         } | null;
+        swap_modifier?: string | null;
       };
       revision: number;
       /** Format: date-time */
@@ -9315,6 +9334,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -9453,6 +9473,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -9621,6 +9642,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -9759,6 +9781,7 @@ export interface components {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               windows: {
                 [key: string]: {
@@ -9888,6 +9911,7 @@ export interface components {
             exit_slack: number;
             repeat_ratios: number[];
           } | null;
+          swap_modifier?: string | null;
         };
         revision: number;
         /** Format: date-time */
@@ -53755,6 +53779,8 @@ export interface operations {
                 exit_slack: number;
                 repeat_ratios: number[];
               };
+              /** @enum {string} */
+              swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
             };
             /** @enum {string} */
             scope: "global";
@@ -53848,6 +53874,8 @@ export interface operations {
               exit_slack: number;
               repeat_ratios: number[];
             };
+            /** @enum {string} */
+            swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
           };
         };
       };
@@ -100307,6 +100335,7 @@ export interface operations {
                       exit_slack: number;
                       repeat_ratios: number[];
                     } | null;
+                    swap_modifier?: string | null;
                   };
                   windows: {
                     [key: string]: {
@@ -100445,6 +100474,7 @@ export interface operations {
                       exit_slack: number;
                       repeat_ratios: number[];
                     } | null;
+                    swap_modifier?: string | null;
                   };
                   windows: {
                     [key: string]: {
@@ -100613,6 +100643,7 @@ export interface operations {
                       exit_slack: number;
                       repeat_ratios: number[];
                     } | null;
+                    swap_modifier?: string | null;
                   };
                   windows: {
                     [key: string]: {
@@ -100751,6 +100782,7 @@ export interface operations {
                       exit_slack: number;
                       repeat_ratios: number[];
                     } | null;
+                    swap_modifier?: string | null;
                   };
                   windows: {
                     [key: string]: {
@@ -100880,6 +100912,7 @@ export interface operations {
                 exit_slack: number;
                 repeat_ratios: number[];
               } | null;
+              swap_modifier?: string | null;
             };
             revision: number;
             /** Format: date-time */
@@ -101709,6 +101742,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -101847,6 +101881,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -102015,6 +102050,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -102153,6 +102189,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -102282,6 +102319,7 @@ export interface operations {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               revision: number;
               /** Format: date-time */
@@ -102600,6 +102638,7 @@ export interface operations {
                 exit_slack: number;
                 repeat_ratios: number[];
               } | null;
+              swap_modifier?: string | null;
             };
             version: number;
             windows: {
@@ -102839,6 +102878,7 @@ export interface operations {
                 exit_slack: number;
                 repeat_ratios: number[];
               } | null;
+              swap_modifier?: string | null;
             };
             version: number;
             windows: {
@@ -103058,6 +103098,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -103196,6 +103237,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -103364,6 +103406,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -103502,6 +103545,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -103631,6 +103675,7 @@ export interface operations {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               revision: number;
               /** Format: date-time */
@@ -104808,6 +104853,7 @@ export interface operations {
                 exit_slack: number;
                 repeat_ratios: number[];
               } | null;
+              swap_modifier?: string | null;
             };
             version: number;
             windows: {
@@ -105250,6 +105296,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -105388,6 +105435,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -105556,6 +105604,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -105694,6 +105743,7 @@ export interface operations {
                         exit_slack: number;
                         repeat_ratios: number[];
                       } | null;
+                      swap_modifier?: string | null;
                     };
                     windows: {
                       [key: string]: {
@@ -105823,6 +105873,7 @@ export interface operations {
                   exit_slack: number;
                   repeat_ratios: number[];
                 } | null;
+                swap_modifier?: string | null;
               };
               revision: number;
               /** Format: date-time */
@@ -106200,6 +106251,7 @@ export interface operations {
                             exit_slack: number;
                             repeat_ratios: number[];
                           } | null;
+                          swap_modifier?: string | null;
                         };
                         windows: {
                           [key: string]: {
@@ -106338,6 +106390,7 @@ export interface operations {
                             exit_slack: number;
                             repeat_ratios: number[];
                           } | null;
+                          swap_modifier?: string | null;
                         };
                         windows: {
                           [key: string]: {
@@ -106506,6 +106559,7 @@ export interface operations {
                             exit_slack: number;
                             repeat_ratios: number[];
                           } | null;
+                          swap_modifier?: string | null;
                         };
                         windows: {
                           [key: string]: {
@@ -106644,6 +106698,7 @@ export interface operations {
                             exit_slack: number;
                             repeat_ratios: number[];
                           } | null;
+                          swap_modifier?: string | null;
                         };
                         windows: {
                           [key: string]: {
@@ -106773,6 +106828,7 @@ export interface operations {
                       exit_slack: number;
                       repeat_ratios: number[];
                     } | null;
+                    swap_modifier?: string | null;
                   };
                   revision: number;
                   /** Format: date-time */

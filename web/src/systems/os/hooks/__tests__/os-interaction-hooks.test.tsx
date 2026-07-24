@@ -30,6 +30,7 @@ const CONFIG: WindowManagerConfig = {
   raiseOnFocus: true,
   dragAwayPolicy: "window",
   groupMoveModifier: "alt",
+  swapModifier: "shift",
   historyLimit: 50,
   desktopTransition: "slide",
   gaps: { inner: 8, top: 0, right: 0, bottom: 0, left: 0 },
@@ -108,7 +109,7 @@ function createShell({ live = true, withPeer = true } = {}) {
     viewportState: "ready",
     hydration: "live",
     connectionStatus: live ? "connected" : "disconnected",
-    desktopBounds: { width: 1280, height: 800 },
+    desktopBounds: { width: 1280, height: 800, origin: { x: 0, y: 0 } },
     openOrFocus: vi.fn(target => ({
       windowId: `app:${target.app}`,
       ...acceptedOutcome(),

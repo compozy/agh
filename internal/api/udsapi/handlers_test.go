@@ -1053,7 +1053,8 @@ func validUDSWindowManagerSettingsPayload() contract.SettingsWindowManagerConfig
 		FocusFollowsPointer: true,
 		RaiseOnFocus:        false,
 		DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyGroup,
-		GroupMoveModifier:   contract.SettingsWindowGroupMoveModifierControl,
+		GroupMoveModifier:   contract.SettingsWindowDragModifierControl,
+		SwapModifier:        contract.SettingsWindowDragModifierMeta,
 		HistoryLimit:        77,
 		DesktopTransition:   contract.SettingsWindowDesktopTransitionCrossfade,
 		Gaps: contract.SettingsWindowManagerGapsPayload{

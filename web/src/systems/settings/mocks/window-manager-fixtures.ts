@@ -35,6 +35,7 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
     raise_on_focus: true,
     drag_away_policy: "window",
     group_move_modifier: "alt",
+    swap_modifier: "shift",
     history_limit: 100,
     desktop_transition: "slide",
     gaps: {

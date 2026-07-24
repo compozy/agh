@@ -13,25 +13,57 @@ func (r *reducer) closeWindow(snapshot *Snapshot, command CloseWindowCommand) (b
 	if command.Minimize && window.Minimized {
 		return false, nil
 	}
-	anchor := captureReturnAnchor(snapshot, command.WindowID)
+	if command.Minimize {
+		return r.minimizeWindow(snapshot, command.WindowID)
+	}
 	if !removeWindow(snapshot, command.WindowID) {
 		return false, fmt.Errorf("window %q has no placement: %w", command.WindowID, ErrInvalidTopology)
 	}
-	if command.Minimize {
-		window.Minimized = true
-		window.Placement = WindowPlacementFloating
-		window.ReturnAnchor = anchor
-		window.FloatingRect = clampRect(window.FloatingRect)
-		snapshot.Windows[command.WindowID] = window
-		desktopIndex, _ := desktopIndexByID(snapshot, window.DesktopID)
-		snapshot.Desktops[desktopIndex].Floating = append(snapshot.Desktops[desktopIndex].Floating, command.WindowID)
-	} else {
-		delete(snapshot.Windows, command.WindowID)
-		r.removeClosedFocusDesktop(snapshot, command.WindowID)
-	}
+	delete(snapshot.Windows, command.WindowID)
+	r.removeClosedFocusDesktop(snapshot, command.WindowID)
 	r.changes.window(command.WindowID)
 	r.changes.desktop(window.DesktopID)
 	return true, nil
+}
+
+func (r *reducer) minimizeWindow(snapshot *Snapshot, windowID WindowID) (bool, error) {
+	// A zoomed window returns to its source before minimizing so its anchor is the real placement.
+	if focusIndex, owned := ownedFocusDesktopIndex(snapshot, windowID); owned {
+		if _, err := r.restoreZoomedWindow(snapshot, windowID, focusIndex); err != nil {
+			return false, err
+		}
+	}
+	window := snapshot.Windows[windowID]
+	anchor := captureReturnAnchor(snapshot, windowID)
+	if !removeWindow(snapshot, windowID) {
+		return false, fmt.Errorf("window %q has no placement: %w", windowID, ErrInvalidTopology)
+	}
+	window.Minimized = true
+	window.Placement = WindowPlacementFloating
+	window.ReturnAnchor = anchor
+	window.FloatingRect = clampRect(window.FloatingRect)
+	snapshot.Windows[windowID] = window
+	desktopIndex, _ := desktopIndexByID(snapshot, window.DesktopID)
+	snapshot.Desktops[desktopIndex].Floating = append(snapshot.Desktops[desktopIndex].Floating, windowID)
+	r.changes.window(windowID)
+	r.changes.desktop(window.DesktopID)
+	return true, nil
+}
+
+func ownedFocusDesktopIndex(snapshot *Snapshot, windowID WindowID) (int, bool) {
+	window, exists := snapshot.Windows[windowID]
+	if !exists {
+		return -1, false
+	}
+	index, exists := desktopIndexByID(snapshot, window.DesktopID)
+	if !exists {
+		return -1, false
+	}
+	desktop := snapshot.Desktops[index]
+	if desktop.Purpose != DesktopPurposeFocus || desktop.FocusOwner == nil || *desktop.FocusOwner != windowID {
+		return -1, false
+	}
+	return index, true
 }
 
 func (r *reducer) removeClosedFocusDesktop(snapshot *Snapshot, windowID WindowID) {
@@ -40,7 +72,9 @@ func (r *reducer) removeClosedFocusDesktop(snapshot *Snapshot, windowID WindowID
 		if desktop.Purpose != DesktopPurposeFocus || desktop.FocusOwner == nil || *desktop.FocusOwner != windowID {
 			continue
 		}
-		if len(snapshot.Desktops) == 1 {
+		// Windows opened onto the focus desktop during zoom must outlive the owner's close.
+		residents := len(desktop.Groups) > 0 || len(desktop.Floating) > 0
+		if residents || len(snapshot.Desktops) == 1 {
 			snapshot.Desktops[index].Purpose = DesktopPurposeStandard
 			snapshot.Desktops[index].FocusOwner = nil
 		} else {

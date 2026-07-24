@@ -20,6 +20,7 @@ const CONFIG: WindowManagerConfig = {
   raiseOnFocus: true,
   dragAwayPolicy: "window",
   groupMoveModifier: "alt",
+  swapModifier: "shift",
   historyLimit: 100,
   desktopTransition: "slide",
   gaps: { inner: 8, top: 8, right: 8, bottom: 8, left: 8 },

@@ -5,8 +5,33 @@ import type { SnapTarget } from "../lib/snap-targets";
 import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
 import { OsSnapOverlay } from "./os-snap-overlay";
-import { OsSnapSeamLayer } from "./os-snap-seam";
+import { OsSnapSeamLayer, type SeamGestureHandlers } from "./os-snap-seam";
 import { OsWindow } from "./os-window";
+
+/** Maps transition state to a keyframe name; reduced motion still fires an instant fade so end events run. */
+function desktopTransitionAnimationName(input: {
+  reducedMotion: boolean;
+  transitionActive: boolean;
+  incoming: boolean;
+  outgoing: boolean;
+  active: boolean;
+  mode: DesktopTransitionIntent["mode"] | undefined;
+  direction: DesktopTransitionIntent["direction"] | undefined;
+}): string | undefined {
+  if (!input.transitionActive) return undefined;
+  if (input.reducedMotion) {
+    return input.incoming && input.active ? "os-desk-fade-in" : undefined;
+  }
+  if (input.incoming && input.active) {
+    if (input.mode === "crossfade") return "os-desk-fade-in";
+    return input.direction === "later" ? "os-desk-in-later" : "os-desk-in-earlier";
+  }
+  if (input.outgoing && !input.active) {
+    if (input.mode === "crossfade") return "os-desk-fade-out";
+    return input.direction === "later" ? "os-desk-out-later" : "os-desk-out-earlier";
+  }
+  return undefined;
+}
 
 function DesktopLayer({
   model,
@@ -17,7 +42,9 @@ function DesktopLayer({
   onTransitionComplete,
   seamProjection,
   preview,
-  onResizeLayout,
+  onResize,
+  onSeamPreview,
+  onSeamPreviewEnd,
 }: {
   model: DesktopLayerModel;
   compact: boolean;
@@ -27,21 +54,24 @@ function DesktopLayer({
   onTransitionComplete: () => void;
   seamProjection: LayoutProjection | undefined;
   preview: SnapTarget | null;
-  onResizeLayout: (splitId: string, boundaryIndex: number, delta: number) => void;
-}) {
+} & SeamGestureHandlers) {
   const incoming = transition?.toDesktopId === model.desktop.id;
   const outgoing = transition?.fromDesktopId === model.desktop.id;
   const transitionActive =
     transition !== null && transition.mode !== "instant" && (incoming || outgoing);
   const visible = viewportReady && (model.active || transitionActive);
   const interactive = viewportReady && model.active;
-  const slideOffset =
-    transition?.direction === "later" ? (incoming ? "4%" : "-4%") : incoming ? "-4%" : "4%";
-  const transform =
-    transitionActive && transition.mode === "slide" && !model.active
-      ? `translateX(${slideOffset})`
-      : "translateX(0)";
-  const opacity = model.active ? 1 : outgoing && transition?.mode === "slide" ? 1 : 0;
+  // Animations start only once the active flag flips: the entering desktop
+  // animates while active, the leaving desktop while inactive.
+  const animation = desktopTransitionAnimationName({
+    reducedMotion,
+    transitionActive,
+    incoming,
+    outgoing,
+    active: model.active,
+    mode: transition?.mode,
+    direction: transition?.direction,
+  });
 
   return (
     <section
@@ -51,26 +81,22 @@ function DesktopLayer({
       aria-hidden={!interactive}
       inert={interactive ? undefined : true}
       className="absolute inset-0"
-      onTransitionEnd={event => {
-        if (
-          event.target === event.currentTarget &&
-          model.active &&
-          incoming &&
-          (event.propertyName === "opacity" || event.propertyName === "transform")
-        ) {
+      onAnimationEnd={event => {
+        if (event.target === event.currentTarget && model.active && incoming) {
           onTransitionComplete();
         }
       }}
       style={{
         contain: "strict",
         contentVisibility: visible ? "visible" : "hidden",
-        opacity,
+        opacity: model.active ? 1 : 0,
         pointerEvents: interactive ? "auto" : "none",
-        transform,
-        transition:
-          reducedMotion || transition?.mode === "instant"
-            ? "none"
-            : "opacity var(--duration-shell-fast) ease-out, transform var(--duration-shell-fast) ease-out",
+        animation:
+          animation === undefined
+            ? undefined
+            : `${animation} ${
+                reducedMotion ? "0ms linear" : "var(--duration-shell-base) var(--ease-spring)"
+              } both`,
       }}
     >
       {interactive && !model.anyVisible ? (
@@ -86,7 +112,12 @@ function DesktopLayer({
       ))}
       {!compact && interactive ? (
         <>
-          <OsSnapSeamLayer projection={seamProjection} onResize={onResizeLayout} />
+          <OsSnapSeamLayer
+            projection={seamProjection}
+            onResize={onResize}
+            onSeamPreview={onSeamPreview}
+            onSeamPreviewEnd={onSeamPreviewEnd}
+          />
           <OsSnapOverlay preview={preview} />
         </>
       ) : null}
@@ -101,18 +132,24 @@ export function OsWinLayer({
   transition,
   preview,
   onTransitionComplete,
-  onResizeLayout,
+  onResize,
+  onSeamPreview,
+  onSeamPreviewEnd,
 }: {
   model: OsWinLayerModel;
   reducedMotion: boolean;
   transition: DesktopTransitionIntent | null;
   preview: SnapTarget | null;
   onTransitionComplete: () => void;
-  onResizeLayout: (splitId: string, boundaryIndex: number, delta: number) => void;
-}) {
+} & SeamGestureHandlers) {
   const { layerRef, desktops, presentation, viewportState, activeProjection } = model;
   return (
-    <div ref={layerRef} data-slot="os-win-layer" className="absolute inset-0">
+    <div
+      ref={layerRef}
+      data-slot="os-win-layer"
+      // The measured work area stops above the Dock band so snaps and floating clamps never resolve beneath it.
+      className="absolute inset-x-0 top-0 bottom-[calc(var(--size-dock-band)+env(safe-area-inset-bottom,0px))]"
+    >
       {desktops.map(desktop => (
         <DesktopLayer
           key={desktop.desktop.id}
@@ -124,7 +161,9 @@ export function OsWinLayer({
           onTransitionComplete={onTransitionComplete}
           seamProjection={activeProjection}
           preview={preview}
-          onResizeLayout={onResizeLayout}
+          onResize={onResize}
+          onSeamPreview={onSeamPreview}
+          onSeamPreviewEnd={onSeamPreviewEnd}
         />
       ))}
       {viewportState === "rejected" ? (

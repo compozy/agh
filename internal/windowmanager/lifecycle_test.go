@@ -931,6 +931,340 @@ func TestFocusAndZoom(t *testing.T) {
 		}
 		requireValidSnapshot(t, restored.Snapshot)
 	})
+
+	t.Run("Should activate the window's desktop when focusing across desktops", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
+		)
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "d2")
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			FocusWindowCommand{WindowID: new(WindowID("w1"))},
+		)
+		focused := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			FocusWindowCommand{WindowID: new(WindowID("w2"))},
+		)
+		if focused.Client == nil || focused.Client.ActiveDesktopID != "d2" ||
+			valueOrZero(focused.Client.FocusedWindowID) != "w2" {
+			t.Fatalf("cross-desktop focus client=%+v", focused.Client)
+		}
+		if len(focused.Client.FocusOrder) != 1 || focused.Client.FocusOrder[0] != "w2" {
+			t.Fatalf("focus order not repaired to the activated desktop: %+v", focused.Client.FocusOrder)
+		}
+	})
+
+	t.Run("Should follow a minimized window to its desktop when restoring it", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
+		)
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "d2")
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			CloseWindowCommand{WindowID: "w2", Minimize: true},
+		)
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			FocusWindowCommand{WindowID: new(WindowID("w1"))},
+		)
+		restored := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			OpenWindowCommand{
+				Window: WindowSpec{
+					ID:           "w2",
+					App:          "Test",
+					Route:        testRoute("/test"),
+					DesktopID:    "d2",
+					FloatingRect: NormalizedRect{X: 0.2, Y: 0.2, Width: 0.5, Height: 0.5},
+				},
+				RestoreWindowID: new(WindowID("w2")),
+			},
+		)
+		if restored.Snapshot.Windows["w2"].Minimized {
+			t.Fatalf("restored window stayed minimized: %+v", restored.Snapshot.Windows["w2"])
+		}
+		if restored.Client == nil || restored.Client.ActiveDesktopID != "d2" ||
+			valueOrZero(restored.Client.FocusedWindowID) != "w2" {
+			t.Fatalf("restore client=%+v", restored.Client)
+		}
+	})
+
+	t.Run("Should rejoin the source stack after the stack changed while zoomed", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		arrangeFocusAndZoom(
+			t, environment, "workspace-a", clientID,
+			[]WindowID{"tasks", "settings", "jobs"}, ArrangementStack, "settings",
+		)
+		openTestWindow(t, environment.manager, "workspace-a", nil, "docs", "desktop-default")
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			MoveWindowCommand{
+				WindowID:             "docs",
+				DestinationDesktopID: "desktop-default",
+				TargetWindowID:       new(WindowID("tasks")),
+				Placement:            DropCenter,
+			},
+		)
+		restored := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			ZoomWindowCommand{WindowID: "settings"},
+		)
+		desktopIndex, exists := desktopIndexByID(&restored.Snapshot, "desktop-default")
+		if !exists || len(restored.Snapshot.Desktops[desktopIndex].Groups) != 1 {
+			t.Fatalf("restored source desktop=%+v", restored.Snapshot.Desktops)
+		}
+		root := restored.Snapshot.Desktops[desktopIndex].Groups[0].Root
+		if root.Kind != NodeKindStack || !containsWindowID(root.WindowIDs, "settings") ||
+			valueOrZero(root.ActiveID) != "settings" {
+			t.Fatalf("zoomed stack member did not rejoin its stack: %+v", root)
+		}
+		if restored.Snapshot.Windows["settings"].Placement != WindowPlacementStacked {
+			t.Fatalf("restored placement=%+v", restored.Snapshot.Windows["settings"])
+		}
+		requireValidSnapshot(t, restored.Snapshot)
+	})
+
+	t.Run("Should keep windows opened during zoom and graduate the focus desktop", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		arranged, zoomed := arrangeFocusAndZoom(
+			t, environment, "workspace-a", clientID,
+			[]WindowID{"tasks", "settings"}, ArrangementHorizontal, "tasks",
+		)
+		sourceGroup := arranged.Snapshot.Desktops[0].Groups[0]
+		focusDesktopID := zoomed.Snapshot.Windows["tasks"].DesktopID
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "docs", focusDesktopID)
+		restored := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			ZoomWindowCommand{WindowID: "tasks"},
+		)
+		requireExactGroup(t, restored.Snapshot, "desktop-default", sourceGroup)
+		focusIndex, exists := desktopIndexByID(&restored.Snapshot, focusDesktopID)
+		if !exists {
+			t.Fatalf("graduated desktop was deleted: %+v", restored.Snapshot.Desktops)
+		}
+		graduated := restored.Snapshot.Desktops[focusIndex]
+		if graduated.Purpose != DesktopPurposeStandard || graduated.FocusOwner != nil ||
+			!containsWindowID(graduated.Floating, "docs") {
+			t.Fatalf("focus desktop did not graduate with its windows: %+v", graduated)
+		}
+		if restored.Snapshot.Windows["docs"].DesktopID != focusDesktopID {
+			t.Fatalf("co-resident window moved: %+v", restored.Snapshot.Windows["docs"])
+		}
+		requireValidSnapshot(t, restored.Snapshot)
+	})
+
+	t.Run("Should return a zoomed window to its source before minimizing and follow it", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		_, zoomed := arrangeFocusAndZoom(
+			t, environment, "workspace-a", clientID,
+			[]WindowID{"tasks", "settings"}, ArrangementHorizontal, "tasks",
+		)
+		focusDesktopID := zoomed.Snapshot.Windows["tasks"].DesktopID
+		minimized := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			CloseWindowCommand{WindowID: "tasks", Minimize: true},
+		)
+		window := minimized.Snapshot.Windows["tasks"]
+		if !window.Minimized || window.DesktopID != "desktop-default" {
+			t.Fatalf("minimized zoomed window=%+v", window)
+		}
+		if minimized.Client == nil || minimized.Client.ActiveDesktopID != "desktop-default" {
+			t.Fatalf("client stayed on the focus desktop: %+v", minimized.Client)
+		}
+		focusIndex, exists := desktopIndexByID(&minimized.Snapshot, focusDesktopID)
+		if !exists || minimized.Snapshot.Desktops[focusIndex].FocusOwner != nil ||
+			len(minimized.Snapshot.Desktops[focusIndex].Groups) != 0 {
+			t.Fatalf("focus desktop not reusable after minimize: %+v", minimized.Snapshot.Desktops)
+		}
+		restored := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			OpenWindowCommand{
+				Window: WindowSpec{
+					ID:           "tasks",
+					App:          "Test",
+					Route:        testRoute("/test"),
+					DesktopID:    "desktop-default",
+					FloatingRect: NormalizedRect{X: 0.2, Y: 0.2, Width: 0.5, Height: 0.5},
+				},
+				RestoreWindowID: new(WindowID("tasks")),
+			},
+		)
+		desktopIndex, exists := desktopIndexByID(&restored.Snapshot, "desktop-default")
+		if !exists || len(restored.Snapshot.Desktops[desktopIndex].Groups) != 1 {
+			t.Fatalf("restored desktop=%+v", restored.Snapshot.Desktops)
+		}
+		members := nodeWindowIDs(restored.Snapshot.Desktops[desktopIndex].Groups[0].Root)
+		if restored.Snapshot.Windows["tasks"].Minimized || !containsWindowID(members, "tasks") {
+			t.Fatalf("restore did not rejoin the tiled source: members=%v window=%+v",
+				members, restored.Snapshot.Windows["tasks"])
+		}
+		requireValidSnapshot(t, restored.Snapshot)
+	})
+
+	t.Run("Should return to the zoom source desktop when closing the zoomed window", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
+		)
+		openTestWindow(t, environment.manager, "workspace-a", nil, "tasks", "d2")
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			SwitchDesktopCommand{DesktopID: "d2"},
+		)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			FocusWindowCommand{WindowID: new(WindowID("tasks"))},
+		)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			ZoomWindowCommand{WindowID: "tasks"},
+		)
+		closed := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			CloseWindowCommand{WindowID: "tasks"},
+		)
+		if closed.Client == nil || closed.Client.ActiveDesktopID != "d2" {
+			t.Fatalf("client did not return to the zoom source desktop: %+v", closed.Client)
+		}
+		requireValidSnapshot(t, closed.Snapshot)
+	})
+
+	t.Run("Should graduate the focus desktop when closing a zoomed window with co-residents", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		_, zoomed := arrangeFocusAndZoom(
+			t, environment, "workspace-a", clientID,
+			[]WindowID{"tasks", "settings"}, ArrangementHorizontal, "tasks",
+		)
+		focusDesktopID := zoomed.Snapshot.Windows["tasks"].DesktopID
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "docs", focusDesktopID)
+		closed := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			CloseWindowCommand{WindowID: "tasks"},
+		)
+		if _, exists := closed.Snapshot.Windows["tasks"]; exists {
+			t.Fatalf("closed zoomed window still present: %+v", closed.Snapshot.Windows)
+		}
+		focusIndex, exists := desktopIndexByID(&closed.Snapshot, focusDesktopID)
+		if !exists {
+			t.Fatalf("focus desktop with co-residents was deleted: %+v", closed.Snapshot.Desktops)
+		}
+		graduated := closed.Snapshot.Desktops[focusIndex]
+		if graduated.Purpose != DesktopPurposeStandard || graduated.FocusOwner != nil ||
+			!containsWindowID(graduated.Floating, "docs") {
+			t.Fatalf("focus desktop did not graduate with its co-resident: %+v", graduated)
+		}
+		if closed.Snapshot.Windows["docs"].DesktopID != focusDesktopID {
+			t.Fatalf("co-resident window moved: %+v", closed.Snapshot.Windows["docs"])
+		}
+		if closed.Client == nil || closed.Client.ActiveDesktopID != "desktop-default" {
+			t.Fatalf("client did not return to the zoom source desktop: %+v", closed.Client)
+		}
+		requireValidSnapshot(t, closed.Snapshot)
+	})
+}
+
+func arrangeFocusAndZoom(
+	t *testing.T,
+	environment testEnvironment,
+	workspaceID WorkspaceID,
+	clientID ClientID,
+	windowIDs []WindowID,
+	arrangement Arrangement,
+	focus WindowID,
+) (Result, Result) {
+	t.Helper()
+	for _, windowID := range windowIDs {
+		openTestWindow(t, environment.manager, workspaceID, nil, windowID, "desktop-default")
+	}
+	arranged := executeTestCommand(t, environment.manager, workspaceID, nil, ArrangeLayoutCommand{
+		DesktopID:   "desktop-default",
+		WindowIDs:   windowIDs,
+		Arrangement: arrangement,
+		Frame:       fullRect(),
+		GroupID:     "group-main",
+	})
+	registerTestClient(t, environment.manager, workspaceID, clientID)
+	executeTestCommand(t, environment.manager, workspaceID, &clientID, FocusWindowCommand{WindowID: new(focus)})
+	zoomed := executeTestCommand(t, environment.manager, workspaceID, &clientID, ZoomWindowCommand{WindowID: focus})
+	return arranged, zoomed
 }
 
 func requireExactGroup(t *testing.T, snapshot Snapshot, desktopID DesktopID, expected LayoutGroup) {

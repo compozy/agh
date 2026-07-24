@@ -33,7 +33,7 @@ func (r *MemoryRepository) Load(ctx context.Context, workspaceID WorkspaceID) (S
 	return cloneSnapshot(snapshot), nil
 }
 
-func (r *MemoryRepository) Commit(ctx context.Context, commit Commit) error {
+func (r *MemoryRepository) Commit(ctx context.Context, commit *Commit) error {
 	if err := validateContext(ctx); err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (r *MemoryRepository) Commit(ctx context.Context, commit Commit) error {
 		return fmt.Errorf("commit revision must advance exactly once: %w", ErrInvalidTopology)
 	}
 	r.snapshots[commit.WorkspaceID] = cloneSnapshot(commit.Snapshot)
-	cloned := commit
+	cloned := *commit
 	cloned.Snapshot = cloneSnapshot(commit.Snapshot)
 	cloned.Event = cloneEvent(commit.Event)
 	r.commits[commit.WorkspaceID] = append(r.commits[commit.WorkspaceID], cloned)
@@ -80,11 +80,12 @@ func (r *MemoryRepository) DeleteWorkspace(ctx context.Context, workspaceID Work
 func (r *MemoryRepository) Commits(workspaceID WorkspaceID) []Commit {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	commits := make([]Commit, len(r.commits[workspaceID]))
-	for index, commit := range r.commits[workspaceID] {
-		commits[index] = commit
-		commits[index].Snapshot = cloneSnapshot(commit.Snapshot)
-		commits[index].Event = cloneEvent(commit.Event)
+	stored := r.commits[workspaceID]
+	commits := make([]Commit, len(stored))
+	for index := range stored {
+		commits[index] = stored[index]
+		commits[index].Snapshot = cloneSnapshot(stored[index].Snapshot)
+		commits[index].Event = cloneEvent(stored[index].Event)
 	}
 	return commits
 }

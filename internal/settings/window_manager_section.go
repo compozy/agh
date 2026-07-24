@@ -41,6 +41,7 @@ func diffWindowManagerSettings(
 		"window_manager.group_move_modifier",
 		current.GroupMoveModifier != desired.GroupMoveModifier,
 	)
+	appendChange("window_manager.swap_modifier", current.SwapModifier != desired.SwapModifier)
 	appendChange("window_manager.history_limit", current.HistoryLimit != desired.HistoryLimit)
 	appendChange(
 		"window_manager.desktop_transition",
@@ -92,6 +93,7 @@ func applyWindowManagerSettings(
 		{path: root("raise_on_focus"), value: settings.RaiseOnFocus},
 		{path: root("drag_away_policy"), value: settings.DragAwayPolicy},
 		{path: root("group_move_modifier"), value: settings.GroupMoveModifier},
+		{path: root("swap_modifier"), value: settings.SwapModifier},
 		{path: root("history_limit"), value: settings.HistoryLimit},
 		{path: root("desktop_transition"), value: settings.DesktopTransition},
 		{path: root("gaps", "inner"), value: settings.Gaps.Inner},

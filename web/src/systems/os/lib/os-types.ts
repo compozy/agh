@@ -77,6 +77,14 @@ export interface OsOpenTarget {
 export interface OsDesktopBounds {
   width: number;
   height: number;
+  /** Viewport offset of the win-layer origin; converts client to layer coordinates. */
+  origin: { x: number; y: number };
+}
+
+/** Pointer context for a floating drop, in layer coordinates. */
+export interface OsFloatingDrop {
+  pointer: { x: number; y: number };
+  grabOffset: { x: number; y: number };
 }
 
 export interface MoveWindowInput {
@@ -127,8 +135,8 @@ export interface OsDesktopRuntimeStore {
   toggleFloating(id: string): void;
   moveWindow(id: string, input: MoveWindowInput): void;
   arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
-  commitFloatingRect(id: string, rect: OsRect): void;
-  resizeLayout(splitId: string, boundaryIndex: number, delta: number): void;
+  commitFloatingRect(id: string, rect: OsRect, drop?: OsFloatingDrop): void;
+  resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
   balanceLayout(groupId?: string, splitId?: string): void;
   navigateWindow(id: string, route: OsWindowRoute): WindowManagerCommandOutcome;
   toggleRailGroup(agentId: string): void;
