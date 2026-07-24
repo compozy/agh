@@ -1,5 +1,7 @@
 # Analysis: modal-reference-system
 
+> **Living authority (post-research):** `modals/MODAL-STANDARD.md`, `modals/` 16 surfaces, and `design-system/patterns.html` § Modals. The former `systems/design-system.html` was deleted 2026-07-22 (absorbed into `design-system/`). Keep this file as a research snapshot; do not treat deleted paths as open links.
+
 Read-only exploration of the slice `modal-reference-system` (ordinal `03`) for the research prompt:
 
 > Nós temos alguns modais aqui que foram criados pra melhorar os modais de criação e edição das entidades... Pra task, trigger e job, nós criamos modais mais bonitos, o cabeçalho e tudo mais, o conteúdo, o formulário. E agora a gente precisa alinhar esse nível, esse padrão de modal pra criação e edição de itens pra outras páginas... Se você vê que um modal está muito complexo, muito denso, crie uma versão simplificada, melhore o I/O/X dele... e vamos tentar seguir ao máximo os padrões. References: create-task-redesign.html, create-job-redesign.html, create-trigger-redesign.html.
@@ -7,8 +9,8 @@ Read-only exploration of the slice `modal-reference-system` (ordinal `03`) for t
 ## Scope
 
 - Slice question: Extract the reusable modal design system from the task/trigger/job references — anatomy, sizing, header/footer contracts, icon treatment, simple/advanced disclosure, live summary/preview, responsive transforms, a11y/interaction states — compare against exported AGH primitives + tokens, and define a transferable modal matrix for create/edit flows without inventing backend behavior.
-- Primary sources: `docs/design/opendesign/modals/{create-task,create-trigger,create-job}-redesign.html`, `docs/design/opendesign/systems/design-system.html`, `packages/ui/src/tokens.css`, `packages/ui/src/index.ts`, and dialog/form/tabs/select/switch/field components under `packages/ui/src/components/`.
-- Sources read in full vs. sampled: **Full** — all three reference modals (task 686 ln, trigger 1035 ln, job 754 ln markup + sampled JS), `tokens.css` (477 ln), `index.ts` (663 ln), `dialog.tsx`, `field.tsx`, `switch.tsx`, `tabs.tsx`, `form-section.tsx`, `editor-footer.tsx`, `detail-header.tsx`, `radio-card.tsx`, `confirm-dialog.tsx`, `pill-group.tsx`. **Sampled (grep-targeted)** — `design-system.html` (1470 ln: Principles/Tokens/Class-contract/Checklist/Button spec regions), trigger/job preview JS.
+- Primary sources: `docs/design/opendesign/modals/{create-task,create-trigger,create-job}-redesign.html`, then-`docs/design/opendesign/systems/design-system.html` (since deleted → `design-system/`), `packages/ui/src/tokens.css`, `packages/ui/src/index.ts`, and dialog/form/tabs/select/switch/field components under `packages/ui/src/components/`.
+- Sources read in full vs. sampled: **Full** — all three reference modals (task 686 ln, trigger 1035 ln, job 754 ln markup + sampled JS), `tokens.css` (477 ln), `index.ts` (663 ln), `dialog.tsx`, `field.tsx`, `switch.tsx`, `tabs.tsx`, `form-section.tsx`, `editor-footer.tsx`, `detail-header.tsx`, `radio-card.tsx`, `confirm-dialog.tsx`, `pill-group.tsx`. **Sampled (grep-targeted)** — then-`design-system.html` (1470 ln: Principles/Tokens/Class-contract/Checklist/Button spec regions; now `design-system/{foundations,components,patterns}.html`), trigger/job preview JS.
 - Total candidate sources surveyed: ~20 files; component directory of 48 primitives enumerated.
 
 ## Overview
@@ -43,7 +45,7 @@ This slice overlaps adjacent slices at the seam of *which entities* need modals 
 - `docs/design/opendesign/modals/create-trigger-redesign.html:62-120,160-167,242-295` — two-pane shell, `.flow` spine, `.subcfg` rail, preview CSS, responsive.
 - `docs/design/opendesign/modals/create-trigger-redesign.html:525-563,910-969` — live preview cards + summary/match/rendered-prompt render logic.
 - `docs/design/opendesign/modals/create-job-redesign.html:149-165,179-241,433-451,646-733` — output-mode `.seg` cards, cron builder, reliability collapsible, preview cards.
-- `docs/design/opendesign/systems/design-system.html:456-517,1201-1260` — Principles (topbar/head/body), token ladder, Class contract, migration checklist (P2 "No accent side-stripes"), Button spec `h26`.
+- ~~`docs/design/opendesign/systems/design-system.html:456-517,1201-1260`~~ *(deleted)* — Principles / token ladder / class contract; see `design-system/foundations.html` + `patterns.html` § Modals.
 - `packages/ui/src/tokens.css:33-333` — canonical color/type/radius/motion/geometry tokens (`--width-modal-*`, `--height-modal-*`, `--width-right-rail-default:468px`, switch/button geometry, `--color-overlay-scrim`, `--overlay-blur`).
 - `packages/ui/src/index.ts:62-166,196-267,353-435,568-626` — exported primitive inventory (Dialog, Tabs, Select, Switch, Field, PillGroup, FormSection, EditorFooter, DetailHeader, RadioCard, ConfirmDialog, Stepper).
 - `packages/ui/src/components/dialog.tsx:83-206` — `DialogContent unframed` + `DialogHeader`/`DialogFooter variant="ruled"` chrome contract.
@@ -82,14 +84,14 @@ This slice overlaps adjacent slices at the seam of *which entities* need modals 
 - **Add modal geometry tokens or conform?** Should `tokens.css` gain a modal-`radius`/`--text-modal-title`/scrim-blur reconciliation, or should the references be corrected to existing `--width-modal-*` / `rounded-lg` / `--overlay-scrim` values?
 - **Which non-task/trigger/job entities warrant archetype B (preview) vs A?** Depends on whether each entity produces a derivable artifact — a backend-field question owned by adjacent slices, out of scope here.
 - **Promote a shared `<EntityModal>` composite to `@agh/ui`?** The three references duplicate ~250 lines of identical shell CSS; a single header/footer/responsive shell composite would enforce the contract, but that is an authoring decision for the parent, not this read-only slice.
-- The `design-system.html` file could not be read in full (1470 ln, grep-sampled); a Modal section may be absent but this was confirmed only by heading-grep, not exhaustive read.
+- The then-`design-system.html` file was grep-sampled only; modal grammar now lives in `design-system/patterns.html` § Modals + `modals/MODAL-STANDARD.md`.
 
 ## Evidence
 
 - `docs/design/opendesign/modals/create-task-redesign.html`
 - `docs/design/opendesign/modals/create-trigger-redesign.html`
 - `docs/design/opendesign/modals/create-job-redesign.html`
-- `docs/design/opendesign/systems/design-system.html`
+- ~~`docs/design/opendesign/systems/design-system.html`~~ → `docs/design/opendesign/design-system/`
 - `packages/ui/src/tokens.css`
 - `packages/ui/src/index.ts`
 - `packages/ui/src/components/dialog.tsx`

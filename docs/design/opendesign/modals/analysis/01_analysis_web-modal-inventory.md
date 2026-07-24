@@ -1,5 +1,7 @@
 # Analysis: web-modal-inventory
 
+> Research snapshot. Living modal authority: `../MODAL-STANDARD.md` + 16 surfaces in `../`.
+
 Read-only exploration of the slice `web-modal-inventory` (ordinal `01`) for the research prompt:
 
 > Alinhar todos os modais de criação/edição das páginas principais ao padrão novo (cabeçalho + conteúdo + formulário) já aplicado a task, trigger e job; usar sub-agentes para inventariar os modais e suas integrações de dados de backend antes de desenhar; produzir designs (HTML) por modal, com padrão impecável e menor complexidade (ex.: abas Simples/Avançado e versão simplificada para usuário-final).

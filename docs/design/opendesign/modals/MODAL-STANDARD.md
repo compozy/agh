@@ -1,6 +1,14 @@
 # AGH Modal Standard
 
-`modal-design-system.html` is the canonical rendered reference. `packages/ui/src/tokens.css`, `DESIGN.md`, `packages/ui/src/index.ts`, and production Web selector implementations remain the higher authorities.
+Living authority for the modal library under `docs/design/opendesign/modals/`.
+
+**Authority chain (higher wins):**
+
+1. `packages/ui/src/tokens.css`, `DESIGN.md`, `packages/ui/src/index.ts`, and production Web selectors/`Dialog` shells in `web/src/systems`
+2. `docs/design/opendesign/design-system/` — especially `patterns.html` § Modals and `GUIDE.md`
+3. This file + the 16 runnable surfaces in this folder (`index.html`, `modal-system.css` / `modal-system.js`, `verify.mjs`)
+
+Historical Tier-1 artboards (`create-{task,trigger,job}-redesign.html`) stay as research references; production Task/Job/Trigger editors are the live Tier-1.
 
 ## Frame
 

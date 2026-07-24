@@ -15,20 +15,14 @@ The matrix is normative for the static playgrounds and future production impleme
 | SecretField | absent, present, editing, invalid, saving, rotated | Plaintext never appears after save; rotation clears the temporary input |
 | Form | pristine, dirty, invalid, saving, save-error, saved | Duplicate submit blocked; edit submit enabled only when dirty; failures retain draft |
 
-## Deterministic preview routes
+## Deterministic review routes
 
-`modal-design-system.html` isolates production-comparison targets without rewriting the artifact:
+Open a living surface HTML (not `index.html`) and append query flags supported by `modal-system.js`:
 
-- `?preview=runtime-selector&state=open`
-- `?preview=runtime-selector&state=loading`
-- `?preview=runtime-selector&state=stale`
-- `?preview=runtime-selector&state=no-model`
-- `?preview=runtime-selector&state=disabled`
-- `?preview=runtime-selector&state=empty`
-- `?preview=runtime-selector&state=error`
-- `?preview=agent-select&state=open`
-- `?preview=agent-multi-select&state=open`
-- `?preview=scope-selector&state=open`
-- `?preview=workspace-select&state=open`
+| Flag | Effect | Typical host |
+| --- | --- | --- |
+| `?save=error` | Submit fails; draft retained | Any dialog with a primary save |
+| `?auth=error` | Auth/credential failure path | Provider sheets, bridge/MCP secret flows |
+| `?delivery=error` | Delivery test failure | `edit-bridge.html` |
 
-The capture contract is 1100×700 for matched primitive pairs. Modal surfaces additionally capture at 360, 768, and 1440px; dense dialogs and provider sheets add 1920px.
+RuntimeSelector / CommandSelect catalog states (loading, stale, empty, error, no-model, disabled) are exercised in production Storybook pairs and by interacting with the living popovers on `create-agent.html` and `start-session.html`. Capture sizing: 1100×700 for matched primitive pairs; modal surfaces at 360, 768, and 1440px (dense dialogs and provider sheets add 1920px). See `VISUAL-VALIDATION.md`.

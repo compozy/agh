@@ -1,4 +1,6 @@
-# Modal Migration Checklist
+# Modal Library Checklist
+
+Use before claiming a static surface or a production migration is done. Markup migration of the 16 HTMLs is complete (retired work order deleted).
 
 ## Runtime truth
 
@@ -43,21 +45,16 @@
 - [ ] No native agent selectors, `.agent-field`, separate provider/model/reasoning fields, or numbered editorial sections.
 - [ ] Every surface declares stable `data-od-component` markers owned by `verify.mjs`.
 
-## Evidence
+## Static library health
 
-- [x] `rtk node verify.mjs` passes.
-- [x] `rtk node --check modal-system.js` passes.
+- [x] `node verify.mjs` passes.
+- [x] `node --check modal-system.js` passes.
+- [x] 14 dialogs carry icon-well + eyebrow; provider sheets keep their sheet headers.
+- [x] Zero unicode UI glyphs (`⌄ ★ ▮ ×`) in modal HTML; meters are 7-bar `.im`.
+
+## Evidence (pending for Visual Contract Mode)
+
 - [ ] All 16 surfaces have 360, 768, and 1440px evidence; dense dialogs and sheets add 1920px.
 - [ ] Runtime, Agent, Agent Multi, Scope, Workspace, and Command selector mocks have matched production-story pairs at 1100×700.
 - [ ] Every visual-contract bundle contains source identity, reference, implementation, side-by-side, diff, comparison JSON, and a passing review.
 - [ ] Owned processes are stopped and teardown evidence is clean.
-
-## Markup migration (MIGRATION-HANDOFF.md)
-
-- [x] 14 modals carry icon-well + eyebrow; provider sheets untouched.
-- [x] Zero unicode UI glyphs (`⌄ ★ ▮ ×`) in modal HTML.
-- [x] Meters are 7-bar `.im` with `data-level`; Default uses `reasoning-ring`.
-- [x] Popover search rows have search SVG; runtime popovers have refresh.
-- [x] Popover options use `opt-ic` / `opt-copy` / `opt-check` with no invented data.
-- [x] No CSS changes; only permitted JS change is createChip SVG.
-- [x] `verify.mjs` PASS after header/CSS contract update.

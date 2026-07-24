@@ -1,5 +1,7 @@
 # AGH modal redesign research summary
 
+> **Living authority:** `MODAL-STANDARD.md`, the 16 surfaces + `verify.mjs` in this folder, and `../design-system/patterns.html` § Modals. This summary is research history; open questions below are not a live backlog.
+
 ## Research Question
 
 Nós temos alguns modais aqui que foram criados pra melhorar os modais de criação e edição das entidades. Porém tem ainda vários modais que estão antigos e bem ruins, não tão seguindo esse padrão novo que a gente fez pra tasking, trigger e job. Pra task, trigger e job, nós criamos modais mais bonitos, o cabeçalho e tudo mais, o conteúdo, o formulário.
@@ -47,13 +49,13 @@ References: `create-task-redesign.html`, `create-job-redesign.html`, `create-tri
 - Keep full Loop authoring outside a modal; only its existing configuration sheet fits this pattern.
 - Keep marketplace trust/install confirmations and destructive confirmations outside the entity-editor redesign wave.
 
-## Recommended Next Steps
+## Outcome (vs. recommended steps)
 
-1. Define one static artifact shell with two responsive body archetypes and shared state behavior. Supported by `01_analysis_web-modal-inventory.md` and `03_analysis_modal-reference-system.md`.
-2. Design the highest-value legacy targets first: Agent create, Bridge create/edit, Knowledge create/edit, Session start, Network channel create/edit, and the shared Settings editor consumers. Supported by `01_analysis_web-modal-inventory.md`.
-3. Bind every field and lookup to the contracts in `02_analysis_runtime-contracts.md`; explicitly document immutable fields and write-only secrets in edit designs.
-4. Preserve Provider as a sheet and treat Loop configure as already compliant. Supported by `01_analysis_web-modal-inventory.md` and `02_analysis_runtime-contracts.md`.
-5. Create one launcher index that separates redesigned files from excluded or already-compliant flows.
+1. ~~Define one static artifact shell…~~ → Done: `modal-system.css` / `MODAL-STANDARD.md`.
+2. ~~Design highest-value legacy targets…~~ → Done: 16 surfaces linked from `index.html`.
+3. Bind fields to contracts → Design-side binding in HTML + `02_analysis_runtime-contracts.md`; production TechSpec still required for `web/` migration.
+4. ~~Preserve Provider as sheet; Loop configure compliant~~ → Reflected in library scope note on `index.html`.
+5. ~~Launcher index~~ → `index.html`.
 
 ## Index
 

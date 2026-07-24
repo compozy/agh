@@ -2,14 +2,20 @@
 
 HTML prototypes and design handoffs for AGH web surfaces. Organized by product domain.
 
+**Canonical design system:** [`design-system/`](design-system/) — start at [`GUIDE.md`](design-system/GUIDE.md) / [`index.html`](design-system/index.html). On conflict: production (`packages/ui` + `web/`) > `design-system/` > older prototypes.
+
 | Domain | Path | Primary entry |
 | --- | --- | --- |
-| Agents | [`agents/`](agents/) | [`agents/agent-detail.html`](agents/agent-detail.html) |
-| Loops | [`loops/`](loops/) | [`loops/loops-index.html`](loops/loops-index.html) |
-| Marketplace | [`marketplace/`](marketplace/) | [`marketplace/marketplace-index.html`](marketplace/marketplace-index.html) |
-| Shell | [`shell/`](shell/) | [`shell/index.html`](shell/index.html) |
-| Systems | [`systems/`](systems/) | [`systems/design-system.html`](systems/design-system.html) |
-| Modals | [`modals/`](modals/) | [`modals/index.html`](modals/index.html) |
+| Design system | [`design-system/`](design-system/) | [`design-system/index.html`](design-system/index.html) |
+| Modals | [`modals/`](modals/) | [`modals/index.html`](modals/index.html) · contract [`MODAL-STANDARD.md`](modals/MODAL-STANDARD.md) |
+| OS shell | [`os/`](os/) | [`os/agh-os-v2.html`](os/agh-os-v2.html) |
+| Dashboard | [`dashboard/`](dashboard/) | [`dashboard/dashboard.html`](dashboard/dashboard.html) |
+| Tasks | [`tasks/`](tasks/) | [`tasks/task-detail.html`](tasks/task-detail.html) |
+| Settings | [`settings/`](settings/) | [`settings/settings-general.html`](settings/settings-general.html) |
+| Network | [`network/`](network/) | [`network/network.html`](network/network.html) |
+| Loops (active) | [`loops/`](loops/) | [`loops/loop-run-detail.html`](loops/loop-run-detail.html) |
+| Systems (vault/sandbox) | [`systems/`](systems/) | [`systems/vault.html`](systems/vault.html) |
+| Shipped archives | [`_done/`](_done/) | agents · loops · marketplace · shell |
 
 Tooling (not product surfaces):
 

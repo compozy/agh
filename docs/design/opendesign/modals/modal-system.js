@@ -651,7 +651,9 @@
 
   root.querySelectorAll('[data-notify]').forEach((button) => button.addEventListener('click', () => notify(button.dataset.notify)));
 
-  /* Deterministic Visual Contract routes: ?preview=<component>&state=<state>. */
+  /* Optional Visual Contract isolator: ?preview=<name>&state=<state> when a host
+     marks regions with data-preview (no current surface ships those markers;
+     prefer STATE-MATRIX.md review flags + living popovers). */
   const previewName = query.get('preview');
   if (previewName) {
     const preview = root.querySelector(`[data-preview="${CSS.escape(previewName)}"]`);

@@ -1,5 +1,7 @@
 # Analysis: runtime-contracts
 
+> Research snapshot for field/API truth. Living modal UI authority: `../MODAL-STANDARD.md` + 16 surfaces in `../`. Re-check `internal/api/contract` before production binding.
+
 Read-only exploration of the slice `runtime-contracts` (ordinal `02`) for the research prompt:
 
 > Alinhar o padrão de modal de criação/edição (como os já feitos para task, trigger e job) para as demais páginas/módulos principais que têm ação de adicionar/editar. Explorar o projeto com sub-agentes para identificar quais modais existem, quais dados/integrações de backend eles têm (para não implementar algo que não existe), e depois criar os designs. Diminuir a complexidade; onde o modal for muito denso, criar visualização simples/avançada e habilitar o "usuário final" a cadastrar.
