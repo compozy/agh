@@ -379,6 +379,7 @@
   --container-settings-page-wide: 960px;
   --container-settings-page-description: 72ch;
   --spacing-settings-page-bottom: 96px;
+  --spacing-layout-node-indent: 12px;
   --container-settings-save-bar: 560px;
   --size-settings-save-dot: 7px;
 

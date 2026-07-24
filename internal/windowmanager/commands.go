@@ -34,11 +34,12 @@ type CommandRequest struct {
 	WorkspaceID      WorkspaceID
 	CommandID        CommandID
 	ExpectedRevision Revision
-	ClientID         *ClientID
-	Actor            Actor
-	Origin           string
-	Rebase           *RebaseGuard
-	Payload          Command
+	// ClientID is required for desktop.switch, window.focus, and window.zoom.
+	ClientID *ClientID
+	Actor    Actor
+	Origin   string
+	Rebase   *RebaseGuard
+	Payload  Command
 }
 
 // RebaseGuard proves stale source and target identities are still unambiguous.

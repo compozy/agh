@@ -110,6 +110,75 @@ func TestWindowManagerReturnAnchorContract(t *testing.T) {
 			t.Fatalf("decoded source group = %#v, want nil", decoded.SourceGroup)
 		}
 	})
+
+	t.Run("Should isolate mutable layout values in both conversion directions", func(t *testing.T) {
+		t.Parallel()
+		axis := windowmanager.AxisHorizontal
+		windowID := windowmanager.WindowID("window:a")
+		focusOwner := windowID
+		historyLimit := 20
+		document := windowmanager.LayoutDocument{
+			Version: windowmanager.SnapshotVersion, WorkspaceID: "workspace:test",
+			Desktops: []windowmanager.Desktop{{
+				ID: "desktop:main", Name: "Main", Purpose: windowmanager.DesktopPurposeStandard,
+				FocusOwner: &focusOwner,
+				Groups: []windowmanager.LayoutGroup{{
+					ID: "group:main", Frame: windowmanager.NormalizedRect{Width: 1, Height: 1},
+					Root: windowmanager.LayoutNode{
+						ID: "split:main", Kind: windowmanager.NodeKindSplit, Axis: &axis,
+						Weights: []float64{0.4, 0.6},
+						Children: []windowmanager.LayoutNode{
+							{ID: "leaf:a", Kind: windowmanager.NodeKindLeaf, WindowID: &windowID},
+							{ID: "stack:b", Kind: windowmanager.NodeKindStack,
+								WindowIDs: []windowmanager.WindowID{"window:b", "window:c"}},
+						},
+					},
+				}},
+				Floating: []windowmanager.WindowID{"window:floating"},
+			}},
+			Windows: map[windowmanager.WindowID]windowmanager.Window{},
+			Overrides: windowmanager.WorkspaceConfig{
+				HistoryLimit: &historyLimit,
+				Snap:         &windowmanager.SnapConfig{RepeatRatios: []float64{0.5, 0.75}},
+				Shortcuts:    map[string]string{"layout.balance": "Meta+Shift+KeyB"},
+			},
+		}
+
+		wire, err := contract.WindowManagerLayoutFromDomain(document)
+		if err != nil {
+			t.Fatalf("WindowManagerLayoutFromDomain() error = %v", err)
+		}
+		wire.Desktops[0].FocusOwner = new(windowmanager.WindowID)
+		wire.Desktops[0].Floating[0] = "wire-mutated"
+		wire.Desktops[0].Groups[0].Root.Weights[0] = 0.9
+		wire.Desktops[0].Groups[0].Root.Children[0].WindowID = new(windowmanager.WindowID)
+		*wire.Overrides.HistoryLimit = 99
+		wire.Overrides.Snap.RepeatRatios[0] = 0.25
+		wire.Overrides.Shortcuts["layout.balance"] = "Alt+KeyB"
+		if *document.Desktops[0].FocusOwner != windowID ||
+			document.Desktops[0].Floating[0] != "window:floating" ||
+			document.Desktops[0].Groups[0].Root.Weights[0] != 0.4 ||
+			*document.Desktops[0].Groups[0].Root.Children[0].WindowID != windowID ||
+			*document.Overrides.HistoryLimit != 20 ||
+			document.Overrides.Snap.RepeatRatios[0] != 0.5 ||
+			document.Overrides.Shortcuts["layout.balance"] != "Meta+Shift+KeyB" {
+			t.Fatalf("wire conversion aliases domain layout: %#v", document.Desktops[0])
+		}
+
+		domain := wire.Domain()
+		domain.Desktops[0].Floating[0] = "domain-mutated"
+		domain.Desktops[0].Groups[0].Root.Weights[0] = 0.2
+		*domain.Overrides.HistoryLimit = 8
+		domain.Overrides.Snap.RepeatRatios[0] = 0.1
+		domain.Overrides.Shortcuts["layout.balance"] = "Control+KeyB"
+		if wire.Desktops[0].Floating[0] != "wire-mutated" ||
+			wire.Desktops[0].Groups[0].Root.Weights[0] != 0.9 ||
+			*wire.Overrides.HistoryLimit != 99 ||
+			wire.Overrides.Snap.RepeatRatios[0] != 0.25 ||
+			wire.Overrides.Shortcuts["layout.balance"] != "Alt+KeyB" {
+			t.Fatalf("domain conversion aliases wire layout: %#v", wire.Desktops[0])
+		}
+	})
 }
 
 func TestLoopDefinitionDocumentPreservesWatchEvents(t *testing.T) {

@@ -1,6 +1,9 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"maps"
+)
 
 // ApplyWindowManagerOverlayFile applies only the optional [window_manager]
 // section at path onto the supplied active defaults.
@@ -23,6 +26,6 @@ func ApplyWindowManagerOverlayFile(
 func cloneWindowManagerConfig(source WindowManagerConfig) WindowManagerConfig {
 	cloned := source
 	cloned.Snap.RepeatRatios = append([]float64(nil), source.Snap.RepeatRatios...)
-	cloned.Shortcuts = cloneStringMap(source.Shortcuts)
+	cloned.Shortcuts = maps.Clone(source.Shortcuts)
 	return cloned
 }

@@ -17,6 +17,7 @@ import type {
   LayoutRevision,
   PixelPoint,
   PixelRect,
+  WindowManagerCommandId,
   WindowManagerConnectionStatus,
 } from "../lib/window-manager-types";
 
@@ -55,7 +56,7 @@ export interface WindowPlacementCycle {
 
 export interface PendingWindowManagerCommand {
   readonly id: string;
-  readonly kind: string;
+  readonly kind: WindowManagerCommandId;
   readonly expectedRevision: LayoutRevision;
 }
 
@@ -142,6 +143,19 @@ function copyWorkArea(workArea: WindowManagerWorkArea): WindowManagerWorkArea {
   return { rect: { ...workArea.rect } };
 }
 
+function sameWorkArea(
+  left: WindowManagerWorkArea | null,
+  right: WindowManagerWorkArea | null
+): boolean {
+  if (left === null || right === null) return left === right;
+  return (
+    left.rect.x === right.rect.x &&
+    left.rect.y === right.rect.y &&
+    left.rect.w === right.rect.w &&
+    left.rect.h === right.rect.h
+  );
+}
+
 function copyOverlay(overlay: WindowManagerOverlay): WindowManagerOverlay {
   return overlay.kind === "layout-editor"
     ? { kind: overlay.kind, desktopId: overlay.desktopId }
@@ -215,6 +229,7 @@ export function createWindowManagerStore(): WindowManagerStoreApi {
       },
 
       setWorkArea: workArea => {
+        if (sameWorkArea(get().workArea, workArea)) return;
         set({ workArea: workArea === null ? null : copyWorkArea(workArea) });
       },
 

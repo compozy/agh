@@ -15,10 +15,12 @@ export function windowManagerLayoutOptions(workspaceId: string) {
   });
 }
 
-export function windowManagerLayoutProfilesOptions() {
+export function windowManagerLayoutProfilesOptions(workspaceId: string) {
+  const normalized = workspaceId.trim();
   return queryOptions({
-    queryKey: settingsKeys.windowManagerLayoutProfiles(),
-    queryFn: ({ signal }) => listWindowManagerLayoutProfiles(signal),
+    queryKey: settingsKeys.windowManagerLayoutProfiles(normalized),
+    queryFn: ({ signal }) => listWindowManagerLayoutProfiles(normalized, signal),
+    enabled: normalized !== "",
     staleTime: 15_000,
   });
 }

@@ -123,7 +123,7 @@ func TestWindowManagerRepository(t *testing.T) {
 			},
 		}
 		for _, testCase := range cases {
-			t.Run(testCase.name, func(t *testing.T) {
+			t.Run("Should reject "+testCase.name, func(t *testing.T) {
 				t.Parallel()
 				fixture := newDaemonWindowManagerFixture(t)
 				ctx := testutil.Context(t)

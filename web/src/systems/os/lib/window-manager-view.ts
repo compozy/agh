@@ -130,6 +130,10 @@ export function buildWindowManagerWindows(input: {
       new Map(projection.windows.map(window => [window.windowId, window])),
     ])
   );
+  const stableFloatingLayers = new Map<string, number>();
+  for (const desktop of input.snapshot.desktops) {
+    desktop.floating.forEach((windowId, index) => stableFloatingLayers.set(windowId, index));
+  }
   for (const authoritative of Object.values(input.snapshot.windows)) {
     const resolvedApp = osAppId(authoritative.app);
     if (resolvedApp === null) continue;
@@ -137,10 +141,7 @@ export function buildWindowManagerWindows(input: {
     const focusIndex = input.raiseOnFocus
       ? (input.client?.focusOrder.indexOf(authoritative.id) ?? -1)
       : -1;
-    const stableLayer =
-      input.snapshot.desktops
-        .find(desktop => desktop.id === authoritative.desktopId)
-        ?.floating.indexOf(authoritative.id) ?? -1;
+    const stableLayer = stableFloatingLayers.get(authoritative.id) ?? -1;
     windows[authoritative.id] = {
       id: authoritative.id,
       app: resolvedApp,
@@ -159,6 +160,7 @@ export function buildWindowManagerWindows(input: {
       nodeId: projected?.nodeId ?? null,
       stackId: projected?.stackId ?? null,
       stackActive: projected?.active ?? true,
+      parentAxis: projected?.parentAxis ?? null,
     };
   }
   return windows;

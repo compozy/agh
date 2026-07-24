@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createTileSnapTarget,
   DEFAULT_SNAP_TARGET_CONFIG,
   resolveSnapTarget,
   snapTargetIsContained,
@@ -69,6 +70,17 @@ describe("resolveSnapTarget", () => {
     expect(target.edge).toBe(edge);
     expect(target.rect).toEqual(rect);
     expect(snapTargetIsContained(target, AREA)).toBe(true);
+  });
+
+  it("Should partition odd work areas on one shared pixel edge", () => {
+    const oddArea = { x: 10, y: 20, w: 1201, h: 801 };
+    const left = createTileSnapTarget(oddArea, "left", [0.5]);
+    const right = createTileSnapTarget(oddArea, "right", [0.5]);
+    const top = createTileSnapTarget(oddArea, "top", [0.5]);
+    const bottom = createTileSnapTarget(oddArea, "bottom", [0.5]);
+
+    expect(left.rect.x + left.rect.w).toBe(right.rect.x);
+    expect(top.rect.y + top.rect.h).toBe(bottom.rect.y);
   });
 
   it("Should reserve bottom-center for the Dock and map top-center to zoom", () => {

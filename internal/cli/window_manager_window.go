@@ -70,72 +70,7 @@ func newWindowOpenCommand(deps commandDeps) *cobra.Command {
 		Short: "Open a window or restore a minimized window",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			restoreWindowID, err := optionalWindowManagerID[windowmanager.WindowID](
-				cmd,
-				"restore",
-				values.restoreID,
-			)
-			if err != nil {
-				return err
-			}
-			if restoreWindowID != nil {
-				if cmd.Flags().Changed("app") || cmd.Flags().Changed("id") || cmd.Flags().Changed("instance-key") ||
-					cmd.Flags().Changed("desktop") || cmd.Flags().Changed(windowManagerRectFlag) ||
-					cmd.Flags().Changed(windowManagerPathnameFlag) ||
-					cmd.Flags().Changed(windowManagerSearchJSONFlag) || values.insertTiled {
-					return errors.New("cli: --restore cannot be combined with new-window flags")
-				}
-			}
-			var spec contract.WindowManagerWindowSpecPayload
-			if restoreWindowID == nil {
-				values.app, err = requiredWindowManagerFlag(values.app, "app")
-				if err != nil {
-					return err
-				}
-				instance, instanceErr := optionalWindowManagerID[string](
-					cmd,
-					"instance-key",
-					values.instanceKey,
-				)
-				if instanceErr != nil {
-					return instanceErr
-				}
-				rect, rectErr := optionalWindowManagerRect(cmd, values.rectRaw)
-				if rectErr != nil {
-					return rectErr
-				}
-				var floatingRect windowmanager.NormalizedRect
-				if rect != nil {
-					floatingRect = *rect
-				}
-				route, routeErr := requiredWindowManagerRoute(cmd, values.pathname, values.searchJSON)
-				if routeErr != nil {
-					return routeErr
-				}
-				spec = contract.WindowManagerWindowSpecPayload{
-					ID:           windowmanager.WindowID(strings.TrimSpace(values.windowID)),
-					App:          values.app,
-					InstanceKey:  instance,
-					Route:        route,
-					DesktopID:    windowmanager.DesktopID(strings.TrimSpace(values.desktopID)),
-					FloatingRect: floatingRect, InsertTiled: values.insertTiled,
-				}
-			}
-			request, err := flags.request(
-				cmd,
-				contract.WindowManagerCommandWindowOpen,
-				contract.WindowManagerOpenWindowPayload{
-					Window: spec, RestoreWindowID: restoreWindowID,
-				},
-			)
-			if err != nil {
-				return err
-			}
-			result, err := executeWindowManagerCommand(cmd, deps, request)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return runWindowOpenCommand(cmd, deps, flags, values)
 		},
 	}
 	flags.add(cmd)
@@ -143,9 +78,101 @@ func newWindowOpenCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
+func runWindowOpenCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	flags windowManagerMutationFlags,
+	values windowOpenFlagValues,
+) error {
+	restoreWindowID, err := optionalWindowManagerID[windowmanager.WindowID](cmd, "restore", values.restoreID)
+	if err != nil {
+		return err
+	}
+	if restoreWindowID != nil {
+		if err := validateWindowRestoreFlags(cmd); err != nil {
+			return err
+		}
+	}
+	spec, err := windowOpenSpec(cmd, values, restoreWindowID)
+	if err != nil {
+		return err
+	}
+	request, err := flags.request(
+		cmd,
+		contract.WindowManagerCommandWindowOpen,
+		contract.WindowManagerOpenWindowPayload{Window: spec, RestoreWindowID: restoreWindowID},
+	)
+	if err != nil {
+		return err
+	}
+	result, err := executeWindowManagerCommand(cmd, deps, request)
+	if err != nil {
+		return err
+	}
+	return writeCommandOutput(cmd, windowManagerResultBundle(result))
+}
+
+func validateWindowRestoreFlags(cmd *cobra.Command) error {
+	newWindowFlagsChanged := cmd.Flags().Changed(windowManagerAppFlag) ||
+		cmd.Flags().Changed("id") ||
+		cmd.Flags().Changed("instance-key") ||
+		cmd.Flags().Changed("desktop") ||
+		cmd.Flags().Changed(windowManagerRectFlag) ||
+		cmd.Flags().Changed(windowManagerPathnameFlag) ||
+		cmd.Flags().Changed(windowManagerSearchJSONFlag) ||
+		cmd.Flags().Changed("tiled")
+	if newWindowFlagsChanged {
+		return newWindowManagerCLIValidationError(
+			windowManagerCLIValidationConflicting,
+			"restore",
+			errors.New("cli: --restore cannot be combined with new-window flags"),
+		)
+	}
+	return nil
+}
+
+func windowOpenSpec(
+	cmd *cobra.Command,
+	values windowOpenFlagValues,
+	restoreWindowID *windowmanager.WindowID,
+) (contract.WindowManagerWindowSpecPayload, error) {
+	if restoreWindowID != nil {
+		return contract.WindowManagerWindowSpecPayload{}, nil
+	}
+	app, err := requiredWindowManagerFlag(values.app, windowManagerAppFlag)
+	if err != nil {
+		return contract.WindowManagerWindowSpecPayload{}, err
+	}
+	instance, err := optionalWindowManagerID[string](cmd, "instance-key", values.instanceKey)
+	if err != nil {
+		return contract.WindowManagerWindowSpecPayload{}, err
+	}
+	rect, err := optionalWindowManagerRect(cmd, values.rectRaw)
+	if err != nil {
+		return contract.WindowManagerWindowSpecPayload{}, err
+	}
+	var floatingRect windowmanager.NormalizedRect
+	if rect != nil {
+		floatingRect = *rect
+	}
+	route, err := requiredWindowManagerRoute(cmd, values.pathname, values.searchJSON)
+	if err != nil {
+		return contract.WindowManagerWindowSpecPayload{}, err
+	}
+	return contract.WindowManagerWindowSpecPayload{
+		ID:           windowmanager.WindowID(strings.TrimSpace(values.windowID)),
+		App:          app,
+		InstanceKey:  instance,
+		Route:        route,
+		DesktopID:    windowmanager.DesktopID(strings.TrimSpace(values.desktopID)),
+		FloatingRect: floatingRect,
+		InsertTiled:  values.insertTiled,
+	}, nil
+}
+
 func (values *windowOpenFlagValues) addFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&values.windowID, "id", "", "Stable window ID; generated when omitted")
-	cmd.Flags().StringVar(&values.app, "app", "", "Application route identifier")
+	cmd.Flags().StringVar(&values.app, windowManagerAppFlag, "", "Application route identifier")
 	cmd.Flags().StringVar(&values.instanceKey, "instance-key", "", "Optional application instance key")
 	cmd.Flags().StringVar(
 		&values.desktopID,

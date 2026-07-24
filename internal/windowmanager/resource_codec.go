@@ -133,9 +133,11 @@ func validateLayoutResource(
 			resource.OverflowPolicy,
 		)
 	}
-	if err := validateLayoutParticipantSlots(resource.ParticipantSlots); err != nil {
+	participantSlots, err := canonicalLayoutParticipantSlots(resource.ParticipantSlots)
+	if err != nil {
 		return LayoutResource{}, err
 	}
+	resource.ParticipantSlots = participantSlots
 	if err := validateLayoutResourceDocument(scope, cloneLayoutDocument(resource.Document)); err != nil {
 		return LayoutResource{}, err
 	}
@@ -143,26 +145,29 @@ func validateLayoutResource(
 	return CloneLayoutResource(resource), nil
 }
 
-func validateLayoutParticipantSlots(slots []WindowID) error {
+func canonicalLayoutParticipantSlots(slots []WindowID) ([]WindowID, error) {
+	canonical := make([]WindowID, len(slots))
 	seenSlots := make(map[WindowID]struct{}, len(slots))
 	for index, slot := range slots {
-		if strings.TrimSpace(string(slot)) == "" {
-			return fmt.Errorf(
+		canonicalSlot := WindowID(strings.TrimSpace(string(slot)))
+		if canonicalSlot == "" {
+			return nil, fmt.Errorf(
 				"%w: window_layout.participant_slots[%d] is required",
 				resources.ErrValidation,
 				index,
 			)
 		}
-		if _, duplicate := seenSlots[slot]; duplicate {
-			return fmt.Errorf(
+		if _, duplicate := seenSlots[canonicalSlot]; duplicate {
+			return nil, fmt.Errorf(
 				"%w: window_layout participant slot %q is duplicated",
 				resources.ErrValidation,
-				slot,
+				canonicalSlot,
 			)
 		}
-		seenSlots[slot] = struct{}{}
+		seenSlots[canonicalSlot] = struct{}{}
+		canonical[index] = canonicalSlot
 	}
-	return nil
+	return canonical, nil
 }
 
 func validateLayoutResourceDocument(scope resources.ResourceScope, document LayoutDocument) error {

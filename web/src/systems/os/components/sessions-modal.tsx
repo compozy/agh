@@ -260,7 +260,7 @@ export function OsSessionsModal({
 
   const selectSession = (session: SessionPayload) => {
     onOpenChange(false);
-    coordinator.userOpen({
+    void coordinator.userOpen({
       app: "session",
       instanceKey: session.id,
       route: {

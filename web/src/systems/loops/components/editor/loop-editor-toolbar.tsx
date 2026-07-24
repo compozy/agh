@@ -59,9 +59,10 @@ export function LoopEditorToolbar({
   const readOnlySource = source !== "workspace";
 
   return (
-    <div className="flex h-10.5 flex-none items-center gap-2.5 border-b border-line bg-canvas-soft px-3.5">
+    <div className="flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas-soft px-3.5">
       <PillGroup
         aria-label="Editor view"
+        className="[&_[data-slot=pill-group-item]]:min-h-11"
         items={VIEW_ITEMS}
         onChange={onViewChange}
         size="sm"

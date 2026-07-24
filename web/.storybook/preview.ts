@@ -21,6 +21,7 @@ import { resetSettingsRestartStore } from "@/systems/settings/stores/use-setting
 import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import { resetAgentMockState } from "@/systems/agent/mocks";
+import { resetWindowManagerMockState } from "@/systems/os/mocks";
 
 configureStorybookTestingLibrary({ asyncUtilTimeout: 5000 });
 
@@ -216,6 +217,7 @@ export function createStorybookRouter(
 
 export function resetStorybookAppState() {
   resetAgentMockState();
+  resetWindowManagerMockState();
   useActiveWorkspaceStore.getState().clearSelectedWorkspaceId();
   useSessionStore.getState().clearAllDrafts();
   resetSettingsRestartStore();

@@ -29,9 +29,6 @@ import {
  * on the wrapper so the real button keeps its own semantics.
  */
 
-const HALF_IDS = ["left", "right", "top", "bottom"] as const;
-const QUARTER_IDS = ["top-left", "top-right", "bottom-left", "bottom-right"] as const;
-
 interface GlyphZone {
   x: number;
   y: number;
@@ -121,16 +118,15 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
         <DropdownMenuGroup>
           <DropdownMenuLabel>Move &amp; Resize</DropdownMenuLabel>
           <div className="grid grid-cols-4">
-            {[...HALF_IDS, ...QUARTER_IDS].map(zoneId => {
-              const command = WINDOW_PLACEMENT_COMMANDS.find(row => row.placement === zoneId);
-              if (!command) return null;
+            {WINDOW_PLACEMENT_COMMANDS.map(command => {
+              const zoneId = command.placement;
               return (
                 <DropdownMenuItem
-                  key={zoneId}
+                  key={command.id}
                   aria-label={command.label}
                   title={command.label}
                   data-testid={`os-zoom-menu-${zoneId}`}
-                  className="justify-center px-2 py-1.5"
+                  className="size-11 justify-center p-0"
                   disabled={!menu.placementEnabled}
                   onClick={() => menu.dispatchPlacement(command)}
                 >
@@ -142,6 +138,7 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
           {!menu.floating ? (
             <DropdownMenuItem
               data-testid="os-zoom-menu-make-floating"
+              className="min-h-11"
               onClick={menu.dispatchMakeFloating}
             >
               Make window floating
@@ -156,7 +153,7 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
               aria-label="Fill window"
               title="Fill window"
               data-testid="os-zoom-menu-fill"
-              className="justify-center px-2 py-1.5"
+              className="size-11 justify-center p-0"
               onClick={() => menu.dispatchFill()}
             >
               <ZoneGlyph zones={[{ x: 0, y: 0, w: 1, h: 1 }]} />
@@ -167,7 +164,7 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
                 aria-label={command.label}
                 title={command.label}
                 data-testid={`os-zoom-menu-${command.preset}`}
-                className="justify-center px-2 py-1.5"
+                className="size-11 justify-center p-0"
                 disabled={!menu.arrangeEnabled}
                 onClick={() => menu.dispatchArrange(command.preset)}
               >

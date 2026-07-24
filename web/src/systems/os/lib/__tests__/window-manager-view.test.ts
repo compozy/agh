@@ -124,6 +124,15 @@ describe("window-manager view", () => {
         activeWindowId: "window:tasks",
       }),
     ]);
+    const windows = buildWindowManagerWindows({
+      snapshot: SNAPSHOT,
+      client: null,
+      workArea: { x: 0, y: 0, w: 540, h: 400 },
+      projections,
+      raiseOnFocus: false,
+    });
+    expect(windows["window:dashboard"]?.parentAxis).toBe("horizontal");
+    expect(windows["window:tasks"]?.parentAxis).toBe("horizontal");
     expect(SNAPSHOT.desktops[0]?.groups[0]?.root.kind).toBe("split");
   });
 

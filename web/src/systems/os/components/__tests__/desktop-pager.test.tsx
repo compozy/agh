@@ -80,6 +80,17 @@ describe("DesktopPager", () => {
     );
   });
 
+  it("Should start overflow at eight desktops", () => {
+    renderPager(MANY_DESKTOPS.slice(0, 8), "qa");
+
+    expect(screen.getAllByRole("button")).toHaveLength(7);
+    expect(screen.getByRole("button", { name: "Show 2 earlier desktops" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show 1 later desktop" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Desktop 1 of 8: Control" })
+    ).not.toBeInTheDocument();
+  });
+
   it("Should navigate without wrapping and activate the focused desktop", async () => {
     const user = userEvent.setup();
     const { onSelectDesktop } = renderPager();
@@ -89,6 +100,9 @@ describe("DesktopPager", () => {
     await user.keyboard("{ArrowRight}{End}{ArrowRight}");
     const last = screen.getByRole("button", { name: "Desktop 4 of 4: Research" });
     expect(last).toHaveFocus();
+
+    await user.keyboard(" ");
+    expect(onSelectDesktop).toHaveBeenCalledWith("research");
 
     await user.keyboard("{Home}{ArrowLeft}{Enter}");
     const first = screen.getByRole("button", { name: "Desktop 1 of 4: Control" });

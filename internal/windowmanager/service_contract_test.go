@@ -9,49 +9,7 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 )
-
-type testLayoutRegistry struct {
-	resources []LayoutResource
-	listErr   error
-}
-
-func (r *testLayoutRegistry) Resolve(_ context.Context, _ WorkspaceID, resourceID string) (LayoutDocument, error) {
-	for _, resource := range r.resources {
-		if resource.ID == resourceID {
-			return resource.Document, nil
-		}
-	}
-	return LayoutDocument{}, ErrLayoutResourceNotFound
-}
-
-func (r *testLayoutRegistry) List(context.Context, WorkspaceID) ([]LayoutResource, error) {
-	if r.listErr != nil {
-		return nil, r.listErr
-	}
-	return r.resources, nil
-}
-
-var _ LayoutResourceRegistry = (*testLayoutRegistry)(nil)
-
-func newTestManagerWithRegistry(t *testing.T, registry LayoutResourceRegistry) *Manager {
-	t.Helper()
-	manager, err := NewService(
-		NewMemoryRepository(), NewMemoryWorkspaceResolver("workspace-a"), registry, DefaultConfig(),
-		WithClock(func() time.Time { return time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC) }),
-		WithIDGenerator(func(kind string) (string, error) { return kind + "-generated", nil }),
-	)
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Close(); err != nil {
-			t.Errorf("Manager.Close() error = %v", err)
-		}
-	})
-	return manager
-}
 
 func TestLayoutDocumentContract(t *testing.T) {
 	t.Run(
@@ -237,7 +195,9 @@ func TestLayoutDocumentContract(t *testing.T) {
 			Windows: map[WindowID]Window{},
 		}
 		registry := &testLayoutRegistry{
-			resources: []LayoutResource{{ID: "focus", DisplayName: "Focus", Document: document}},
+			resources: []LayoutResource{
+				{ID: "focus", DisplayName: "Focus", ParticipantSlots: []WindowID{"slot-1"}, Document: document},
+			},
 		}
 		manager := newTestManagerWithRegistry(t, registry)
 		resources, err := manager.LayoutResources(t.Context(), "workspace-a")
@@ -246,14 +206,17 @@ func TestLayoutDocumentContract(t *testing.T) {
 		}
 		resources[0].Document.Desktops[0].Name = "Tampered"
 		resources[0].Document.Windows["injected"] = Window{ID: "injected"}
+		resources[0].ParticipantSlots[0] = "tampered"
 		if registry.resources[0].Document.Desktops[0].Name == "Tampered" ||
-			len(registry.resources[0].Document.Windows) != 0 {
+			len(registry.resources[0].Document.Windows) != 0 ||
+			registry.resources[0].ParticipantSlots[0] != "slot-1" {
 			t.Fatal("layout resources alias registry-owned data")
 		}
 
-		registry.listErr = errors.New("registry unavailable")
-		if _, err := manager.LayoutResources(t.Context(), "workspace-a"); err == nil {
-			t.Fatal("LayoutResources() suppressed a registry failure")
+		registryError := errors.New("registry unavailable")
+		registry.listErr = registryError
+		if _, err := manager.LayoutResources(t.Context(), "workspace-a"); !errors.Is(err, registryError) {
+			t.Fatalf("LayoutResources() error = %v, want registry error identity", err)
 		}
 	})
 
@@ -297,24 +260,36 @@ func TestLayoutDocumentContract(t *testing.T) {
 		}
 
 		invalidCommands := []struct {
-			name    string
-			payload ArrangeLayoutCommand
+			name         string
+			payload      ArrangeLayoutCommand
+			wantSentinel error
+			wantTopology bool
 		}{
-			{name: "invalid topology", payload: ArrangeLayoutCommand{ResourceID: "invalid"}},
+			{
+				name: "invalid topology", payload: ArrangeLayoutCommand{ResourceID: "invalid"},
+				wantSentinel: ErrInvalidTopology, wantTopology: true,
+			},
 			{
 				name: "mixed fields",
 				payload: ArrangeLayoutCommand{
 					ResourceID: "focus", DesktopID: "desktop-default",
 				},
+				wantSentinel: ErrInvalidCommand,
 			},
 		}
 		for _, test := range invalidCommands {
-			_, executeErr := manager.Execute(t.Context(), CommandRequest{
-				WorkspaceID: "workspace-a", ExpectedRevision: 1, Payload: test.payload,
+			t.Run(test.name, func(t *testing.T) {
+				_, executeErr := manager.Execute(t.Context(), CommandRequest{
+					WorkspaceID: "workspace-a", ExpectedRevision: 1, Payload: test.payload,
+				})
+				if !errors.Is(executeErr, test.wantSentinel) {
+					t.Fatalf("Execute(resource) error = %v, want %v", executeErr, test.wantSentinel)
+				}
+				var topologyErr *TopologyError
+				if errors.As(executeErr, &topologyErr) != test.wantTopology {
+					t.Fatalf("Execute(resource) topology error = %v, want %v", topologyErr, test.wantTopology)
+				}
 			})
-			if executeErr == nil {
-				t.Fatalf("Execute(%s resource) error = nil", test.name)
-			}
 		}
 		afterFailure, err := manager.Snapshot(t.Context(), "workspace-a")
 		if err != nil || afterFailure.Revision != 1 || len(afterFailure.History.Undo) != 1 {
@@ -421,11 +396,7 @@ func TestClientLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Subscribe(client) error = %v", err)
 			}
-			t.Cleanup(func() {
-				if closeErr := subscription.Close(); closeErr != nil {
-					t.Errorf("Subscription.Close() error = %v", closeErr)
-				}
-			})
+			subscription = trackSubscription(t, subscription)
 			fence := subscription.Fence()
 			if fence.Client == nil || fence.Client.ClientID != clientID ||
 				fence.Client.PresentationRevision != 1 {
@@ -514,11 +485,7 @@ func TestClientLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Subscribe() error = %v", err)
 		}
-		t.Cleanup(func() {
-			if closeErr := subscription.Close(); closeErr != nil {
-				t.Errorf("Subscription.Close() error = %v", closeErr)
-			}
-		})
+		subscription = trackSubscription(t, subscription)
 		if subscription.Fence().Client == nil ||
 			subscription.Fence().Client.PresentationRevision != MaxWireRevision {
 			t.Fatalf("maximum client fence = %+v", subscription.Fence().Client)

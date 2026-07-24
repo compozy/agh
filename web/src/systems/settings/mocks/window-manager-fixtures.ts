@@ -5,8 +5,22 @@ import type { SettingsWindowManagerSection } from "@/systems/settings";
 
 type WindowManagerResourceRecord = AghApiOkJsonResponseFor<
   "get",
-  "/api/resources/{kind}"
+  "/api/workspaces/{workspace_id}/window-manager/layout-profiles"
 >["records"][number];
+
+type WindowManagerLayoutProfileWire = {
+  version: 1;
+  id: string;
+  display_name: string;
+  aspect_variant: "landscape" | "portrait" | "square" | "wide";
+  participant_slots: string[];
+  overflow_policy: "floating" | "ignore" | "stack";
+  document: typeof windowManagerLayoutDocumentFixture;
+};
+
+type WindowManagerLayoutResourceFixture = Omit<WindowManagerResourceRecord, "spec"> & {
+  spec: WindowManagerLayoutProfileWire;
+};
 
 export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection = {
   section: "window-manager",
@@ -55,7 +69,7 @@ export const windowManagerLayoutDocumentFixture: AghApiOkJsonResponseFor<
   overrides: {},
 };
 
-export const windowManagerLayoutResourceFixture: WindowManagerResourceRecord = {
+export const windowManagerLayoutResourceFixture: WindowManagerLayoutResourceFixture = {
   kind: "window_layout",
   id: "launch-console",
   version: 3,

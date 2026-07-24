@@ -31,7 +31,7 @@ func newDesktopCommand(deps commandDeps) *cobra.Command {
 func newDesktopListCommand(deps commandDeps) *cobra.Command {
 	var workspace string
 	cmd := &cobra.Command{
-		Use:     agentKernelListKey,
+		Use:     windowManagerListKey,
 		Short:   "List persistent virtual desktops",
 		Example: "  agh desktop list --workspace ws_1234 -o json",
 		Args:    cobra.NoArgs,
@@ -234,7 +234,7 @@ func newDesktopDeleteCommand(deps commandDeps) *cobra.Command {
 	var flags windowManagerMutationFlags
 	var desktopID, destination string
 	cmd := &cobra.Command{
-		Use:   loopDeleteKey,
+		Use:   windowManagerDeleteKey,
 		Short: "Delete a desktop with an explicit transfer destination when needed",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -280,7 +280,7 @@ func newDesktopClientsCommand(deps commandDeps) *cobra.Command {
 func newDesktopClientsListCommand(deps commandDeps) *cobra.Command {
 	var workspace string
 	cmd := &cobra.Command{
-		Use: agentKernelListKey, Short: "List connected client-local desktop views", Args: cobra.NoArgs,
+		Use: windowManagerListKey, Short: "List connected client-local desktop views", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
 			if err != nil {
@@ -310,18 +310,29 @@ func newDesktopClientsRegisterCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			resolvedClientID, err := optionalWindowManagerID[windowmanager.ClientID](
+				cmd,
+				windowManagerClientFlag,
+				clientID,
+			)
+			if err != nil {
+				return err
+			}
 			client, err := windowManagerClientFromDeps(deps)
 			if err != nil {
 				return err
 			}
+			registration := contract.WindowManagerClientRegistration{
+				WorkspaceID:     windowmanager.WorkspaceID(workspace),
+				ActiveDesktopID: windowmanager.DesktopID(strings.TrimSpace(activeDesktop)),
+			}
+			if resolvedClientID != nil {
+				registration.ClientID = *resolvedClientID
+			}
 			view, err := client.RegisterWindowManagerClient(
 				cmd.Context(),
 				workspace,
-				contract.WindowManagerClientRegistration{
-					WorkspaceID:     windowmanager.WorkspaceID(workspace),
-					ClientID:        windowmanager.ClientID(strings.TrimSpace(clientID)),
-					ActiveDesktopID: windowmanager.DesktopID(strings.TrimSpace(activeDesktop)),
-				},
+				registration,
 			)
 			if err != nil {
 				return err

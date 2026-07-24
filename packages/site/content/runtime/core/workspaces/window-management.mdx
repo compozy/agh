@@ -45,6 +45,8 @@ agh window navigate --workspace <workspace-id> --revision <revision> --id <windo
   --pathname /tasks/<task-id> --search-json '{"tab":"runs"}'
 agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
   --desktop <desktop-id> --target <window-id> --placement right
+agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
+  --desktop <desktop-id> --group
 ```
 
 On `window_manager_revision_conflict`, read the topology again and recompute the semantic action.
@@ -61,7 +63,8 @@ New windows float by default and may be opened tiled beside the focused window. 
 use `before`, `after`, `left`, `right`, `top`, `bottom`, or `center`; dropping onto an occupied target
 reflows the tree instead of overlapping it. Shared-boundary resize updates all descendants on each
 side. When a viewport cannot satisfy minimum window sizes, that client projects the affected split
-as a stack without corrupting the stored topology.
+as a stack without corrupting the stored topology. Group relocation moves the source window's tiled
+group and is exclusive with `--target`, `--placement`, and `--rect`.
 
 Repeated side snapping cycles through one-half, two-thirds, and one-third by default. Top-center
 targets zoom into a reusable focus desktop. Bottom-center is reserved for the Dock unless remapped.
@@ -98,7 +101,10 @@ Export omits history. Validate never writes. Apply validates the complete docume
 requested workspace, preserves current routes for surviving window IDs, and replaces the topology
 atomically. Extensions and bundles can contribute
 declarative `window_layout` resources; discover them through `agh__resources_list`, then arrange by
-`resource_id`. Resources cannot execute code or receive pointer events.
+`resource_id`. The Settings layout editor lists and saves profiles through
+`/api/workspaces/{workspace_id}/window-manager/layout-profiles`. That projection contains global
+profiles plus profiles scoped to the selected workspace, and rejects cross-workspace writes.
+Resources cannot execute code or receive pointer events.
 
 A tiled return anchor in an exported document carries `return_anchor.source_group`, the daemon's
 validated deep capture of its source group. For Zoom, an unchanged source residue lets unzoom restore
@@ -122,6 +128,9 @@ initial snapshot and then sends only strictly newer presentation frames for that
 workspace-revision topology events; an unbound stream receives topology only. After slow-consumer
 eviction, reconnect and replace local state from the next fence. After a daemon restart, register the
 same stable client ID again before reconnecting.
+
+Use `agh layout watch --workspace <workspace-id> --client <stable-client-id> -o jsonl` for the bound
+CLI stream. Omit `--client` when only topology revisions are needed.
 
 Committed operations emit exactly `window_manager.layout.applied`,
 `window_manager.desktop.created`, `window_manager.desktop.deleted`, and

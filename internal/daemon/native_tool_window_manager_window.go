@@ -91,6 +91,9 @@ func (n *daemonNativeTools) windowMove(
 	if err := decodeWindowManagerInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if err := input.validate(); err != nil {
+		return toolspkg.ToolResult{}, windowManagerInvalidInput(req.ToolID, err)
+	}
 	return n.executeWindowManagerCommand(ctx, scope, req, input.windowManagerMutationInput, input.command())
 }
 

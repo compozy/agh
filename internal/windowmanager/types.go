@@ -123,7 +123,6 @@ type ReturnAnchor struct {
 	DesktopID      DesktopID    `json:"desktop_id"`
 	GroupID        *GroupID     `json:"group_id,omitempty"`
 	ParentSplitID  *NodeID      `json:"parent_split_id,omitempty"`
-	Axis           *Axis        `json:"axis,omitempty"`
 	ChildIndex     *int         `json:"child_index,omitempty"`
 	Weight         *float64     `json:"weight,omitempty"`
 	NeighborIDs    []WindowID   `json:"neighbor_ids,omitempty"`

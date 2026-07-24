@@ -1,23 +1,21 @@
 import { z } from "zod";
 
-import { isWindowManagerActionId, parseShortcutChord } from "./window-manager-command-registry";
+import { isWindowManagerActionId } from "./window-manager-command-registry";
+import { parseShortcutChord } from "./window-manager-shortcuts";
 import type {
   WindowManagerBindingsConfig,
   WindowManagerConfig,
-  WindowManagerGapsConfig,
   WindowManagerSnapConfig,
   WindowManagerWorkspaceConfig,
 } from "./window-manager-types";
 
-const gapsSchema = z
-  .strictObject({
-    inner: z.number().finite().nonnegative(),
-    top: z.number().finite().nonnegative(),
-    right: z.number().finite().nonnegative(),
-    bottom: z.number().finite().nonnegative(),
-    left: z.number().finite().nonnegative(),
-  })
-  .transform((gaps): WindowManagerGapsConfig => gaps);
+const gapsSchema = z.strictObject({
+  inner: z.number().finite().nonnegative(),
+  top: z.number().finite().nonnegative(),
+  right: z.number().finite().nonnegative(),
+  bottom: z.number().finite().nonnegative(),
+  left: z.number().finite().nonnegative(),
+});
 
 const snapSchema = z
   .strictObject({

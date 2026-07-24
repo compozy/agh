@@ -1,5 +1,4 @@
 import { Outlet } from "@tanstack/react-router";
-import { useRef } from "react";
 
 import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
 import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
@@ -7,15 +6,13 @@ import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
 
 import { OsShellContext } from "../contexts/os-shell-context";
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
-import { useDesktopOverlays } from "../hooks/use-desktop-overlays";
-import { useDesktopShellState } from "../hooks/use-desktop-shell-state";
-import { useDesktopShellModel } from "../hooks/use-desktop-shell-model";
-import { useOsShortcuts } from "../hooks/use-os-shortcuts";
-import { useOsAttention } from "../hooks/use-os-attention";
+import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
+import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-desktop-shell-model";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopMenubar } from "./desktop-menubar";
 import { DesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
+import { DesktopPagerSurface } from "./desktop-pager-surface";
 import { OsAppPreloader } from "./os-app-preloader";
 import { OsCommandPalette } from "./os-command-palette";
 import { OsWorkspacesOverview } from "./os-workspaces-overview";
@@ -66,22 +63,22 @@ function DesktopChrome() {
   );
 }
 
-function DesktopShellBody({ model }: { model: ReturnType<typeof useDesktopShellModel> }) {
-  const desktopRef = useRef<HTMLDivElement>(null);
-  const desktop = useDesktopShellState();
-  const overlays = useDesktopOverlays();
-  const attention = useOsAttention(model.activeWorkspace, model.sessionCatalogStreamStatus);
-
-  useOsShortcuts({
-    onPalette: () => overlays.toggleOverlay("palette"),
-    onNewSession: () => model.sessionCreate.openForAgent(""),
-    onDesktops: () => overlays.toggleOverlay("desktops"),
-    onEscape: () => {
-      if (overlays.activeOverlay !== null) return;
-      if (document.querySelector('[data-slot="dialog-content"]')) return;
-      desktopRef.current?.focus();
-    },
-  });
+function DesktopShellBody({ model }: { model: DesktopShellModel }) {
+  const {
+    attention,
+    desktop,
+    desktopRef,
+    gesturePreview,
+    manager,
+    managerSurfaces,
+    overlays,
+    pager,
+    reducedMotion,
+    transition,
+    windowManagerActions,
+    winLayer,
+    workspaceDetails,
+  } = useDesktopShellBody(model);
 
   return (
     <div
@@ -108,13 +105,53 @@ function DesktopShellBody({ model }: { model: ReturnType<typeof useDesktopShellM
         {Object.keys(desktop.windows).map(windowId => (
           <OsAppPreloader key={windowId} windowId={windowId} />
         ))}
-        <OsWinLayer />
-        <DesktopManagerSurfaces />
+        <OsWinLayer
+          model={winLayer}
+          reducedMotion={reducedMotion}
+          transition={transition}
+          preview={gesturePreview}
+          onTransitionComplete={() => windowManagerActions.setTransitionIntent(null)}
+          onResizeLayout={(splitId, boundaryIndex, delta) =>
+            manager.getState().resizeLayout(splitId, boundaryIndex, delta)
+          }
+        />
+        <DesktopManagerSurfaces
+          model={managerSurfaces}
+          onCreateDesktop={() => manager.createDesktop()}
+          onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
+          onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
+          onReorderDesktop={(desktopId, order) => manager.reorderDesktop(desktopId, order)}
+          onDeleteDesktop={(desktopId, destinationId) =>
+            manager.deleteDesktop(desktopId, destinationId)
+          }
+          onMoveWindow={(windowId, destinationDesktopId) =>
+            manager.moveWindowToDesktop(windowId, destinationDesktopId)
+          }
+          onOpenChange={open => {
+            if (open) windowManagerActions.openOverlay({ kind: "desktops-overview" });
+            else windowManagerActions.closeOverlay();
+          }}
+          onRetry={() => manager.refreshSnapshot()}
+          onResolveConflict={() => {
+            manager.clearConflict();
+            manager.refreshSnapshot();
+          }}
+        />
         <DesktopDock
           onNewSession={() => model.sessionCreate.openForAgent("")}
           badges={attention.badges}
           sessionsOpen={overlays.activeOverlay === "sessions"}
           onToggleSessions={() => overlays.toggleOverlay("sessions")}
+          pager={
+            <DesktopPagerSurface
+              activeDesktopId={pager.activeDesktopId}
+              desktops={pager.desktops}
+              compact={pager.compact}
+              canSwitchDesktop={pager.canSwitchDesktop}
+              onSelectDesktop={desktopId => manager.switchDesktop(desktopId)}
+              onOpenOverview={request => windowManagerActions.requestOverviewSegment(request)}
+            />
+          }
         />
       </div>
       {/* Route matches mount here as sync-controllers; they render null. */}
@@ -138,6 +175,9 @@ function DesktopShellBody({ model }: { model: ReturnType<typeof useDesktopShellM
         activeWorkspaceId={model.activeWorkspaceId}
         onSelectWorkspace={model.setActiveWorkspaceId}
         onNewWorkspace={model.openWorkspaceSetup}
+        details={workspaceDetails}
+        presentation={pager.presentation}
+        reducedMotion={reducedMotion}
       />
       <WorkspaceSetupDialog
         open={model.isWorkspaceSetupOpen}

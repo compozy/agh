@@ -214,11 +214,13 @@ func TestUDSWindowManagerWebSocketStream(t *testing.T) {
 			},
 		}
 
+		missingDialContext, cancelMissingDial := context.WithTimeout(t.Context(), time.Second)
 		missingConnection, response, err := dialer.DialContext(
-			t.Context(),
+			missingDialContext,
 			streamURL+"?client_id=missing",
 			nil,
 		)
+		cancelMissingDial()
 		if err != nil {
 			if response != nil && response.Body != nil {
 				closeHTTPBody(t, response.Body)
@@ -230,6 +232,9 @@ func TestUDSWindowManagerWebSocketStream(t *testing.T) {
 				t.Errorf("missing-client websocket Close() error = %v", closeErr)
 			}
 		})
+		if deadlineErr := missingConnection.SetReadDeadline(time.Now().Add(time.Second)); deadlineErr != nil {
+			t.Fatalf("SetReadDeadline(missing-client frame) error = %v", deadlineErr)
+		}
 		var terminal contract.WindowManagerErrorFrame
 		if readErr := missingConnection.ReadJSON(&terminal); readErr != nil {
 			t.Fatalf("ReadJSON(missing-client error) error = %v", readErr)
@@ -270,11 +275,13 @@ func TestUDSWindowManagerWebSocketStream(t *testing.T) {
 			t.Fatalf("registered client = %+v", registered)
 		}
 
+		registeredDialContext, cancelRegisteredDial := context.WithTimeout(t.Context(), time.Second)
 		connection, response, err := dialer.DialContext(
-			t.Context(),
+			registeredDialContext,
 			streamURL+"?client_id=client-a",
 			nil,
 		)
+		cancelRegisteredDial()
 		if err != nil {
 			if response != nil && response.Body != nil {
 				closeHTTPBody(t, response.Body)
@@ -286,6 +293,9 @@ func TestUDSWindowManagerWebSocketStream(t *testing.T) {
 				t.Errorf("registered-client websocket Close() error = %v", closeErr)
 			}
 		})
+		if deadlineErr := connection.SetReadDeadline(time.Now().Add(time.Second)); deadlineErr != nil {
+			t.Fatalf("SetReadDeadline(client fence) error = %v", deadlineErr)
+		}
 		var fence contract.WindowManagerSnapshotFrame
 		if readErr := connection.ReadJSON(&fence); readErr != nil {
 			t.Fatalf("ReadJSON(client fence) error = %v", readErr)

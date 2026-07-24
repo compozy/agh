@@ -2,9 +2,7 @@ import { useRef, type KeyboardEvent, type PointerEvent } from "react";
 
 import { cn } from "@agh/ui";
 
-import { useDesktop } from "../hooks/use-desktop";
-import { useOsShell } from "../hooks/use-os-shell";
-import type { ProjectedSeam } from "../lib/window-manager-types";
+import type { LayoutProjection, ProjectedSeam } from "../lib/window-manager-types";
 
 function seamSpan(seam: ProjectedSeam, width: number, height: number): number {
   return seam.orientation === "vertical" ? width : height;
@@ -20,12 +18,13 @@ function LayoutSeam({
   seam,
   width,
   height,
+  onResize,
 }: {
   seam: ProjectedSeam;
   width: number;
   height: number;
+  onResize: (splitId: string, boundaryIndex: number, delta: number) => void;
 }) {
-  const { manager } = useOsShell();
   const start = useRef<{ coordinate: number; pointerId: number } | null>(null);
   const vertical = seam.orientation === "vertical";
 
@@ -43,7 +42,7 @@ function LayoutSeam({
     const deltaPixels = (vertical ? event.clientX : event.clientY) - gesture.coordinate;
     const span = seamSpan(seam, width, height);
     if (span > 0) {
-      manager.getState().resizeLayout(seam.splitId, seam.boundaryIndex, deltaPixels / span);
+      onResize(seam.splitId, seam.boundaryIndex, deltaPixels / span);
     }
   };
 
@@ -81,17 +80,20 @@ function LayoutSeam({
         const delta = resizeKeyDelta(event);
         if (delta === null) return;
         event.preventDefault();
-        manager.getState().resizeLayout(seam.splitId, seam.boundaryIndex, delta);
+        onResize(seam.splitId, seam.boundaryIndex, delta);
       }}
     />
   );
 }
 
 /** Structural seams come directly from split IDs and boundary indexes. */
-export function OsSnapSeamLayer() {
-  const projection = useDesktop(state =>
-    state.activeDesktopId ? state.projections[state.activeDesktopId] : undefined
-  );
+export function OsSnapSeamLayer({
+  projection,
+  onResize,
+}: {
+  projection: LayoutProjection | undefined;
+  onResize: (splitId: string, boundaryIndex: number, delta: number) => void;
+}) {
   if (!projection) return null;
   return (
     <>
@@ -101,6 +103,7 @@ export function OsSnapSeamLayer() {
           seam={seam}
           width={projection.workArea.w}
           height={projection.workArea.h}
+          onResize={onResize}
         />
       ))}
     </>

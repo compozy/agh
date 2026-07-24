@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { lazy, type ComponentType } from "react";
 
-import { OS_WINDOW_MIN_HEIGHT, OS_WINDOW_MIN_WIDTH, type OsAppId, type OsRect } from "./os-types";
+import { OS_WINDOW_MIN_HEIGHT, OS_WINDOW_MIN_WIDTH, type OsAppId } from "./os-types";
 import type { PixelSize } from "./window-manager-types";
 
 export interface OsAppDefinition {
@@ -27,8 +27,6 @@ export interface OsAppDefinition {
   icon: LucideIcon;
   /** Route prefixes owned by this app's window subtree. */
   paths: string[];
-  /** App-specific opening geometry; enlarged work surfaces override the prototype cascade. */
-  defaultRect: OsRect;
   /** Optional measured product floor; the shared frame floor is the conservative fallback. */
   minimumSize?: PixelSize;
   /** Dock strip group, sessions modal toggle, or null for menubar-only settings. */
@@ -156,7 +154,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Dashboard",
     icon: LayoutDashboard,
     paths: ["/"],
-    defaultRect: { x: 110, y: 56, w: 960, h: 680 },
     dock: { group: 1 },
     preload: preloadDashboard,
     Controller: DashboardWindow,
@@ -166,7 +163,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Session",
     icon: SquareTerminal,
     paths: [],
-    defaultRect: { x: 470, y: 26, w: 860, h: 680 },
     dock: "sessions-toggle",
     badge: "sessions",
     matchInstance: matchSessionInstance,
@@ -177,7 +173,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Agents",
     icon: Bot,
     paths: ["/agents"],
-    defaultRect: { x: 260, y: 118, w: 920, h: 640 },
     dock: { group: 2 },
     preload: preloadAgents,
     Controller: AgentsWindow,
@@ -187,7 +182,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Network",
     icon: Globe,
     paths: ["/network"],
-    defaultRect: { x: 130, y: 64, w: 1200, h: 720 },
     dock: { group: 2 },
     preload: preloadNetwork,
     Controller: NetworkWindow,
@@ -197,7 +191,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Tasks",
     icon: ListChecks,
     paths: ["/tasks"],
-    defaultRect: { x: 150, y: 60, w: 1160, h: 720 },
     dock: { group: 2 },
     badge: "tasks",
     preload: preloadTasks,
@@ -208,7 +201,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Loops",
     icon: Repeat2,
     paths: ["/loops", "/loop-runs"],
-    defaultRect: { x: 240, y: 100, w: 920, h: 640 },
     dock: { group: 2 },
     preload: preloadLoops,
     Controller: LoopsWindow,
@@ -218,7 +210,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Jobs",
     icon: Clock3,
     paths: ["/jobs"],
-    defaultRect: { x: 280, y: 118, w: 920, h: 640 },
     dock: { group: 2 },
     preload: preloadJobs,
     Controller: JobsWindow,
@@ -228,7 +219,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Triggers",
     icon: Zap,
     paths: ["/triggers"],
-    defaultRect: { x: 310, y: 136, w: 920, h: 640 },
     dock: { group: 2 },
     preload: preloadTriggers,
     Controller: TriggersWindow,
@@ -238,7 +228,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Marketplace",
     icon: Store,
     paths: ["/marketplace"],
-    defaultRect: { x: 168, y: 52, w: 960, h: 680 },
     dock: { group: 3 },
     Controller: MarketplaceWindow,
   },
@@ -247,7 +236,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Bridges",
     icon: Waypoints,
     paths: ["/bridges"],
-    defaultRect: { x: 340, y: 150, w: 920, h: 640 },
     dock: { group: 3 },
     preload: preloadBridges,
     Controller: BridgesWindow,
@@ -257,7 +245,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Knowledge",
     icon: BookOpen,
     paths: ["/knowledge"],
-    defaultRect: { x: 360, y: 164, w: 920, h: 640 },
     dock: { group: 3 },
     preload: preloadKnowledge,
     Controller: KnowledgeWindow,
@@ -267,7 +254,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Sandbox",
     icon: Boxes,
     paths: ["/sandbox"],
-    defaultRect: { x: 300, y: 126, w: 960, h: 680 },
     dock: { group: 4 },
     preload: preloadSandbox,
     Controller: SandboxWindow,
@@ -277,7 +263,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Vault",
     icon: KeyRound,
     paths: ["/vault"],
-    defaultRect: { x: 330, y: 128, w: 920, h: 640 },
     dock: { group: 4 },
     preload: preloadVault,
     Controller: VaultWindow,
@@ -287,7 +272,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     title: "Settings",
     icon: Settings,
     paths: ["/settings"],
-    defaultRect: { x: 180, y: 72, w: 1080, h: 680 },
     dock: null,
     preload: preloadSettings,
     Controller: SettingsWindow,

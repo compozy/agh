@@ -10,9 +10,17 @@ import {
   useSettingsTopbar,
   WindowManagerConfigEditor,
   WindowManagerLayoutDocumentEditor,
+  useWindowManagerConfigEditor,
+  useWindowManagerLayoutEditor,
+  useWindowManagerLayoutProfiles,
   windowManagerLayoutOptions,
   windowManagerLayoutProfilesOptions,
 } from "@/systems/settings";
+import type {
+  WindowManagerLayoutResourceRecord,
+  WindowManagerLayoutState,
+} from "@/systems/settings";
+import type { WindowManagerConfig } from "@/systems/os";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 function LoadingState() {
@@ -43,18 +51,42 @@ function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
   );
 }
 
+function ConfigEditorContainer({ config }: { config: WindowManagerConfig }) {
+  const editor = useWindowManagerConfigEditor(config);
+  return <WindowManagerConfigEditor editor={editor} />;
+}
+
+function LayoutEditorContainer({
+  initial,
+  profiles,
+  workspaceId,
+}: {
+  initial: WindowManagerLayoutState;
+  profiles: readonly WindowManagerLayoutResourceRecord[];
+  workspaceId: string;
+}) {
+  const editor = useWindowManagerLayoutEditor(workspaceId, initial);
+  const profilesEditor = useWindowManagerLayoutProfiles({
+    workspaceId,
+    document: editor.draft,
+    profiles,
+    onLoad: editor.updateDraft,
+  });
+  return <WindowManagerLayoutDocumentEditor editor={editor} profilesEditor={profilesEditor} />;
+}
+
 /** Global window-manager defaults plus the active workspace's authoritative layout document. */
 export function LayoutsSettingsPage() {
   useSettingsTopbar("layouts");
   const workspace = useActiveWorkspace();
   const workspaceId = workspace.activeWorkspaceId ?? "";
   const settings = useQuery(windowManagerConfigOptions());
-  const profiles = useQuery(windowManagerLayoutProfilesOptions());
+  const profiles = useQuery(windowManagerLayoutProfilesOptions(workspaceId));
   const layout = useQuery(windowManagerLayoutOptions(workspaceId));
   const waitingForWorkspace = !workspace.hasHydrated || workspace.isLoading;
   const isPending =
     settings.isPending ||
-    profiles.isPending ||
+    (workspaceId !== "" && profiles.isPending) ||
     waitingForWorkspace ||
     (workspaceId !== "" && layout.isPending);
   const error =
@@ -76,9 +108,8 @@ export function LayoutsSettingsPage() {
         onRetry={() => {
           void Promise.all([
             settings.refetch(),
-            profiles.refetch(),
             workspace.refetch(),
-            ...(workspaceId === "" ? [] : [layout.refetch()]),
+            ...(workspaceId === "" ? [] : [profiles.refetch(), layout.refetch()]),
           ]);
         }}
       />
@@ -113,7 +144,7 @@ export function LayoutsSettingsPage() {
       slug="layouts"
       wide
     >
-      <WindowManagerConfigEditor key={JSON.stringify(settings.data)} config={settings.data} />
+      <ConfigEditorContainer key={JSON.stringify(settings.data)} config={settings.data} />
       {workspaceId === "" || !layout.data ? (
         <SettingsGroup
           title="Workspace layout"
@@ -124,7 +155,7 @@ export function LayoutsSettingsPage() {
           </p>
         </SettingsGroup>
       ) : (
-        <WindowManagerLayoutDocumentEditor
+        <LayoutEditorContainer
           key={`${workspaceId}:${layout.data.revision}`}
           initial={layout.data}
           profiles={profileRecords}

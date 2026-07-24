@@ -1,4 +1,4 @@
-import type { OsArrangePreset, OsDesktopRuntimeStore, WindowManagerController } from "./os-types";
+import type { OsArrangePreset } from "./os-types";
 import type { SnapCorner, SnapSide } from "./snap-targets";
 
 export type WindowPlacementId = SnapSide | SnapCorner;
@@ -39,21 +39,6 @@ export interface WindowManagerActionDefinition {
   defaultChord?: string;
   needsFocusedWindow?: boolean;
 }
-
-export interface ParsedShortcutChord {
-  modifiers: ReadonlySet<"meta" | "control" | "alt" | "shift">;
-  code: string;
-  canonical: string;
-}
-
-export interface ResolvedWindowManagerAction extends WindowManagerActionDefinition {
-  chord: ParsedShortcutChord | null;
-  shortcutLabel: string | null;
-}
-
-const MODIFIER_ORDER = ["meta", "control", "alt", "shift"] as const;
-const KEY_CODE_PATTERN =
-  /^(?:Key[A-Z]|Digit[0-9]|Arrow(?:Left|Right|Up|Down)|Bracket(?:Left|Right)|Comma|Period|Slash|Semicolon|Quote|Backquote|Minus|Equal|Backslash|Enter|Space|Tab|Escape|Backspace|Delete|Home|End|PageUp|PageDown|F(?:[1-9]|1[0-2]))$/;
 
 export const WINDOW_PLACEMENT_COMMANDS: readonly WindowPlacementCommand[] = [
   { id: "window.tile.left", placement: "left", label: "Tile left half" },
@@ -187,121 +172,4 @@ export const WINDOW_MANAGER_ACTION_IDS = new Set(WINDOW_MANAGER_ACTIONS.map(acti
 
 export function isWindowManagerActionId(value: string): value is WindowManagerActionId {
   return WINDOW_MANAGER_ACTION_IDS.has(value as WindowManagerActionId);
-}
-
-export function parseShortcutChord(value: string): ParsedShortcutChord | null {
-  const tokens = value
-    .split("+")
-    .map(token => token.trim())
-    .filter(Boolean);
-  if (tokens.length < 2) return null;
-  const code = tokens.at(-1) ?? "";
-  if (!KEY_CODE_PATTERN.test(code)) return null;
-  const rawModifiers = tokens.slice(0, -1).map(token => token.toLowerCase());
-  if (
-    new Set(rawModifiers).size !== rawModifiers.length ||
-    rawModifiers.some(
-      modifier => !MODIFIER_ORDER.includes(modifier as (typeof MODIFIER_ORDER)[number])
-    )
-  ) {
-    return null;
-  }
-  const modifiers = new Set(rawModifiers as Array<(typeof MODIFIER_ORDER)[number]>);
-  const ordered = MODIFIER_ORDER.filter(modifier => modifiers.has(modifier));
-  return {
-    modifiers,
-    code,
-    canonical: [...ordered, code].join("+"),
-  };
-}
-
-export function shortcutLabel(chord: ParsedShortcutChord): string {
-  const modifierLabels = { meta: "⌘", control: "⌃", alt: "⌥", shift: "⇧" };
-  const codeLabel = chord.code
-    .replace(/^Key/, "")
-    .replace(/^Digit/, "")
-    .replace("ArrowLeft", "←")
-    .replace("ArrowRight", "→")
-    .replace("ArrowUp", "↑")
-    .replace("ArrowDown", "↓")
-    .replace("BracketLeft", "[")
-    .replace("BracketRight", "]");
-  const labels: string[] = [];
-  for (const modifier of MODIFIER_ORDER) {
-    if (chord.modifiers.has(modifier)) labels.push(modifierLabels[modifier]);
-  }
-  labels.push(codeLabel);
-  return labels.join("");
-}
-
-export function resolveWindowManagerActions(
-  overrides: Readonly<Record<string, string>>
-): readonly ResolvedWindowManagerAction[] {
-  return WINDOW_MANAGER_ACTIONS.map(action => {
-    const raw = overrides[action.id] ?? action.defaultChord;
-    const chord = raw ? parseShortcutChord(raw) : null;
-    return {
-      ...action,
-      chord,
-      shortcutLabel: chord ? shortcutLabel(chord) : null,
-    };
-  });
-}
-
-export function shortcutMatches(event: KeyboardEvent, chord: ParsedShortcutChord): boolean {
-  return (
-    event.code === chord.code &&
-    event.metaKey === chord.modifiers.has("meta") &&
-    event.ctrlKey === chord.modifiers.has("control") &&
-    event.altKey === chord.modifiers.has("alt") &&
-    event.shiftKey === chord.modifiers.has("shift")
-  );
-}
-
-export function dispatchWindowPlacement(
-  manager: WindowManagerController,
-  windowId: string,
-  command: WindowPlacementCommand
-): void {
-  manager.tileWindow(windowId, command.placement);
-}
-
-export function dispatchWindowManagerAction(
-  actionId: WindowManagerActionId,
-  context: {
-    manager: WindowManagerController;
-    state: OsDesktopRuntimeStore;
-    openDesktops: () => void;
-  }
-): void {
-  const { manager, state } = context;
-  const focusedId = state.focusedId;
-  if (actionId === "desktop.overview") return context.openDesktops();
-  if (actionId === "desktop.switch.previous") return manager.switchDesktopDirection("previous");
-  if (actionId === "desktop.switch.next") return manager.switchDesktopDirection("next");
-  if (actionId === "layout.undo") return manager.undoLayout();
-  if (actionId === "layout.redo") return manager.redoLayout();
-  if (actionId.startsWith("window.focus.")) {
-    return manager.focusDirection(
-      actionId.slice("window.focus.".length) as "left" | "right" | "up" | "down"
-    );
-  }
-  if (focusedId === null) return;
-  if (actionId === "window.close") {
-    void state.closeWindow(focusedId);
-    return;
-  }
-  if (actionId === "window.minimize") {
-    void state.minimizeWindow(focusedId);
-    return;
-  }
-  if (actionId === "window.zoom") return state.zoomWindow(focusedId);
-  if (actionId === "window.toggle_floating") return state.toggleFloating(focusedId);
-  if (actionId === "layout.balance") return manager.balanceFocusedLayout();
-  const placement = WINDOW_PLACEMENT_COMMANDS.find(command => command.id === actionId);
-  if (placement && state.windowManagerConfig) {
-    return dispatchWindowPlacement(manager, focusedId, placement);
-  }
-  const arrangement = WINDOW_ARRANGE_COMMANDS.find(command => command.id === actionId);
-  if (arrangement) state.arrangeLayout(focusedId, arrangement.preset);
 }

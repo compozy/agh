@@ -472,11 +472,11 @@ var (
 		`"name":{"type":"string"},"workspace_id":{"type":"string"},"reason":{"type":"string"}`,
 	)
 	memoryAdminSessionIDInputSchema = memoryAdminSchema(
-		[]string{"workspace_id", memoryAdminSessionIDKey},
+		[]string{descriptorWorkspaceIDKey, memoryAdminSessionIDKey},
 		`"workspace_id":{"type":"string"},"session_id":{"type":"string"}`,
 	)
 	memoryAdminSessionReplayInputSchema = memoryAdminSchema(
-		[]string{"workspace_id", memoryAdminSessionIDKey},
+		[]string{descriptorWorkspaceIDKey, memoryAdminSessionIDKey},
 		`"workspace_id":{"type":"string"},"session_id":{"type":"string"},"include_tool_events":{"type":"boolean"},"include_memory":{"type":"boolean"}`,
 	)
 	memoryAdminSessionsPruneInputSchema = memoryAdminSchema(

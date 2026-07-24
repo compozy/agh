@@ -324,7 +324,7 @@ func (s *windowManagerSocket) cleanup(readDone <-chan error, runErr error, readO
 }
 
 func isExpectedWindowManagerSocketError(err error) bool {
-	if err == nil || errors.Is(err, context.Canceled) {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
 		return true
 	}
 	return websocket.IsCloseError(

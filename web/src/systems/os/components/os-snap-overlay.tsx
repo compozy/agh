@@ -1,16 +1,22 @@
-import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
+import type { SnapTarget } from "../lib/snap-targets";
 
-function previewLabel(kind: string): string {
-  if (kind === "zoom") return "Zoom";
-  if (kind === "stack") return "Add to stack";
-  if (kind === "insert") return "Insert";
-  if (kind === "split") return "Split";
-  return "Tile";
+function previewLabel(kind: SnapTarget["kind"]): string {
+  switch (kind) {
+    case "tile":
+      return "Tile";
+    case "zoom":
+      return "Zoom";
+    case "stack":
+      return "Add to stack";
+    case "insert":
+      return "Insert";
+    case "split":
+      return "Split";
+  }
 }
 
 /** One ephemeral structural preview; it never mutates the authoritative snapshot. */
-export function OsSnapOverlay() {
-  const preview = useWindowManagerGesturePreview();
+export function OsSnapOverlay({ preview }: { preview: SnapTarget | null }) {
   if (preview === null) return null;
   return (
     <div

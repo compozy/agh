@@ -2,11 +2,9 @@ import { useShallow } from "zustand/shallow";
 
 import { getOsApp } from "../lib/app-registry";
 import { useDesktop } from "./use-desktop";
-import { useOsShell } from "./use-os-shell";
 import {
   useDesktopOverviewSegmentRequest,
   usePendingWindowManagerCommand,
-  useWindowManagerActions,
   useWindowManagerConflict,
   useWindowManagerDiagnostic,
   useWindowManagerOverlay,
@@ -14,8 +12,6 @@ import {
 
 /** Runtime inputs for the desktop overview and connection diagnostic surfaces. */
 export function useDesktopManagerSurfaces() {
-  const { manager } = useOsShell();
-  const actions = useWindowManagerActions();
   const overlay = useWindowManagerOverlay();
   const overviewSegmentRequest = useDesktopOverviewSegmentRequest();
   const conflict = useWindowManagerConflict();
@@ -24,6 +20,10 @@ export function useDesktopManagerSurfaces() {
   const hydration = useDesktop(state => state.hydration);
   const connectionStatus = useDesktop(state => state.connectionStatus);
   const activeDesktopId = useDesktop(state => state.activeDesktopId);
+  const canMutate = useDesktop(
+    state =>
+      state.client !== null && state.hydration === "live" && state.connectionStatus === "connected"
+  );
   const projection = useDesktop(
     useShallow(state => ({
       desktops: state.desktops,
@@ -31,10 +31,14 @@ export function useDesktopManagerSurfaces() {
       windows: state.windows,
     }))
   );
+  const windowsByDesktop = new Map<string, Array<(typeof projection.windows)[string]>>();
+  for (const windowRecord of Object.values(projection.windows)) {
+    const records = windowsByDesktop.get(windowRecord.desktopId);
+    if (records) records.push(windowRecord);
+    else windowsByDesktop.set(windowRecord.desktopId, [windowRecord]);
+  }
   const desktops = projection.desktops.map(desktop => {
-    const windowRecords = Object.values(projection.windows).filter(
-      window => window.desktopId === desktop.id
-    );
+    const windowRecords = windowsByDesktop.get(desktop.id) ?? [];
     return {
       id: desktop.id,
       name: desktop.name,
@@ -50,16 +54,17 @@ export function useDesktopManagerSurfaces() {
   });
 
   return {
-    actions,
     activeDesktopId,
+    canMutate,
     connectionStatus,
     conflict,
     desktops,
     diagnostic,
     hydration,
-    manager,
     overlay,
     overviewSegmentRequest,
     pending,
   };
 }
+
+export type DesktopManagerSurfacesModel = ReturnType<typeof useDesktopManagerSurfaces>;

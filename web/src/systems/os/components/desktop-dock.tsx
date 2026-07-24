@@ -1,6 +1,6 @@
 import { useDesktopDock } from "../hooks/use-desktop-dock";
+import type { ReactNode } from "react";
 import type { OsAttentionBadges } from "../lib/attention-model";
-import { DesktopPagerSurface } from "./desktop-pager-surface";
 import { OsDockZone } from "./os-dock";
 import { OsDockTabBar } from "./os-dock-tab-bar";
 
@@ -9,6 +9,7 @@ export interface DesktopDockProps {
   badges: OsAttentionBadges;
   sessionsOpen: boolean;
   onToggleSessions: () => void;
+  pager: ReactNode;
 }
 
 /**
@@ -22,6 +23,7 @@ export function DesktopDock({
   badges,
   sessionsOpen,
   onToggleSessions,
+  pager,
 }: DesktopDockProps) {
   const { entries, presentation, magnify, handleSelect } = useDesktopDock(badges, {
     sessionsOpen,
@@ -32,7 +34,7 @@ export function DesktopDock({
     return (
       <OsDockTabBar
         items={entries}
-        leading={<DesktopPagerSurface />}
+        leading={pager}
         onSelect={handleSelect}
         onNewSession={onNewSession}
       />
@@ -42,7 +44,7 @@ export function DesktopDock({
   return (
     <OsDockZone
       items={entries}
-      leading={<DesktopPagerSurface />}
+      leading={pager}
       onSelect={handleSelect}
       onNewSession={onNewSession}
       magnify={magnify}

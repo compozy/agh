@@ -173,7 +173,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		}
 
 		for _, operation := range operations {
-			t.Run(operation.method+" "+operation.path, func(t *testing.T) {
+			t.Run("Should register "+operation.method+" "+operation.path, func(t *testing.T) {
 				t.Parallel()
 
 				op := operationFor(t, doc, operation.path, operation.method)

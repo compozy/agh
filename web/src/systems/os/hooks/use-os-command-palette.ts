@@ -2,14 +2,15 @@ import { useSessionCreate, useSessions } from "@/systems/session";
 import { useActiveWorkspace, type WorkspacePayload } from "@/systems/workspace";
 
 import {
-  dispatchWindowPlacement,
-  resolveWindowManagerActions,
   WINDOW_ARRANGE_COMMANDS,
   WINDOW_PLACEMENT_COMMANDS,
   type WindowArrangeCommand,
   type WindowManagerActionId,
   type WindowPlacementCommand,
 } from "../lib/window-manager-command-registry";
+import { dispatchWindowPlacement } from "../lib/window-manager-action-dispatch";
+import { resolveWindowManagerActions } from "../lib/window-manager-shortcuts";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import type { OsAppId } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
@@ -44,6 +45,7 @@ export interface OsCommandPaletteModel {
   openDesktops(): void;
   openAppearance(): void;
   switchWorkspace(workspaceId: string): void;
+  commandsAvailable: boolean;
 }
 
 /**
@@ -70,6 +72,7 @@ export function useOsCommandPalette(
   const focusedId = useDesktop(state => state.focusedId);
   const presentation = useDesktop(state => state.presentation);
   const windowManagerConfig = useDesktop(state => state.windowManagerConfig);
+  const commandsAvailable = useDesktop(windowManagerCommandsAvailable);
   const hasArrangePeer = useDesktop(state => {
     if (state.presentation !== "floating" || state.focusedId === null) return false;
     for (const win of Object.values(state.windows)) {
@@ -91,7 +94,7 @@ export function useOsCommandPalette(
   ) as Partial<Record<WindowManagerActionId, string>>;
 
   const focusedWindowActions =
-    focusedId === null
+    !commandsAvailable || focusedId === null
       ? null
       : {
           close: () => run(() => void coordinator.userClose(focusedId)),
@@ -108,48 +111,60 @@ export function useOsCommandPalette(
 
   return {
     focusedWindowActions,
+    commandsAvailable,
     paletteSessions: (sessions.data ?? []).filter(
       session => typeof session.agent_name === "string" && session.agent_name.length > 0
     ),
     workspaces,
     activeWorkspaceId,
     shortcutLabels,
-    placementCommands: focusedWindow && windowManagerConfig ? WINDOW_PLACEMENT_COMMANDS : [],
-    arrangeCommands: hasArrangePeer ? WINDOW_ARRANGE_COMMANDS : [],
-    openApp: app => run(() => coordinator.userOpen({ app })),
+    placementCommands:
+      commandsAvailable && focusedWindow && windowManagerConfig ? WINDOW_PLACEMENT_COMMANDS : [],
+    arrangeCommands: commandsAvailable && hasArrangePeer ? WINDOW_ARRANGE_COMMANDS : [],
+    openApp: app =>
+      run(() => {
+        if (commandsAvailable) void coordinator.userOpen({ app });
+      }),
     jumpToSession: (sessionId, agentName) =>
-      run(() =>
-        coordinator.userOpen({
+      run(() => {
+        if (!commandsAvailable) return;
+        void coordinator.userOpen({
           app: "session",
           instanceKey: sessionId,
           route: {
             pathname: `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
             search: {},
           },
-        })
-      ),
+        });
+      }),
     dispatchPlacement: command =>
       run(() => {
         const state = store.getState();
-        if (state.focusedId === null || state.windowManagerConfig === null) return;
+        if (
+          !windowManagerCommandsAvailable(state) ||
+          state.focusedId === null ||
+          state.windowManagerConfig === null
+        )
+          return;
         dispatchWindowPlacement(manager, state.focusedId, command);
       }),
     dispatchArrange: command =>
       run(() => {
         const state = store.getState();
-        if (state.focusedId === null) return;
+        if (!windowManagerCommandsAvailable(state) || state.focusedId === null) return;
         state.arrangeLayout(state.focusedId, command.preset);
       }),
     toggleSessions: () => run(() => options.onToggleSessions?.()),
     newSession: () => run(() => sessionCreate.openForAgent("")),
     openDesktops: () => run(() => options.onOpenDesktops?.()),
     openAppearance: () =>
-      run(() =>
-        coordinator.userOpen({
+      run(() => {
+        if (!commandsAvailable) return;
+        void coordinator.userOpen({
           app: "settings",
           route: { pathname: "/settings/appearance", search: {} },
-        })
-      ),
+        });
+      }),
     switchWorkspace: workspaceId => run(() => setActiveWorkspaceId(workspaceId)),
   };
 }

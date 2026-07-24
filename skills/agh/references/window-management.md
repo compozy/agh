@@ -80,6 +80,8 @@ agh window navigate --workspace <workspace-id> --revision <revision> --id <windo
   --pathname /tasks/<task-id> --search-json '{"tab":"runs"}'
 agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
   --desktop <desktop-id> --target <window-id> --placement right
+agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
+  --desktop <desktop-id> --group
 agh window float --workspace <workspace-id> --revision <revision> --id <window-id>
 agh window close --workspace <workspace-id> --revision <revision> --id <window-id> --minimize
 agh window open --workspace <workspace-id> --revision <revision> --restore <window-id>
@@ -88,7 +90,8 @@ agh window open --workspace <workspace-id> --revision <revision> --restore <wind
 Structural placements are `before`, `after`, `left`, `right`, `top`, `bottom`, and `center`;
 `floating` accepts a normalized `x,y,width,height` rect. Dropping onto an occupied target reflows the
 tree. When viewport minima cannot fit, clients project the affected split as a stack without
-corrupting the durable topology.
+corrupting the durable topology. Group relocation moves the source window's tiled group and is
+exclusive with `--target`, `--placement`, and `--rect`.
 
 `placement` is structural (`tiled`, `stacked`, or `floating`); `route` is the durable internal
 pathname plus canonical JSON-object search state. `window navigate` may include `--client` to switch
@@ -106,6 +109,7 @@ agh layout balance --workspace <workspace-id> --revision <revision> --group <gro
 agh layout undo --workspace <workspace-id> --revision <revision>
 agh layout redo --workspace <workspace-id> --revision <revision>
 agh layout watch --workspace <workspace-id> -o jsonl
+agh layout watch --workspace <workspace-id> --client <stable-client-id> -o jsonl
 ```
 
 `--resource` is exclusive with inline arrangement fields. Declarative `window_layout` resources are
@@ -128,13 +132,20 @@ HTTP and UDS expose identical workspace routes under:
 ```
 
 The surface includes snapshot, preview, commands, client list/register/unregister, layout
-export/validate/apply, and the WebSocket stream. Pass an optional registered `client_id` to bind the
-stream to one presentation view. Its initial snapshot contains that client fence; later client frames
-carry only that ID and a strictly newer `presentation_revision`, while topology event frames follow
-the workspace revision. An unbound stream receives topology only. Never apply an equal or older
-client frame. If a subscriber is evicted as slow, reconnect and replace local state from the next
-fence. If the daemon lost the transient client registration, register the same stable ID before
-reconnecting. Never merge a reconnect snapshot with an unfenced local mirror.
+export/validate/apply, layout profiles, and the WebSocket stream. Layout profile records use
+`GET /layout-profiles` and `PUT|DELETE /layout-profiles/{profile_id}` below the workspace route. A
+list contains global records plus records scoped to that workspace; writes cannot address another
+workspace. HTTP profile mutations require a loopback listener, while UDS exposes the same request
+and response contract.
+
+Pass `--client <stable-client-id>` in the CLI, or an optional registered `client_id` over HTTP/UDS,
+to bind the stream to one presentation view. Its initial
+snapshot contains that client fence; later client frames carry only that ID and a strictly newer
+`presentation_revision`, while topology event frames follow the workspace revision. An unbound
+stream receives topology only. Never apply an equal or older client frame. If a subscriber is
+evicted as slow, reconnect and replace local state from the next fence. If the daemon lost the
+transient client registration, register the same stable ID before reconnecting. Never merge a
+reconnect snapshot with an unfenced local mirror.
 
 ## Raw Layout Recovery
 

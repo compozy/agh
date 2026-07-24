@@ -1340,9 +1340,31 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			if !ok {
 				t.Fatalf("window-manager response = %T, want SettingsWindowManagerResponse", response)
 			}
-			if payload.Config.HistoryLimit != 77 ||
-				!reflect.DeepEqual(payload.Config.Snap.RepeatRatios, []float64{0.4, 0.7, 0.3}) ||
-				payload.Config.Shortcuts["desktop.switch.next"] != "Meta+ArrowRight" {
+			want := contract.SettingsWindowManagerConfigPayload{
+				NewWindowPolicy:     contract.SettingsWindowNewPolicyBesideFocus,
+				SmallViewportPolicy: contract.SettingsWindowSmallViewportPolicyReject,
+				FocusPolicy:         contract.SettingsWindowFocusPolicyDirectional,
+				FocusWrap:           true,
+				FocusFollowsPointer: true,
+				RaiseOnFocus:        false,
+				DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyGroup,
+				GroupMoveModifier:   contract.SettingsWindowGroupMoveModifierControl,
+				HistoryLimit:        77,
+				DesktopTransition:   contract.SettingsWindowDesktopTransitionCrossfade,
+				Gaps: contract.SettingsWindowManagerGapsPayload{
+					Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,
+				},
+				Snap: contract.SettingsWindowManagerSnapPayload{
+					EdgeBand: 40, CornerReach: 180, ExitSlack: 20,
+					RepeatRatios: []float64{0.4, 0.7, 0.3},
+				},
+				Bindings: contract.SettingsWindowManagerBindingPayload{
+					TopCenter:    contract.SettingsWindowBindingActionNone,
+					BottomCenter: contract.SettingsWindowBindingActionZoom,
+				},
+				Shortcuts: map[string]string{"desktop.switch.next": "Meta+ArrowRight"},
+			}
+			if !reflect.DeepEqual(payload.Config, want) {
 				t.Fatalf("window-manager response config = %#v, want complete conversion", payload.Config)
 			}
 		})

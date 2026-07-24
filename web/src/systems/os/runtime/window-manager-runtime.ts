@@ -25,6 +25,8 @@ import type {
   OsRect,
   OsWindowRoute,
   OsWallpaper,
+  WindowManagerCommandOutcome,
+  WindowManagerOpenOutcome,
 } from "../lib/os-types";
 import { OS_COMPACT_BREAKPOINT, osWindowId } from "../lib/os-types";
 import type { FocusDirection } from "../lib/window-manager-types";
@@ -67,7 +69,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       commandId: "desktop.switch",
       payload: { desktop_id: desktopId },
     });
-    if (accepted && current !== null && current !== desktopId && config !== null) {
+    if (accepted.accepted && current !== null && current !== desktopId && config !== null) {
       const fromOrder = this.view.desktops.find(desktop => desktop.id === current)?.order ?? 0;
       const toOrder = this.view.desktops.find(desktop => desktop.id === desktopId)?.order ?? 0;
       windowManagerStore.getState().actions.setTransitionIntent({
@@ -270,49 +272,52 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     };
   }
 
-  private openOrFocus = (target: OsOpenTarget): string => {
+  private openOrFocus = (target: OsOpenTarget): WindowManagerOpenOutcome => {
     const id = osWindowId(target.app, target.instanceKey);
     const existing = this.view.windows[id];
     if (existing) {
+      let outcome: WindowManagerCommandOutcome;
       if (existing.minimized) {
         const authoritative = this.view.snapshot?.windows[id];
-        if (authoritative) {
-          this.dispatch(restoreWindowCommand(authoritative, target.route));
-        }
+        outcome = authoritative
+          ? this.dispatch(restoreWindowCommand(authoritative, target.route))
+          : { accepted: false, completion: Promise.resolve(false) };
       } else if (target.route && !sameOsWindowRoute(existing.route, target.route)) {
-        this.navigateWindow(id, target.route);
+        outcome = this.navigateWindow(id, target.route);
       } else {
-        this.focusWindow(id);
+        outcome = this.focusWindow(id);
       }
-      return id;
+      return { windowId: id, ...outcome };
     }
 
     const desktopId = this.view.activeDesktopId;
-    if (desktopId === null) return id;
-    this.dispatch(openWindowCommand(target, id, desktopId));
+    if (desktopId === null) {
+      return { windowId: id, accepted: false, completion: Promise.resolve(false) };
+    }
+    const outcome = this.dispatch(openWindowCommand(target, id, desktopId));
     this.publish();
-    return id;
+    return { windowId: id, ...outcome };
   };
 
   private closeWindow = (id: string): Promise<boolean> => {
-    return this.dispatchConfirmed({
+    return this.dispatch({
       commandId: "window.close",
       payload: { window_id: id, minimize: false },
-    });
+    }).completion;
   };
 
-  private focusWindow = (id: string): void => {
-    this.dispatch({
+  private focusWindow = (id: string): WindowManagerCommandOutcome => {
+    return this.dispatch({
       commandId: "window.focus",
       payload: { window_id: id, direction: "" },
     });
   };
 
   private minimizeWindow = (id: string): Promise<boolean> => {
-    return this.dispatchConfirmed({
+    return this.dispatch({
       commandId: "window.close",
       payload: { window_id: id, minimize: true },
-    });
+    }).completion;
   };
 
   private restoreWindow = (id: string): void => {
@@ -321,8 +326,8 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     this.dispatch(restoreWindowCommand(window));
   };
 
-  private zoomWindow = (id: string): void => {
-    this.dispatch({ commandId: "window.zoom", payload: { window_id: id } });
+  private zoomWindow = (id: string): WindowManagerCommandOutcome => {
+    return this.dispatch({ commandId: "window.zoom", payload: { window_id: id } });
   };
 
   private toggleFloating = (id: string): void => {
@@ -371,8 +376,8 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     });
   };
 
-  private navigateWindow = (id: string, route: OsWindowRoute): void => {
-    this.dispatch({
+  private navigateWindow = (id: string, route: OsWindowRoute): WindowManagerCommandOutcome => {
+    return this.dispatch({
       commandId: "window.navigate",
       payload: { window_id: id, route },
     });

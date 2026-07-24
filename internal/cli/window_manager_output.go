@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/windowmanager"
 	"github.com/spf13/cobra"
 )
 
@@ -165,14 +165,14 @@ func windowManagerValidationBundle(validation contract.WindowManagerLayoutValida
 		jsonValue: validation,
 		jsonl:     func(cmd *cobra.Command) error { return writeJSONLine(cmd, validation) },
 		human: func() (string, error) {
-			codes := make([]string, 0, len(validation.Diagnostics))
-			for _, diagnostic := range validation.Diagnostics {
-				codes = append(codes, diagnostic.Code)
-			}
-			return renderHumanSection("Layout validation", []keyValue{
+			summary := renderHumanSection("Layout validation", []keyValue{
 				{Label: "Valid", Value: strconv.FormatBool(validation.Valid)},
-				{Label: windowManagerDiagnosticsLabel, Value: strings.Join(codes, ", ")},
-			}), nil
+				{Label: windowManagerDiagnosticsLabel, Value: strconv.Itoa(len(validation.Diagnostics))},
+			})
+			if len(validation.Diagnostics) == 0 {
+				return summary, nil
+			}
+			return summary + "\n\n" + windowManagerLayoutDiagnosticsTable(validation.Diagnostics), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
@@ -182,4 +182,20 @@ func windowManagerValidationBundle(validation contract.WindowManagerLayoutValida
 			), nil
 		},
 	}
+}
+
+func windowManagerLayoutDiagnosticsTable(diagnostics []windowmanager.Diagnostic) string {
+	rows := make([][]string, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		rows = append(rows, []string{
+			stringOrDash(diagnostic.Code),
+			stringOrDash(diagnostic.Path),
+			stringOrDash(diagnostic.Message),
+		})
+	}
+	return renderHumanTable(
+		windowManagerDiagnosticsLabel,
+		[]string{cliCodeValue, "Path", authoredContextMessageValue},
+		rows,
+	)
 }

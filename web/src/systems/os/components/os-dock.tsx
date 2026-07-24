@@ -266,8 +266,8 @@ export function OsDockZone({
       }}
       {...props}
     >
-      <div className="pointer-events-auto flex min-w-0 flex-1 items-center justify-start overflow-hidden">
-        {leading}
+      <div className="flex min-w-0 flex-1 items-center justify-start overflow-hidden">
+        <div className="pointer-events-auto w-fit">{leading}</div>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
         <OsDock

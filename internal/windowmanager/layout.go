@@ -1,5 +1,6 @@
 package windowmanager
 
+// LayoutResourceVersion is the schema version required for a declarative window_layout resource.
 const LayoutResourceVersion uint32 = 1
 
 type LayoutAspectVariant string

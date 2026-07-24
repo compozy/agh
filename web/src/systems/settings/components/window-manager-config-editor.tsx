@@ -1,7 +1,6 @@
 import { Button } from "@agh/ui";
-import type { WindowManagerConfig } from "@/systems/os";
 
-import { useWindowManagerConfigEditor } from "../hooks/use-window-manager-config-editor";
+import type { WindowManagerConfigEditorModel } from "../hooks/use-window-manager-config-editor";
 import {
   WindowManagerBehaviorFields,
   WindowManagerBindingFields,
@@ -9,15 +8,11 @@ import {
 } from "./window-manager-config-fields";
 
 interface WindowManagerConfigEditorProps {
-  config: WindowManagerConfig;
+  editor: WindowManagerConfigEditorModel;
 }
 
-/** Complete global config editor; successful writes update the shared hot Query atom. */
-export function WindowManagerConfigEditor({
-  config: initialConfig,
-}: WindowManagerConfigEditorProps) {
-  const editor = useWindowManagerConfigEditor(initialConfig);
-
+/** Presentational global config editor driven by the Settings route model. */
+export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorProps) {
   return (
     <div className="flex flex-col gap-6">
       <WindowManagerBehaviorFields draft={editor.draft} setDraft={editor.setDraft} />
@@ -41,6 +36,7 @@ export function WindowManagerConfigEditor({
           <p className="mr-auto text-form-label text-danger">{editor.error.message}</p>
         ) : null}
         <Button
+          className="min-h-11"
           type="button"
           variant="ghost"
           disabled={!editor.dirty || editor.isSaving}
@@ -48,7 +44,7 @@ export function WindowManagerConfigEditor({
         >
           Reset
         </Button>
-        <Button type="button" disabled={!editor.canSave} onClick={editor.save}>
+        <Button className="min-h-11" type="button" disabled={!editor.canSave} onClick={editor.save}>
           {editor.isSaving ? "Saving…" : "Save settings"}
         </Button>
       </div>

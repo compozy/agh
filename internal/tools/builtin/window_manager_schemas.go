@@ -205,7 +205,19 @@ const windowManagerWindowMoveInputSchema = `{
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
 	},
-	"required":["expected_revision","window_id","destination_desktop_id","placement"],
+	"required":["expected_revision","window_id","destination_desktop_id"],
+	"if":{
+		"properties":{"move_group":{"enum":[true]}},
+		"required":["move_group"]
+	},
+	"then":{
+		"not":{"anyOf":[
+			{"required":["target_window_id"]},
+			{"required":["placement"]},
+			{"required":["floating_rect"]}
+		]}
+	},
+	"else":{"required":["placement"]},
 	"additionalProperties":false
 }`
 
@@ -267,6 +279,11 @@ const windowManagerLayoutPreviewInputSchema = `{
 		` + windowManagerOriginSchema + `
 	},
 	"required":["expected_revision","command_id","payload"],
+	"if":{
+		"properties":{"command_id":{"enum":["desktop.switch","window.focus","window.zoom"]}},
+		"required":["command_id"]
+	},
+	"then":{"required":["client_id"]},
 	"additionalProperties":false
 }`
 
@@ -414,13 +431,27 @@ const windowManagerCommandOutputSchema = `{
 		"command_id":{"type":"string"},
 		"revision":{"type":"integer","minimum":0},
 		"applied":{"type":"boolean"},
+		"changes":` + windowManagerChangesSchema + `,
+		"diagnostics":` + windowManagerDiagnosticsSchema + `,
+		"client":{"type":"object"},
+		"rebased_from":{"type":"integer","minimum":0}
+	},
+	"required":["workspace_id","command_id","revision","applied","changes","diagnostics"],
+	"additionalProperties":false
+}`
+
+const windowManagerPreviewOutputSchema = `{
+	"type":"object",
+	"properties":{
+		"workspace_id":{"type":"string"},
+		"command_id":{"type":"string"},
+		"revision":{"type":"integer","minimum":0},
 		"changed":{"type":"boolean"},
 		"changes":` + windowManagerChangesSchema + `,
 		"diagnostics":` + windowManagerDiagnosticsSchema + `,
 		"client":{"type":"object"},
-		"rebased_from":{"type":"integer","minimum":0},
 		"snapshot":{"type":"object"}
 	},
-	"required":["workspace_id","command_id","revision","changes","diagnostics"],
+	"required":["workspace_id","command_id","revision","changed","changes","diagnostics","snapshot"],
 	"additionalProperties":false
 }`

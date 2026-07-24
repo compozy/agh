@@ -7,6 +7,7 @@ import {
   WindowManagerApiError,
 } from "../adapters/window-manager-api";
 import type { OsDesktopRuntimeStore, OsWallpaper } from "../lib/os-types";
+import type { WindowManagerCommandOutcome } from "../lib/os-types";
 import { reconcileWindowManagerSnapshot, windowManagerKeys } from "../lib/window-manager-query";
 import type {
   PixelRect,
@@ -48,8 +49,8 @@ function commandDiagnostic(error: unknown): WindowManagerDiagnosticPayload {
 
 /** Query/client lifecycle and semantic command transport shared by the OS runtime. */
 export abstract class WindowManagerRuntimeCore {
-  private readonly unsubscribeQuery: () => void;
-  private readonly unsubscribePresentation: () => void;
+  private unsubscribeQuery: (() => void) | null = null;
+  private unsubscribePresentation: (() => void) | null = null;
   private runtimeStore: StoreApi<OsDesktopRuntimeStore> | null = null;
   protected readonly queryClient: QueryClient;
   protected binding: WindowManagerRuntimeBinding | null = null;
@@ -62,7 +63,11 @@ export abstract class WindowManagerRuntimeCore {
 
   constructor(queryClient: QueryClient) {
     this.queryClient = queryClient;
-    this.unsubscribeQuery = queryClient.getQueryCache().subscribe(event => {
+  }
+
+  start(): void {
+    if (this.unsubscribeQuery !== null || this.unsubscribePresentation !== null) return;
+    this.unsubscribeQuery = this.queryClient.getQueryCache().subscribe(event => {
       const key = event.query.queryKey;
       const configKey = windowManagerKeys.config();
       if (
@@ -90,6 +95,18 @@ export abstract class WindowManagerRuntimeCore {
         this.publish();
       }
     });
+    this.publish();
+  }
+
+  stop(): void {
+    this.unsubscribeQuery?.();
+    this.unsubscribePresentation?.();
+    this.unsubscribeQuery = null;
+    this.unsubscribePresentation = null;
+  }
+
+  destroy(): void {
+    this.stop();
   }
 
   protected abstract buildView(): OsDesktopRuntimeStore;
@@ -115,11 +132,6 @@ export abstract class WindowManagerRuntimeCore {
 
   subscribe = (listener: (state: OsDesktopRuntimeStore, previous: OsDesktopRuntimeStore) => void) =>
     this.store().subscribe(listener);
-
-  destroy(): void {
-    this.unsubscribeQuery();
-    this.unsubscribePresentation();
-  }
 
   bind(binding: WindowManagerRuntimeBinding): void {
     if (
@@ -283,7 +295,12 @@ export abstract class WindowManagerRuntimeCore {
         return result.applied;
       })
       .catch(error => {
-        if (command.commandId === "desktop.switch") {
+        const currentBinding = windowManagerStore.getState().binding;
+        if (
+          command.commandId === "desktop.switch" &&
+          currentBinding?.workspaceId === binding.workspaceId &&
+          currentBinding.clientId === binding.clientId
+        ) {
           windowManagerStore.getState().actions.setTransitionIntent(null);
         }
         const diagnostic = commandDiagnostic(error);
@@ -314,14 +331,10 @@ export abstract class WindowManagerRuntimeCore {
       });
   }
 
-  protected dispatch(command: WindowManagerCommandInput): boolean {
+  protected dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {
     const pending = this.startDispatch(command);
-    if (pending === null) return false;
-    void pending;
-    return true;
-  }
-
-  protected dispatchConfirmed(command: WindowManagerCommandInput): Promise<boolean> {
-    return this.startDispatch(command) ?? Promise.resolve(false);
+    return pending === null
+      ? { accepted: false, completion: Promise.resolve(false) }
+      : { accepted: true, completion: pending };
   }
 }

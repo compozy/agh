@@ -90,7 +90,7 @@ export function useDesktopDock(
       void coordinator.userMinimize(osWindowId(appId));
       return;
     }
-    coordinator.userOpen({ app: appId });
+    void coordinator.userOpen({ app: appId });
   };
 
   return { entries, presentation, magnify, handleSelect };

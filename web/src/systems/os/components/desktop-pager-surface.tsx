@@ -1,26 +1,24 @@
-import { useShallow } from "zustand/shallow";
+import type { LayoutDesktop } from "../lib/window-manager-types";
+import { DesktopPager, type DesktopPagerOverflowRequest } from "./desktop-pager";
 
-import { useDesktop } from "../hooks/use-desktop";
-import { useOsShell } from "../hooks/use-os-shell";
-import { useWindowManagerActions } from "../hooks/use-window-manager-store";
-import { DesktopPager } from "./desktop-pager";
+export interface DesktopPagerSurfaceProps {
+  activeDesktopId: string | null;
+  desktops: readonly LayoutDesktop[];
+  compact: boolean;
+  canSwitchDesktop: boolean;
+  onSelectDesktop: (desktopId: string) => void;
+  onOpenOverview: (request: DesktopPagerOverflowRequest) => void;
+}
 
-/** Daemon-backed pager controller mounted by the bottom-chrome owner. */
-export function DesktopPagerSurface() {
-  const { manager } = useOsShell();
-  const actions = useWindowManagerActions();
-  const { activeDesktopId, desktops, compact, canSwitchDesktop } = useDesktop(
-    useShallow(state => ({
-      activeDesktopId: state.activeDesktopId,
-      desktops: state.desktops,
-      compact: state.presentation === "compact",
-      canSwitchDesktop:
-        state.client !== null &&
-        state.hydration === "live" &&
-        state.connectionStatus === "connected",
-    }))
-  );
-
+/** Presentational adapter for the Dock-owned daemon desktop pager. */
+export function DesktopPagerSurface({
+  activeDesktopId,
+  desktops,
+  compact,
+  canSwitchDesktop,
+  onSelectDesktop,
+  onOpenOverview,
+}: DesktopPagerSurfaceProps) {
   if (!activeDesktopId) return null;
 
   return (
@@ -29,8 +27,8 @@ export function DesktopPagerSurface() {
       activeDesktopId={activeDesktopId}
       compact={compact}
       canSwitchDesktop={canSwitchDesktop}
-      onSelectDesktop={desktopId => manager.switchDesktop(desktopId)}
-      onOpenOverview={request => actions.requestOverviewSegment(request)}
+      onSelectDesktop={onSelectDesktop}
+      onOpenOverview={onOpenOverview}
     />
   );
 }

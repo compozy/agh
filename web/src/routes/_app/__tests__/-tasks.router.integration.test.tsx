@@ -8,7 +8,7 @@ import {
   createRouter,
   Outlet,
 } from "@tanstack/react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Topbar, TopbarSlotProvider, UIProvider } from "@agh/ui";
 
@@ -195,9 +195,12 @@ describe("tasks router registration (integration)", () => {
   });
 });
 
+const productionManagers: WindowManagerRuntime[] = [];
+
 function buildProductionDetailRouter(initialUrl: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const manager = new WindowManagerRuntime(queryClient);
+  productionManagers.push(manager);
   const port: OsRouterPort = { navigate: () => undefined, replace: () => undefined };
   const coordinator = new RoutingCoordinator(manager, port);
   coordinator.completeHydration();
@@ -233,6 +236,10 @@ function buildProductionDetailRouter(initialUrl: string) {
 }
 
 describe("production task detail route (integration)", () => {
+  afterEach(() => {
+    for (const manager of productionManagers.splice(0)) manager.destroy();
+  });
+
   beforeEach(() => {
     const detail = buildDetailFixture({
       task: {

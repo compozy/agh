@@ -6,11 +6,35 @@ import { windowManagerKeys, type WindowManagerConfig } from "@/systems/os";
 import { updateWindowManagerSettings } from "../adapters/window-manager-layouts-api";
 
 function parseRatios(value: string): number[] | null {
-  const ratios = value
-    .split(",")
-    .map(part => Number(part.trim()))
-    .filter(value => Number.isFinite(value));
-  return ratios.length > 0 && ratios.every(ratio => ratio >= 0.1 && ratio <= 0.9) ? ratios : null;
+  const parts = value.split(",").map(part => part.trim());
+  const ratios = parts.map(Number);
+  const canonicalRatios = ratios.map(ratio => Math.round(ratio * 1_000_000));
+  return ratios.length >= 1 &&
+    ratios.length <= 8 &&
+    parts.every(part => part !== "") &&
+    new Set(canonicalRatios).size === ratios.length &&
+    ratios.every(ratio => ratio >= 0.1 && ratio <= 0.9)
+    ? ratios
+    : null;
+}
+
+function numericConfigIsValid(config: WindowManagerConfig): boolean {
+  const gaps = Object.values(config.gaps);
+  return (
+    Number.isInteger(config.historyLimit) &&
+    config.historyLimit >= 1 &&
+    config.historyLimit <= 500 &&
+    gaps.every(value => Number.isInteger(value) && value >= 0 && value <= 64) &&
+    Number.isInteger(config.snap.edgeBand) &&
+    config.snap.edgeBand >= 4 &&
+    config.snap.edgeBand <= 128 &&
+    Number.isInteger(config.snap.cornerReach) &&
+    config.snap.cornerReach >= 16 &&
+    config.snap.cornerReach <= 512 &&
+    Number.isInteger(config.snap.exitSlack) &&
+    config.snap.exitSlack >= 0 &&
+    config.snap.exitSlack <= 64
+  );
 }
 
 function parseShortcuts(value: string): Record<string, string> | null {
@@ -38,6 +62,7 @@ export function useWindowManagerConfigEditor(initialConfig: WindowManagerConfig)
   );
   const ratios = parseRatios(ratioText);
   const shortcuts = parseShortcuts(shortcutsText);
+  const numericConfigValid = numericConfigIsValid(draft);
   const dirty =
     JSON.stringify(draft) !== JSON.stringify(baseline) ||
     ratioText !== baseline.snap.repeatRatios.join(", ") ||
@@ -72,7 +97,8 @@ export function useWindowManagerConfigEditor(initialConfig: WindowManagerConfig)
   };
 
   return {
-    canSave: dirty && ratios !== null && shortcuts !== null && !save.isPending,
+    canSave:
+      dirty && numericConfigValid && ratios !== null && shortcuts !== null && !save.isPending,
     dirty,
     draft,
     error: save.error,
@@ -88,3 +114,5 @@ export function useWindowManagerConfigEditor(initialConfig: WindowManagerConfig)
     shortcutsValid: shortcuts !== null,
   };
 }
+
+export type WindowManagerConfigEditorModel = ReturnType<typeof useWindowManagerConfigEditor>;

@@ -39,6 +39,33 @@ function clientFrame(frameRevision: number, presentationRevision: number) {
   };
 }
 
+function snapshotFrame() {
+  return {
+    type: "snapshot",
+    workspace_id: "workspace:test",
+    revision: 4,
+    snapshot: {
+      version: 1,
+      workspace_id: "workspace:test",
+      revision: 4,
+      desktops: [
+        {
+          id: "desktop:main",
+          name: "Main",
+          order: 0,
+          purpose: "standard",
+          groups: [],
+          floating: [],
+        },
+      ],
+      windows: {},
+      history: { undo: [], redo: [] },
+      overrides: {},
+      updated_at: "2026-07-22T00:00:00Z",
+    },
+  };
+}
+
 describe("parseWindowManagerStreamFrame", () => {
   it("Should accept window.navigate as a strict topology event command", () => {
     const parsed = parseWindowManagerStreamFrame(eventFrame("window.navigate"));
@@ -53,6 +80,32 @@ describe("parseWindowManagerStreamFrame", () => {
 
   it("Should reject command IDs outside the semantic registry", () => {
     expect(() => parseWindowManagerStreamFrame(eventFrame("window.teleport"))).toThrow();
+  });
+
+  it("Should reject snapshot and event identities that disagree with their envelopes", () => {
+    const snapshotWorkspaceMismatch = snapshotFrame();
+    snapshotWorkspaceMismatch.snapshot.workspace_id = "workspace:other";
+    expect(() => parseWindowManagerStreamFrame(snapshotWorkspaceMismatch)).toThrow(
+      "Snapshot frame workspace must match snapshot workspace_id."
+    );
+
+    const snapshotRevisionMismatch = snapshotFrame();
+    snapshotRevisionMismatch.snapshot.revision = 3;
+    expect(() => parseWindowManagerStreamFrame(snapshotRevisionMismatch)).toThrow(
+      "Snapshot frame revision must match snapshot revision."
+    );
+
+    const eventWorkspaceMismatch = eventFrame("window.navigate");
+    eventWorkspaceMismatch.event.workspace_id = "workspace:other";
+    expect(() => parseWindowManagerStreamFrame(eventWorkspaceMismatch)).toThrow(
+      "Event frame workspace must match event workspace_id."
+    );
+
+    const eventRevisionMismatch = eventFrame("window.navigate");
+    eventRevisionMismatch.event.revision = 3;
+    expect(() => parseWindowManagerStreamFrame(eventRevisionMismatch)).toThrow(
+      "Event frame revision must match event revision."
+    );
   });
 
   it("Should accept a client frame only when both presentation revisions match", () => {

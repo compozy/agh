@@ -99,6 +99,7 @@ export function OsCommandPalette({
                 value={`open ${app.title}`}
                 data-testid={`os-palette-app-${app.id}`}
                 onSelect={() => model.openApp(app.id)}
+                disabled={!model.commandsAvailable}
               >
                 <app.icon className="size-3.5 text-muted" />
                 Open {app.title}
@@ -113,6 +114,7 @@ export function OsCommandPalette({
                   value={`session ${session.name ?? session.id} ${session.agent_name}`}
                   data-testid={`os-palette-session-${session.id}`}
                   onSelect={() => model.jumpToSession(session.id, session.agent_name ?? "")}
+                  disabled={!model.commandsAvailable}
                 >
                   <OS_APPS.session.icon className="size-3.5 text-muted" />
                   <span className="min-w-0 truncate">{session.name?.trim() || session.id}</span>
@@ -246,6 +248,7 @@ export function OsCommandPalette({
               value="appearance wallpaper motion"
               data-testid="os-palette-appearance"
               onSelect={model.openAppearance}
+              disabled={!model.commandsAvailable}
             >
               <Palette className="size-3.5 text-muted" />
               Appearance

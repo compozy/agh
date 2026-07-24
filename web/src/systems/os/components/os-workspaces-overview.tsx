@@ -14,9 +14,11 @@ import {
 
 import type { WorkspacePayload } from "@/systems/workspace";
 
-import { useOsReducedMotion } from "../hooks/use-os-reduced-motion";
-import { useWorkspaceDetails, type OsWorkspaceDetailModel } from "../hooks/use-workspace-details";
-import { useDesktop } from "../hooks/use-desktop";
+import type {
+  OsWorkspaceDetailModel,
+  OsWorkspaceDetailsResult,
+} from "../hooks/use-workspace-details";
+import type { OsPresentation } from "../lib/os-types";
 
 export interface OsWorkspacesOverviewProps {
   open: boolean;
@@ -25,6 +27,9 @@ export interface OsWorkspacesOverviewProps {
   activeWorkspaceId: string | null;
   onSelectWorkspace: (workspaceId: string) => void;
   onNewWorkspace: () => void;
+  details: OsWorkspaceDetailsResult;
+  presentation: OsPresentation;
+  reducedMotion: boolean;
 }
 
 const MEMBER_AVATAR_MAX = 5;
@@ -82,12 +87,10 @@ export function OsWorkspacesOverview({
   activeWorkspaceId,
   onSelectWorkspace,
   onNewWorkspace,
+  details,
+  presentation,
+  reducedMotion,
 }: OsWorkspacesOverviewProps) {
-  const presentation = useDesktop(state => state.presentation);
-  const reducedMotion = useOsReducedMotion();
-  const workspaceIds = workspaces.map(workspace => workspace.id);
-  const details = useWorkspaceDetails(workspaceIds, { enabled: open });
-
   const selectWorkspace = (workspaceId: string) => {
     if (workspaceId !== activeWorkspaceId) onSelectWorkspace(workspaceId);
     onOpenChange(false);

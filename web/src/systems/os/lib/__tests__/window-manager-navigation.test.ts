@@ -21,6 +21,7 @@ function windowFixture(id: string, desktopId: string, layer: number, minimized =
     nodeId: null,
     stackId: null,
     stackActive: true,
+    parentAxis: null,
   };
 }
 

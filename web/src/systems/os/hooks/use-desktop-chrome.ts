@@ -10,7 +10,7 @@ import {
 } from "../lib/window-manager-query";
 import { RoutingCoordinator, type OsRouterPort } from "../lib/routing-coordinator";
 import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier";
-import { WindowManagerRuntime } from "./window-manager-runtime";
+import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { useWindowManagerClient } from "./use-window-manager-client";
 import { useWindowManagerStream } from "./use-window-manager-stream";
 
@@ -40,11 +40,7 @@ function streamError(error: Error | WindowManagerErrorPayload): Error {
 export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChromeModel {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const query = useQuery(
-    windowManagerSnapshotOptions(activeWorkspaceId ?? "") as ReturnType<
-      typeof windowManagerSnapshotOptions
-    >
-  );
+  const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? ""));
   const configQuery = useQuery(windowManagerConfigOptions());
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
   const [shell] = useState<OsShellHandle>(() => {
@@ -58,6 +54,11 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
       coordinator: new RoutingCoordinator(manager, port),
     };
   });
+
+  useEffect(() => {
+    manager.start();
+    return () => manager.stop();
+  }, [manager]);
 
   const client = useWindowManagerClient(
     activeWorkspaceId,
@@ -105,8 +106,6 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
     onClientInvalidated: client.reregister,
     onError: error => manager.setLoadError(streamError(error)),
   });
-
-  useEffect(() => () => manager.destroy(), [manager]);
 
   return {
     shell,

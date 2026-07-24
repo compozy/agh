@@ -201,10 +201,26 @@ export {
 
 // Query infrastructure
 export { settingsKeys } from "./lib/query-keys";
+export type {
+  WindowManagerLayoutResourceRecord,
+  WindowManagerLayoutState,
+} from "./lib/window-manager-layout-types";
 export {
   windowManagerLayoutOptions,
   windowManagerLayoutProfilesOptions,
 } from "./lib/window-manager-layout-query";
+export {
+  useWindowManagerConfigEditor,
+  type WindowManagerConfigEditorModel,
+} from "./hooks/use-window-manager-config-editor";
+export {
+  useWindowManagerLayoutEditor,
+  type WindowManagerLayoutEditorModel,
+} from "./hooks/use-window-manager-layout-editor";
+export {
+  useWindowManagerLayoutProfiles,
+  type WindowManagerLayoutProfilesModel,
+} from "./hooks/use-window-manager-layout-profiles";
 export {
   SETTINGS_QUERY_INTERVALS,
   settingsAutomationOptions,

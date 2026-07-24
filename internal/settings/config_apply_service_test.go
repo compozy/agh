@@ -834,6 +834,22 @@ func TestReloadChangedPaths(t *testing.T) {
 			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.RestartRequired)
 		}
 	})
+
+	t.Run("Should emit a live window manager path", func(t *testing.T) {
+		t.Parallel()
+
+		current := &aghconfig.Config{WindowManager: aghconfig.DefaultWindowManagerConfig()}
+		desired := *current
+		desired.WindowManager.HistoryLimit++
+
+		want := []string{"window_manager.history_limit"}
+		if got := reloadChangedPaths(current, &desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(current, &desired); got != lifecycle.Live {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)
+		}
+	})
 }
 
 func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {

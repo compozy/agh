@@ -20,7 +20,9 @@ func newLayoutArrangeCommand(deps commandDeps) *cobra.Command {
 	var desktopID, arrangement, frameRaw, groupID, resourceID string
 	var windowIDs []string
 	cmd := &cobra.Command{
-		Use: windowManagerArrangeKey, Short: "Arrange explicit windows as one tiled group", Args: cobra.NoArgs,
+		Use:   windowManagerArrangeKey,
+		Short: "Arrange explicit windows or apply a declarative layout resource",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			payload, err := resolveWindowManagerArrangePayload(
 				cmd,

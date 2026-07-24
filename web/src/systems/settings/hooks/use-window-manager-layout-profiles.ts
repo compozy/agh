@@ -60,7 +60,7 @@ export function useWindowManagerLayoutProfiles({
       const previousKey = selected === null ? null : resourceKey(selected);
       setSelectedKey(resourceKey(record));
       queryClient.setQueryData<WindowManagerLayoutResourceRecord[]>(
-        settingsKeys.windowManagerLayoutProfiles(),
+        settingsKeys.windowManagerLayoutProfiles(workspaceId),
         current => [
           ...(current ?? []).filter(item => {
             const key = resourceKey(item);
@@ -75,12 +75,12 @@ export function useWindowManagerLayoutProfiles({
   const remove = useMutation({
     mutationFn: () => {
       if (selected === null) throw new Error("Select a saved profile first.");
-      return deleteWindowManagerLayoutProfile(selected.id, selected.version);
+      return deleteWindowManagerLayoutProfile(workspaceId, selected.id, selected.version);
     },
     onSuccess: () => {
       if (selected === null) return;
       queryClient.setQueryData<WindowManagerLayoutResourceRecord[]>(
-        settingsKeys.windowManagerLayoutProfiles(),
+        settingsKeys.windowManagerLayoutProfiles(workspaceId),
         current => (current ?? []).filter(item => resourceKey(item) !== resourceKey(selected))
       );
       setSelectedKey(null);
@@ -132,3 +132,5 @@ export function useWindowManagerLayoutProfiles({
     startNew,
   };
 }
+
+export type WindowManagerLayoutProfilesModel = ReturnType<typeof useWindowManagerLayoutProfiles>;

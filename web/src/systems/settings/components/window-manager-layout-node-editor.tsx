@@ -1,4 +1,4 @@
-import { Button, Eyebrow, Input, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Button, Eyebrow, Input, NativeSelect, NativeSelectOption, cn } from "@agh/ui";
 
 import { layoutNodeWindowIds } from "../lib/window-manager-layout-tree";
 import type {
@@ -60,9 +60,11 @@ export function WindowManagerLayoutNodeEditor({
 
   return (
     <div
-      className="flex flex-col gap-2 border border-line bg-canvas p-3"
+      className={cn(
+        "flex flex-col gap-2 border border-line bg-canvas p-3",
+        depth > 0 && "ml-layout-node-indent"
+      )}
       data-node-kind={node.kind}
-      style={{ marginLeft: depth === 0 ? 0 : 12 }}
     >
       <div className="flex flex-wrap items-center gap-2">
         <Eyebrow className="text-subtle">{node.kind}</Eyebrow>
@@ -71,6 +73,7 @@ export function WindowManagerLayoutNodeEditor({
           <>
             <Button
               size="xs"
+              className="min-h-11"
               type="button"
               variant="ghost"
               onClick={() => onChange(toSplit(node, "horizontal"))}
@@ -79,6 +82,7 @@ export function WindowManagerLayoutNodeEditor({
             </Button>
             <Button
               size="xs"
+              className="min-h-11"
               type="button"
               variant="ghost"
               onClick={() => onChange(toSplit(node, "vertical"))}
@@ -88,7 +92,13 @@ export function WindowManagerLayoutNodeEditor({
           </>
         ) : null}
         {node.kind !== "stack" && canStructure ? (
-          <Button size="xs" type="button" variant="ghost" onClick={() => onChange(toStack(node))}>
+          <Button
+            className="min-h-11"
+            size="xs"
+            type="button"
+            variant="ghost"
+            onClick={() => onChange(toStack(node))}
+          >
             Stack
           </Button>
         ) : null}
@@ -98,7 +108,7 @@ export function WindowManagerLayoutNodeEditor({
         <label className="flex items-center justify-between gap-3 text-form-label text-muted">
           Window
           <NativeSelect
-            className="w-56"
+            className="w-56 [&>select]:h-11"
             size="sm"
             value={node.windowId}
             onChange={event => onChange({ ...node, windowId: event.target.value })}
@@ -117,7 +127,7 @@ export function WindowManagerLayoutNodeEditor({
           <label className="flex items-center justify-between gap-3 text-form-label text-muted">
             Active window
             <NativeSelect
-              className="w-56"
+              className="w-56 [&>select]:h-11"
               size="sm"
               value={node.activeId}
               onChange={event => onChange({ ...node, activeId: event.target.value })}
@@ -147,7 +157,7 @@ export function WindowManagerLayoutNodeEditor({
           <label className="flex items-center justify-between gap-3 text-form-label text-muted">
             Axis
             <NativeSelect
-              className="w-40"
+              className="w-40 [&>select]:h-11"
               size="sm"
               value={node.axis}
               onChange={event =>
@@ -176,6 +186,7 @@ export function WindowManagerLayoutNodeEditor({
               <label className="flex flex-col gap-1 text-form-label text-muted">
                 Weight
                 <Input
+                  className="h-11"
                   min={0.01}
                   size={6}
                   step={0.05}

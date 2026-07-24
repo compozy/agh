@@ -122,11 +122,7 @@ func TestWindowNavigation(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Subscribe() error = %v", err)
 			}
-			t.Cleanup(func() {
-				if closeErr := subscription.Close(); closeErr != nil {
-					t.Errorf("Subscription.Close() error = %v", closeErr)
-				}
-			})
+			subscription = trackSubscription(t, subscription)
 			route := RouteIntent{
 				Pathname: "/settings",
 				Search: RouteSearch{
@@ -428,6 +424,38 @@ func TestFloatingAndGroupTransitions(t *testing.T) {
 				nil,
 				CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
 			)
+			targetWindowID := WindowID("w2")
+			groupFloatingRect := fullRect()
+			invalidGroupMoves := []MoveWindowCommand{
+				{
+					WindowID: "w1", DestinationDesktopID: "d2", MoveGroup: true,
+					TargetWindowID: &targetWindowID,
+				},
+				{
+					WindowID: "w1", DestinationDesktopID: "d2", MoveGroup: true,
+					Placement: DropAfter,
+				},
+				{
+					WindowID: "w1", DestinationDesktopID: "d2", MoveGroup: true,
+					FloatingRect: &groupFloatingRect,
+				},
+			}
+			commitsBefore := len(environment.repository.Commits("workspace-a"))
+			for _, command := range invalidGroupMoves {
+				snapshot, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+				if err != nil {
+					t.Fatalf("Snapshot() error = %v", err)
+				}
+				_, err = environment.manager.Execute(t.Context(), CommandRequest{
+					WorkspaceID: "workspace-a", ExpectedRevision: snapshot.Revision, Payload: command,
+				})
+				if !errors.Is(err, ErrInvalidCommand) {
+					t.Fatalf("Execute(contradictory group move) error = %v, want ErrInvalidCommand", err)
+				}
+			}
+			if len(environment.repository.Commits("workspace-a")) != commitsBefore {
+				t.Fatal("contradictory group move wrote a commit")
+			}
 			moved := executeTestCommand(
 				t,
 				environment.manager,

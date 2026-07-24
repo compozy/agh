@@ -1,21 +1,17 @@
 import { Button, Eyebrow, Input } from "@agh/ui";
 
-import { useWindowManagerLayoutEditor } from "../hooks/use-window-manager-layout-editor";
+import type { WindowManagerLayoutEditorModel } from "../hooks/use-window-manager-layout-editor";
+import type { WindowManagerLayoutProfilesModel } from "../hooks/use-window-manager-layout-profiles";
 import { desktopWindowIds, layoutNodeWindowIds } from "../lib/window-manager-layout-tree";
 import { windowManagerLayoutDocumentToWire } from "../lib/window-manager-layout-schema";
-import type {
-  WindowManagerLayoutDocument,
-  WindowManagerLayoutResourceRecord,
-  WindowManagerLayoutState,
-} from "../lib/window-manager-layout-types";
+import type { WindowManagerLayoutDocument } from "../lib/window-manager-layout-types";
 import { SettingsGroup } from "./settings-group";
 import { WindowManagerLayoutNodeEditor } from "./window-manager-layout-node-editor";
 import { WindowManagerLayoutProfiles } from "./window-manager-layout-profiles";
 
 interface WindowManagerLayoutDocumentEditorProps {
-  workspaceId: string;
-  initial: WindowManagerLayoutState;
-  profiles: readonly WindowManagerLayoutResourceRecord[];
+  editor: WindowManagerLayoutEditorModel;
+  profilesEditor: WindowManagerLayoutProfilesModel;
 }
 
 function downloadDocument(document: WindowManagerLayoutDocument): void {
@@ -32,20 +28,12 @@ function downloadDocument(document: WindowManagerLayoutDocument): void {
 
 /** Raw document editor with mandatory daemon validation + semantic preview fence. */
 export function WindowManagerLayoutDocumentEditor({
-  workspaceId,
-  initial,
-  profiles,
+  editor,
+  profilesEditor,
 }: WindowManagerLayoutDocumentEditorProps) {
-  const editor = useWindowManagerLayoutEditor(workspaceId, initial);
-
   return (
     <div className="flex flex-col gap-6">
-      <WindowManagerLayoutProfiles
-        document={editor.draft}
-        profiles={profiles}
-        workspaceId={workspaceId}
-        onLoad={editor.updateDraft}
-      />
+      <WindowManagerLayoutProfiles editor={profilesEditor} />
 
       <SettingsGroup
         bare
@@ -66,6 +54,7 @@ export function WindowManagerLayoutDocumentEditor({
             />
             <Button
               size="sm"
+              className="min-h-11"
               type="button"
               variant="outline"
               onClick={() => editor.importInput.current?.click()}
@@ -74,6 +63,7 @@ export function WindowManagerLayoutDocumentEditor({
             </Button>
             <Button
               size="sm"
+              className="min-h-11"
               type="button"
               variant="outline"
               onClick={() => downloadDocument(editor.draft)}
@@ -97,7 +87,7 @@ export function WindowManagerLayoutDocumentEditor({
                 <header className="flex flex-wrap items-center gap-3">
                   <Eyebrow className="text-subtle">Desktop {desktop.order + 1}</Eyebrow>
                   <Input
-                    className="min-w-48 flex-1"
+                    className="h-11 min-w-48 flex-1"
                     value={desktop.name}
                     onChange={event => {
                       const desktops = structuredClone(editor.draft.desktops);
@@ -121,6 +111,7 @@ export function WindowManagerLayoutDocumentEditor({
                         >
                           {key}
                           <Input
+                            className="h-11"
                             max={1}
                             min={0}
                             step={0.05}
@@ -196,6 +187,7 @@ export function WindowManagerLayoutDocumentEditor({
           </p>
         )}
         <Button
+          className="min-h-11"
           type="button"
           variant="ghost"
           disabled={!editor.dirty || editor.review.isPending || editor.apply.isPending}
@@ -204,6 +196,7 @@ export function WindowManagerLayoutDocumentEditor({
           Reset
         </Button>
         <Button
+          className="min-h-11"
           type="button"
           variant="outline"
           disabled={editor.review.isPending || editor.apply.isPending}
@@ -212,6 +205,7 @@ export function WindowManagerLayoutDocumentEditor({
           {editor.review.isPending ? "Reviewing…" : "Validate and preview"}
         </Button>
         <Button
+          className="min-h-11"
           type="button"
           disabled={!editor.reviewCurrent || editor.apply.isPending || editor.review.isPending}
           onClick={() => editor.apply.mutate()}

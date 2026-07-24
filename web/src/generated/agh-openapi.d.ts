@@ -5365,6 +5365,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/window-manager/layout-profiles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List layout profiles visible to one workspace */
+    get: operations["listWindowManagerLayoutProfiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Create or replace one workspace-visible layout profile */
+    put: operations["putWindowManagerLayoutProfile"];
+    post?: never;
+    /** Delete one workspace-visible layout profile */
+    delete: operations["deleteWindowManagerLayoutProfile"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/window-manager/layout/validate": {
     parameters: {
       query?: never;
@@ -6225,8 +6260,6 @@ export interface components {
           /** @enum {string} */
           placement: "tiled" | "stacked" | "floating";
           return_anchor?: {
-            /** @enum {string|null} */
-            axis?: "horizontal" | "vertical" | null;
             child_index?: number | null;
             desktop_id: string;
             group_id?: string | null;
@@ -6410,8 +6443,6 @@ export interface components {
             /** @enum {string} */
             placement: "tiled" | "stacked" | "floating";
             return_anchor?: {
-              /** @enum {string|null} */
-              axis?: "horizontal" | "vertical" | null;
               child_index?: number | null;
               desktop_id: string;
               group_id?: string | null;
@@ -6557,8 +6588,6 @@ export interface components {
             /** @enum {string} */
             placement: "tiled" | "stacked" | "floating";
             return_anchor?: {
-              /** @enum {string|null} */
-              axis?: "horizontal" | "vertical" | null;
               child_index?: number | null;
               desktop_id: string;
               group_id?: string | null;
@@ -6827,8 +6856,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -6967,8 +6994,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -7137,8 +7162,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -7277,8 +7300,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -7412,8 +7433,6 @@ export interface components {
             /** @enum {string} */
             placement: "tiled" | "stacked" | "floating";
             return_anchor?: {
-              /** @enum {string|null} */
-              axis?: "horizontal" | "vertical" | null;
               child_index?: number | null;
               desktop_id: string;
               group_id?: string | null;
@@ -7561,8 +7580,6 @@ export interface components {
             /** @enum {string} */
             placement: "tiled" | "stacked" | "floating";
             return_anchor?: {
-              /** @enum {string|null} */
-              axis?: "horizontal" | "vertical" | null;
               child_index?: number | null;
               desktop_id: string;
               group_id?: string | null;
@@ -7775,8 +7792,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -7915,8 +7930,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -8085,8 +8098,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -8225,8 +8236,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -8360,8 +8369,6 @@ export interface components {
             /** @enum {string} */
             placement: "tiled" | "stacked" | "floating";
             return_anchor?: {
-              /** @enum {string|null} */
-              axis?: "horizontal" | "vertical" | null;
               child_index?: number | null;
               desktop_id: string;
               group_id?: string | null;
@@ -8543,8 +8550,6 @@ export interface components {
                 /** @enum {string} */
                 placement: "tiled" | "stacked" | "floating";
                 return_anchor?: {
-                  /** @enum {string|null} */
-                  axis?: "horizontal" | "vertical" | null;
                   child_index?: number | null;
                   desktop_id: string;
                   group_id?: string | null;
@@ -8683,8 +8688,6 @@ export interface components {
                 /** @enum {string} */
                 placement: "tiled" | "stacked" | "floating";
                 return_anchor?: {
-                  /** @enum {string|null} */
-                  axis?: "horizontal" | "vertical" | null;
                   child_index?: number | null;
                   desktop_id: string;
                   group_id?: string | null;
@@ -8853,8 +8856,6 @@ export interface components {
                 /** @enum {string} */
                 placement: "tiled" | "stacked" | "floating";
                 return_anchor?: {
-                  /** @enum {string|null} */
-                  axis?: "horizontal" | "vertical" | null;
                   child_index?: number | null;
                   desktop_id: string;
                   group_id?: string | null;
@@ -8993,8 +8994,6 @@ export interface components {
                 /** @enum {string} */
                 placement: "tiled" | "stacked" | "floating";
                 return_anchor?: {
-                  /** @enum {string|null} */
-                  axis?: "horizontal" | "vertical" | null;
                   child_index?: number | null;
                   desktop_id: string;
                   group_id?: string | null;
@@ -9128,8 +9127,6 @@ export interface components {
           /** @enum {string} */
           placement: "tiled" | "stacked" | "floating";
           return_anchor?: {
-            /** @enum {string|null} */
-            axis?: "horizontal" | "vertical" | null;
             child_index?: number | null;
             desktop_id: string;
             group_id?: string | null;
@@ -9322,8 +9319,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -9462,8 +9457,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -9632,8 +9625,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -9772,8 +9763,6 @@ export interface components {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -9907,8 +9896,6 @@ export interface components {
             /** @enum {string} */
             placement: "tiled" | "stacked" | "floating";
             return_anchor?: {
-              /** @enum {string|null} */
-              axis?: "horizontal" | "vertical" | null;
               child_index?: number | null;
               desktop_id: string;
               group_id?: string | null;
@@ -100091,8 +100078,6 @@ export interface operations {
                       /** @enum {string} */
                       placement: "tiled" | "stacked" | "floating";
                       return_anchor?: {
-                        /** @enum {string|null} */
-                        axis?: "horizontal" | "vertical" | null;
                         child_index?: number | null;
                         desktop_id: string;
                         group_id?: string | null;
@@ -100231,8 +100216,6 @@ export interface operations {
                       /** @enum {string} */
                       placement: "tiled" | "stacked" | "floating";
                       return_anchor?: {
-                        /** @enum {string|null} */
-                        axis?: "horizontal" | "vertical" | null;
                         child_index?: number | null;
                         desktop_id: string;
                         group_id?: string | null;
@@ -100401,8 +100384,6 @@ export interface operations {
                       /** @enum {string} */
                       placement: "tiled" | "stacked" | "floating";
                       return_anchor?: {
-                        /** @enum {string|null} */
-                        axis?: "horizontal" | "vertical" | null;
                         child_index?: number | null;
                         desktop_id: string;
                         group_id?: string | null;
@@ -100541,8 +100522,6 @@ export interface operations {
                       /** @enum {string} */
                       placement: "tiled" | "stacked" | "floating";
                       return_anchor?: {
-                        /** @enum {string|null} */
-                        axis?: "horizontal" | "vertical" | null;
                         child_index?: number | null;
                         desktop_id: string;
                         group_id?: string | null;
@@ -100676,8 +100655,6 @@ export interface operations {
                 /** @enum {string} */
                 placement: "tiled" | "stacked" | "floating";
                 return_anchor?: {
-                  /** @enum {string|null} */
-                  axis?: "horizontal" | "vertical" | null;
                   child_index?: number | null;
                   desktop_id: string;
                   group_id?: string | null;
@@ -101503,8 +101480,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -101643,8 +101618,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -101813,8 +101786,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -101953,8 +101924,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -102088,8 +102057,6 @@ export interface operations {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -102405,8 +102372,6 @@ export interface operations {
                 /** @enum {string} */
                 placement: "tiled" | "stacked" | "floating";
                 return_anchor?: {
-                  /** @enum {string|null} */
-                  axis?: "horizontal" | "vertical" | null;
                   child_index?: number | null;
                   desktop_id: string;
                   group_id?: string | null;
@@ -102646,8 +102611,6 @@ export interface operations {
                 /** @enum {string} */
                 placement: "tiled" | "stacked" | "floating";
                 return_anchor?: {
-                  /** @enum {string|null} */
-                  axis?: "horizontal" | "vertical" | null;
                   child_index?: number | null;
                   desktop_id: string;
                   group_id?: string | null;
@@ -102866,8 +102829,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -103006,8 +102967,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -103176,8 +103135,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -103316,8 +103273,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -103451,8 +103406,6 @@ export interface operations {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -103654,6 +103607,869 @@ export interface operations {
       };
     };
   };
+  listWindowManagerLayoutProfiles: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            records: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            }[];
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+    };
+  };
+  putWindowManagerLayoutProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Layout profile id */
+        profile_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: int64 */
+          expected_version?: number;
+          scope: {
+            id?: string;
+            /** @enum {string} */
+            kind: "global" | "workspace";
+          };
+          spec: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            record: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            record: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid JSON body */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace or profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid layout profile */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+    };
+  };
+  deleteWindowManagerLayoutProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Layout profile id */
+        profile_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: int64 */
+          expected_version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid JSON body */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace or profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+      /** @description Version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid delete request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                /** @enum {string} */
+                code:
+                  | "window_manager_workspace_not_found"
+                  | "window_manager_revision_conflict"
+                  | "window_manager_invalid_command"
+                  | "window_manager_invalid_topology"
+                  | "window_manager_desktop_not_found"
+                  | "window_manager_window_not_found"
+                  | "window_manager_client_not_found"
+                  | "window_manager_destination_required"
+                  | "window_manager_final_desktop"
+                  | "window_manager_history_boundary"
+                  | "window_manager_layout_not_found"
+                  | "window_manager_slow_consumer"
+                  | "window_manager_unavailable";
+                conflicts?: {
+                  code: string;
+                  current_id?: string;
+                  entity_id?: string;
+                }[];
+                current_revision?: number;
+                diagnostics?: {
+                  code: string;
+                  message: string;
+                  path?: string;
+                }[];
+                error: string;
+                workspace_id: string;
+              };
+        };
+      };
+    };
+  };
   validateWindowManagerLayout: {
     parameters: {
       query?: never;
@@ -103764,8 +104580,6 @@ export interface operations {
                 /** @enum {string} */
                 placement: "tiled" | "stacked" | "floating";
                 return_anchor?: {
-                  /** @enum {string|null} */
-                  axis?: "horizontal" | "vertical" | null;
                   child_index?: number | null;
                   desktop_id: string;
                   group_id?: string | null;
@@ -104207,8 +105021,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -104347,8 +105159,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -104517,8 +105327,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -104657,8 +105465,6 @@ export interface operations {
                         /** @enum {string} */
                         placement: "tiled" | "stacked" | "floating";
                         return_anchor?: {
-                          /** @enum {string|null} */
-                          axis?: "horizontal" | "vertical" | null;
                           child_index?: number | null;
                           desktop_id: string;
                           group_id?: string | null;
@@ -104792,8 +105598,6 @@ export interface operations {
                   /** @enum {string} */
                   placement: "tiled" | "stacked" | "floating";
                   return_anchor?: {
-                    /** @enum {string|null} */
-                    axis?: "horizontal" | "vertical" | null;
                     child_index?: number | null;
                     desktop_id: string;
                     group_id?: string | null;
@@ -105167,8 +105971,6 @@ export interface operations {
                             /** @enum {string} */
                             placement: "tiled" | "stacked" | "floating";
                             return_anchor?: {
-                              /** @enum {string|null} */
-                              axis?: "horizontal" | "vertical" | null;
                               child_index?: number | null;
                               desktop_id: string;
                               group_id?: string | null;
@@ -105307,8 +106109,6 @@ export interface operations {
                             /** @enum {string} */
                             placement: "tiled" | "stacked" | "floating";
                             return_anchor?: {
-                              /** @enum {string|null} */
-                              axis?: "horizontal" | "vertical" | null;
                               child_index?: number | null;
                               desktop_id: string;
                               group_id?: string | null;
@@ -105477,8 +106277,6 @@ export interface operations {
                             /** @enum {string} */
                             placement: "tiled" | "stacked" | "floating";
                             return_anchor?: {
-                              /** @enum {string|null} */
-                              axis?: "horizontal" | "vertical" | null;
                               child_index?: number | null;
                               desktop_id: string;
                               group_id?: string | null;
@@ -105617,8 +106415,6 @@ export interface operations {
                             /** @enum {string} */
                             placement: "tiled" | "stacked" | "floating";
                             return_anchor?: {
-                              /** @enum {string|null} */
-                              axis?: "horizontal" | "vertical" | null;
                               child_index?: number | null;
                               desktop_id: string;
                               group_id?: string | null;
@@ -105752,8 +106548,6 @@ export interface operations {
                       /** @enum {string} */
                       placement: "tiled" | "stacked" | "floating";
                       return_anchor?: {
-                        /** @enum {string|null} */
-                        axis?: "horizontal" | "vertical" | null;
                         child_index?: number | null;
                         desktop_id: string;
                         group_id?: string | null;

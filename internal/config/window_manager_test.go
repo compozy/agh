@@ -8,6 +8,7 @@ package config
 import (
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -32,7 +33,7 @@ func TestWindowManagerConfig(t *testing.T) {
 			t.Fatalf("WindowManager = %#v, want floating/stack/history 50", got)
 		}
 		wantRatios := []float64{0.5, 0.666667, 0.333333}
-		if !equalFloatSlices(got.Snap.RepeatRatios, wantRatios) {
+		if !slices.Equal(got.Snap.RepeatRatios, wantRatios) {
 			t.Fatalf("RepeatRatios = %v, want %v", got.Snap.RepeatRatios, wantRatios)
 		}
 	})
@@ -195,16 +196,4 @@ func assertWindowManagerValidationPath(t *testing.T, err error, want string) {
 	if validationError.Path != want || !strings.Contains(err.Error(), want) {
 		t.Fatalf("Validate() error = %v path=%q, want %q", err, validationError.Path, want)
 	}
-}
-
-func equalFloatSlices(left, right []float64) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }

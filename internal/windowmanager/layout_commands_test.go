@@ -18,6 +18,9 @@ func TestArrangementModes(t *testing.T) {
 		windowIDs   []WindowID
 		rootKind    NodeKind
 		rootAxis    Axis
+		childKind   NodeKind
+		childAxis   Axis
+		nodeCount   int
 		placement   WindowPlacement
 	}{
 		{
@@ -25,6 +28,7 @@ func TestArrangementModes(t *testing.T) {
 			arrangement: ArrangementHorizontal,
 			windowIDs:   []WindowID{"w1"},
 			rootKind:    NodeKindLeaf,
+			nodeCount:   1,
 			placement:   WindowPlacementTiled,
 		},
 		{
@@ -33,6 +37,7 @@ func TestArrangementModes(t *testing.T) {
 			windowIDs:   []WindowID{"w1", "w2", "w3"},
 			rootKind:    NodeKindSplit,
 			rootAxis:    AxisHorizontal,
+			nodeCount:   4,
 			placement:   WindowPlacementTiled,
 		},
 		{
@@ -41,6 +46,7 @@ func TestArrangementModes(t *testing.T) {
 			windowIDs:   []WindowID{"w1", "w2", "w3"},
 			rootKind:    NodeKindSplit,
 			rootAxis:    AxisVertical,
+			nodeCount:   4,
 			placement:   WindowPlacementTiled,
 		},
 		{
@@ -49,6 +55,9 @@ func TestArrangementModes(t *testing.T) {
 			windowIDs:   []WindowID{"w1", "w2", "w3", "w4"},
 			rootKind:    NodeKindSplit,
 			rootAxis:    AxisVertical,
+			childKind:   NodeKindSplit,
+			childAxis:   AxisHorizontal,
+			nodeCount:   7,
 			placement:   WindowPlacementTiled,
 		},
 		{
@@ -56,6 +65,7 @@ func TestArrangementModes(t *testing.T) {
 			arrangement: ArrangementStack,
 			windowIDs:   []WindowID{"w1", "w2", "w3"},
 			rootKind:    NodeKindStack,
+			nodeCount:   1,
 			placement:   WindowPlacementStacked,
 		},
 	}
@@ -84,6 +94,19 @@ func TestArrangementModes(t *testing.T) {
 			}
 			if members := nodeWindowIDs(root); len(members) != len(test.windowIDs) {
 				t.Fatalf("arranged members = %v", members)
+			}
+			if len(result.Changes.NodeIDs) != test.nodeCount {
+				t.Fatalf("arranged node changes = %v, want %d nodes", result.Changes.NodeIDs, test.nodeCount)
+			}
+			if test.childKind != "" {
+				if len(root.Children) != 2 {
+					t.Fatalf("arranged grid rows = %+v, want 2 rows", root.Children)
+				}
+				for _, child := range root.Children {
+					if child.Kind != test.childKind || valueOrZero(child.Axis) != test.childAxis {
+						t.Fatalf("arranged grid row = %+v, want %s/%s", child, test.childKind, test.childAxis)
+					}
+				}
 			}
 			for _, windowID := range test.windowIDs {
 				if result.Snapshot.Windows[windowID].Placement != test.placement {
@@ -344,6 +367,17 @@ func TestBalanceAndResize(t *testing.T) {
 			nil,
 			ResizeLayoutCommand{SplitID: "root", BoundaryIndex: 0, Delta: -0.1},
 		)
+		siblingResized := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			ResizeLayoutCommand{SplitID: "right", BoundaryIndex: 0, Delta: -0.1},
+		)
+		siblingBefore, found := findNodeInSnapshot(&siblingResized.Snapshot, "right")
+		if !found {
+			t.Fatal("sibling split missing before targeted balance")
+		}
 		splitID := NodeID("root")
 		oneSplit := executeTestCommand(
 			t,
@@ -353,8 +387,20 @@ func TestBalanceAndResize(t *testing.T) {
 			BalanceLayoutCommand{SplitID: &splitID},
 		)
 		node, found := findNodeInSnapshot(&oneSplit.Snapshot, splitID)
-		if !found || !weightsEqual(node.Weights) || oneSplit.Snapshot.Revision != resizedAgain.Snapshot.Revision+1 {
+		if !found || !weightsEqual(node.Weights) || oneSplit.Snapshot.Revision != siblingResized.Snapshot.Revision+1 {
 			t.Fatalf("single split balance = %+v", oneSplit)
+		}
+		siblingAfter, found := findNodeInSnapshot(&oneSplit.Snapshot, "right")
+		if !found || len(siblingAfter.Weights) != len(siblingBefore.Weights) {
+			t.Fatalf("sibling split after targeted balance = %+v", siblingAfter)
+		}
+		for index := range siblingBefore.Weights {
+			if siblingAfter.Weights[index] != siblingBefore.Weights[index] {
+				t.Fatalf("sibling weights changed from %v to %v", siblingBefore.Weights, siblingAfter.Weights)
+			}
+		}
+		if resizedAgain.Snapshot.Revision+1 != siblingResized.Snapshot.Revision {
+			t.Fatalf("sibling resize revision = %d", siblingResized.Snapshot.Revision)
 		}
 		if rootResized.Snapshot.Revision != replaced.Snapshot.Revision+1 {
 			t.Fatalf("first resize revision = %d", rootResized.Snapshot.Revision)
@@ -448,23 +494,36 @@ func TestNewWindowInsertionPolicy(t *testing.T) {
 		}
 
 		beforeCommits := len(environment.repository.Commits("workspace-a"))
-		invalidCommands := []OpenWindowCommand{
-			{Window: WindowSpec{ID: "bad-app", App: " ", Route: testRoute("/bad-app")}},
-			{Window: WindowSpec{ID: "w1", App: "Duplicate", Route: testRoute("/duplicate")}},
-			{Window: WindowSpec{
+		invalidCommands := []struct {
+			command OpenWindowCommand
+			want    error
+		}{
+			{
+				command: OpenWindowCommand{
+					Window: WindowSpec{ID: "bad-app", App: " ", Route: testRoute("/bad-app")},
+				},
+				want: ErrInvalidCommand,
+			},
+			{
+				command: OpenWindowCommand{
+					Window: WindowSpec{ID: "w1", App: "Duplicate", Route: testRoute("/duplicate")},
+				},
+				want: ErrInvalidCommand,
+			},
+			{command: OpenWindowCommand{Window: WindowSpec{
 				ID: "bad-desktop", App: "Bad", Route: testRoute("/bad-desktop"), DesktopID: "missing",
-			}},
+			}}, want: ErrDesktopNotFound},
 		}
-		for _, command := range invalidCommands {
+		for _, test := range invalidCommands {
 			snapshot, err := environment.manager.Snapshot(t.Context(), "workspace-a")
 			if err != nil {
 				t.Fatalf("Snapshot() error = %v", err)
 			}
 			if _, err := environment.manager.Execute(
 				t.Context(),
-				CommandRequest{WorkspaceID: "workspace-a", ExpectedRevision: snapshot.Revision, Payload: command},
-			); err == nil {
-				t.Fatalf("Execute(%+v) unexpectedly succeeded", command)
+				CommandRequest{WorkspaceID: "workspace-a", ExpectedRevision: snapshot.Revision, Payload: test.command},
+			); !errors.Is(err, test.want) {
+				t.Fatalf("Execute(%+v) error = %v, want %v", test.command, err, test.want)
 			}
 		}
 		if len(environment.repository.Commits("workspace-a")) != beforeCommits {

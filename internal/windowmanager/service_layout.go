@@ -102,8 +102,7 @@ func (m *Manager) LayoutResources(ctx context.Context, workspaceID WorkspaceID) 
 	}
 	cloned := make([]LayoutResource, len(resources))
 	for index, resource := range resources {
-		cloned[index] = resource
-		cloned[index].Document = cloneLayoutDocument(resource.Document)
+		cloned[index] = CloneLayoutResource(resource)
 	}
 	return cloned, nil
 }

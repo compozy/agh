@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -115,8 +116,9 @@ func TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeli
 	t.Parallel()
 
 	testCases := []struct {
-		name string
-		spec BundleSpec
+		name        string
+		spec        BundleSpec
+		wantMessage string
 	}{
 		{
 			name: "Should reject case-insensitive duplicate profile names",
@@ -161,7 +163,8 @@ func TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeli
 			},
 		},
 		{
-			name: "Should reject case-insensitive duplicate window layout IDs",
+			name:        "Should reject case-insensitive duplicate window layout IDs",
+			wantMessage: `layout "two-up" is duplicated`,
 			spec: BundleSpec{
 				Name: "marketing",
 				Profiles: []BundleProfile{{
@@ -191,6 +194,9 @@ func TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeli
 			})
 			if !errors.Is(err, ErrBundleInvalid) {
 				t.Fatalf("BundleSpec.Validate() error = %v, want ErrBundleInvalid", err)
+			}
+			if tc.wantMessage != "" && !strings.Contains(err.Error(), tc.wantMessage) {
+				t.Fatalf("BundleSpec.Validate() error = %v, want message containing %q", err, tc.wantMessage)
 			}
 		})
 	}

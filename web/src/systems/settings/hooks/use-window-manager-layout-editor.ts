@@ -151,3 +151,5 @@ export function useWindowManagerLayoutEditor(
     validation,
   };
 }
+
+export type WindowManagerLayoutEditorModel = ReturnType<typeof useWindowManagerLayoutEditor>;

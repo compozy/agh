@@ -82,7 +82,6 @@ func cloneReturnAnchor(anchor *ReturnAnchor) *ReturnAnchor {
 	cloned := *anchor
 	cloned.GroupID = clonePointer(anchor.GroupID)
 	cloned.ParentSplitID = clonePointer(anchor.ParentSplitID)
-	cloned.Axis = clonePointer(anchor.Axis)
 	cloned.ChildIndex = clonePointer(anchor.ChildIndex)
 	cloned.Weight = clonePointer(anchor.Weight)
 	cloned.NeighborIDs = append([]WindowID(nil), anchor.NeighborIDs...)

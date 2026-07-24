@@ -334,6 +334,67 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 
+	t.Run("Should reject layout apply fields absent from its descriptor", func(t *testing.T) {
+		t.Parallel()
+		var input windowManagerLayoutApplyInput
+		err := decodeWindowManagerJSON(
+			toolspkg.ToolIDLayoutApply,
+			json.RawMessage(`{"expected_revision":0,"document":{},"rebase":{}}`),
+			&input,
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+	})
+
+	t.Run("Should reject conflicting native window group move fields", func(t *testing.T) {
+		t.Parallel()
+		native := &daemonNativeTools{}
+		cases := []struct {
+			name    string
+			input   string
+			message string
+		}{
+			{
+				name: "Should require placement outside group mode",
+				input: `{"expected_revision":0,"window_id":"window-a",` +
+					`"destination_desktop_id":"desktop-b"}`,
+				message: "placement is required unless move_group is true",
+			},
+			{
+				name: "Should reject target in group mode",
+				input: `{"expected_revision":0,"window_id":"window-a",` +
+					`"destination_desktop_id":"desktop-b","move_group":true,` +
+					`"target_window_id":"window-b"}`,
+				message: "move_group cannot be combined with target_window_id",
+			},
+			{
+				name: "Should reject placement in group mode",
+				input: `{"expected_revision":0,"window_id":"window-a",` +
+					`"destination_desktop_id":"desktop-b","move_group":true,"placement":"right"}`,
+				message: "move_group cannot be combined with placement",
+			},
+			{
+				name: "Should reject floating rectangle in group mode",
+				input: `{"expected_revision":0,"window_id":"window-a",` +
+					`"destination_desktop_id":"desktop-b","move_group":true,` +
+					`"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
+				message: "move_group cannot be combined with floating_rect",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := native.windowMove(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDWindowMove,
+					Input:  json.RawMessage(tc.input),
+				})
+				requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+				if !strings.Contains(err.Error(), tc.message) {
+					t.Fatalf("windowMove() error = %v, want message containing %q", err, tc.message)
+				}
+			})
+		}
+	})
+
 	t.Run("Should require approval before destructive window manager commands", func(t *testing.T) {
 		t.Parallel()
 

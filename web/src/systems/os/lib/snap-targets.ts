@@ -23,6 +23,7 @@ export {
   type TileSnapTarget,
 } from "./tile-snap-target";
 export type InsertionRelation = "before" | "after";
+const OCCUPIED_SNAP_CENTER_INSET_RATIO = 0.25;
 export interface SnapTargetConfig {
   edgeBand: number;
   cornerReach: number;
@@ -285,7 +286,7 @@ function edgeCenterTarget(
 function sideFromCandidate(point: PixelPoint, rect: PixelRect): SnapSide | null {
   const x = (point.x - rect.x) / rect.w;
   const y = (point.y - rect.y) / rect.h;
-  const inset = 0.25;
+  const inset = OCCUPIED_SNAP_CENTER_INSET_RATIO;
   if (x >= inset && x <= 1 - inset && y >= inset && y <= 1 - inset) return null;
   const distances: Array<{ side: SnapSide; value: number }> = [
     { side: "left", value: x },

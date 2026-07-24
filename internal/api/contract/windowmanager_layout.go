@@ -41,7 +41,7 @@ func windowManagerDesktopsFromDomain(desktops []windowmanager.Desktop) []WindowM
 		}
 		result = append(result, WindowManagerDesktop{
 			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order, Purpose: desktop.Purpose,
-			FocusOwner: desktop.FocusOwner, Groups: groups,
+			FocusOwner: cloneWindowManagerPointer(desktop.FocusOwner), Groups: groups,
 			Floating: append([]windowmanager.WindowID{}, desktop.Floating...),
 		})
 	}
@@ -70,8 +70,11 @@ func windowManagerLayoutNodeFromDomain(node windowmanager.LayoutNode) WindowMana
 		children = append(children, windowManagerLayoutNodeFromDomain(child))
 	}
 	return WindowManagerLayoutNode{
-		ID: node.ID, Kind: node.Kind, WindowID: node.WindowID, Axis: node.Axis,
-		Children: children, Weights: node.Weights, WindowIDs: node.WindowIDs, ActiveID: node.ActiveID,
+		ID: node.ID, Kind: node.Kind,
+		WindowID: cloneWindowManagerPointer(node.WindowID), Axis: cloneWindowManagerPointer(node.Axis),
+		Children: children, Weights: append([]float64(nil), node.Weights...),
+		WindowIDs: append([]windowmanager.WindowID(nil), node.WindowIDs...),
+		ActiveID:  cloneWindowManagerPointer(node.ActiveID),
 	}
 }
 
@@ -84,7 +87,8 @@ func windowManagerDesktopsToDomain(desktops []WindowManagerDesktop) []windowmana
 		}
 		result = append(result, windowmanager.Desktop{
 			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order, Purpose: desktop.Purpose,
-			FocusOwner: desktop.FocusOwner, Groups: groups, Floating: desktop.Floating,
+			FocusOwner: cloneWindowManagerPointer(desktop.FocusOwner), Groups: groups,
+			Floating: append([]windowmanager.WindowID(nil), desktop.Floating...),
 		})
 	}
 	return result
@@ -112,7 +116,18 @@ func windowManagerLayoutNodeToDomain(node WindowManagerLayoutNode) windowmanager
 		children = append(children, windowManagerLayoutNodeToDomain(child))
 	}
 	return windowmanager.LayoutNode{
-		ID: node.ID, Kind: node.Kind, WindowID: node.WindowID, Axis: node.Axis,
-		Children: children, Weights: node.Weights, WindowIDs: node.WindowIDs, ActiveID: node.ActiveID,
+		ID: node.ID, Kind: node.Kind,
+		WindowID: cloneWindowManagerPointer(node.WindowID), Axis: cloneWindowManagerPointer(node.Axis),
+		Children: children, Weights: append([]float64(nil), node.Weights...),
+		WindowIDs: append([]windowmanager.WindowID(nil), node.WindowIDs...),
+		ActiveID:  cloneWindowManagerPointer(node.ActiveID),
 	}
+}
+
+func cloneWindowManagerPointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }

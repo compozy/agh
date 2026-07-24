@@ -8,6 +8,8 @@ import type {
   WindowManagerLayoutValidation,
 } from "../../lib/window-manager-layout-types";
 import { settingsKeys } from "../../lib/query-keys";
+import { useWindowManagerLayoutEditor } from "../../hooks/use-window-manager-layout-editor";
+import { useWindowManagerLayoutProfiles } from "../../hooks/use-window-manager-layout-profiles";
 import { WindowManagerLayoutDocumentEditor } from "../window-manager-layout-document-editor";
 
 const apiMocks = vi.hoisted(() => ({
@@ -87,6 +89,17 @@ const PROFILE: WindowManagerLayoutResourceRecord = {
   updatedAt: "2026-07-22T00:00:00Z",
 };
 
+function EditorHarness({ profiles }: { profiles: readonly WindowManagerLayoutResourceRecord[] }) {
+  const editor = useWindowManagerLayoutEditor("workspace-a", initial);
+  const profilesEditor = useWindowManagerLayoutProfiles({
+    workspaceId: "workspace-a",
+    document: editor.draft,
+    profiles,
+    onLoad: editor.updateDraft,
+  });
+  return <WindowManagerLayoutDocumentEditor editor={editor} profilesEditor={profilesEditor} />;
+}
+
 function renderEditor(profiles: readonly WindowManagerLayoutResourceRecord[] = []) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -94,14 +107,10 @@ function renderEditor(profiles: readonly WindowManagerLayoutResourceRecord[] = [
       queries: { retry: false },
     },
   });
-  queryClient.setQueryData(settingsKeys.windowManagerLayoutProfiles(), profiles);
+  queryClient.setQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"), profiles);
   const rendered = render(
     <QueryClientProvider client={queryClient}>
-      <WindowManagerLayoutDocumentEditor
-        initial={initial}
-        profiles={profiles}
-        workspaceId="workspace-a"
-      />
+      <EditorHarness profiles={profiles} />
     </QueryClientProvider>
   );
   return { ...rendered, queryClient };
@@ -229,7 +238,7 @@ describe("WindowManagerLayoutDocumentEditor", () => {
     apiMocks.putProfile.mockResolvedValue(moved);
     const { queryClient } = renderEditor([PROFILE]);
 
-    fireEvent.click(screen.getByRole("button", { name: /Primary layout/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Primary layout/ }));
     fireEvent.change(screen.getByRole("combobox", { name: "Scope" }), {
       target: { value: "global" },
     });
@@ -246,7 +255,7 @@ describe("WindowManagerLayoutDocumentEditor", () => {
     await waitFor(() =>
       expect(
         queryClient.getQueryData<WindowManagerLayoutResourceRecord[]>(
-          settingsKeys.windowManagerLayoutProfiles()
+          settingsKeys.windowManagerLayoutProfiles("workspace-a")
         )
       ).toEqual([moved])
     );

@@ -3,6 +3,7 @@ import type {
   DropPlacement,
   FocusDirection,
   GroupId,
+  LayoutAxis,
   LayoutDesktop,
   LayoutNodeId,
   LayoutProjection,
@@ -58,6 +59,7 @@ export interface OsWindow {
   nodeId: LayoutNodeId | null;
   stackId: LayoutNodeId | null;
   stackActive: boolean;
+  parentAxis: LayoutAxis | null;
 }
 
 export type OsWallpaper = "ember" | "mesh" | "carbon";
@@ -85,6 +87,15 @@ export interface MoveWindowInput {
   moveGroup?: boolean;
 }
 
+export interface WindowManagerCommandOutcome {
+  accepted: boolean;
+  completion: Promise<boolean>;
+}
+
+export interface WindowManagerOpenOutcome extends WindowManagerCommandOutcome {
+  windowId: string;
+}
+
 /**
  * Selector surface derived from Query snapshots plus client-local presentation.
  * It is never persisted and never owns a revision.
@@ -107,19 +118,19 @@ export interface OsDesktopRuntimeStore {
   hydration: OsHydration;
   connectionStatus: WindowManagerConnectionStatus;
   desktopBounds: OsDesktopBounds | null;
-  openOrFocus(target: OsOpenTarget): string;
+  openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
   closeWindow(id: string): Promise<boolean>;
-  focusWindow(id: string): void;
+  focusWindow(id: string): WindowManagerCommandOutcome;
   minimizeWindow(id: string): Promise<boolean>;
   restoreWindow(id: string): void;
-  zoomWindow(id: string): void;
+  zoomWindow(id: string): WindowManagerCommandOutcome;
   toggleFloating(id: string): void;
   moveWindow(id: string, input: MoveWindowInput): void;
   arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
   commitFloatingRect(id: string, rect: OsRect): void;
   resizeLayout(splitId: string, boundaryIndex: number, delta: number): void;
   balanceLayout(groupId?: string, splitId?: string): void;
-  navigateWindow(id: string, route: OsWindowRoute): void;
+  navigateWindow(id: string, route: OsWindowRoute): WindowManagerCommandOutcome;
   toggleRailGroup(agentId: string): void;
   setWallpaper(wallpaper: OsWallpaper): void;
   setDockMagnify(on: boolean): void;
@@ -156,7 +167,6 @@ export interface WindowManagerController extends OsDesktopRuntime {
   balanceFocusedLayout(): void;
   clearConflict(): void;
   refreshSnapshot(): void;
-  destroy(): void;
 }
 
 export const OS_COMPACT_BREAKPOINT = 960;

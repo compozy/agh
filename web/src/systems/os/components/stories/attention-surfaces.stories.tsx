@@ -8,7 +8,7 @@ import type { WorkspacePayload } from "@/systems/workspace";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
-import { WindowManagerRuntime } from "../../hooks/window-manager-runtime";
+import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
 import { DesktopMenubar } from "../desktop-menubar";
 import { OsSessionsModal } from "../sessions-modal";

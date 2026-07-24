@@ -19,6 +19,7 @@ import (
 
 const (
 	windowManagerWorkspaceFlag    = "workspace"
+	windowManagerAppFlag          = "app"
 	windowManagerRevisionFlag     = "revision"
 	windowManagerClientFlag       = "client"
 	windowManagerOriginFlag       = "origin"
@@ -29,6 +30,8 @@ const (
 	windowManagerDocumentFile     = "file"
 	windowManagerCLIOrigin        = "cli"
 	windowManagerCreateKey        = "create"
+	windowManagerDeleteKey        = "delete"
+	windowManagerListKey          = "list"
 	windowManagerUpdateKey        = "update"
 	windowManagerSwitchKey        = "switch"
 	windowManagerPreviewKey       = "preview"
@@ -221,7 +224,11 @@ func optionalWindowManagerID[T ~string](
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		if cmd.Flags().Changed(flagName) {
-			return nil, fmt.Errorf("cli: --%s must not be blank", flagName)
+			return nil, newWindowManagerCLIValidationError(
+				windowManagerCLIValidationInvalidValue,
+				flagName,
+				fmt.Errorf("cli: --%s must not be blank", flagName),
+			)
 		}
 		return nil, nil
 	}

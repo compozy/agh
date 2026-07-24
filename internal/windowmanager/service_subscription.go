@@ -53,7 +53,7 @@ func (m *Manager) addSubscription(
 	}
 	hub := m.hubs[workspaceID]
 	if hub == nil {
-		hub = newSubscriptionHub(workspaceID, m.subscriptionBuffer)
+		hub = newSubscriptionHub(m.subscriptionBuffer)
 		m.hubs[workspaceID] = hub
 	}
 	return hub.add(ctx, fence), nil

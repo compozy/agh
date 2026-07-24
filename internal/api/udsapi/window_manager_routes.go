@@ -13,5 +13,8 @@ func registerWindowManagerRoutes(api gin.IRouter, handlers *Handlers) {
 	manager.GET("/layout", handlers.ExportWindowManagerLayout)
 	manager.POST("/layout/validate", handlers.ValidateWindowManagerLayout)
 	manager.PUT("/layout", handlers.ReplaceWindowManagerLayout)
+	manager.GET("/layout-profiles", handlers.ListWindowManagerLayoutProfiles)
+	manager.PUT("/layout-profiles/:profile_id", handlers.PutWindowManagerLayoutProfile)
+	manager.DELETE("/layout-profiles/:profile_id", handlers.DeleteWindowManagerLayoutProfile)
 	manager.GET("/stream", handlers.StreamWindowManager)
 }

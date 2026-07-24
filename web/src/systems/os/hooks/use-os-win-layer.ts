@@ -1,7 +1,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { useShallow } from "zustand/shallow";
 
-import type { LayoutDesktop } from "../lib/window-manager-types";
+import type { LayoutDesktop, LayoutProjection } from "../lib/window-manager-types";
 import type { OsPresentation, OsViewportState } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
@@ -10,6 +10,7 @@ export interface DesktopLayerModel {
   desktop: LayoutDesktop;
   windowIds: readonly string[];
   active: boolean;
+  anyVisible: boolean;
 }
 
 export interface OsWinLayerModel {
@@ -17,6 +18,7 @@ export interface OsWinLayerModel {
   desktops: readonly DesktopLayerModel[];
   presentation: OsPresentation;
   viewportState: OsViewportState;
+  activeProjection: LayoutProjection | undefined;
 }
 
 /** Measures one shared work area and groups the Query projection by desktop. */
@@ -29,6 +31,7 @@ export function useOsWinLayer(): OsWinLayerModel {
     useShallow(state => ({
       activeDesktopId: state.activeDesktopId,
       desktops: state.desktops,
+      projections: state.projections,
       windows: state.windows,
     }))
   );
@@ -42,6 +45,9 @@ export function useOsWinLayer(): OsWinLayerModel {
     desktop,
     active: desktop.id === projection.activeDesktopId,
     windowIds: windowIdsByDesktop.get(desktop.id) ?? [],
+    anyVisible: (windowIdsByDesktop.get(desktop.id) ?? []).some(
+      windowId => !projection.windows[windowId]?.minimized
+    ),
   }));
 
   useEffect(() => {
@@ -59,5 +65,13 @@ export function useOsWinLayer(): OsWinLayerModel {
     return () => observer.disconnect();
   }, [store]);
 
-  return { layerRef, desktops, presentation, viewportState };
+  return {
+    layerRef,
+    desktops,
+    presentation,
+    viewportState,
+    activeProjection: projection.activeDesktopId
+      ? projection.projections[projection.activeDesktopId]
+      : undefined,
+  };
 }

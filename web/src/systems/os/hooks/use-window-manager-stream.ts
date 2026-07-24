@@ -117,6 +117,7 @@ export function useWindowManagerStream({
     let refreshRetryTimer: ReturnType<typeof setTimeout> | null = null;
     let refreshRetryAttempt = 0;
     let pendingMinimumRevision = -1;
+    const refreshController = new AbortController();
     const attempt = reconnectAttempt.current;
     publishStatus(attempt === 0 ? "connecting" : "reconnecting");
     const cachedAtOpen = queryClient.getQueryData<WindowManagerSnapshot>(
@@ -166,7 +167,7 @@ export function useWindowManagerStream({
       refresh = (async () => {
         while (!stopped && currentTopologyRevision() < pendingMinimumRevision) {
           const before = currentTopologyRevision();
-          const snapshot = await fetchWindowManagerSnapshot(workspaceId);
+          const snapshot = await fetchWindowManagerSnapshot(workspaceId, refreshController.signal);
           if (stopped) return;
           if (snapshot.revision > before) {
             applySnapshot(snapshot);
@@ -221,6 +222,7 @@ export function useWindowManagerStream({
         if (frame.workspaceId !== workspaceId) return;
         if (frame.type === "snapshot") {
           receivedSnapshot = true;
+          reconnectAttempt.current = 0;
           applySnapshot(frame.snapshot);
           if (frame.client !== null) applyClient(frame.client);
           publishStatus("connected");
@@ -248,16 +250,18 @@ export function useWindowManagerStream({
     socket.onclose = () => {
       if (stopped) return;
       publishStatus("reconnecting");
-      const delay = Math.min(8_000, 500 * 2 ** Math.min(attempt, 4));
+      const closingAttempt = reconnectAttempt.current;
+      const delay = Math.min(8_000, 500 * 2 ** Math.min(closingAttempt, 4));
       reconnectTimer.current = setTimeout(() => {
         reconnectTimer.current = null;
-        reconnectAttempt.current = attempt + 1;
+        reconnectAttempt.current = closingAttempt + 1;
         setReconnectEpoch(current => current + 1);
       }, delay);
     };
 
     return () => {
       stopped = true;
+      refreshController.abort();
       socket.onopen = null;
       socket.onmessage = null;
       socket.onerror = null;

@@ -19,18 +19,29 @@ afterAll(() => {
 });
 
 describe("settings shell MSW handlers", () => {
-  it("Should return the current source-build update status", async () => {
-    const response = await fetch(`${API}/api/settings/update`);
+  it("Should preserve requested workspace and profile identities", async () => {
+    const layoutResponse = await fetch(
+      `${API}/api/workspaces/workspace-custom/window-manager/layout`
+    );
+    const profileResponse = await fetch(
+      `${API}/api/workspaces/workspace-custom/window-manager/layout-profiles/profile-custom`,
+      { method: "PUT", headers: { "content-type": "application/json" }, body: "{}" }
+    );
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      available: false,
-      checked_at: "2026-07-23T04:00:00Z",
-      current_version: "dev",
-      install_method: "source",
-      managed: false,
-      status: "current",
-      supported: true,
+    expect(layoutResponse.status).toBe(200);
+    await expect(layoutResponse.json()).resolves.toMatchObject({
+      workspace_id: "workspace-custom",
+    });
+    expect(profileResponse.status).toBe(200);
+    await expect(profileResponse.json()).resolves.toMatchObject({
+      record: {
+        id: "profile-custom",
+        scope: { kind: "workspace", id: "workspace-custom" },
+        spec: {
+          id: "profile-custom",
+          document: { workspace_id: "workspace-custom" },
+        },
+      },
     });
   });
 });

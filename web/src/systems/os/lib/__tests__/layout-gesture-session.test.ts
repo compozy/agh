@@ -62,7 +62,6 @@ describe("layout gesture decisions", () => {
 
     expect(decision.kind).toBe("commit");
     if (decision.kind !== "commit") return;
-    expect(decision.mode).toBe("direct");
     expect(decision.command.target).toEqual(RIGHT_TARGET);
     expect(decision.command.finalPoint).toEqual({ x: 995, y: 320 });
     expect(session.currentPoint).toEqual({ x: 320, y: 80 });
@@ -91,7 +90,7 @@ describe("layout gesture decisions", () => {
     }
   );
 
-  it("Should cancel an invalid client and an ambiguous stale layout", () => {
+  it("Should cancel an invalid client and any stale layout", () => {
     const invalidClient = finishLayoutGesture(activeSession(), {
       finalPoint: { x: 995, y: 320 },
       finalTarget: RIGHT_TARGET,
@@ -105,11 +104,10 @@ describe("layout gesture decisions", () => {
       currentRevision: 42,
       currentWorkArea: WORK_AREA,
       clientValid: true,
-      rebase: { kind: "ambiguous" },
     });
 
     expect(invalidClient.kind === "cancel" ? invalidClient.reason : null).toBe("invalid-client");
-    expect(stale.kind === "cancel" ? stale.reason : null).toBe("ambiguous-rebase");
+    expect(stale.kind === "cancel" ? stale.reason : null).toBe("stale-layout");
   });
 
   it("Should cancel when the live work area differs from the pointer-down capture", () => {
@@ -130,21 +128,13 @@ describe("layout gesture decisions", () => {
     });
   });
 
-  it("Should emit one rebased command only after an unambiguous stale resolution", () => {
-    const decision = finishLayoutGesture(activeSession(), {
-      finalPoint: { x: 995, y: 320 },
-      finalTarget: RIGHT_TARGET,
-      currentRevision: 42,
-      currentWorkArea: WORK_AREA,
-      clientValid: true,
-      rebase: { kind: "unambiguous", target: LEFT_TARGET },
-    });
+  it("Should own preview target geometry", () => {
+    const target: SnapTarget = { ...LEFT_TARGET, rect: { ...LEFT_TARGET.rect } };
+    const previewed = previewLayoutGesture(activeSession(), { x: 5, y: 300 }, target, WORK_AREA);
 
-    expect(decision.kind).toBe("commit");
-    if (decision.kind !== "commit") return;
-    expect(decision.mode).toBe("rebased");
-    expect(decision.command.expectedRevision).toBe(42);
-    expect(decision.command.target).toEqual(LEFT_TARGET);
+    target.rect.x = 500;
+
+    expect(previewed.status === "active" ? previewed.preview?.rect.x : null).toBe(0);
   });
 });
 

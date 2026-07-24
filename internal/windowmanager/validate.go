@@ -3,15 +3,17 @@ package windowmanager
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 )
 
 // ValidateSnapshot checks every committed aggregate invariant without repairing input.
 func ValidateSnapshot(snapshot Snapshot) error {
 	validator := snapshotValidator{
-		snapshot: snapshot,
-		desktops: make(map[DesktopID]struct{}, len(snapshot.Desktops)),
-		groups:   make(map[GroupID]struct{}), nodes: make(map[NodeID]struct{}),
+		snapshot:  snapshot,
+		windowIDs: sortedWindowIDs(snapshot.Windows),
+		desktops:  make(map[DesktopID]struct{}, len(snapshot.Desktops)),
+		groups:    make(map[GroupID]struct{}), nodes: make(map[NodeID]struct{}),
 		memberships: make(map[WindowID]int, len(snapshot.Windows)),
 	}
 	validator.validate()
@@ -23,6 +25,7 @@ func ValidateSnapshot(snapshot Snapshot) error {
 
 type snapshotValidator struct {
 	snapshot    Snapshot
+	windowIDs   []WindowID
 	desktops    map[DesktopID]struct{}
 	groups      map[GroupID]struct{}
 	nodes       map[NodeID]struct{}
@@ -71,7 +74,8 @@ func (v *snapshotValidator) validateDesktopIdentities() {
 }
 
 func (v *snapshotValidator) validateWindowRecords() {
-	for windowID, window := range v.snapshot.Windows {
+	for _, windowID := range v.windowIDs {
+		window := v.snapshot.Windows[windowID]
 		path := fmt.Sprintf("windows[%q]", windowID)
 		if window.ID != windowID || strings.TrimSpace(string(windowID)) == "" {
 			v.add("topology.window_identity", path+".id", "window map key and ID must match")
@@ -96,7 +100,8 @@ func (v *snapshotValidator) validateWindowRecords() {
 }
 
 func (v *snapshotValidator) validateMembershipCompleteness() {
-	for windowID, window := range v.snapshot.Windows {
+	for _, windowID := range v.windowIDs {
+		window := v.snapshot.Windows[windowID]
 		if v.memberships[windowID] != 1 {
 			v.add("topology.window_membership", fmt.Sprintf("windows[%q]", windowID), "window must appear exactly once")
 		}
@@ -148,14 +153,28 @@ func (v *snapshotValidator) validateDesktop(index int) {
 		}
 	}
 	if desktop.Purpose == DesktopPurposeFocus {
-		if desktop.FocusOwner == nil {
+		empty := len(desktop.Groups) == 0 && len(desktop.Floating) == 0
+		if desktop.FocusOwner == nil && !empty {
 			v.add("topology.focus_owner_required", path+".focus_owner", "focus desktop requires an owner")
-		} else if _, exists := v.snapshot.Windows[*desktop.FocusOwner]; !exists {
+		} else if desktop.FocusOwner == nil {
+			return
+		} else if owner, exists := v.snapshot.Windows[*desktop.FocusOwner]; !exists {
 			v.add("topology.focus_owner_invalid", path+".focus_owner", "focus owner must exist in the workspace")
+		} else if owner.DesktopID != desktop.ID {
+			v.add("topology.focus_owner_desktop", path+".focus_owner", "focus owner must belong to the focus desktop")
 		}
 	} else if desktop.FocusOwner != nil {
 		v.add("topology.focus_owner_standard", path+".focus_owner", "standard desktop cannot have a focus owner")
 	}
+}
+
+func sortedWindowIDs(windows map[WindowID]Window) []WindowID {
+	ids := make([]WindowID, 0, len(windows))
+	for id := range windows {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 func (v *snapshotValidator) validateNode(node LayoutNode, desktopID DesktopID, path string) {

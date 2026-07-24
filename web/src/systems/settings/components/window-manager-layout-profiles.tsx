@@ -1,39 +1,42 @@
-import { Button, Eyebrow, Input, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Button, Eyebrow, Input, NativeSelect, NativeSelectOption, RadioCard } from "@agh/ui";
 
-import { useWindowManagerLayoutProfiles } from "../hooks/use-window-manager-layout-profiles";
+import type { WindowManagerLayoutProfilesModel } from "../hooks/use-window-manager-layout-profiles";
 import type {
   WindowManagerLayoutAspect,
-  WindowManagerLayoutDocument,
   WindowManagerLayoutOverflow,
-  WindowManagerLayoutResourceRecord,
   WindowManagerLayoutScopeKind,
 } from "../lib/window-manager-layout-types";
 import { SettingsGroup } from "./settings-group";
 
 export interface WindowManagerLayoutProfilesProps {
-  workspaceId: string;
-  document: WindowManagerLayoutDocument;
-  profiles: readonly WindowManagerLayoutResourceRecord[];
-  onLoad: (document: WindowManagerLayoutDocument) => void;
+  editor: WindowManagerLayoutProfilesModel;
 }
 
-/** Generic `window_layout` resource discovery and optimistic CRUD. */
-export function WindowManagerLayoutProfiles(props: WindowManagerLayoutProfilesProps) {
-  const editor = useWindowManagerLayoutProfiles(props);
-
+/** Generic `window_layout` resource discovery with server-confirmed CRUD. */
+export function WindowManagerLayoutProfiles({ editor }: WindowManagerLayoutProfilesProps) {
   return (
     <SettingsGroup
       bare
       title="Named profiles"
       description="Profiles are `window_layout` resources and keep their global or workspace scope."
       action={
-        <Button size="sm" type="button" variant="outline" onClick={editor.startNew}>
+        <Button
+          className="min-h-11"
+          size="sm"
+          type="button"
+          variant="outline"
+          onClick={editor.startNew}
+        >
           New profile
         </Button>
       }
     >
       <div className="grid gap-4 min-[760px]:grid-cols-[minmax(15rem,0.8fr)_minmax(20rem,1.2fr)]">
-        <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+        <div
+          aria-label="Layout profiles"
+          className="flex flex-col gap-2 rounded-lg border border-line bg-canvas-soft p-2"
+          role="radiogroup"
+        >
           {editor.profiles.length === 0 ? (
             <p className="px-4 py-5 text-form-label text-subtle">
               No layout profiles are visible to this operator.
@@ -42,23 +45,15 @@ export function WindowManagerLayoutProfiles(props: WindowManagerLayoutProfilesPr
             editor.profiles.map(record => {
               const recordKey = `${record.scope.kind}:${record.scope.id}:${record.id}`;
               return (
-                <button
+                <RadioCard
                   key={recordKey}
-                  className="flex w-full items-center gap-3 border-b border-line-soft px-3 py-2.5 text-left outline-none last:border-b-0 hover:bg-row-hover focus-visible:shadow-focus-inset"
-                  data-selected={recordKey === editor.selectedKey}
-                  type="button"
-                  onClick={() => editor.selectProfile(record)}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-small-body font-medium text-fg">
-                      {record.spec.displayName}
-                    </span>
-                    <span className="block truncate font-mono text-micro text-subtle">
-                      {record.id}
-                    </span>
-                  </span>
-                  <Eyebrow className="text-faint">{record.scope.kind}</Eyebrow>
-                </button>
+                  className="min-h-11"
+                  selected={recordKey === editor.selectedKey}
+                  title={record.spec.displayName}
+                  description={<span className="font-mono text-micro">{record.id}</span>}
+                  badge={<Eyebrow className="text-faint">{record.scope.kind}</Eyebrow>}
+                  onSelect={() => editor.selectProfile(record)}
+                />
               );
             })
           )}
@@ -69,6 +64,7 @@ export function WindowManagerLayoutProfiles(props: WindowManagerLayoutProfilesPr
             <label className="flex flex-col gap-1 text-form-label text-muted">
               Profile name
               <Input
+                className="h-11"
                 value={editor.displayName}
                 onChange={event => editor.setDisplayName(event.target.value)}
               />
@@ -76,7 +72,7 @@ export function WindowManagerLayoutProfiles(props: WindowManagerLayoutProfilesPr
             <label className="flex flex-col gap-1 text-form-label text-muted">
               Resource ID
               <Input
-                className="font-mono"
+                className="h-11 font-mono"
                 value={editor.id}
                 onChange={event => editor.setId(event.target.value)}
               />
@@ -84,7 +80,7 @@ export function WindowManagerLayoutProfiles(props: WindowManagerLayoutProfilesPr
             <label className="flex flex-col gap-1 text-form-label text-muted">
               Scope
               <NativeSelect
-                className="w-full"
+                className="w-full [&>select]:h-11"
                 value={editor.scope}
                 onChange={event =>
                   editor.setScope(event.target.value as WindowManagerLayoutScopeKind)
@@ -97,7 +93,7 @@ export function WindowManagerLayoutProfiles(props: WindowManagerLayoutProfilesPr
             <label className="flex flex-col gap-1 text-form-label text-muted">
               Aspect
               <NativeSelect
-                className="w-full"
+                className="w-full [&>select]:h-11"
                 value={editor.aspect}
                 onChange={event =>
                   editor.setAspect(event.target.value as WindowManagerLayoutAspect)
@@ -111,7 +107,7 @@ export function WindowManagerLayoutProfiles(props: WindowManagerLayoutProfilesPr
             <label className="flex flex-col gap-1 text-form-label text-muted sm:col-span-2">
               Overflow
               <NativeSelect
-                className="w-full"
+                className="w-full [&>select]:h-11"
                 value={editor.overflow}
                 onChange={event =>
                   editor.setOverflow(event.target.value as WindowManagerLayoutOverflow)
@@ -127,6 +123,7 @@ export function WindowManagerLayoutProfiles(props: WindowManagerLayoutProfilesPr
           ) : null}
           <div className="flex justify-end gap-2">
             <Button
+              className="min-h-11"
               type="button"
               variant="ghost"
               disabled={editor.selected === null || editor.remove.isPending}
@@ -135,6 +132,7 @@ export function WindowManagerLayoutProfiles(props: WindowManagerLayoutProfilesPr
               Delete
             </Button>
             <Button
+              className="min-h-11"
               type="button"
               disabled={
                 editor.id.trim() === "" ||

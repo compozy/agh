@@ -12,7 +12,7 @@ import {
   selectDesktopTransitionIntent,
   windowManagerStore,
 } from "../../stores/window-manager-store";
-import { WindowManagerRuntime } from "../window-manager-runtime";
+import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 
 vi.mock("../../adapters/window-manager-api", async importOriginal => {
   const actual = await importOriginal<typeof import("../../adapters/window-manager-api")>();
@@ -78,10 +78,23 @@ afterEach(() => {
 });
 
 describe("WindowManagerRuntime", () => {
+  it("Should resume authoritative projections after the runtime lifecycle restarts", () => {
+    const runtime = new WindowManagerRuntime(new QueryClient());
+    runtime.start();
+
+    runtime.stop();
+    runtime.start();
+    windowManagerStore.getState().actions.setConnectionStatus("connected");
+
+    expect(runtime.getState().connectionStatus).toBe("connected");
+    runtime.stop();
+  });
+
   it("Should project the Query-owned config without a React effect mirror", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
     const runtime = new WindowManagerRuntime(queryClient);
+    runtime.start();
     runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
 
     expect(runtime.getState().hydration).toBe("pending");
@@ -90,11 +103,12 @@ describe("WindowManagerRuntime", () => {
 
     expect(runtime.getState().hydration).toBe("live");
     expect(runtime.getState().windowManagerConfig?.historyLimit).toBe(50);
-    runtime.destroy();
+    runtime.stop();
   });
 
   it("Should keep gesture samples off the runtime projection channel", () => {
     const runtime = new WindowManagerRuntime(new QueryClient());
+    runtime.start();
     const onProjection = vi.fn();
     const unsubscribe = runtime.subscribe(onProjection);
     const actions = windowManagerStore.getState().actions;
@@ -120,7 +134,7 @@ describe("WindowManagerRuntime", () => {
 
     expect(onProjection).toHaveBeenCalledOnce();
     unsubscribe();
-    runtime.destroy();
+    runtime.stop();
   });
 
   it("Should not retain a desktop transition when another command owns the serializer", () => {
@@ -150,7 +164,49 @@ describe("WindowManagerRuntime", () => {
 
     expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toBeNull();
     expect(executeWindowManagerCommand).not.toHaveBeenCalled();
-    runtime.destroy();
+    runtime.stop();
+  });
+
+  it("Should not clear a new binding transition when an old desktop switch rejects", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    let rejectCommand!: (reason: Error) => void;
+    vi.mocked(executeWindowManagerCommand).mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectCommand = reject;
+      })
+    );
+
+    runtime.switchDesktop("desktop:two");
+    runtime.bind({ workspaceId: "workspace:next", clientId: "client:next" });
+    windowManagerStore.getState().actions.setTransitionIntent({
+      fromDesktopId: "desktop:next-one",
+      toDesktopId: "desktop:next-two",
+      direction: "later",
+      mode: "crossfade",
+    });
+    rejectCommand(new Error("old binding failed"));
+    await vi.waitFor(() => {
+      expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toEqual({
+        fromDesktopId: "desktop:next-one",
+        toDesktopId: "desktop:next-two",
+        direction: "later",
+        mode: "crossfade",
+      });
+    });
+    runtime.stop();
   });
 
   it("Should accept a reset presentation revision after explicit client invalidation", () => {
@@ -177,7 +233,7 @@ describe("WindowManagerRuntime", () => {
       presentationRevision: 2,
       activeDesktopId: "desktop:two",
     });
-    runtime.destroy();
+    runtime.stop();
   });
 
   it("Should focus an existing same-route window instead of navigating without a route change", () => {
@@ -234,7 +290,7 @@ describe("WindowManagerRuntime", () => {
       commandId: "window.focus",
       payload: { window_id: "app:tasks", direction: "" },
     });
-    runtime.destroy();
+    runtime.stop();
   });
 
   it("Should normalize a tile command against the same gap-inset area used by its preview", () => {
@@ -293,6 +349,6 @@ describe("WindowManagerRuntime", () => {
         }),
       })
     );
-    runtime.destroy();
+    runtime.stop();
   });
 });

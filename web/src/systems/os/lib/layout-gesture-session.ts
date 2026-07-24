@@ -15,7 +15,6 @@ export type GestureCancelReason =
   | "work-area-changed"
   | "invalid-client"
   | "stale-layout"
-  | "ambiguous-rebase"
   | "no-target"
   | "manual";
 
@@ -58,18 +57,12 @@ export interface CancelledLayoutGesture {
 
 export type LayoutGestureSession = ActiveLayoutGesture | CancelledLayoutGesture;
 
-export type GestureRebase =
-  | { kind: "unambiguous"; target: SnapTarget }
-  | { kind: "ambiguous" }
-  | { kind: "invalid" };
-
 export interface FinishLayoutGestureInput {
   finalPoint: PixelPoint;
   finalTarget: SnapTarget | null;
   currentRevision: LayoutRevision;
   currentWorkArea: PixelRect;
   clientValid: boolean;
-  rebase?: GestureRebase;
 }
 
 export interface GestureCommandCandidate {
@@ -82,7 +75,6 @@ export interface GestureCommandCandidate {
 export type GestureDecision =
   | {
       kind: "commit";
-      mode: "direct" | "rebased";
       command: GestureCommandCandidate;
     }
   | {
@@ -99,6 +91,10 @@ function copyPoint(point: PixelPoint): PixelPoint {
 
 function copyRect(rect: PixelRect): PixelRect {
   return { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+}
+
+function copySnapTarget(target: SnapTarget): SnapTarget {
+  return { ...target, rect: copyRect(target.rect) };
 }
 
 function sameRect(left: PixelRect, right: PixelRect): boolean {
@@ -148,7 +144,7 @@ export function previewLayoutGesture(
   return {
     ...session,
     currentPoint: copyPoint(point),
-    preview,
+    preview: preview === null ? null : copySnapTarget(preview),
   };
 }
 
@@ -172,8 +168,8 @@ export function cancelLayoutGesture(
 
 /**
  * Produces at most one semantic command candidate. The pointer-up sample and
- * target always replace the last preview; stale revisions require an explicit,
- * unambiguous rebase supplied by the topology owner.
+ * target always replace the last preview. A revision change cancels the gesture;
+ * the shipped pointer path does not carry an authoritative rebase proof.
  */
 export function finishLayoutGesture(
   session: LayoutGestureSession,
@@ -214,47 +210,18 @@ export function finishLayoutGesture(
     }
     return {
       kind: "commit",
-      mode: "direct",
       command: {
         source: session.source,
-        target: input.finalTarget,
+        target: copySnapTarget(input.finalTarget),
         expectedRevision: session.layoutRevision,
         finalPoint: copyPoint(input.finalPoint),
       },
     };
   }
-  if (input.rebase === undefined) {
-    return cancelDecision(
-      "stale-layout",
-      input.finalPoint,
-      session.layoutRevision,
-      input.currentRevision
-    );
-  }
-  if (input.rebase.kind === "ambiguous") {
-    return cancelDecision(
-      "ambiguous-rebase",
-      input.finalPoint,
-      session.layoutRevision,
-      input.currentRevision
-    );
-  }
-  if (input.rebase.kind === "invalid") {
-    return cancelDecision(
-      "stale-layout",
-      input.finalPoint,
-      session.layoutRevision,
-      input.currentRevision
-    );
-  }
-  return {
-    kind: "commit",
-    mode: "rebased",
-    command: {
-      source: session.source,
-      target: input.rebase.target,
-      expectedRevision: input.currentRevision,
-      finalPoint: copyPoint(input.finalPoint),
-    },
-  };
+  return cancelDecision(
+    "stale-layout",
+    input.finalPoint,
+    session.layoutRevision,
+    input.currentRevision
+  );
 }

@@ -154,8 +154,11 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 				DesktopID: "desktop-three", Name: "Three",
 			},
 		})
-		if err != nil || len(second.Snapshot.History.Undo) != 2 {
-			t.Fatalf("Execute(after rollback) history = %d, error = %v", len(second.Snapshot.History.Undo), err)
+		if err != nil {
+			t.Fatalf("Execute(after rollback) error = %v", err)
+		}
+		if len(second.Snapshot.History.Undo) != 2 {
+			t.Fatalf("Execute(after rollback) history = %d, want 2", len(second.Snapshot.History.Undo))
 		}
 
 		state.toolMCPResources = nil
@@ -170,8 +173,11 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 				DesktopID: "desktop-four", Name: "Four",
 			},
 		})
-		if err != nil || len(third.Snapshot.History.Undo) != 1 {
-			t.Fatalf("Execute(after hot apply) history = %d, error = %v", len(third.Snapshot.History.Undo), err)
+		if err != nil {
+			t.Fatalf("Execute(after hot apply) error = %v", err)
+		}
+		if len(third.Snapshot.History.Undo) != 1 {
+			t.Fatalf("Execute(after hot apply) history = %d, want 1", len(third.Snapshot.History.Undo))
 		}
 	})
 

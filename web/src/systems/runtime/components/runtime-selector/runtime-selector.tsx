@@ -70,7 +70,6 @@ export function RuntimeSelector({
   const controller = useRuntimeSelector({ value, onChange, providers, models, catalogLoaded });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
   const popup = useRuntimeSelectorPopup({
     controller,
     providers,
@@ -121,7 +120,6 @@ export function RuntimeSelector({
         className="max-h-[min(520px,var(--available-height))] w-[min(528px,94vw)] overflow-hidden p-0 shadow-overlay"
       >
         <div
-          ref={popupRef}
           id={popup.popupId}
           className="flex max-h-[inherit] flex-col"
           data-testid="runtime-selector-popup"

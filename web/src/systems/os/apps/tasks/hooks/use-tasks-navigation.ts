@@ -8,6 +8,6 @@ export interface TasksNavigationLocation {
 export function useTasksNavigation() {
   const { coordinator } = useOsShell();
   return (location: TasksNavigationLocation) => {
-    coordinator.userOpen({ app: "tasks", route: location });
+    void coordinator.userOpen({ app: "tasks", route: location });
   };
 }

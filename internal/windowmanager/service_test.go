@@ -174,10 +174,16 @@ func TestCommandTransaction(t *testing.T) {
 			observed[0].Origin != "native:desktop.create" {
 			t.Fatalf("desktop.create observations = %#v", observed)
 		}
+		if len(created.Changes.DesktopIDs) != 1 {
+			t.Fatalf("result desktop changes = %v, want one ID", created.Changes.DesktopIDs)
+		}
 		if got := created.Changes.DesktopIDs[0]; got != "d2" {
 			t.Fatalf("result desktop change = %q, want d2", got)
 		}
 		commits := environment.repository.Commits("workspace-a")
+		if len(commits) != 1 || len(commits[0].Event.Changes.DesktopIDs) != 1 {
+			t.Fatalf("repository commits = %+v, want one event with one desktop ID", commits)
+		}
 		if got := commits[0].Event.Changes.DesktopIDs[0]; got != "d2" {
 			t.Fatalf("repository event desktop change = %q, want d2", got)
 		}
@@ -648,11 +654,7 @@ func TestSubscription(t *testing.T) {
 		if err := <-registrationResults; err != nil {
 			t.Fatalf("RegisterClient(refresh) error = %v", err)
 		}
-		t.Cleanup(func() {
-			if closeErr := subscribed.subscription.Close(); closeErr != nil {
-				t.Errorf("Subscription.Close() error = %v", closeErr)
-			}
-		})
+		subscribed.subscription = trackSubscription(t, subscribed.subscription)
 		fenced := subscribed.subscription.Fence().Client
 		if fenced == nil {
 			t.Fatal("client fence = nil")
@@ -719,14 +721,9 @@ func TestSubscription(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Subscribe(topology) error = %v", err)
 		}
-		for _, subscription := range []Subscription{boundA, boundB, topologyOnly} {
-			capturedSubscription := subscription
-			t.Cleanup(func() {
-				if closeErr := capturedSubscription.Close(); closeErr != nil {
-					t.Errorf("Subscription.Close() error = %v", closeErr)
-				}
-			})
-		}
+		boundA = trackSubscription(t, boundA)
+		boundB = trackSubscription(t, boundB)
+		topologyOnly = trackSubscription(t, topologyOnly)
 		fence := boundA.Fence()
 		if fence.Snapshot.Revision != opened.Snapshot.Revision || fence.Client == nil ||
 			fence.Client.ClientID != clientA || fence.Client.PresentationRevision != 1 {
@@ -843,13 +840,7 @@ func TestSubscription(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Subscribe(%s) error = %v", clientID, err)
 			}
-			subscriptions[clientID] = subscription
-			capturedSubscription := subscription
-			t.Cleanup(func() {
-				if closeErr := capturedSubscription.Close(); closeErr != nil {
-					t.Errorf("Subscription.Close() error = %v", closeErr)
-				}
-			})
+			subscriptions[clientID] = trackSubscription(t, subscription)
 		}
 		topologyOnly, err := environment.manager.Subscribe(t.Context(), SubscriptionRequest{
 			WorkspaceID: "workspace-a", AfterRevision: created.Snapshot.Revision,
@@ -857,11 +848,7 @@ func TestSubscription(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Subscribe(topology) error = %v", err)
 		}
-		t.Cleanup(func() {
-			if closeErr := topologyOnly.Close(); closeErr != nil {
-				t.Errorf("Subscription.Close() error = %v", closeErr)
-			}
-		})
+		topologyOnly = trackSubscription(t, topologyOnly)
 
 		deleted := executeTestCommand(
 			t,
@@ -910,11 +897,7 @@ func TestSubscription(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Subscribe() error=%v", err)
 		}
-		t.Cleanup(func() {
-			if closeErr := subscription.Close(); closeErr != nil {
-				t.Errorf("Subscription.Close() error=%v", closeErr)
-			}
-		})
+		subscription = trackSubscription(t, subscription)
 		executeTestCommand(
 			t,
 			environment.manager,
@@ -975,11 +958,7 @@ func TestSubscription(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Subscribe() error = %v", err)
 		}
-		t.Cleanup(func() {
-			if closeErr := subscription.Close(); closeErr != nil {
-				t.Errorf("Subscription.Close() error = %v", closeErr)
-			}
-		})
+		subscription = trackSubscription(t, subscription)
 		executeTestCommand(
 			t,
 			environment.manager,

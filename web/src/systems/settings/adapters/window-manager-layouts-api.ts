@@ -194,11 +194,15 @@ export async function applyWindowManagerLayout(
 }
 
 export async function listWindowManagerLayoutProfiles(
+  workspaceId: string,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutResourceRecord[]> {
-  const response = await runtimeFetch(`${apiBaseUrl}/api/resources/window_layout`, {
-    signal,
-  });
+  const response = await runtimeFetch(
+    `${apiBaseUrl}${workspacePath(workspaceId)}/layout-profiles`,
+    {
+      signal,
+    }
+  );
   return parseWindowManagerLayoutResources(
     await requireJson(response, "Unable to list layout profiles")
   );
@@ -216,7 +220,7 @@ export async function putWindowManagerLayoutProfile(
     workspaceId: scope === "workspace" ? workspaceId : "",
   };
   const response = await runtimeFetch(
-    `${apiBaseUrl}/api/resources/window_layout/${encodeURIComponent(profile.id)}`,
+    `${apiBaseUrl}${workspacePath(workspaceId)}/layout-profiles/${encodeURIComponent(profile.id)}`,
     {
       ...jsonRequest(
         {
@@ -241,12 +245,13 @@ export async function putWindowManagerLayoutProfile(
 }
 
 export async function deleteWindowManagerLayoutProfile(
+  workspaceId: string,
   id: string,
   expectedVersion: number,
   signal?: AbortSignal
 ): Promise<void> {
   const response = await runtimeFetch(
-    `${apiBaseUrl}/api/resources/window_layout/${encodeURIComponent(id)}`,
+    `${apiBaseUrl}${workspacePath(workspaceId)}/layout-profiles/${encodeURIComponent(id)}`,
     {
       ...jsonRequest({ expected_version: expectedVersion }, signal),
       method: "DELETE",

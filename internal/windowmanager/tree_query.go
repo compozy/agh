@@ -6,7 +6,6 @@ type windowPlacement struct {
 	floatingIndex int
 	nodeID        NodeID
 	parentSplitID *NodeID
-	axis          *Axis
 	childIndex    *int
 	weight        *float64
 	placement     WindowPlacement
@@ -43,7 +42,7 @@ func findWindowPlacement(snapshot *Snapshot, windowID WindowID) (windowPlacement
 		}
 	}
 	for groupIndex := range desktop.Groups {
-		if placement, found := findInNode(desktop.Groups[groupIndex].Root, windowID, nil, nil, nil); found {
+		if placement, found := findInNode(desktop.Groups[groupIndex].Root, windowID, nil, nil); found {
 			placement.desktopIndex = desktopIndex
 			placement.groupIndex = groupIndex
 			placement.floatingIndex = -1
@@ -57,7 +56,6 @@ func findInNode(
 	node LayoutNode,
 	windowID WindowID,
 	parentSplitID *NodeID,
-	parentAxis *Axis,
 	parentChildIndex *int,
 ) (windowPlacement, bool) {
 	switch node.Kind {
@@ -66,7 +64,6 @@ func findInNode(
 			return windowPlacement{
 				nodeID:        node.ID,
 				parentSplitID: clonePointer(parentSplitID),
-				axis:          clonePointer(parentAxis),
 				childIndex:    clonePointer(parentChildIndex),
 				placement:     WindowPlacementTiled,
 			}, true
@@ -82,7 +79,6 @@ func findInNode(
 			return windowPlacement{
 				nodeID:        node.ID,
 				parentSplitID: clonePointer(parentSplitID),
-				axis:          clonePointer(parentAxis),
 				childIndex:    clonePointer(parentChildIndex),
 				placement:     WindowPlacementStacked,
 				neighbors:     neighbors,
@@ -91,7 +87,7 @@ func findInNode(
 	case NodeKindSplit:
 		for index, child := range node.Children {
 			childIndex := index
-			placement, found := findInNode(child, windowID, &node.ID, node.Axis, &childIndex)
+			placement, found := findInNode(child, windowID, &node.ID, &childIndex)
 			if found {
 				if index < len(node.Weights) {
 					weight := node.Weights[index]
@@ -175,7 +171,6 @@ func captureReturnAnchor(snapshot *Snapshot, windowID WindowID) *ReturnAnchor {
 	anchor := &ReturnAnchor{
 		DesktopID:      snapshot.Desktops[placement.desktopIndex].ID,
 		ParentSplitID:  clonePointer(placement.parentSplitID),
-		Axis:           clonePointer(placement.axis),
 		ChildIndex:     clonePointer(placement.childIndex),
 		Weight:         clonePointer(placement.weight),
 		NeighborIDs:    append([]WindowID(nil), placement.neighbors...),

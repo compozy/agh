@@ -12,7 +12,7 @@ import { storybookMswParameters } from "@/storybook/msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
-import { WindowManagerRuntime } from "../../hooks/window-manager-runtime";
+import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
 import { OsCommandPalette } from "../os-command-palette";
 import { DesktopShell } from "./_desktop";

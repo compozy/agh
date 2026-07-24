@@ -68,7 +68,6 @@ type changeBuilder struct {
 	windows  map[WindowID]struct{}
 	groups   map[GroupID]struct{}
 	nodes    map[NodeID]struct{}
-	clients  map[ClientID]struct{}
 }
 
 func (b *changeBuilder) desktop(id DesktopID) {
@@ -108,9 +107,6 @@ func (b *changeBuilder) result() ChangeSet {
 	}
 	for id := range b.nodes {
 		result.NodeIDs = append(result.NodeIDs, id)
-	}
-	for id := range b.clients {
-		result.ClientIDs = append(result.ClientIDs, id)
 	}
 	sortChangeSet(&result)
 	return result

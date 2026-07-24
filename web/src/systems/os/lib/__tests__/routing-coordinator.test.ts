@@ -32,6 +32,7 @@ function windowFixture(
     nodeId: null,
     stackId: null,
     stackActive: false,
+    parentAxis: null,
   };
 }
 
@@ -50,23 +51,36 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
   let lifecycleResult: Promise<boolean> | null = null;
   let resolveLifecycle: ((accepted: boolean) => void) | null = null;
 
+  const commandOutcome = (apply: () => void) => {
+    const completion = lifecycleResult ?? Promise.resolve(true);
+    if (lifecycleResult === null) apply();
+    else void completion.then(accepted => accepted && apply());
+    return { accepted: true, completion };
+  };
+
   const openOrFocus = vi.fn((target: OsOpenTarget) => {
     const id = osWindowId(target.app, target.instanceKey);
-    const existing = windows[id];
-    windows[id] =
-      existing ??
-      windowFixture(
-        target.app,
-        target.route?.pathname ?? (target.app === "dashboard" ? "/" : `/${target.app}`),
-        target.instanceKey ?? null
-      );
-    if (target.route) windows[id] = { ...windows[id], route: target.route };
-    focusedId = id;
-    return id;
+    return {
+      windowId: id,
+      ...commandOutcome(() => {
+        const existing = windows[id];
+        windows[id] =
+          existing ??
+          windowFixture(
+            target.app,
+            target.route?.pathname ?? (target.app === "dashboard" ? "/" : `/${target.app}`),
+            target.instanceKey ?? null
+          );
+        if (target.route) windows[id] = { ...windows[id], route: target.route };
+        focusedId = id;
+      }),
+    };
   });
-  const focusWindow = vi.fn((id: string) => {
-    if (windows[id]) focusedId = id;
-  });
+  const focusWindow = vi.fn((id: string) =>
+    commandOutcome(() => {
+      if (windows[id]) focusedId = id;
+    })
+  );
   const closeWindow = vi.fn(async (id: string) => {
     if (lifecycleResult !== null && !(await lifecycleResult)) return false;
     delete windows[id];
@@ -80,12 +94,16 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
     if (focusedId === id) focusedId = Object.keys(windows).find(key => key !== id) ?? null;
     return true;
   });
-  const zoomWindow = vi.fn((id: string) => {
-    if (windows[id]) focusedId = id;
-  });
-  const navigateWindow = vi.fn((id: string, nextRoute: OsWindowRoute) => {
-    if (windows[id]) windows[id] = { ...windows[id], route: nextRoute };
-  });
+  const zoomWindow = vi.fn((id: string) =>
+    commandOutcome(() => {
+      if (windows[id]) focusedId = id;
+    })
+  );
+  const navigateWindow = vi.fn((id: string, nextRoute: OsWindowRoute) =>
+    commandOutcome(() => {
+      if (windows[id]) windows[id] = { ...windows[id], route: nextRoute };
+    })
+  );
   const resetWorkspace = () => {
     for (const id of Object.keys(windows)) delete windows[id];
     focusedId = null;
@@ -221,25 +239,25 @@ describe("RoutingCoordinator", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
-  it("Should push exactly once after a user opens an app", () => {
+  it("Should push exactly once after a user opens an app", async () => {
     const { coordinator, router } = createCoordinator();
     coordinator.completeHydration();
 
-    const id = coordinator.userOpen({ app: "settings", route: route("/settings/layouts") });
+    const id = await coordinator.userOpen({ app: "settings", route: route("/settings/layouts") });
 
     expect(id).toBe("app:settings");
     expect(router.navigate).toHaveBeenCalledOnce();
     expect(router.navigate).toHaveBeenCalledWith(route("/settings/layouts"));
   });
 
-  it("Should let a link route own the single focus transition and history write", () => {
+  it("Should let a link route own the single focus transition and history write", async () => {
     const tasks = windowFixture("tasks", "/tasks");
     const settings = windowFixture("settings", "/settings/general");
     const { coordinator, router, store } = createCoordinator([tasks, settings]);
     coordinator.completeHydration();
     vi.mocked(router.replace).mockClear();
 
-    coordinator.userFocus(tasks.id, { viaLink: true });
+    await coordinator.userFocus(tasks.id, { viaLink: true });
 
     expect(store.spies.focusWindow).not.toHaveBeenCalled();
     expect(store.getState().focusedId).toBe(settings.id);
@@ -295,13 +313,13 @@ describe("RoutingCoordinator", () => {
     expect(router.replace).toHaveBeenCalledOnce();
   });
 
-  it("Should zoom an inactive window with one command and one history write", () => {
+  it("Should zoom an inactive window with one command and one history write", async () => {
     const tasks = windowFixture("tasks", "/tasks");
     const settings = windowFixture("settings", "/settings/general");
     const { coordinator, router, store } = createCoordinator([tasks, settings]);
     coordinator.completeHydration();
 
-    coordinator.userZoom(tasks.id);
+    await coordinator.userZoom(tasks.id);
 
     expect(store.spies.zoomWindow).toHaveBeenCalledOnce();
     expect(store.spies.zoomWindow).toHaveBeenCalledWith(tasks.id);
@@ -310,12 +328,12 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).toHaveBeenCalledWith(tasks.route);
   });
 
-  it("Should not write duplicate history when zooming the focused window", () => {
+  it("Should not write duplicate history when zooming the focused window", async () => {
     const tasks = windowFixture("tasks", "/tasks");
     const { coordinator, router, store } = createCoordinator([tasks]);
     coordinator.completeHydration();
 
-    coordinator.userZoom(tasks.id);
+    await coordinator.userZoom(tasks.id);
 
     expect(store.spies.zoomWindow).toHaveBeenCalledOnce();
     expect(router.navigate).not.toHaveBeenCalled();
@@ -360,5 +378,51 @@ describe("RoutingCoordinator", () => {
 
     expect(router.navigate).not.toHaveBeenCalled();
     expect(store.getState().windows[settings.id]).toBeDefined();
+  });
+
+  it("Should keep history unchanged when an open command is rejected", async () => {
+    const { coordinator, router, store } = createCoordinator();
+    coordinator.completeHydration();
+    store.deferLifecycle();
+
+    const pending = coordinator.userOpen({ app: "settings", route: route("/settings/layouts") });
+
+    expect(router.navigate).not.toHaveBeenCalled();
+    store.settleLifecycle(false);
+    await expect(pending).resolves.toBeNull();
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
+  it("Should defer focus history until the semantic command completes", async () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const settings = windowFixture("settings", "/settings/general");
+    const { coordinator, router, store } = createCoordinator([tasks, settings]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    store.deferLifecycle();
+
+    const pending = coordinator.userFocus(tasks.id);
+
+    expect(router.navigate).not.toHaveBeenCalled();
+    store.settleLifecycle(true);
+    await expect(pending).resolves.toBe(true);
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(tasks.route);
+  });
+
+  it("Should keep history unchanged when a zoom command is rejected", async () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const settings = windowFixture("settings", "/settings/general");
+    const { coordinator, router, store } = createCoordinator([tasks, settings]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    store.deferLifecycle();
+
+    const pending = coordinator.userZoom(tasks.id);
+
+    expect(router.navigate).not.toHaveBeenCalled();
+    store.settleLifecycle(false);
+    await expect(pending).resolves.toBe(false);
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 });

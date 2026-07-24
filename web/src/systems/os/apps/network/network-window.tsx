@@ -18,7 +18,7 @@ export function NetworkWindow({ windowId }: { windowId: string }) {
   const location = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_NETWORK_ROUTE);
   const [navigation] = useState<NetworkWindowNavigation>(() => ({
     push: (next: NetworkWindowLocation) => {
-      coordinator.userOpen({ app: "network", route: next });
+      void coordinator.userOpen({ app: "network", route: next });
     },
   }));
 

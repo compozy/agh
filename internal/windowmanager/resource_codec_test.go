@@ -24,6 +24,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 	t.Run("Should validate and canonicalize a workspace-independent resource", func(t *testing.T) {
 		t.Parallel()
 		resource := testLayoutResource("two-up")
+		resource.ParticipantSlots = []WindowID{" primary ", "secondary"}
 		encoded, err := codec.Encode(resource)
 		if err != nil {
 			t.Fatalf("Encode() error = %v", err)
@@ -37,8 +38,27 @@ func TestLayoutResourceCodec(t *testing.T) {
 			t.Fatalf("DecodeAndValidate() error = %v", err)
 		}
 		if got.ID != "two-up" || got.AspectVariant != LayoutAspectAny ||
-			got.OverflowPolicy != LayoutOverflowStack || got.Document.WorkspaceID != "" {
+			got.OverflowPolicy != LayoutOverflowStack || got.Document.WorkspaceID != "" ||
+			len(got.ParticipantSlots) != 2 || got.ParticipantSlots[0] != "primary" {
 			t.Fatalf("DecodeAndValidate() = %#v, want canonical global resource", got)
+		}
+	})
+
+	t.Run("Should reject participant slots duplicated after canonicalization", func(t *testing.T) {
+		t.Parallel()
+		resource := testLayoutResource("two-up")
+		resource.ParticipantSlots = []WindowID{"primary", " primary "}
+		encoded, err := codec.Encode(resource)
+		if err != nil {
+			t.Fatalf("Encode() error = %v", err)
+		}
+		_, err = codec.DecodeAndValidate(
+			context.Background(),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			encoded,
+		)
+		if !errors.Is(err, resources.ErrValidation) {
+			t.Fatalf("DecodeAndValidate() error = %v, want ErrValidation", err)
 		}
 	})
 

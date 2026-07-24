@@ -2,8 +2,7 @@ import { AlertTriangle, WifiOff } from "lucide-react";
 
 import { cn } from "@agh/ui";
 
-import { useDesktopManagerSurfaces } from "../hooks/use-desktop-manager-surfaces";
-import { useDesktop } from "../hooks/use-desktop";
+import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
 import { DesktopLayoutThumbnail } from "./desktop-layout-thumbnail";
 import {
   DesktopsOverview,
@@ -34,12 +33,31 @@ function overviewState(input: {
 }
 
 /** Management overview and honest daemon-connection feedback. */
-export function DesktopManagerSurfaces() {
-  const model = useDesktopManagerSurfaces();
-  const canMutate = useDesktop(
-    state =>
-      state.client !== null && state.hydration === "live" && state.connectionStatus === "connected"
-  );
+export interface DesktopManagerSurfacesProps {
+  model: DesktopManagerSurfacesModel;
+  onCreateDesktop: () => void;
+  onSwitchDesktop: (desktopId: string) => void;
+  onRenameDesktop: (desktopId: string, name: string) => void;
+  onReorderDesktop: (desktopId: string, order: number) => void;
+  onDeleteDesktop: (desktopId: string, destinationId: string | null) => void;
+  onMoveWindow: (windowId: string, destinationDesktopId: string) => void;
+  onOpenChange: (open: boolean) => void;
+  onRetry: () => void;
+  onResolveConflict: () => void;
+}
+
+export function DesktopManagerSurfaces({
+  model,
+  onCreateDesktop,
+  onSwitchDesktop,
+  onRenameDesktop,
+  onReorderDesktop,
+  onDeleteDesktop,
+  onMoveWindow,
+  onOpenChange,
+  onRetry,
+  onResolveConflict,
+}: DesktopManagerSurfacesProps) {
   const desktops: DesktopOverviewItem[] = model.desktops.map(desktop => ({
     id: desktop.id,
     name: desktop.name,
@@ -66,26 +84,18 @@ export function DesktopManagerSurfaces() {
         state={overview}
         initialFocusSegment={model.overviewSegmentRequest}
         busy={model.pending !== null}
-        canMutate={canMutate}
-        onOpenChange={open => {
-          if (open) model.actions.openOverlay({ kind: "desktops-overview" });
-          else model.actions.closeOverlay();
-        }}
-        onCreateDesktop={() => model.manager.createDesktop()}
-        onSwitchDesktop={desktopId => model.manager.switchDesktop(desktopId)}
-        onRenameDesktop={(desktopId, name) => model.manager.renameDesktop(desktopId, name)}
-        onReorderDesktop={(desktopId, order) => model.manager.reorderDesktop(desktopId, order)}
-        onDeleteDesktop={(desktopId, destinationId) =>
-          model.manager.deleteDesktop(desktopId, destinationId)
-        }
+        canMutate={model.canMutate}
+        onOpenChange={onOpenChange}
+        onCreateDesktop={onCreateDesktop}
+        onSwitchDesktop={onSwitchDesktop}
+        onRenameDesktop={onRenameDesktop}
+        onReorderDesktop={onReorderDesktop}
+        onDeleteDesktop={onDeleteDesktop}
         onMoveWindow={(windowId, _sourceDesktopId, destinationDesktopId) =>
-          model.manager.moveWindowToDesktop(windowId, destinationDesktopId)
+          onMoveWindow(windowId, destinationDesktopId)
         }
-        onRetry={() => model.manager.refreshSnapshot()}
-        onResolveConflict={() => {
-          model.manager.clearConflict();
-          model.manager.refreshSnapshot();
-        }}
+        onRetry={onRetry}
+        onResolveConflict={onResolveConflict}
       />
       {model.hydration !== "pending" && model.connectionStatus !== "connected" ? (
         <div

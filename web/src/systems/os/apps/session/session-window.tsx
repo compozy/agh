@@ -35,7 +35,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     toast.error("Session not found");
     void coordinator.userClose(windowId).then(closed => {
       if (!closed) return;
-      coordinator.userOpen({
+      void coordinator.userOpen({
         app: "agents",
         route: {
           pathname: `/agents/${encodeURIComponent(agentName)}`,
@@ -77,7 +77,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         onDeleteSuccess={() => {
           void coordinator.userClose(windowId).then(closed => {
             if (!closed) return;
-            coordinator.userOpen({
+            void coordinator.userOpen({
               app: "agents",
               route: {
                 pathname: `/agents/${encodeURIComponent(agentName)}`,

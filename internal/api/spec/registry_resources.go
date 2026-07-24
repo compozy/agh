@@ -104,7 +104,7 @@ func putResourceOperationSpec() OperationSpec {
 			{Status: 409, Description: "Conflict", Body: contract.ErrorPayload{}},
 			{Status: 413, Description: specPayloadTooLargeDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid resource payload", Body: contract.ErrorPayload{}},
-			{Status: 429, Description: "Rate limited", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specRateLimitedDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
@@ -128,7 +128,7 @@ func deleteResourceOperationSpec() OperationSpec {
 			{Status: 404, Description: "Resource not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflict", Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid delete request", Body: contract.ErrorPayload{}},
-			{Status: 429, Description: "Rate limited", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specRateLimitedDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

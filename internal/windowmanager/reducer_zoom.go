@@ -21,7 +21,7 @@ func (r *reducer) zoomWindow(snapshot *Snapshot, command ZoomWindowCommand) (boo
 		return false, fmt.Errorf("window %q has no placement: %w", command.WindowID, ErrInvalidTopology)
 	}
 	removeWindow(snapshot, command.WindowID)
-	focusIndex := r.reusableFocusDesktop(snapshot, command.WindowID)
+	focusIndex := r.reusableFocusDesktop(snapshot)
 	if focusIndex < 0 {
 		desktopIDRaw, err := r.generate("desktop")
 		if err != nil {
@@ -43,6 +43,11 @@ func (r *reducer) zoomWindow(snapshot *Snapshot, command ZoomWindowCommand) (boo
 		snapshot.Desktops[insertIndex] = focus
 		focusIndex = insertIndex
 		r.changes.desktop(desktopID)
+	} else {
+		owner := command.WindowID
+		snapshot.Desktops[focusIndex].Name = "Focus — " + window.App
+		snapshot.Desktops[focusIndex].FocusOwner = &owner
+		r.changes.desktop(snapshot.Desktops[focusIndex].ID)
 	}
 	leaf, err := newLeaf(command.WindowID, r.generate)
 	if err != nil {
@@ -94,6 +99,7 @@ func (r *reducer) restoreZoomedWindow(snapshot *Snapshot, windowID WindowID, foc
 		focusID := snapshot.Desktops[focusIndex].ID
 		snapshot.Desktops[focusIndex].Groups = []LayoutGroup{}
 		snapshot.Desktops[focusIndex].Floating = []WindowID{}
+		snapshot.Desktops[focusIndex].FocusOwner = nil
 		r.changes.desktop(focusID)
 	}
 	r.changes.window(windowID)
@@ -101,9 +107,9 @@ func (r *reducer) restoreZoomedWindow(snapshot *Snapshot, windowID WindowID, foc
 	return true, nil
 }
 
-func (r *reducer) reusableFocusDesktop(snapshot *Snapshot, windowID WindowID) int {
+func (r *reducer) reusableFocusDesktop(snapshot *Snapshot) int {
 	for index, desktop := range snapshot.Desktops {
-		if desktop.Purpose != DesktopPurposeFocus || desktop.FocusOwner == nil || *desktop.FocusOwner != windowID {
+		if desktop.Purpose != DesktopPurposeFocus {
 			continue
 		}
 		if len(desktop.Groups) == 0 && len(desktop.Floating) == 0 {

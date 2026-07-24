@@ -98,7 +98,6 @@ export interface WindowManagerReturnAnchor {
   desktopId: DesktopId;
   groupId: GroupId | null;
   parentSplitId: LayoutNodeId | null;
-  axis: LayoutAxis | null;
   childIndex: number | null;
   weight: number | null;
   neighborIds: readonly WindowId[];
@@ -352,6 +351,7 @@ export interface ProjectedWindow {
   stackId: LayoutNodeId | null;
   active: boolean;
   adapted: boolean;
+  parentAxis: LayoutAxis | null;
 }
 
 export interface ProjectedStack {

@@ -1,10 +1,8 @@
 import { useEffect, useEffectEvent } from "react";
 
-import {
-  dispatchWindowManagerAction,
-  resolveWindowManagerActions,
-  shortcutMatches,
-} from "../lib/window-manager-command-registry";
+import { dispatchWindowManagerAction } from "../lib/window-manager-action-dispatch";
+import { resolveWindowManagerActions, shortcutMatches } from "../lib/window-manager-shortcuts";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useOsShell } from "./use-os-shell";
 
 export interface OsShortcutHandlers {
@@ -44,7 +42,12 @@ export function useOsShortcuts(handlers: OsShortcutHandlers): void {
     }
     const state = store.getState();
     const config = state.windowManagerConfig;
-    if (config !== null && !isEditableTarget(event.target) && !event.repeat) {
+    if (
+      config !== null &&
+      windowManagerCommandsAvailable(state) &&
+      !isEditableTarget(event.target) &&
+      !event.repeat
+    ) {
       const action = resolveWindowManagerActions(config.shortcuts).find(
         candidate => candidate.chord && shortcutMatches(event, candidate.chord)
       );

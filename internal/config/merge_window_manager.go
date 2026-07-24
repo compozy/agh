@@ -54,7 +54,7 @@ func (o windowManagerOverlay) Apply(dst *WindowManagerConfig) {
 	o.Snap.Apply(&dst.Snap)
 	o.Bindings.Apply(&dst.Bindings)
 	if o.Shortcuts != nil {
-		dst.Shortcuts = cloneStringMap(o.Shortcuts)
+		dst.Shortcuts = maps.Clone(o.Shortcuts)
 	}
 }
 
@@ -96,8 +96,4 @@ func applyIntPointer(src *int, dst *int) {
 	if src != nil {
 		*dst = *src
 	}
-}
-
-func cloneStringMap(src map[string]string) map[string]string {
-	return maps.Clone(src)
 }

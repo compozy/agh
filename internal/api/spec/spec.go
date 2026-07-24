@@ -117,6 +117,7 @@ const (
 	specNotificationPresetServiceIsNotConfiguredDescription  = "Notification preset service is not configured"
 	specNoContentDescription                                 = "No Content"
 	specPayloadTooLargeDescription                           = "Payload too large"
+	specRateLimitedDescription                               = "Rate limited"
 	specProviderNotFoundDescription                          = "Provider not found"
 	specServiceUnavailableDependentServiceMissingDescription = "Service unavailable - dependent service missing"
 	specSessionNotFoundDescription                           = "Session not found"

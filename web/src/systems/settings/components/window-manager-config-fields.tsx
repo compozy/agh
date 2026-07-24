@@ -74,21 +74,34 @@ function NumberField({
   label,
   value,
   minimum = 0,
+  maximum,
+  integer = false,
   onChange,
 }: {
   label: string;
   value: number;
   minimum?: number;
+  maximum?: number;
+  integer?: boolean;
   onChange: (value: number) => void;
 }) {
+  const valid =
+    Number.isFinite(value) &&
+    value >= minimum &&
+    (maximum === undefined || value <= maximum) &&
+    (!integer || Number.isInteger(value));
   return (
     <label className="flex min-w-28 flex-1 flex-col gap-1 text-form-label text-muted">
       {label}
       <Input
+        aria-invalid={!valid}
+        className="h-11"
         min={minimum}
+        max={maximum}
+        step={integer ? 1 : undefined}
         type="number"
-        value={value}
-        onChange={event => onChange(Number(event.target.value))}
+        value={Number.isFinite(value) ? value : ""}
+        onChange={event => onChange(event.currentTarget.valueAsNumber)}
       />
     </label>
   );
@@ -216,6 +229,8 @@ export function WindowManagerGeometryFields({
             key={key}
             label={label}
             value={draft.gaps[key]}
+            maximum={64}
+            integer
             onChange={value =>
               setDraft(current => ({
                 ...current,
@@ -228,7 +243,9 @@ export function WindowManagerGeometryFields({
       <div className="flex flex-wrap gap-3 border-t border-line p-4">
         <NumberField
           label="Edge band"
-          minimum={1}
+          minimum={4}
+          maximum={128}
+          integer
           value={draft.snap.edgeBand}
           onChange={edgeBand =>
             setDraft(current => ({
@@ -239,7 +256,9 @@ export function WindowManagerGeometryFields({
         />
         <NumberField
           label="Corner reach"
-          minimum={1}
+          minimum={16}
+          maximum={512}
+          integer
           value={draft.snap.cornerReach}
           onChange={cornerReach =>
             setDraft(current => ({
@@ -250,6 +269,8 @@ export function WindowManagerGeometryFields({
         />
         <NumberField
           label="Exit slack"
+          maximum={64}
+          integer
           value={draft.snap.exitSlack}
           onChange={exitSlack =>
             setDraft(current => ({
@@ -328,17 +349,24 @@ export function WindowManagerBindingFields({
         description="Maximum undo and redo operations retained per workspace"
         control={
           <Input
-            className="w-32"
+            aria-invalid={
+              !Number.isInteger(draft.historyLimit) ||
+              draft.historyLimit < 1 ||
+              draft.historyLimit > 500
+            }
+            className="h-11 w-32"
             min={1}
             max={500}
+            step={1}
             type="number"
-            value={draft.historyLimit}
-            onChange={event =>
+            value={Number.isFinite(draft.historyLimit) ? draft.historyLimit : ""}
+            onChange={event => {
+              const historyLimit = event.currentTarget.valueAsNumber;
               setDraft(current => ({
                 ...current,
-                historyLimit: Number(event.target.value),
-              }))
-            }
+                historyLimit,
+              }));
+            }}
           />
         }
       />

@@ -42,6 +42,7 @@ func (r *reducer) arrange(snapshot *Snapshot, command ArrangeLayoutCommand) (boo
 	if err != nil {
 		return false, err
 	}
+	markNodeChanges(root, &r.changes)
 	groupID := command.GroupID
 	if groupID == "" {
 		generated, generateErr := r.generate("group")
@@ -118,13 +119,11 @@ func (r *reducer) buildSplit(windowIDs []WindowID, axis Axis) (LayoutNode, error
 			return LayoutNode{}, err
 		}
 		children[index] = leaf
-		r.changes.node(leaf.ID)
 	}
 	id, err := r.generate("node")
 	if err != nil {
 		return LayoutNode{}, fmt.Errorf("generate split ID: %w", err)
 	}
-	r.changes.node(NodeID(id))
 	return LayoutNode{
 		ID:       NodeID(id),
 		Kind:     NodeKindSplit,
@@ -132,101 +131,4 @@ func (r *reducer) buildSplit(windowIDs []WindowID, axis Axis) (LayoutNode, error
 		Children: children,
 		Weights:  equalWeights(len(children)),
 	}, nil
-}
-
-func (r *reducer) resize(snapshot *Snapshot, command ResizeLayoutCommand) (bool, error) {
-	if !finite(command.Delta) {
-		return false, fmt.Errorf("resize delta is not finite: %w", ErrInvalidCommand)
-	}
-	node, exists := findNodeInSnapshot(snapshot, command.SplitID)
-	if !exists || node.Kind != NodeKindSplit {
-		return false, fmt.Errorf("split %q: %w", command.SplitID, ErrInvalidCommand)
-	}
-	if command.BoundaryIndex < 0 || command.BoundaryIndex >= len(node.Children)-1 {
-		return false, fmt.Errorf("boundary %d: %w", command.BoundaryIndex, ErrInvalidCommand)
-	}
-	left := command.BoundaryIndex
-	right := left + 1
-	leftWeight := node.Weights[left] + command.Delta
-	rightWeight := node.Weights[right] - command.Delta
-	if leftWeight < 0.01 || rightWeight < 0.01 {
-		return false, fmt.Errorf("resize exceeds boundary: %w", ErrInvalidCommand)
-	}
-	if math.Abs(command.Delta) <= weightTolerance {
-		return false, nil
-	}
-	node.Weights[left] = leftWeight
-	node.Weights[right] = rightWeight
-	normalizeWeights(node.Weights)
-	r.changes.node(command.SplitID)
-	return true, nil
-}
-
-func (r *reducer) balance(snapshot *Snapshot, command BalanceLayoutCommand) (bool, error) {
-	if command.SplitID == nil && command.GroupID == nil {
-		return false, fmt.Errorf("balance target is required: %w", ErrInvalidCommand)
-	}
-	if command.SplitID != nil {
-		node, exists := findNodeInSnapshot(snapshot, *command.SplitID)
-		if !exists || node.Kind != NodeKindSplit {
-			return false, fmt.Errorf("split %q: %w", *command.SplitID, ErrInvalidCommand)
-		}
-		if weightsEqual(node.Weights) {
-			return false, nil
-		}
-		node.Weights = equalWeights(len(node.Children))
-		r.changes.node(node.ID)
-		return true, nil
-	}
-	for desktopIndex := range snapshot.Desktops {
-		for groupIndex := range snapshot.Desktops[desktopIndex].Groups {
-			group := &snapshot.Desktops[desktopIndex].Groups[groupIndex]
-			if group.ID != *command.GroupID {
-				continue
-			}
-			changed := balanceNode(&group.Root, &r.changes)
-			if changed {
-				r.changes.group(group.ID)
-			}
-			return changed, nil
-		}
-	}
-	return false, fmt.Errorf("group %q: %w", *command.GroupID, ErrInvalidCommand)
-}
-
-func balanceNode(node *LayoutNode, changes *changeBuilder) bool {
-	changed := false
-	if node.Kind == NodeKindSplit {
-		if !weightsEqual(node.Weights) {
-			node.Weights = equalWeights(len(node.Children))
-			changes.node(node.ID)
-			changed = true
-		}
-		for index := range node.Children {
-			if balanceNode(&node.Children[index], changes) {
-				changed = true
-			}
-		}
-	}
-	return changed
-}
-
-func equalWeights(count int) []float64 {
-	values := make([]float64, count)
-	for index := range values {
-		values[index] = 1 / float64(count)
-	}
-	return values
-}
-func weightsEqual(weights []float64) bool {
-	if len(weights) == 0 {
-		return true
-	}
-	expected := 1 / float64(len(weights))
-	for _, weight := range weights {
-		if math.Abs(weight-expected) > weightTolerance {
-			return false
-		}
-	}
-	return true
 }

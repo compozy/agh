@@ -20,16 +20,19 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 	t.Run("Should expose only the exact window-manager routes on HTTP and UDS", func(t *testing.T) {
 		t.Parallel()
 		expected := map[string]string{
-			http.MethodGet + " " + windowManagerPath:                             "getWindowManagerSnapshot",
-			http.MethodPost + " " + windowManagerPath + "/preview":               "previewWindowManagerCommand",
-			http.MethodPost + " " + windowManagerPath + "/commands":              "executeWindowManagerCommand",
-			http.MethodGet + " " + windowManagerPath + "/clients":                "listWindowManagerClients",
-			http.MethodPost + " " + windowManagerPath + "/clients":               "registerWindowManagerClient",
-			http.MethodDelete + " " + windowManagerPath + "/clients/{client_id}": "unregisterWindowManagerClient",
-			http.MethodGet + " " + windowManagerPath + "/layout":                 "exportWindowManagerLayout",
-			http.MethodPost + " " + windowManagerPath + "/layout/validate":       "validateWindowManagerLayout",
-			http.MethodPut + " " + windowManagerPath + "/layout":                 "replaceWindowManagerLayout",
-			http.MethodGet + " " + windowManagerPath + "/stream":                 "streamWindowManager",
+			http.MethodGet + " " + windowManagerPath:                                      "getWindowManagerSnapshot",
+			http.MethodPost + " " + windowManagerPath + "/preview":                        "previewWindowManagerCommand",
+			http.MethodPost + " " + windowManagerPath + "/commands":                       "executeWindowManagerCommand",
+			http.MethodGet + " " + windowManagerPath + "/clients":                         "listWindowManagerClients",
+			http.MethodPost + " " + windowManagerPath + "/clients":                        "registerWindowManagerClient",
+			http.MethodDelete + " " + windowManagerPath + "/clients/{client_id}":          "unregisterWindowManagerClient",
+			http.MethodGet + " " + windowManagerPath + "/layout":                          "exportWindowManagerLayout",
+			http.MethodPost + " " + windowManagerPath + "/layout/validate":                "validateWindowManagerLayout",
+			http.MethodPut + " " + windowManagerPath + "/layout":                          "replaceWindowManagerLayout",
+			http.MethodGet + " " + windowManagerPath + "/layout-profiles":                 "listWindowManagerLayoutProfiles",
+			http.MethodPut + " " + windowManagerPath + "/layout-profiles/{profile_id}":    "putWindowManagerLayoutProfile",
+			http.MethodDelete + " " + windowManagerPath + "/layout-profiles/{profile_id}": "deleteWindowManagerLayoutProfile",
+			http.MethodGet + " " + windowManagerPath + "/stream":                          "streamWindowManager",
 		}
 		seen := make(map[string]struct{}, len(expected))
 		for _, operation := range Operations() {

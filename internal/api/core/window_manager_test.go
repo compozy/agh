@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/windowmanager"
 	"github.com/gin-gonic/gin"
 )
@@ -205,7 +207,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 			fixture.router,
 			http.MethodPost,
 			windowManagerTestPath("workspace-a")+"/clients",
-			`{"workspace_id":"workspace-a","client_id":"client-a"}`,
+			`{"workspace_id":"workspace-a","client_id":" client-a "}`,
 		)
 		requireWindowManagerStatus(t, registered, http.StatusCreated)
 		var client contract.WindowManagerClientView
@@ -353,6 +355,92 @@ func TestWindowManagerHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose only global and route-workspace layout profiles", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+		now := time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC)
+		records := map[string]resources.RawRecord{
+			"global-profile": {
+				Kind: windowmanager.WindowLayoutResourceKind, ID: "global-profile", Version: 1,
+				Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				SpecJSON: []byte(`{"version":1}`), CreatedAt: now, UpdatedAt: now,
+			},
+			"workspace-a-profile": {
+				Kind: windowmanager.WindowLayoutResourceKind, ID: "workspace-a-profile", Version: 2,
+				Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
+				SpecJSON: []byte(`{"version":1}`), CreatedAt: now, UpdatedAt: now,
+			},
+			"workspace-b-profile": {
+				Kind: windowmanager.WindowLayoutResourceKind, ID: "workspace-b-profile", Version: 3,
+				Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-b"},
+				SpecJSON: []byte(`{"version":1}`), CreatedAt: now, UpdatedAt: now,
+			},
+		}
+		putCalled := false
+		fixture.handlers.Resources = stubResourceService{
+			ListFn: func(_ context.Context, filter resources.ResourceFilter) ([]resources.RawRecord, error) {
+				if filter.Kind != windowmanager.WindowLayoutResourceKind || filter.Scope == nil {
+					t.Fatalf("layout-profile filter = %+v", filter)
+				}
+				if filter.Scope.Kind == resources.ResourceScopeKindGlobal {
+					return []resources.RawRecord{records["global-profile"]}, nil
+				}
+				if filter.Scope.ID == "workspace-a" {
+					return []resources.RawRecord{records["workspace-a-profile"]}, nil
+				}
+				return []resources.RawRecord{records["workspace-b-profile"]}, nil
+			},
+			GetFn: func(_ context.Context, _ resources.ResourceKind, id string) (resources.RawRecord, error) {
+				record, ok := records[id]
+				if !ok {
+					return resources.RawRecord{}, resources.ErrNotFound
+				}
+				return record, nil
+			},
+			PutFn: func(_ context.Context, _ resources.RawDraft) (resources.RawRecord, error) {
+				putCalled = true
+				return resources.RawRecord{}, nil
+			},
+		}
+
+		listed := performWindowManagerTestRequest(
+			t,
+			fixture.router,
+			http.MethodGet,
+			windowManagerTestPath("workspace-a")+"/layout-profiles",
+			"",
+		)
+		requireWindowManagerStatus(t, listed, http.StatusOK)
+		var payload contract.ResourcesResponse
+		decodeWindowManagerTestBody(t, listed, &payload)
+		if len(payload.Records) != 2 ||
+			payload.Records[0].ID != "global-profile" ||
+			payload.Records[1].ID != "workspace-a-profile" {
+			t.Fatalf("visible layout profiles = %+v", payload.Records)
+		}
+
+		foreignPut := performWindowManagerTestRequest(
+			t,
+			fixture.router,
+			http.MethodPut,
+			windowManagerTestPath("workspace-a")+"/layout-profiles/foreign-profile",
+			`{"scope":{"kind":"workspace","id":"workspace-b"},"expected_version":0,"spec":{"version":1}}`,
+		)
+		requireWindowManagerStatus(t, foreignPut, http.StatusForbidden)
+		if putCalled {
+			t.Fatal("foreign workspace profile reached ResourceService.Put")
+		}
+
+		foreignDelete := performWindowManagerTestRequest(
+			t,
+			fixture.router,
+			http.MethodDelete,
+			windowManagerTestPath("workspace-a")+"/layout-profiles/workspace-b-profile",
+			`{"expected_version":3}`,
+		)
+		requireWindowManagerStatus(t, foreignDelete, http.StatusNotFound)
+	})
+
 	t.Run("Should map stream lifecycle failures to stable structured errors", func(t *testing.T) {
 		t.Parallel()
 		status, payload := windowManagerErrorPayload("workspace-a", windowmanager.ErrSlowConsumer)
@@ -366,6 +454,9 @@ func TestWindowManagerHandlers(t *testing.T) {
 		if status != http.StatusServiceUnavailable ||
 			payload.Code != contract.WindowManagerErrorUnavailable {
 			t.Fatalf("presentation-revision error = status %d payload %+v", status, payload)
+		}
+		if !isExpectedWindowManagerSocketError(net.ErrClosed) {
+			t.Fatal("net.ErrClosed was classified as an unexpected socket failure")
 		}
 	})
 }
@@ -419,6 +510,9 @@ func registerWindowManagerTestRoutes(router gin.IRouter, handlers *BaseHandlers)
 	manager.GET("/layout", handlers.ExportWindowManagerLayout)
 	manager.POST("/layout/validate", handlers.ValidateWindowManagerLayout)
 	manager.PUT("/layout", handlers.ReplaceWindowManagerLayout)
+	manager.GET("/layout-profiles", handlers.ListWindowManagerLayoutProfiles)
+	manager.PUT("/layout-profiles/:profile_id", handlers.PutWindowManagerLayoutProfile)
+	manager.DELETE("/layout-profiles/:profile_id", handlers.DeleteWindowManagerLayoutProfile)
 	manager.GET("/stream", handlers.StreamWindowManager)
 }
 

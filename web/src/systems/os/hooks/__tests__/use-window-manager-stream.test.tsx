@@ -116,6 +116,33 @@ function rawEventFrame(revision: number) {
   };
 }
 
+function rawSnapshotFrame(revision: number) {
+  return {
+    type: "snapshot",
+    workspace_id: "workspace:test",
+    revision,
+    snapshot: {
+      version: 1,
+      workspace_id: "workspace:test",
+      revision,
+      desktops: [
+        {
+          id: "desktop:main",
+          name: "Main",
+          order: 0,
+          purpose: "standard",
+          groups: [],
+          floating: [],
+        },
+      ],
+      windows: {},
+      history: { undo: [], redo: [] },
+      overrides: {},
+      updated_at: "2026-07-22T00:00:00Z",
+    },
+  };
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>(done => {
@@ -188,6 +215,13 @@ describe("useWindowManagerStream", () => {
     expect(factory).toHaveBeenLastCalledWith(
       "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=5&client_id=client%3Aweb"
     );
+
+    act(() => sockets[1]?.message(rawSnapshotFrame(5)));
+    act(() => sockets[1]?.disconnect());
+    await act(() => vi.advanceTimersByTimeAsync(499));
+    expect(factory).toHaveBeenCalledTimes(2);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(factory).toHaveBeenCalledTimes(3);
   });
 
   it("Should serialize burst refreshes until Query reaches the highest announced revision", async () => {
@@ -354,5 +388,40 @@ describe("useWindowManagerStream", () => {
       queryClient.getQueryData<WindowManagerSnapshot>(windowManagerKeys.snapshot("workspace:test"))
         ?.revision
     ).toBe(3);
+  });
+
+  it("Should abort an in-flight snapshot refresh when the binding is disposed", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot(1));
+    const { factory, sockets } = createSocketFactory();
+    const pending = deferred<WindowManagerSnapshot>();
+    vi.mocked(fetchWindowManagerSnapshot).mockReturnValueOnce(pending.promise);
+
+    const { unmount } = renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 1,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    act(() => sockets[0]?.message(rawEventFrame(2)));
+    const signal = vi.mocked(fetchWindowManagerSnapshot).mock.calls[0]?.[1];
+    expect(signal?.aborted).toBe(false);
+
+    unmount();
+
+    expect(signal?.aborted).toBe(true);
   });
 });

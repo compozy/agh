@@ -123,9 +123,11 @@ export class RoutingCoordinator {
   }
 
   /** Dock, palette, rail, menubar: open-or-focus then one history entry. */
-  userOpen(target: OsOpenTarget): string {
+  async userOpen(target: OsOpenTarget): Promise<string | null> {
     const state = this.store.getState();
-    const id = state.openOrFocus(target);
+    const outcome = state.openOrFocus(target);
+    if (!(await outcome.completion)) return null;
+    const id = outcome.windowId;
     const route =
       target.route ?? this.store.getState().windows[id]?.route ?? defaultOsWindowRoute(target.app);
     this.pushRoute(route);
@@ -137,13 +139,15 @@ export class RoutingCoordinator {
    * the activation target is a link, the link's own navigation writes the one
    * history entry and reconciliation follows it (rule 3 coalescing).
    */
-  userFocus(windowId: string, opts: { viaLink?: boolean } = {}): void {
+  async userFocus(windowId: string, opts: { viaLink?: boolean } = {}): Promise<boolean> {
     const state = this.store.getState();
     const win = state.windows[windowId];
-    if (!win || opts.viaLink || (state.focusedId === windowId && !win.minimized)) return;
-    state.focusWindow(windowId);
+    if (!win || opts.viaLink || (state.focusedId === windowId && !win.minimized)) return false;
+    const outcome = state.focusWindow(windowId);
+    if (!(await outcome.completion)) return false;
     const focused = this.store.getState().windows[windowId];
     if (focused) this.pushRoute(focused.route);
+    return focused !== undefined;
   }
 
   /** Close: successor focus follows ADR-002 (next-top window, else desktop). */
@@ -172,13 +176,15 @@ export class RoutingCoordinator {
    * inactive window, reflect that activation with one history write without
    * preceding the durable command with a competing presentation command.
    */
-  userZoom(windowId: string): void {
+  async userZoom(windowId: string): Promise<boolean> {
     const state = this.store.getState();
     const win = state.windows[windowId];
-    if (!win || win.minimized) return;
+    if (!win || win.minimized) return false;
     const wasFocused = state.focusedId === windowId;
-    state.zoomWindow(windowId);
+    const outcome = state.zoomWindow(windowId);
+    if (!(await outcome.completion)) return false;
     if (!wasFocused) this.pushRoute(win.route);
+    return true;
   }
 
   /**

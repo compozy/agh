@@ -12,19 +12,53 @@ const safeRevisionSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_IN
 const identifierSchema = z.string().trim().min(1);
 
 const rawWindowManagerStreamFrameSchema = z.discriminatedUnion("type", [
-  z.strictObject({
-    type: z.literal("snapshot"),
-    workspace_id: identifierSchema,
-    revision: safeRevisionSchema,
-    snapshot: windowManagerSnapshotSchema,
-    client: windowManagerClientViewSchema.optional(),
-  }),
-  z.strictObject({
-    type: z.literal("event"),
-    workspace_id: identifierSchema,
-    revision: safeRevisionSchema,
-    event: windowManagerEventSchema,
-  }),
+  z
+    .strictObject({
+      type: z.literal("snapshot"),
+      workspace_id: identifierSchema,
+      revision: safeRevisionSchema,
+      snapshot: windowManagerSnapshotSchema,
+      client: windowManagerClientViewSchema.optional(),
+    })
+    .superRefine((frame, context) => {
+      if (frame.workspace_id !== frame.snapshot.workspaceId) {
+        context.addIssue({
+          code: "custom",
+          message: "Snapshot frame workspace must match snapshot workspace_id.",
+          path: ["snapshot", "workspace_id"],
+        });
+      }
+      if (frame.revision !== frame.snapshot.revision) {
+        context.addIssue({
+          code: "custom",
+          message: "Snapshot frame revision must match snapshot revision.",
+          path: ["snapshot", "revision"],
+        });
+      }
+    }),
+  z
+    .strictObject({
+      type: z.literal("event"),
+      workspace_id: identifierSchema,
+      revision: safeRevisionSchema,
+      event: windowManagerEventSchema,
+    })
+    .superRefine((frame, context) => {
+      if (frame.workspace_id !== frame.event.workspaceId) {
+        context.addIssue({
+          code: "custom",
+          message: "Event frame workspace must match event workspace_id.",
+          path: ["event", "workspace_id"],
+        });
+      }
+      if (frame.revision !== frame.event.revision) {
+        context.addIssue({
+          code: "custom",
+          message: "Event frame revision must match event revision.",
+          path: ["event", "revision"],
+        });
+      }
+    }),
   z
     .strictObject({
       type: z.literal("client"),

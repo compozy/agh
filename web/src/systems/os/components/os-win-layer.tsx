@@ -1,12 +1,8 @@
 import { Kbd } from "@agh/ui";
 
-import { useDesktop } from "../hooks/use-desktop";
-import { useOsReducedMotion } from "../hooks/use-os-reduced-motion";
-import { useOsWinLayer, type DesktopLayerModel } from "../hooks/use-os-win-layer";
-import {
-  useDesktopTransitionIntent,
-  useWindowManagerActions,
-} from "../hooks/use-window-manager-store";
+import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-layer";
+import type { SnapTarget } from "../lib/snap-targets";
+import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
 import { OsSnapOverlay } from "./os-snap-overlay";
 import { OsSnapSeamLayer } from "./os-snap-seam";
@@ -19,6 +15,9 @@ function DesktopLayer({
   viewportReady,
   transition,
   onTransitionComplete,
+  seamProjection,
+  preview,
+  onResizeLayout,
 }: {
   model: DesktopLayerModel;
   compact: boolean;
@@ -26,9 +25,10 @@ function DesktopLayer({
   viewportReady: boolean;
   transition: DesktopTransitionIntent | null;
   onTransitionComplete: () => void;
+  seamProjection: LayoutProjection | undefined;
+  preview: SnapTarget | null;
+  onResizeLayout: (splitId: string, boundaryIndex: number, delta: number) => void;
 }) {
-  const anyVisible = useDesktop(state => model.windowIds.some(id => !state.windows[id]?.minimized));
-
   const incoming = transition?.toDesktopId === model.desktop.id;
   const outgoing = transition?.fromDesktopId === model.desktop.id;
   const transitionActive =
@@ -53,6 +53,7 @@ function DesktopLayer({
       className="absolute inset-0"
       onTransitionEnd={event => {
         if (
+          event.target === event.currentTarget &&
           model.active &&
           incoming &&
           (event.propertyName === "opacity" || event.propertyName === "transform")
@@ -72,7 +73,7 @@ function DesktopLayer({
             : "opacity var(--duration-shell-fast) ease-out, transform var(--duration-shell-fast) ease-out",
       }}
     >
-      {interactive && !anyVisible ? (
+      {interactive && !model.anyVisible ? (
         <p
           data-testid="os-desk-hint"
           className="pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 text-small-body text-subtle select-none"
@@ -85,8 +86,8 @@ function DesktopLayer({
       ))}
       {!compact && interactive ? (
         <>
-          <OsSnapSeamLayer />
-          <OsSnapOverlay />
+          <OsSnapSeamLayer projection={seamProjection} onResize={onResizeLayout} />
+          <OsSnapOverlay preview={preview} />
         </>
       ) : null}
     </section>
@@ -94,11 +95,22 @@ function DesktopLayer({
 }
 
 /** Every desktop tree remains mounted; only the client-active tree is interactive. */
-export function OsWinLayer() {
-  const { layerRef, desktops, presentation, viewportState } = useOsWinLayer();
-  const reducedMotion = useOsReducedMotion();
-  const transition = useDesktopTransitionIntent();
-  const actions = useWindowManagerActions();
+export function OsWinLayer({
+  model,
+  reducedMotion,
+  transition,
+  preview,
+  onTransitionComplete,
+  onResizeLayout,
+}: {
+  model: OsWinLayerModel;
+  reducedMotion: boolean;
+  transition: DesktopTransitionIntent | null;
+  preview: SnapTarget | null;
+  onTransitionComplete: () => void;
+  onResizeLayout: (splitId: string, boundaryIndex: number, delta: number) => void;
+}) {
+  const { layerRef, desktops, presentation, viewportState, activeProjection } = model;
   return (
     <div ref={layerRef} data-slot="os-win-layer" className="absolute inset-0">
       {desktops.map(desktop => (
@@ -109,7 +121,10 @@ export function OsWinLayer() {
           reducedMotion={reducedMotion}
           viewportReady={viewportState === "ready"}
           transition={transition}
-          onTransitionComplete={() => actions.setTransitionIntent(null)}
+          onTransitionComplete={onTransitionComplete}
+          seamProjection={activeProjection}
+          preview={preview}
+          onResizeLayout={onResizeLayout}
         />
       ))}
       {viewportState === "rejected" ? (

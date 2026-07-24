@@ -7,9 +7,11 @@ import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../../contexts/os-shell-context";
-import { WindowManagerRuntime } from "../../../hooks/window-manager-runtime";
+import { WindowManagerRuntime } from "../../../runtime/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../../lib/routing-coordinator";
 import { AppearanceSettingsPane } from "../appearance-settings-pane";
+
+const managers: WindowManagerRuntime[] = [];
 
 vi.mock("@/systems/settings", () => ({
   useSettingsTopbar: vi.fn(),
@@ -29,6 +31,7 @@ function matchMediaStub(matches: boolean) {
 function renderPane({ systemReducedMotion = false } = {}) {
   vi.stubGlobal("matchMedia", matchMediaStub(systemReducedMotion));
   const manager = new WindowManagerRuntime(new QueryClient());
+  managers.push(manager);
   const port: OsRouterPort = { navigate: () => {}, replace: () => {} };
   const shell: OsShellHandle = {
     store: manager,
@@ -45,6 +48,7 @@ function renderPane({ systemReducedMotion = false } = {}) {
 
 describe("AppearanceSettingsPane", () => {
   afterEach(() => {
+    for (const manager of managers.splice(0)) manager.destroy();
     vi.unstubAllGlobals();
   });
 

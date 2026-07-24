@@ -8,6 +8,7 @@ package windowmanager
 import (
 	"errors"
 	"math"
+	"slices"
 	"testing"
 )
 
@@ -106,8 +107,15 @@ func TestNormalizeSnapshot(t *testing.T) {
 		if root.Kind != NodeKindSplit || len(root.Children) != 3 {
 			t.Fatalf("normalized root = %+v", root)
 		}
-		if root.Children[2].Kind != NodeKindLeaf || valueOrZero(root.Children[2].WindowID) != w3 {
-			t.Fatalf("singleton stack = %+v", root.Children[2])
+		wantWindowIDs := []WindowID{w1, w2, w3}
+		wantNodeIDs := []NodeID{"n1", "n2", "s1"}
+		wantWeights := []float64{0.4, 0.3, 0.3}
+		for index, child := range root.Children {
+			if child.Kind != NodeKindLeaf || child.ID != wantNodeIDs[index] ||
+				valueOrZero(child.WindowID) != wantWindowIDs[index] ||
+				math.Abs(root.Weights[index]-wantWeights[index]) > weightTolerance {
+				t.Fatalf("normalized child[%d] = %+v weight=%f", index, child, root.Weights[index])
+			}
 		}
 		if len(first.Desktops[0].Floating) != 0 {
 			t.Fatalf("floating duplicates = %v", first.Desktops[0].Floating)
@@ -166,6 +174,18 @@ func TestValidateSnapshot(t *testing.T) {
 			name:   "Should reject an absent final desktop",
 			code:   "topology.final_desktop_required",
 			mutate: func(snapshot *Snapshot) { snapshot.Desktops = nil; snapshot.Windows = map[WindowID]Window{} },
+		},
+		{
+			name: "Should reject a focus owner from another desktop",
+			code: "topology.focus_owner_desktop",
+			path: "desktops[1].focus_owner",
+			mutate: func(snapshot *Snapshot) {
+				owner := WindowID("w1")
+				snapshot.Desktops = append(snapshot.Desktops, Desktop{
+					ID: "focus", Name: "Focus", Order: 1, Purpose: DesktopPurposeFocus,
+					FocusOwner: &owner, Groups: []LayoutGroup{}, Floating: []WindowID{},
+				})
+			},
 		},
 		{
 			name: "Should reject duplicate node identities in a return anchor source group",
@@ -267,6 +287,31 @@ func TestValidateSnapshot(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should return diagnostics in stable window-ID order", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validThreeWindowSnapshot()
+		for _, windowID := range []WindowID{"w1", "w2", "w3"} {
+			window := snapshot.Windows[windowID]
+			window.App = ""
+			snapshot.Windows[windowID] = window
+		}
+		var baseline []Diagnostic
+		for iteration := range 20 {
+			err := ValidateSnapshot(snapshot)
+			var topologyErr *TopologyError
+			if !errors.As(err, &topologyErr) {
+				t.Fatalf("ValidateSnapshot() error = %v, want TopologyError", err)
+			}
+			if iteration == 0 {
+				baseline = append([]Diagnostic(nil), topologyErr.Diagnostics...)
+				continue
+			}
+			if !slices.Equal(topologyErr.Diagnostics, baseline) {
+				t.Fatalf("diagnostics changed order: got %+v, want %+v", topologyErr.Diagnostics, baseline)
+			}
+		}
+	})
 }
 
 func TestSharedBoundaryResize(t *testing.T) {

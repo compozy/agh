@@ -57,7 +57,8 @@ func (h *BaseHandlers) RegisterWindowManagerClient(c *gin.Context) {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
 	}
-	if request.ClientID != "" && strings.TrimSpace(string(request.ClientID)) == "" {
+	canonicalClientID := windowmanager.ClientID(strings.TrimSpace(string(request.ClientID)))
+	if request.ClientID != "" && canonicalClientID == "" {
 		h.respondWindowManagerError(
 			c,
 			workspaceID,
@@ -66,7 +67,7 @@ func (h *BaseHandlers) RegisterWindowManagerClient(c *gin.Context) {
 		return
 	}
 	client, err := h.WindowManager.RegisterClient(c.Request.Context(), windowmanager.ClientRegistration{
-		WorkspaceID: workspaceID, ClientID: request.ClientID, ActiveDesktopID: request.ActiveDesktopID,
+		WorkspaceID: workspaceID, ClientID: canonicalClientID, ActiveDesktopID: request.ActiveDesktopID,
 	})
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)

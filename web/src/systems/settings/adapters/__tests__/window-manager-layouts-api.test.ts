@@ -61,12 +61,13 @@ describe("window-manager layouts API", () => {
       jsonResponse({ records: [windowManagerLayoutResourceFixture] })
     );
 
-    const profiles = await listWindowManagerLayoutProfiles();
+    const profiles = await listWindowManagerLayoutProfiles("workspace-a");
 
     expect(apiMocks.fetch).toHaveBeenCalledOnce();
-    expect(apiMocks.fetch).toHaveBeenCalledWith("/api/resources/window_layout", {
-      signal: undefined,
-    });
+    expect(apiMocks.fetch).toHaveBeenCalledWith(
+      "/api/workspaces/workspace-a/window-manager/layout-profiles",
+      { signal: undefined }
+    );
     expect(profiles.map(profile => profile.id)).toEqual([windowManagerLayoutResourceFixture.id]);
   });
 });

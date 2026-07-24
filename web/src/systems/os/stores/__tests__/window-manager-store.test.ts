@@ -208,6 +208,10 @@ describe("window manager store", () => {
   it("Should isolate measured work-area and transition inputs from caller mutation", () => {
     const store = createWindowManagerStore();
     const actions = store.getState().actions;
+    let notifications = 0;
+    const unsubscribe = store.subscribe(() => {
+      notifications += 1;
+    });
     const rect = { x: 10, y: 20, w: 1200, h: 760 };
     const transition = {
       fromDesktopId: "desktop:one",
@@ -217,6 +221,11 @@ describe("window manager store", () => {
     };
 
     actions.setWorkArea({ rect });
+    const ownedWorkArea = selectWindowManagerWorkArea(store.getState());
+    notifications = 0;
+    actions.setWorkArea({ rect: { x: 10, y: 20, w: 1200, h: 760 } });
+    expect(selectWindowManagerWorkArea(store.getState())).toBe(ownedWorkArea);
+    expect(notifications).toBe(0);
     actions.setTransitionIntent(transition);
     rect.x = 900;
     transition.toDesktopId = "desktop:external-mutation";
@@ -230,6 +239,7 @@ describe("window manager store", () => {
       direction: "later",
       mode: "slide",
     });
+    unsubscribe();
   });
 
   it("Should cycle placements per window and reset on side or structural target changes", () => {
@@ -253,7 +263,9 @@ describe("window manager store", () => {
     const actions = store.getState().actions;
     beginGesture(store, 23);
 
-    actions.previewGesture({ x: 1, y: 240 }, SNAP_TARGET, GESTURE_WORK_AREA);
+    const previewTarget: SnapTarget = { ...SNAP_TARGET, rect: { ...SNAP_TARGET.rect } };
+    actions.previewGesture({ x: 1, y: 240 }, previewTarget, GESTURE_WORK_AREA);
+    previewTarget.rect.x = 500;
 
     expect(selectWindowManagerGesturePreview(store.getState())).toEqual(SNAP_TARGET);
     expect(selectWindowManagerGesture(store.getState())).toMatchObject({
@@ -333,7 +345,6 @@ describe("window manager store", () => {
 
     expect(decision).toMatchObject({
       kind: "commit",
-      mode: "direct",
       command: { expectedRevision: 31, finalPoint: { x: 1, y: 301 } },
     });
     expect(selectWindowManagerGesture(store.getState())).toBeNull();

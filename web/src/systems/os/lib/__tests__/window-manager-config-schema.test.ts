@@ -39,9 +39,25 @@ function settingsResponse() {
 
 describe("parseSettingsWindowManagerConfig", () => {
   it("Should project the complete validated global config", () => {
-    expect(parseSettingsWindowManagerConfig(settingsResponse())).toMatchObject({
+    expect(parseSettingsWindowManagerConfig(settingsResponse())).toEqual({
+      newWindowPolicy: "floating",
+      smallViewportPolicy: "stack",
+      focusPolicy: "click_directional",
+      focusWrap: true,
+      focusFollowsPointer: false,
+      raiseOnFocus: true,
+      dragAwayPolicy: "window",
+      groupMoveModifier: "alt",
       historyLimit: 100,
-      snap: { edgeBand: 24, repeatRatios: [0.5, 0.33, 0.67] },
+      desktopTransition: "slide",
+      gaps: { inner: 8, top: 8, right: 8, bottom: 8, left: 8 },
+      snap: {
+        edgeBand: 24,
+        cornerReach: 96,
+        exitSlack: 16,
+        repeatRatios: [0.5, 0.33, 0.67],
+      },
+      bindings: { topCenter: "zoom", bottomCenter: "none" },
       shortcuts: { "desktop.switch.next": "control+alt+BracketRight" },
     });
   });

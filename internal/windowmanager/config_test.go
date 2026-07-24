@@ -103,26 +103,32 @@ func TestCanonicalShortcuts(t *testing.T) {
 	tests := []struct {
 		name      string
 		shortcuts map[string]string
+		wantError string
 	}{
 		{
 			name:      "Should reject an unknown action",
 			shortcuts: map[string]string{"window.teleport": "meta+KeyT"},
+			wantError: `shortcut action "window.teleport" is unsupported: window manager invalid command`,
 		},
 		{
 			name:      "Should reject an unknown token",
 			shortcuts: map[string]string{"window.close": "meta+KeyAA"},
+			wantError: `shortcut "window.close": chord token "KeyAA" is unsupported: window manager invalid command`,
 		},
 		{
 			name:      "Should reject a duplicate modifier",
 			shortcuts: map[string]string{"window.close": "meta+META+KeyW"},
+			wantError: `shortcut "window.close": chord repeats modifier "meta": window manager invalid command`,
 		},
 		{
 			name:      "Should require a modifier",
 			shortcuts: map[string]string{"window.close": "KeyW"},
+			wantError: `shortcut "window.close": chord requires at least one modifier: window manager invalid command`,
 		},
 		{
 			name:      "Should require exactly one KeyboardEvent code",
 			shortcuts: map[string]string{"window.close": "meta+KeyW+KeyQ"},
+			wantError: `shortcut "window.close": chord must contain exactly one KeyboardEvent.code: window manager invalid command`,
 		},
 		{
 			name: "Should reject a collision after canonicalization",
@@ -130,13 +136,15 @@ func TestCanonicalShortcuts(t *testing.T) {
 				"window.close":    "Shift+Meta+KeyW",
 				"window.minimize": "meta + shift + KeyW",
 			},
+			wantError: `shortcut "meta+shift+KeyW" conflicts between "window.close" and "window.minimize": window manager invalid command`,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := CanonicalShortcuts(test.shortcuts); !errors.Is(err, ErrInvalidCommand) {
-				t.Fatalf("CanonicalShortcuts() error = %v, want ErrInvalidCommand", err)
+			if _, err := CanonicalShortcuts(test.shortcuts); !errors.Is(err, ErrInvalidCommand) ||
+				err.Error() != test.wantError {
+				t.Fatalf("CanonicalShortcuts() error = %v, want %q wrapping ErrInvalidCommand", err, test.wantError)
 			}
 		})
 	}
@@ -173,62 +181,105 @@ func TestCanonicalShortcuts(t *testing.T) {
 
 func TestConfigValidation(t *testing.T) {
 	tests := []struct {
-		name   string
-		mutate func(*Config)
+		name      string
+		mutate    func(*Config)
+		wantError string
 	}{
 		{
-			name:   "Should reject an unknown new-window policy",
-			mutate: func(config *Config) { config.NewWindowPolicy = "cascade" },
+			name:      "Should reject an unknown new-window policy",
+			mutate:    func(config *Config) { config.NewWindowPolicy = "cascade" },
+			wantError: `new window policy "cascade": window manager invalid command`,
 		},
 		{
-			name:   "Should reject an unknown small-viewport policy",
-			mutate: func(config *Config) { config.SmallViewportPolicy = "shrink" },
-		},
-		{name: "Should reject an unknown focus policy", mutate: func(config *Config) { config.FocusPolicy = "wrap" }},
-		{
-			name:   "Should reject an unknown drag-away policy",
-			mutate: func(config *Config) { config.DragAwayPolicy = "desktop" },
-		},
-		{name: "Should reject a non-positive history limit", mutate: func(config *Config) { config.HistoryLimit = 0 }},
-		{name: "Should reject an excessive history limit", mutate: func(config *Config) { config.HistoryLimit = 501 }},
-		{
-			name:   "Should reject an unknown desktop transition",
-			mutate: func(config *Config) { config.DesktopTransition = "flip" },
+			name:      "Should reject an unknown small-viewport policy",
+			mutate:    func(config *Config) { config.SmallViewportPolicy = "shrink" },
+			wantError: `small viewport policy "shrink": window manager invalid command`,
 		},
 		{
-			name:   "Should reject an unknown group modifier",
-			mutate: func(config *Config) { config.GroupMoveModifier = "command" },
-		},
-		{name: "Should reject a negative gap", mutate: func(config *Config) { config.Gaps.Left = -1 }},
-		{name: "Should reject a non-finite gap", mutate: func(config *Config) { config.Gaps.Inner = math.NaN() }},
-		{name: "Should reject invalid snap thresholds", mutate: func(config *Config) { config.Snap.EdgeBand = 0 }},
-		{name: "Should require repeat ratios", mutate: func(config *Config) { config.Snap.RepeatRatios = nil }},
-		{
-			name:   "Should reject an out-of-range repeat ratio",
-			mutate: func(config *Config) { config.Snap.RepeatRatios = []float64{0.05} },
+			name:      "Should reject an unknown focus policy",
+			mutate:    func(config *Config) { config.FocusPolicy = "wrap" },
+			wantError: `focus policy "wrap": window manager invalid command`,
 		},
 		{
-			name:   "Should reject duplicate repeat ratios",
-			mutate: func(config *Config) { config.Snap.RepeatRatios = []float64{0.5, 0.5} },
+			name:      "Should reject an unknown drag-away policy",
+			mutate:    func(config *Config) { config.DragAwayPolicy = "desktop" },
+			wantError: `drag away policy "desktop": window manager invalid command`,
 		},
 		{
-			name:   "Should reject an unknown edge binding",
-			mutate: func(config *Config) { config.Bindings.TopCenter = "tile" },
+			name:      "Should reject a non-positive history limit",
+			mutate:    func(config *Config) { config.HistoryLimit = 0 },
+			wantError: "history limit 0 must be between 1 and 500: window manager invalid command",
 		},
 		{
-			name:   "Should reject the unsupported stack edge binding",
-			mutate: func(config *Config) { config.Bindings.TopCenter = "stack" },
+			name:      "Should reject an excessive history limit",
+			mutate:    func(config *Config) { config.HistoryLimit = 501 },
+			wantError: "history limit 501 must be between 1 and 500: window manager invalid command",
 		},
 		{
-			name:   "Should reject an empty shortcut",
-			mutate: func(config *Config) { config.Shortcuts = map[string]string{"layout.balance": " "} },
+			name:      "Should reject an unknown desktop transition",
+			mutate:    func(config *Config) { config.DesktopTransition = "flip" },
+			wantError: `desktop transition "flip": window manager invalid command`,
 		},
-		{name: "Should reject shortcut chord conflicts", mutate: func(config *Config) {
-			config.Shortcuts = map[string]string{
-				"layout.balance": "Shift+Meta+KeyB",
-				"layout.undo":    " meta + shift + KeyB ",
-			}
-		}},
+		{
+			name:      "Should reject an unknown group modifier",
+			mutate:    func(config *Config) { config.GroupMoveModifier = "command" },
+			wantError: `group move modifier "command": window manager invalid command`,
+		},
+		{
+			name:      "Should reject a negative gap",
+			mutate:    func(config *Config) { config.Gaps.Left = -1 },
+			wantError: "gaps must be finite and non-negative: window manager invalid command",
+		},
+		{
+			name:      "Should reject a non-finite gap",
+			mutate:    func(config *Config) { config.Gaps.Inner = math.NaN() },
+			wantError: "gaps must be finite and non-negative: window manager invalid command",
+		},
+		{
+			name:      "Should reject invalid snap thresholds",
+			mutate:    func(config *Config) { config.Snap.EdgeBand = 0 },
+			wantError: "snap thresholds are invalid: window manager invalid command",
+		},
+		{
+			name:      "Should require repeat ratios",
+			mutate:    func(config *Config) { config.Snap.RepeatRatios = nil },
+			wantError: "repeat ratios are required: window manager invalid command",
+		},
+		{
+			name:      "Should reject an out-of-range repeat ratio",
+			mutate:    func(config *Config) { config.Snap.RepeatRatios = []float64{0.05} },
+			wantError: "repeat ratio 0.05 is invalid: window manager invalid command",
+		},
+		{
+			name:      "Should reject duplicate repeat ratios",
+			mutate:    func(config *Config) { config.Snap.RepeatRatios = []float64{0.5, 0.5} },
+			wantError: "repeat ratio 0.5 is duplicated: window manager invalid command",
+		},
+		{
+			name:      "Should reject an unknown edge binding",
+			mutate:    func(config *Config) { config.Bindings.TopCenter = "tile" },
+			wantError: `binding "tile": window manager invalid command`,
+		},
+		{
+			name:      "Should reject the unsupported stack edge binding",
+			mutate:    func(config *Config) { config.Bindings.TopCenter = "stack" },
+			wantError: `binding "stack": window manager invalid command`,
+		},
+		{
+			name:      "Should reject an empty shortcut",
+			mutate:    func(config *Config) { config.Shortcuts = map[string]string{"layout.balance": " "} },
+			wantError: `shortcut "layout.balance": chord contains an empty token: window manager invalid command`,
+		},
+		{
+			name: "Should reject shortcut chord conflicts",
+			mutate: func(config *Config) {
+				config.Shortcuts = map[string]string{
+					"layout.balance": "Shift+Meta+KeyB",
+					"layout.undo":    " meta + shift + KeyB ",
+				}
+			},
+			wantError: `shortcut "meta+shift+KeyB" conflicts between "layout.balance" and "layout.undo": window manager invalid command`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -236,8 +287,8 @@ func TestConfigValidation(t *testing.T) {
 			config := DefaultConfig()
 			test.mutate(&config)
 			err := validateConfig(config)
-			if !errors.Is(err, ErrInvalidCommand) {
-				t.Fatalf("validateConfig() error = %v, want ErrInvalidCommand", err)
+			if !errors.Is(err, ErrInvalidCommand) || err.Error() != test.wantError {
+				t.Fatalf("validateConfig() error = %v, want %q wrapping ErrInvalidCommand", err, test.wantError)
 			}
 		})
 	}

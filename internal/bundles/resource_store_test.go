@@ -684,7 +684,8 @@ func TestNewResourceStoreAppliesDefaultActor(t *testing.T) {
 		{name: "bridge store", mutate: func(cfg *ResourceStoreConfig) { cfg.Bridges = nil }},
 	}
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run("Should reject missing "+tc.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := validConfig
 			tc.mutate(&cfg)
 			if _, err := NewResourceStore(cfg); err == nil {

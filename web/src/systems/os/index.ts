@@ -6,7 +6,7 @@ export { useOsShell } from "./hooks/use-os-shell";
 export { useDesktop } from "./hooks/use-desktop";
 export { OS_APPS, getOsApp, resolveAppForPath, matchSessionInstance } from "./lib/app-registry";
 export { RoutingCoordinator, type OsRouterPort } from "./lib/routing-coordinator";
-export { WindowManagerRuntime } from "./hooks/window-manager-runtime";
+export { WindowManagerRuntime } from "./runtime/window-manager-runtime";
 export { fetchWindowManagerSnapshot } from "./adapters/window-manager-api";
 export {
   windowManagerConfigOptions,

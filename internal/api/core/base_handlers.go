@@ -16,7 +16,6 @@ import (
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
-	"github.com/compozy/agh/internal/windowmanager"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -59,7 +58,7 @@ type BaseHandlerConfig struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
-	WindowManager                windowmanager.Service
+	WindowManager                WindowManagerService
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	AgentDefinitionSync          AgentDefinitionSync
@@ -136,7 +135,7 @@ type BaseHandlers struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
-	WindowManager                windowmanager.Service
+	WindowManager                WindowManagerService
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	AgentDefinitionSync          AgentDefinitionSync

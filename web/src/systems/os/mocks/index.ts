@@ -1,4 +1,4 @@
-export { handlers } from "./handlers";
+export { handlers, resetWindowManagerMockState } from "./handlers";
 export {
   windowManagerClientFixture,
   windowManagerSnapshotFixture,

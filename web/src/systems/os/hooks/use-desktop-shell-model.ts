@@ -63,6 +63,8 @@ export function useDesktopShellModel() {
   };
 }
 
+export type DesktopShellModel = ReturnType<typeof useDesktopShellModel>;
+
 function describeWorkspaceProviderError(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;

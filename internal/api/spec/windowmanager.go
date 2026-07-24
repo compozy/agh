@@ -122,7 +122,7 @@ func windowManagerLayoutOperations(
 	readErrors []ResponseSpec,
 	mutationErrors []ResponseSpec,
 ) []OperationSpec {
-	return []OperationSpec{
+	operations := []OperationSpec{
 		{
 			Method: httpMethodGet, Path: windowManagerPath + "/layout",
 			OperationID: "exportWindowManagerLayout", Summary: "Export one declarative window layout",
@@ -157,6 +157,125 @@ func windowManagerLayoutOperations(
 				[]ResponseSpec{{Status: 200, Description: "Applied", Body: contract.WindowManagerResult{}}},
 				mutationErrors...,
 			),
+		},
+	}
+	return append(
+		operations,
+		windowManagerLayoutProfileOperations(transports, workspaceParam)...,
+	)
+}
+
+func windowManagerLayoutProfileOperations(
+	transports []Transport,
+	workspaceParam ParameterSpec,
+) []OperationSpec {
+	profileParam := pathParam("profile_id", "Layout profile id")
+	return []OperationSpec{
+		listWindowManagerLayoutProfilesOperation(transports, workspaceParam),
+		putWindowManagerLayoutProfileOperation(transports, workspaceParam, profileParam),
+		deleteWindowManagerLayoutProfileOperation(transports, workspaceParam, profileParam),
+	}
+}
+
+func listWindowManagerLayoutProfilesOperation(
+	transports []Transport,
+	workspaceParam ParameterSpec,
+) OperationSpec {
+	resourceError := contract.ErrorPayload{}
+	resourceOrWindowManagerError := []any{resourceError, contract.WindowManagerErrorPayload{}}
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        windowManagerPath + "/layout-profiles",
+		OperationID: "listWindowManagerLayoutProfiles",
+		Summary:     "List layout profiles visible to one workspace",
+		Tags:        []string{specWorkspacesKey},
+		Transports:  transports,
+		Parameters:  []ParameterSpec{workspaceParam},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ResourcesResponse{}},
+			{
+				Status: 404, Description: specWorkspaceNotFoundDescription,
+				Bodies: resourceOrWindowManagerError,
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: resourceError},
+			{
+				Status: 503, Description: windowManagerUnavailableDescription,
+				Bodies: resourceOrWindowManagerError,
+			},
+		},
+	}
+}
+
+func putWindowManagerLayoutProfileOperation(
+	transports []Transport,
+	workspaceParam ParameterSpec,
+	profileParam ParameterSpec,
+) OperationSpec {
+	resourceError := contract.ErrorPayload{}
+	resourceOrWindowManagerError := []any{resourceError, contract.WindowManagerErrorPayload{}}
+	return OperationSpec{
+		Method:      httpMethodPut,
+		Path:        windowManagerPath + "/layout-profiles/{profile_id}",
+		OperationID: "putWindowManagerLayoutProfile",
+		Summary:     "Create or replace one workspace-visible layout profile",
+		Tags:        []string{specWorkspacesKey},
+		Transports:  transports,
+		Parameters:  []ParameterSpec{workspaceParam, profileParam},
+		RequestBody: contract.PutResourceRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Updated", Body: contract.ResourceResponse{}},
+			{Status: 201, Description: specCreatedDescription, Body: contract.ResourceResponse{}},
+			{Status: 400, Description: "Invalid JSON body", Body: resourceError},
+			{Status: 403, Description: specForbiddenDescription, Body: resourceError},
+			{
+				Status: 404, Description: "Workspace or profile not found",
+				Bodies: resourceOrWindowManagerError,
+			},
+			{Status: 409, Description: "Version conflict", Body: resourceError},
+			{Status: 413, Description: specPayloadTooLargeDescription, Body: resourceError},
+			{Status: 422, Description: "Invalid layout profile", Body: resourceError},
+			{Status: 429, Description: specRateLimitedDescription, Body: resourceError},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: resourceError},
+			{
+				Status: 503, Description: windowManagerUnavailableDescription,
+				Bodies: resourceOrWindowManagerError,
+			},
+		},
+	}
+}
+
+func deleteWindowManagerLayoutProfileOperation(
+	transports []Transport,
+	workspaceParam ParameterSpec,
+	profileParam ParameterSpec,
+) OperationSpec {
+	resourceError := contract.ErrorPayload{}
+	resourceOrWindowManagerError := []any{resourceError, contract.WindowManagerErrorPayload{}}
+	return OperationSpec{
+		Method:      httpMethodDelete,
+		Path:        windowManagerPath + "/layout-profiles/{profile_id}",
+		OperationID: "deleteWindowManagerLayoutProfile",
+		Summary:     "Delete one workspace-visible layout profile",
+		Tags:        []string{specWorkspacesKey},
+		Transports:  transports,
+		Parameters:  []ParameterSpec{workspaceParam, profileParam},
+		RequestBody: contract.DeleteResourceRequest{},
+		Responses: []ResponseSpec{
+			{Status: 204, Description: specNoContentDescription},
+			{Status: 400, Description: "Invalid JSON body", Body: resourceError},
+			{Status: 403, Description: specForbiddenDescription, Body: resourceError},
+			{
+				Status: 404, Description: "Workspace or profile not found",
+				Bodies: resourceOrWindowManagerError,
+			},
+			{Status: 409, Description: "Version conflict", Body: resourceError},
+			{Status: 422, Description: "Invalid delete request", Body: resourceError},
+			{Status: 429, Description: specRateLimitedDescription, Body: resourceError},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: resourceError},
+			{
+				Status: 503, Description: windowManagerUnavailableDescription,
+				Bodies: resourceOrWindowManagerError,
+			},
 		},
 	}
 }

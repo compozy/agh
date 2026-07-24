@@ -8,7 +8,6 @@ import (
 type eventSubscription struct {
 	fence    SubscriptionFence
 	updates  chan SubscriptionUpdate
-	done     chan struct{}
 	clientID *ClientID
 
 	mu          sync.RWMutex
@@ -29,7 +28,6 @@ func newEventSubscription(fence SubscriptionFence, capacity int) *eventSubscript
 	return &eventSubscription{
 		fence:    cloneSubscriptionFence(fence),
 		updates:  make(chan SubscriptionUpdate, capacity),
-		done:     make(chan struct{}),
 		clientID: clientID,
 	}
 }
@@ -75,20 +73,17 @@ func (s *eventSubscription) terminate(err error) {
 			stopContext()
 		}
 		close(s.updates)
-		close(s.done)
 	})
 }
 
 type subscriptionHub struct {
-	workspaceID   WorkspaceID
 	capacity      int
 	mu            sync.Mutex
 	subscriptions map[*eventSubscription]struct{}
 }
 
-func newSubscriptionHub(workspaceID WorkspaceID, capacity int) *subscriptionHub {
+func newSubscriptionHub(capacity int) *subscriptionHub {
 	return &subscriptionHub{
-		workspaceID:   workspaceID,
 		capacity:      capacity,
 		subscriptions: make(map[*eventSubscription]struct{}),
 	}

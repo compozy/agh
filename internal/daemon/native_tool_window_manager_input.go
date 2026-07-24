@@ -140,9 +140,28 @@ type windowManagerWindowMovePayload struct {
 	WindowID             string                        `json:"window_id"`
 	DestinationDesktopID string                        `json:"destination_desktop_id"`
 	TargetWindowID       string                        `json:"target_window_id,omitempty"`
-	Placement            string                        `json:"placement"`
+	Placement            string                        `json:"placement,omitempty"`
 	FloatingRect         *windowmanager.NormalizedRect `json:"floating_rect,omitempty"`
 	MoveGroup            bool                          `json:"move_group,omitempty"`
+}
+
+func (payload windowManagerWindowMovePayload) validate() error {
+	if !payload.MoveGroup {
+		if strings.TrimSpace(payload.Placement) == "" {
+			return errors.New("placement is required unless move_group is true")
+		}
+		return nil
+	}
+	if strings.TrimSpace(payload.TargetWindowID) != "" {
+		return errors.New("move_group cannot be combined with target_window_id")
+	}
+	if strings.TrimSpace(payload.Placement) != "" {
+		return errors.New("move_group cannot be combined with placement")
+	}
+	if payload.FloatingRect != nil {
+		return errors.New("move_group cannot be combined with floating_rect")
+	}
+	return nil
 }
 
 type windowManagerWindowMoveInput struct {
@@ -230,8 +249,11 @@ type windowManagerLayoutDocumentInput struct {
 }
 
 type windowManagerLayoutApplyInput struct {
-	windowManagerMutationInput
-	Document windowmanager.LayoutDocument `json:"document"`
+	WorkspaceID      string                       `json:"workspace_id,omitempty"`
+	ExpectedRevision windowmanager.Revision       `json:"expected_revision"`
+	ClientID         string                       `json:"client_id,omitempty"`
+	Origin           string                       `json:"origin,omitempty"`
+	Document         windowmanager.LayoutDocument `json:"document"`
 }
 
 func decodeWindowManagerInput(req toolspkg.CallRequest, destination any) error {
@@ -261,7 +283,7 @@ func windowManagerInvalidInput(id toolspkg.ToolID, err error) error {
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeInvalidInput,
 		id,
-		fmt.Sprintf("tool %q input is invalid", id),
+		fmt.Sprintf("tool %q input is invalid: %v", id, err),
 		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 		toolspkg.ReasonSchemaInvalid,
 	)

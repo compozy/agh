@@ -111,7 +111,7 @@ export function useOsWindow(windowId: string): OsWindowModel {
               nodeId: window.nodeId,
               rect: window.rect,
               z: window.layer,
-              parentAxis: null,
+              parentAxis: window.parentAxis,
             },
           ]
     );
@@ -132,7 +132,7 @@ export function useOsWindow(windowId: string): OsWindowModel {
   const activate = (target: EventTarget | null) => {
     if (!win || (focused && !win.minimized)) return;
     const element = target instanceof Element ? target : null;
-    coordinator.userFocus(windowId, { viaLink: Boolean(element?.closest("a[href]")) });
+    void coordinator.userFocus(windowId, { viaLink: Boolean(element?.closest("a[href]")) });
   };
 
   const handleDragStart: RndDragCallback = (event, _data) => {
@@ -213,12 +213,12 @@ export function useOsWindow(windowId: string): OsWindowModel {
     handleTrafficLight: action => {
       if (action === "close") void coordinator.userClose(windowId);
       else if (action === "minimize") void coordinator.userMinimize(windowId);
-      else coordinator.userZoom(windowId);
+      else void coordinator.userZoom(windowId);
     },
     handlePointerEnter: () => {
       const state = store.getState();
       if (state.windowManagerConfig?.focusFollowsPointer) {
-        coordinator.userFocus(windowId);
+        void coordinator.userFocus(windowId);
       }
     },
     handlePointerDownCapture: event => {

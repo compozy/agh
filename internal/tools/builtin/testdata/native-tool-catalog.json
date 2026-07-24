@@ -561,7 +561,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "ee06de13b3d3516f223f6a625c451b2c1571427f08ecdda2f0918389f73b7091",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -577,7 +577,7 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "220b44453bbb7c20cd30a69d0e631a5a2683658e8ab608bb4a1c374ab68963b8",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -609,7 +609,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "b8ca4e1f3f76fd4e3106c668df5ff30845f8e50828f551c5a60eded305ed2870",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -625,7 +625,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "88e829c67b0ab4aa0537020bf7874a611de411274f1cf92c90a6d02f321beb7f",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -641,7 +641,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "3dfdea2342ff65ce0863ba4871ccea58e3ed0acf6c7295c2856b58c0b307929a",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -891,7 +891,7 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "29fc31c62b3d620ad2788acee9ea29c52964365f6e71c3728cc580a6643fd006",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -907,7 +907,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "a92ea99048267c6953af2a1fde04aec1b8c930d09bc2b834adc1ed56470dc5e5",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -923,7 +923,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "8ea34d583efd300081f466db5525ba476a3624fde5aee16637f10bfa09406bc5",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -970,8 +970,8 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "06c33fe72fdf7a3fd70551f7f05e951ca9ebbc950cf784b8cc98adbda4e364ae",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "input_schema_digest": "37c4a482e7aa7d97097f9efbf2e901384e889272b99118ac4649e0290b32e5d4",
+    "output_schema_digest": "e013b71d3074f9d0265d7e1ca4a0f9a6440b9a9420036ad10fa1f21014cb0d9c",
     "required_capabilities": [
       "window_manager.read"
     ]
@@ -987,7 +987,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "e8852118eb550996ecd2ee836c98ee90147eae0ce05814dd106f55dfb75bb7e5",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -1003,7 +1003,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "fdde84d529f9354e300aa2255261b158ea2b529d491820b1689cb70a1363778b",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -1019,7 +1019,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "e8852118eb550996ecd2ee836c98ee90147eae0ce05814dd106f55dfb75bb7e5",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2697,7 +2697,7 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "dac4ae7425bec23c05fde7f1e2c7e9c1601c55295dd89561e0f490b1a750c0fe",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2713,7 +2713,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "485669a4f468a71f90f1cdf8c8c7bae77254f757eca62a06ad5b73401bc982c9",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2729,7 +2729,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "bad4802e550ce4d0a9a9ec02084326075ce7921e8a144bee392d233b69ffe91b",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2760,8 +2760,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "f326d43192a101b84b72176a7f93f2f2078c551c452bbf9d663a0931b12a4450",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "input_schema_digest": "60eb80414430a2f8987c27ec39cd7c88814141fde8e6105cf628999888f1f0b7",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2777,7 +2777,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "bbacde2fc12797f07150eb5c82c0ab7f42b7dd45485e6a5a2561ff9d7e901761",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2793,7 +2793,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "a3245fef549390943ca44196df2346f4b06cfba07923da8f405b60484ca1158c",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2809,7 +2809,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "58668ccbdec2329c5753589e28bc4d85b314a84309479ee46ab8dcca6673026d",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2825,7 +2825,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "ad28f2d0bf31d96ce980a4bb8281ce6f6be613f5aca192f638af3651fd001577",
-    "output_schema_digest": "e1c54a9d20b9e266e376ff3280d4fd317640e3ac5b48e1049a472f50c299e862",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
     "required_capabilities": [
       "window_manager.write"
     ]

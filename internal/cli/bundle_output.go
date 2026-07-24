@@ -34,29 +34,29 @@ func bundleCatalogBundle(items []BundleCatalogRecord) outputBundle {
 			"bridges",
 		},
 		func(item BundleCatalogRecord) []string {
-			layouts, agents, jobs, triggers, bridges := bundleCatalogCounts(item)
+			counts := bundleCatalogCounts(item)
 			return []string{
 				stringOrDash(item.ExtensionName),
 				stringOrDash(item.BundleName),
 				strings.Join(bundleProfileNames(item), ","),
-				strconv.Itoa(layouts),
-				strconv.Itoa(agents),
-				strconv.Itoa(jobs),
-				strconv.Itoa(triggers),
-				strconv.Itoa(bridges),
+				strconv.Itoa(counts.layouts),
+				strconv.Itoa(counts.agents),
+				strconv.Itoa(counts.jobs),
+				strconv.Itoa(counts.triggers),
+				strconv.Itoa(counts.bridges),
 			}
 		},
 		func(item BundleCatalogRecord) []string {
-			layouts, agents, jobs, triggers, bridges := bundleCatalogCounts(item)
+			counts := bundleCatalogCounts(item)
 			return []string{
 				item.ExtensionName,
 				item.BundleName,
 				strings.Join(bundleProfileNames(item), "|"),
-				strconv.Itoa(layouts),
-				strconv.Itoa(agents),
-				strconv.Itoa(jobs),
-				strconv.Itoa(triggers),
-				strconv.Itoa(bridges),
+				strconv.Itoa(counts.layouts),
+				strconv.Itoa(counts.agents),
+				strconv.Itoa(counts.jobs),
+				strconv.Itoa(counts.triggers),
+				strconv.Itoa(counts.bridges),
 			}
 		},
 	)

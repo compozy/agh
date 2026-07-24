@@ -48,10 +48,11 @@ export const windowManagerSnapshotFixture: AghApiOkJsonResponseFor<
 };
 
 export function windowManagerClientFixture(
-  clientId: string
+  clientId: string,
+  workspaceId: string = storyDefaultWorkspaceId
 ): AghApiJsonResponseFor<"post", "/api/workspaces/{workspace_id}/window-manager/clients", 201> {
   return {
-    workspace_id: storyDefaultWorkspaceId,
+    workspace_id: workspaceId,
     client_id: clientId,
     presentation_revision: 1,
     active_desktop_id: windowManagerStoryDesktopId,

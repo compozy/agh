@@ -18,10 +18,8 @@ import type { WorkspacePayload } from "@/systems/workspace";
 import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import type { OsAttentionRow } from "../lib/attention-model";
-import {
-  resolveWindowManagerActions,
-  type WindowManagerActionId,
-} from "../lib/window-manager-command-registry";
+import type { WindowManagerActionId } from "../lib/window-manager-command-registry";
+import { resolveWindowManagerActions } from "../lib/window-manager-shortcuts";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useDesktop } from "../hooks/use-desktop";
 import { OsHydrationStatus } from "./os-hydration-status";
@@ -99,7 +97,7 @@ export function DesktopMenubar({
   const focusAttentionRow = (row: OsAttentionRow) => {
     onOverlayOpenChange("bell", false);
     if (row.kind === "session") {
-      coordinator.userOpen({
+      void coordinator.userOpen({
         app: "session",
         instanceKey: row.id,
         route: {
@@ -109,7 +107,7 @@ export function DesktopMenubar({
       });
       return;
     }
-    coordinator.userOpen({
+    void coordinator.userOpen({
       app: "tasks",
       route: { pathname: `/tasks/${encodeURIComponent(row.id)}`, search: {} },
     });
@@ -120,9 +118,9 @@ export function DesktopMenubar({
       workspace={{ name: workspaceName, monogram: workspaceMonogram(workspaceName) }}
       status={<OsHydrationStatus hydration={hydration} />}
       notifications={attention.notificationCount}
-      onLogoClick={() => coordinator.userOpen({ app: "dashboard" })}
+      onLogoClick={() => void coordinator.userOpen({ app: "dashboard" })}
       onCommandClick={onOpenPalette}
-      onSettingsClick={() => coordinator.userOpen({ app: "settings" })}
+      onSettingsClick={() => void coordinator.userOpen({ app: "settings" })}
       wrapWorkspaceTrigger={trigger => (
         <DropdownMenu
           open={activeOverlay === "workspace-menu"}
@@ -188,7 +186,7 @@ export function DesktopMenubar({
                   <DropdownMenuItem
                     data-testid="os-menu-appearance"
                     onClick={() =>
-                      coordinator.userOpen({
+                      void coordinator.userOpen({
                         app: "settings",
                         route: { pathname: "/settings/appearance", search: {} },
                       })

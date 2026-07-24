@@ -78,15 +78,18 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/vault/secrets",
 		"DELETE /api/workspaces/:workspace_id",
 		"DELETE /api/workspaces/:workspace_id/window-manager/clients/:client_id",
+		"DELETE /api/workspaces/:workspace_id/window-manager/layout-profiles/:profile_id",
 		"GET /api/workspaces/:workspace_id/window-manager",
 		"GET /api/workspaces/:workspace_id/window-manager/clients",
 		"GET /api/workspaces/:workspace_id/window-manager/layout",
+		"GET /api/workspaces/:workspace_id/window-manager/layout-profiles",
 		"GET /api/workspaces/:workspace_id/window-manager/stream",
 		"POST /api/workspaces/:workspace_id/window-manager/clients",
 		"POST /api/workspaces/:workspace_id/window-manager/commands",
 		"POST /api/workspaces/:workspace_id/window-manager/layout/validate",
 		"POST /api/workspaces/:workspace_id/window-manager/preview",
 		"PUT /api/workspaces/:workspace_id/window-manager/layout",
+		"PUT /api/workspaces/:workspace_id/window-manager/layout-profiles/:profile_id",
 		"GET /api/agent/channels",
 		"GET /api/agent/channels/:channel/recv",
 		"GET /api/agent/context",
@@ -1049,7 +1052,7 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 	}
 
 	for _, path := range tests {
-		t.Run(path, func(t *testing.T) {
+		t.Run("Should reject "+path+" off loopback", func(t *testing.T) {
 			recorder := performRequest(t, engine, http.MethodGet, path, nil)
 			if recorder.Code != http.StatusForbidden {
 				t.Fatalf(

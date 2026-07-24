@@ -115,6 +115,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 
 	tests := []struct {
 		name   SectionName
+		label  string
 		assert func(t *testing.T, envelope SectionEnvelope)
 	}{
 		{
@@ -205,7 +206,8 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 			},
 		},
 		{
-			name: SectionWindowManager,
+			name:  SectionWindowManager,
+			label: "Should build the window-manager section",
 			assert: func(t *testing.T, envelope SectionEnvelope) {
 				t.Helper()
 				if envelope.WindowManager == nil {
@@ -258,7 +260,11 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(string(tt.name), func(t *testing.T) {
+		name := string(tt.name)
+		if tt.label != "" {
+			name = tt.label
+		}
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			envelope, err := service.GetSection(ctx, SectionRequest{Section: tt.name})
 			if err != nil {
@@ -559,6 +565,13 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		})
 		if err == nil {
 			t.Fatal("UpdateSection(invalid window-manager) error = nil, want validation error")
+		}
+		var validationError aghconfig.ValidationError
+		if !errors.As(err, &validationError) {
+			t.Fatalf("UpdateSection(invalid window-manager) error = %T %v, want config.ValidationError", err, err)
+		}
+		if got, want := validationError.Path, "window_manager.history_limit"; got != want {
+			t.Fatalf("UpdateSection(invalid window-manager) validation path = %q, want %q", got, want)
 		}
 		if after := readFile(t, homePaths.ConfigFile); after != before {
 			t.Fatalf("config changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)

@@ -30,14 +30,18 @@ export function progressiveSnapRatio(cycleStep: number, repeatRatios: readonly n
   return repeatRatios[index] ?? firstRatio;
 }
 
+function roundedEdge(origin: number, span: number, ratio: number): number {
+  return Math.round(origin + span * ratio);
+}
+
 function leadingSpan(origin: number, span: number, ratio: number): [number, number] {
-  const edge = origin + Math.round(span * ratio);
+  const edge = roundedEdge(origin, span, ratio);
   return [origin, edge];
 }
 
 function trailingSpan(origin: number, span: number, ratio: number): [number, number] {
   const end = origin + span;
-  const edge = end - Math.round(span * ratio);
+  const edge = roundedEdge(origin, span, 1 - ratio);
   return [edge, end];
 }
 

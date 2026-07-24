@@ -3,10 +3,9 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 
 import type { OsArrangePreset } from "../lib/os-types";
 import { arrangePeerWindows } from "../lib/window-manager-navigation";
-import {
-  dispatchWindowPlacement,
-  type WindowPlacementCommand,
-} from "../lib/window-manager-command-registry";
+import { dispatchWindowPlacement } from "../lib/window-manager-action-dispatch";
+import type { WindowPlacementCommand } from "../lib/window-manager-command-registry";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
 
@@ -44,9 +43,14 @@ export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const floating = useDesktop(state => state.windows[windowId]?.placement === "floating");
-  const placementEnabled = useDesktop(state => state.windowManagerConfig !== null);
+  const commandsAvailable = useDesktop(windowManagerCommandsAvailable);
+  const placementEnabled = useDesktop(
+    state => windowManagerCommandsAvailable(state) && state.windowManagerConfig !== null
+  );
   const arrangeEnabled = useDesktop(
-    state => arrangePeerWindows(state.windows, windowId).length > 0
+    state =>
+      windowManagerCommandsAvailable(state) &&
+      arrangePeerWindows(state.windows, windowId).length > 0
   );
 
   const clearTimers = () => {
@@ -108,12 +112,22 @@ export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
     },
     dispatchPlacement: command =>
       dispatch(() => {
-        if (store.getState().windowManagerConfig !== null) {
+        const state = store.getState();
+        if (windowManagerCommandsAvailable(state) && state.windowManagerConfig !== null) {
           dispatchWindowPlacement(manager, windowId, command);
         }
       }),
-    dispatchMakeFloating: () => dispatch(() => manager.getState().toggleFloating(windowId)),
-    dispatchFill: () => dispatch(() => manager.getState().zoomWindow(windowId)),
-    dispatchArrange: preset => dispatch(() => manager.getState().arrangeLayout(windowId, preset)),
+    dispatchMakeFloating: () =>
+      dispatch(() => {
+        if (commandsAvailable) manager.getState().toggleFloating(windowId);
+      }),
+    dispatchFill: () =>
+      dispatch(() => {
+        if (commandsAvailable) manager.getState().zoomWindow(windowId);
+      }),
+    dispatchArrange: preset =>
+      dispatch(() => {
+        if (commandsAvailable) manager.getState().arrangeLayout(windowId, preset);
+      }),
   };
 }

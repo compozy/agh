@@ -5,10 +5,19 @@ import (
 	"math"
 )
 
+// NewWindowPolicy controls how newly opened windows enter a desktop.
 type NewWindowPolicy string
+
+// SmallViewportPolicy controls layout behavior when the viewport cannot fit a tiled arrangement.
 type SmallViewportPolicy string
+
+// FocusPolicy controls how pointer and directional focus interact.
 type FocusPolicy string
+
+// DragAwayPolicy controls whether dragging detaches one window or its tiled group.
 type DragAwayPolicy string
+
+// DesktopTransition controls the client presentation used when switching desktops.
 type DesktopTransition string
 
 const (
@@ -31,6 +40,7 @@ const (
 	bindingReserved                                = "reserved"
 )
 
+// GapsConfig defines the inner and outer layout gaps in CSS pixels.
 type GapsConfig struct {
 	Inner  float64 `json:"inner"`
 	Top    float64 `json:"top"`
@@ -39,6 +49,7 @@ type GapsConfig struct {
 	Left   float64 `json:"left"`
 }
 
+// SnapConfig defines pointer thresholds and repeated edge-snap ratios.
 type SnapConfig struct {
 	EdgeBand     float64   `json:"edge_band"`
 	CornerReach  float64   `json:"corner_reach"`
@@ -46,6 +57,7 @@ type SnapConfig struct {
 	RepeatRatios []float64 `json:"repeat_ratios"`
 }
 
+// BindingsConfig maps special snap regions to window-manager actions.
 type BindingsConfig struct {
 	TopCenter    string `json:"top_center"`
 	BottomCenter string `json:"bottom_center"`
@@ -125,7 +137,7 @@ func validateBehaviorConfig(config Config) error {
 		return fmt.Errorf("new window policy %q: %w", config.NewWindowPolicy, ErrInvalidCommand)
 	}
 	if config.SmallViewportPolicy != SmallViewportStack && config.SmallViewportPolicy != SmallViewportReject {
-		return fmt.Errorf("unsupported projection or focus policy: %w", ErrInvalidCommand)
+		return fmt.Errorf("small viewport policy %q: %w", config.SmallViewportPolicy, ErrInvalidCommand)
 	}
 	if config.FocusPolicy != FocusClickDirectional && config.FocusPolicy != FocusDirectional {
 		return fmt.Errorf("focus policy %q: %w", config.FocusPolicy, ErrInvalidCommand)
@@ -134,7 +146,7 @@ func validateBehaviorConfig(config Config) error {
 		return fmt.Errorf("drag away policy %q: %w", config.DragAwayPolicy, ErrInvalidCommand)
 	}
 	if config.HistoryLimit <= 0 || config.HistoryLimit > 500 {
-		return fmt.Errorf("history limit must be positive: %w", ErrInvalidCommand)
+		return fmt.Errorf("history limit %d must be between 1 and 500: %w", config.HistoryLimit, ErrInvalidCommand)
 	}
 	if config.DesktopTransition != DesktopTransitionSlide && config.DesktopTransition != DesktopTransitionCrossfade &&
 		config.DesktopTransition != DesktopTransitionInstant {

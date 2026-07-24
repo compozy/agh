@@ -1,4 +1,5 @@
 import type {
+  LayoutAxis,
   LayoutGroup,
   LayoutNode,
   LayoutProjection,
@@ -123,12 +124,15 @@ function minimumForNode(node: LayoutNode, innerGap: number, minimums: WindowMini
   };
 }
 
-function descendantEntries(node: LayoutNode): Array<{ windowId: WindowId; nodeId: string }> {
-  if (node.kind === "leaf") return [{ windowId: node.windowId, nodeId: node.id }];
+function descendantEntries(
+  node: LayoutNode,
+  parentAxis: LayoutAxis | null = null
+): Array<{ windowId: WindowId; nodeId: string; parentAxis: LayoutAxis | null }> {
+  if (node.kind === "leaf") return [{ windowId: node.windowId, nodeId: node.id, parentAxis }];
   if (node.kind === "stack") {
-    return node.windowIds.map(windowId => ({ windowId, nodeId: node.id }));
+    return node.windowIds.map(windowId => ({ windowId, nodeId: node.id, parentAxis }));
   }
-  return node.children.flatMap(descendantEntries);
+  return node.children.flatMap(child => descendantEntries(child, node.axis));
 }
 
 function descendantWindowIds(node: LayoutNode): WindowId[] {
@@ -200,9 +204,10 @@ function projectStack(
   node: LayoutNode,
   rect: PixelRect,
   context: NodeProjectionContext,
-  kind: ProjectedStack["kind"]
+  kind: ProjectedStack["kind"],
+  parentAxis: LayoutAxis | null
 ): void {
-  const entries = descendantEntries(node);
+  const entries = descendantEntries(node, parentAxis);
   if (entries.length === 0) return;
   const activeWindowId = preferredActiveWindow(node, context.focusedWindowId);
   context.collector.stacks.push({
@@ -222,6 +227,7 @@ function projectStack(
       stackId: node.id,
       active: entry.windowId === activeWindowId,
       adapted: kind === "adaptive",
+      parentAxis: entry.parentAxis,
     });
   }
 }
@@ -290,7 +296,12 @@ function splitAllocationsMeetMinimums(
   });
 }
 
-function projectNode(node: LayoutNode, rect: PixelRect, context: NodeProjectionContext): void {
+function projectNode(
+  node: LayoutNode,
+  rect: PixelRect,
+  context: NodeProjectionContext,
+  parentAxis: LayoutAxis | null
+): void {
   if (node.kind === "leaf") {
     const minimum = minimumForWindow(node.windowId, context.minimums);
     if (rect.w < minimum.width || rect.h < minimum.height) {
@@ -310,11 +321,12 @@ function projectNode(node: LayoutNode, rect: PixelRect, context: NodeProjectionC
       stackId: null,
       active: true,
       adapted: false,
+      parentAxis,
     });
     return;
   }
   if (node.kind === "stack") {
-    projectStack(node, rect, context, "explicit");
+    projectStack(node, rect, context, "explicit", parentAxis);
     return;
   }
   const required = minimumForNode(node, context.innerGap, context.minimums);
@@ -330,12 +342,12 @@ function projectNode(node: LayoutNode, rect: PixelRect, context: NodeProjectionC
       required,
       available: { width: rect.w, height: rect.h },
     });
-    projectStack(node, rect, context, "adaptive");
+    projectStack(node, rect, context, "adaptive", parentAxis);
     return;
   }
   node.children.forEach((child, index) => {
     const childRect = childRects[index];
-    if (childRect !== undefined) projectNode(child, childRect, context);
+    if (childRect !== undefined) projectNode(child, childRect, context, node.axis);
   });
   for (let index = 0; index < node.children.length - 1; index += 1) {
     const seam = seamForBoundary(node, childRects, index, context);
@@ -355,13 +367,18 @@ export function projectLayout(input: LayoutProjectionInput): LayoutProjection {
       collector.diagnostics.push({ code: "invalid-group-frame", groupId: group.id });
     }
     const rect = projectGroupFrame(group.frame, layoutArea);
-    projectNode(group.root, rect, {
-      groupId: group.id,
-      innerGap,
-      minimums,
-      focusedWindowId: input.focusedWindowId ?? null,
-      collector,
-    });
+    projectNode(
+      group.root,
+      rect,
+      {
+        groupId: group.id,
+        innerGap,
+        minimums,
+        focusedWindowId: input.focusedWindowId ?? null,
+        collector,
+      },
+      null
+    );
   }
   return {
     revision: input.revision,

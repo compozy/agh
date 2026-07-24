@@ -13,20 +13,24 @@ func bundleProfileNames(item BundleCatalogRecord) []string {
 	return names
 }
 
-func bundleCatalogCounts(item BundleCatalogRecord) (int, int, int, int, int) {
-	var layouts int
-	var agents int
-	var jobs int
-	var triggers int
-	var bridges int
+type bundleCatalogResourceCounts struct {
+	layouts  int
+	agents   int
+	jobs     int
+	triggers int
+	bridges  int
+}
+
+func bundleCatalogCounts(item BundleCatalogRecord) bundleCatalogResourceCounts {
+	var counts bundleCatalogResourceCounts
 	for _, profile := range item.Profiles {
-		layouts += profile.LayoutCount
-		agents += profile.AgentCount
-		jobs += profile.JobCount
-		triggers += profile.TriggerCount
-		bridges += profile.BridgeCount
+		counts.layouts += profile.LayoutCount
+		counts.agents += profile.AgentCount
+		counts.jobs += profile.JobCount
+		counts.triggers += profile.TriggerCount
+		counts.bridges += profile.BridgeCount
 	}
-	return layouts, agents, jobs, triggers, bridges
+	return counts
 }
 
 func bundleChannelsTable(items []BundleChannelRecord) string {

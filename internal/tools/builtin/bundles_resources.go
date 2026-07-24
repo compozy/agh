@@ -105,7 +105,7 @@ var resourceTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{resourcesKey, "snapshot"},
+		[]string{resourcesKey, descriptorKeywordSnapshot},
 		[]string{"resource snapshot", "desired-state snapshot"},
 	),
 }

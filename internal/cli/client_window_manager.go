@@ -10,10 +10,11 @@ import (
 	"github.com/compozy/agh/internal/windowmanager"
 )
 
-// WindowManagerStreamHandlers receives the snapshot fence and later events from one watch.
+// WindowManagerStreamHandlers receives the initial fence and later topology or client updates.
 type WindowManagerStreamHandlers struct {
 	Snapshot func(contract.WindowManagerSnapshotFrame) error
 	Event    func(contract.WindowManagerEventFrame) error
+	Client   func(contract.WindowManagerClientFrame) error
 }
 
 // WindowManagerClient is the CLI transport contract for daemon-authoritative window management.
@@ -50,6 +51,7 @@ type WindowManagerClient interface {
 	WatchWindowManager(
 		context.Context,
 		string,
+		*windowmanager.ClientID,
 		*contract.WindowManagerRevision,
 		WindowManagerStreamHandlers,
 	) error

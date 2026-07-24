@@ -1,21 +1,72 @@
 package windowmanager
 
 import (
+	"context"
 	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
+type testLayoutRegistry struct {
+	resources []LayoutResource
+	listErr   error
+}
+
+func (r *testLayoutRegistry) Resolve(_ context.Context, _ WorkspaceID, resourceID string) (LayoutDocument, error) {
+	for _, resource := range r.resources {
+		if resource.ID == resourceID {
+			return resource.Document, nil
+		}
+	}
+	return LayoutDocument{}, ErrLayoutResourceNotFound
+}
+
+func (r *testLayoutRegistry) List(context.Context, WorkspaceID) ([]LayoutResource, error) {
+	if r.listErr != nil {
+		return nil, r.listErr
+	}
+	return r.resources, nil
+}
+
+var _ LayoutResourceRegistry = (*testLayoutRegistry)(nil)
+
 type testEnvironment struct {
 	manager    *Manager
 	repository *MemoryRepository
-	resolver   *MemoryWorkspaceResolver
 }
 
 func newTestEnvironment(t *testing.T, config Config, workspaces ...WorkspaceID) testEnvironment {
 	t.Helper()
 	return newTestEnvironmentWithOptions(t, config, workspaces)
+}
+
+func newTestManagerWithRegistry(t *testing.T, registry LayoutResourceRegistry) *Manager {
+	t.Helper()
+	manager, err := NewService(
+		NewMemoryRepository(), NewMemoryWorkspaceResolver("workspace-a"), registry, DefaultConfig(),
+		WithClock(func() time.Time { return time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC) }),
+		WithIDGenerator(func(kind string) (string, error) { return kind + "-generated", nil }),
+	)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := manager.Close(); closeErr != nil {
+			t.Errorf("Manager.Close() error = %v", closeErr)
+		}
+	})
+	return manager
+}
+
+func trackSubscription(t *testing.T, subscription Subscription) Subscription {
+	t.Helper()
+	t.Cleanup(func() {
+		if closeErr := subscription.Close(); closeErr != nil {
+			t.Errorf("Subscription.Close() error = %v", closeErr)
+		}
+	})
+	return subscription
 }
 
 func newTestEnvironmentWithOptions(
@@ -44,7 +95,7 @@ func newTestEnvironmentWithOptions(
 			t.Errorf("Manager.Close() error = %v", closeErr)
 		}
 	})
-	return testEnvironment{manager: manager, repository: repository, resolver: resolver}
+	return testEnvironment{manager: manager, repository: repository}
 }
 
 func executeTestCommand(

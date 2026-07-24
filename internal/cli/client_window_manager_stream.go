@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/windowmanager"
 	"github.com/gorilla/websocket"
 )
 
@@ -21,6 +22,7 @@ const windowManagerClientHandshakeTimeout = 10 * time.Second
 func (c *unixSocketClient) WatchWindowManager(
 	ctx context.Context,
 	workspace string,
+	clientID *windowmanager.ClientID,
 	afterRevision *contract.WindowManagerRevision,
 	handlers WindowManagerStreamHandlers,
 ) (returnErr error) {
@@ -29,6 +31,9 @@ func (c *unixSocketClient) WatchWindowManager(
 	}
 	if handlers.Snapshot == nil || handlers.Event == nil {
 		return errors.New("cli: window-manager watch handlers are required")
+	}
+	if clientID != nil && handlers.Client == nil {
+		return errors.New("cli: window-manager client watch handler is required")
 	}
 	dialer := websocket.Dialer{
 		HandshakeTimeout: windowManagerClientHandshakeTimeout,
@@ -40,6 +45,9 @@ func (c *unixSocketClient) WatchWindowManager(
 	query := url.Values{}
 	if afterRevision != nil {
 		query.Set("after_revision", strconv.FormatUint(uint64(*afterRevision), 10))
+	}
+	if clientID != nil {
+		query.Set("client_id", strings.TrimSpace(string(*clientID)))
 	}
 	target := "ws://unix" + windowManagerClientPath(workspace) + "/stream"
 	if len(query) > 0 {
@@ -126,6 +134,20 @@ func readWindowManagerFrames(
 				return fmt.Errorf("cli: decode window-manager event: %w", err)
 			}
 			if err := handlers.Event(frame); err != nil {
+				return err
+			}
+		case contract.WindowManagerFrameClient:
+			if !snapshotReceived {
+				return errors.New("cli: window-manager client frame arrived before snapshot")
+			}
+			if handlers.Client == nil {
+				return errors.New("cli: window-manager stream sent an unexpected client frame")
+			}
+			var frame contract.WindowManagerClientFrame
+			if err := json.Unmarshal(payload, &frame); err != nil {
+				return fmt.Errorf("cli: decode window-manager client frame: %w", err)
+			}
+			if err := handlers.Client(frame); err != nil {
 				return err
 			}
 		case contract.WindowManagerFrameError:

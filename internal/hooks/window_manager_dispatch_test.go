@@ -77,30 +77,6 @@ func TestDispatchWindowManagerHooksUseAsyncDurablePayloads(t *testing.T) {
 	}
 }
 
-func TestWindowManagerPayloadCloneIsolatesChangeSlices(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should isolate every entity change slice", func(t *testing.T) {
-		t.Parallel()
-
-		original := windowManagerDispatchTestPayload(HookWindowManagerWindowMoved)
-		cloned := cloneAsyncPayload(original)
-		cloned.Changes.DesktopIDs[0] = "desktop-mutated"
-		cloned.Changes.WindowIDs[0] = "window-mutated"
-		cloned.Changes.GroupIDs[0] = "group-mutated"
-		cloned.Changes.NodeIDs[0] = "node-mutated"
-		cloned.Changes.ClientIDs[0] = "client-mutated"
-
-		if original.Changes.DesktopIDs[0] != "desktop-a" ||
-			original.Changes.WindowIDs[0] != "window-a" ||
-			original.Changes.GroupIDs[0] != "group-a" ||
-			original.Changes.NodeIDs[0] != "node-a" ||
-			original.Changes.ClientIDs[0] != "client-a" {
-			t.Fatalf("cloneAsyncPayload() aliased original changes: %#v", original.Changes)
-		}
-	})
-}
-
 func windowManagerDispatchTestPayload(event HookEvent) WindowManagerPayload {
 	return WindowManagerPayload{
 		PayloadBase: PayloadBase{
