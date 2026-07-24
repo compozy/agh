@@ -380,22 +380,14 @@ func taskDashboardFreshnessFromSnapshot(
 	hasLiveWork := snapshotHasLiveWork(snapshot)
 	age := safeSince(observedAt, latestActivity)
 
-	freshness := TaskDashboardFreshness{
+	status, stale := classifyTaskDashboardFreshness(latestActivity, hasLiveWork, age, staleAfter)
+	return TaskDashboardFreshness{
 		ObservedAt:       observedAt,
 		LatestActivityAt: latestActivity,
 		AgeMilli:         age.Milliseconds(),
 		StaleAfterMilli:  staleAfter.Milliseconds(),
 		HasLiveWork:      hasLiveWork,
-		Status:           "current",
+		Status:           status,
+		Stale:            stale,
 	}
-
-	switch {
-	case latestActivity.IsZero():
-		freshness.Status = "empty"
-	case hasLiveWork && staleAfter > 0 && age > staleAfter:
-		freshness.Status = "stale"
-		freshness.Stale = true
-	}
-
-	return freshness
 }

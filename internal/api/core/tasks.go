@@ -64,6 +64,7 @@ const (
 	taskActionPromoteNetwork   = "promote_network_thread"
 	taskActionDashboard        = "dashboard"
 	taskActionInbox            = "inbox"
+	taskActionOverview         = "overview"
 	taskActionApprove          = "approve"
 	taskActionReject           = "reject"
 	taskActionTriageRead       = "triage_read"

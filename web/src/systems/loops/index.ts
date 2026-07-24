@@ -128,7 +128,13 @@ export { bindingKindLabel, summarizeBindingKinds } from "./lib/loop-bindings";
 
 // Read-only graph projection
 export type { LoopGraph, LoopGraphEdge, LoopGraphNode, LoopNodeClass } from "./lib/loop-graph";
-export { fanOutSummary, nodeClassLabel, readLoopGraph } from "./lib/loop-graph";
+export {
+  fanOutSummary,
+  findWatchNode,
+  goalNodeIds,
+  nodeClassLabel,
+  readLoopGraph,
+} from "./lib/loop-graph";
 
 // Visual editor — bijective codec, layout, linter, node schema, references (task 22)
 export type { EditorEdge, EditorGraph, EditorNode, RawLoopEdge, RawLoopNode } from "./lib/codec";
@@ -240,21 +246,43 @@ export {
 } from "./lib/loop-config-draft";
 
 // Run-page model
-export type { LoopMeterKey, LoopMeterTone, LoopRunMeter } from "./lib/loop-run-meters";
-export { LOOP_COST_PER_1M_TOKENS, buildRunMeters, deriveCostEstimate } from "./lib/loop-run-meters";
-export type { LoopTimelineGeneration, LoopTimelineNode } from "./lib/loop-timeline";
-export { buildRunTimeline, latestGenerationBreadth } from "./lib/loop-timeline";
+export type {
+  LoopRunStory,
+  LoopRunStoryContext,
+  LoopStoryIcon,
+  LoopStoryIssue,
+  LoopStoryNow,
+  LoopStoryRow,
+  LoopStoryTaskLink,
+} from "./lib/loop-run-story";
+export { buildNextNote, buildRunStory } from "./lib/loop-run-story";
+export type { LoopProgressSegmentState, LoopRunProgressModel } from "./lib/loop-run-progress";
+export { buildRunProgress, latestGateVerdict } from "./lib/loop-run-progress";
+export type { LoopRunUsageRow, LoopUsageKey, LoopUsageTone } from "./lib/loop-run-usage";
+export {
+  buildRunUsage,
+  deriveCostEstimate,
+  formatClockDuration,
+  runElapsedSeconds,
+  usageNote,
+  usageSnapshotFacts,
+} from "./lib/loop-run-usage";
+export type { LoopRunInputRow } from "./lib/loop-run-about";
+export { buildInputRows, humanizeStartOrigin, watchedSubject } from "./lib/loop-run-about";
 export type {
   LoopApprovalFact,
   LoopApprovalRequest,
-  LoopChannelMessage,
   LoopCoordinatorFailure,
   LoopGateVerdict,
   LoopGoalTurnLive,
-  LoopLiveEvent,
   LoopRunLiveState,
 } from "./lib/loop-events";
 export { applyLoopEventFrame, emptyLoopRunLiveState } from "./lib/loop-events";
+
+// Run-page view projection (one derivation path shared by the page hook + fixtures)
+export type { LoopRunPageView, LoopRunPageViewInput } from "./lib/loop-run-page-view";
+export { projectLoopRunPageView } from "./lib/loop-run-page-view";
+export { useNowTick } from "./hooks/use-now-tick";
 
 // Formatters and helpers
 export type { LoopStatusSignal } from "./lib/loop-formatters";
@@ -334,26 +362,24 @@ export { LoopRunPreview } from "./components/run-form/loop-run-preview";
 export { LoopConfigureSheet } from "./components/configure/loop-configure-sheet";
 
 // Run page
-export { LoopRunContractHeader } from "./components/run-page/loop-run-contract-header";
-export { LoopFailureDetail } from "./components/run-page/loop-failure-detail";
-export type {
-  LoopFailureDetailData,
-  LoopFailureDetailProps,
-} from "./components/run-page/loop-failure-detail";
-export { LoopRunControls } from "./components/run-page/loop-run-controls";
-export { LoopRunMeters } from "./components/run-page/loop-run-meters";
-export { LoopGenerationTimeline } from "./components/run-page/loop-generation-timeline";
 export { GoalTurnTimeline } from "./components/run-page/goal-turn-timeline";
-export { LoopGenerationCard } from "./components/run-page/loop-generation-card";
-export { LoopNodeRow } from "./components/run-page/loop-node-row";
-export { LoopGateCard } from "./components/run-page/loop-gate-card";
-export { LoopRunChannel } from "./components/run-page/loop-run-channel";
-export { LoopApprovalGate } from "./components/run-page/loop-approval-gate";
-export type { LoopGateDecision } from "./components/run-page/loop-approval-gate";
-export { LoopRunEventsRail } from "./components/run-page/loop-run-events-rail";
-export { LoopRunFacts } from "./components/run-page/loop-run-facts";
-export { LoopStatusLegend } from "./components/run-page/loop-status-legend";
-export { LoopWatchEventsPanel } from "./components/run-page/loop-watch-events-panel";
+export { LoopRunAboutRail } from "./components/run-page/loop-run-about-rail";
+export { LoopRunControls } from "./components/run-page/loop-run-controls";
+export { LoopRunInspectSheet } from "./components/run-page/loop-run-inspect-sheet";
+export { LoopRunNeedsYouCard } from "./components/run-page/loop-run-needs-you-card";
+export type { LoopGateDecision } from "./lib/loop-events";
+export { LoopRunNextNote } from "./components/run-page/loop-run-next-note";
+export { LoopRunNowCard } from "./components/run-page/loop-run-now-card";
+export { LoopRunOutcomeCard } from "./components/run-page/loop-run-outcome-card";
+export { LoopRunOverflowMenu } from "./components/run-page/loop-run-overflow-menu";
+export { LoopRunPageBody } from "./components/run-page/loop-run-page-body";
+export type { LoopRunPageBodyProps } from "./components/run-page/loop-run-page-body";
+export { LoopRunProgressPanel } from "./components/run-page/loop-run-progress-panel";
+export { LoopRunSection } from "./components/run-page/loop-run-section";
+export { LoopRunStoryTimeline } from "./components/run-page/loop-run-story-timeline";
+export { LoopRunSubhead } from "./components/run-page/loop-run-subhead";
+export { LoopRunTurnsDisclosure } from "./components/run-page/loop-run-turns-disclosure";
+export { LoopRunUsageRail } from "./components/run-page/loop-run-usage-rail";
 
 // Loop-target editing (automation Target step)
 export type { LoopTargetDraft } from "./lib/loop-target";

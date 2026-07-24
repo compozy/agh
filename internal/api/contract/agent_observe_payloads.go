@@ -194,6 +194,7 @@ type ObserveRetentionHealthPayload struct {
 	LastSweepError           string     `json:"last_sweep_error,omitempty"`
 	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
 	DeletedTokenStats        int64      `json:"deleted_token_stats"`
+	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
 	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
 }
 

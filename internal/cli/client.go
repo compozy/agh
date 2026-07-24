@@ -26,6 +26,7 @@ const (
 // DaemonClient is the CLI transport surface for talking to the AGH daemon over UDS.
 type DaemonClient interface {
 	Status(ctx context.Context) (StatusRecord, error)
+	ObserveOverview(ctx context.Context, query ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)
 	Doctor(ctx context.Context, query DoctorQuery) (DoctorRecord, error)
 	DaemonStatus(ctx context.Context) (DaemonStatus, error)
 	Drain(ctx context.Context) (DrainStatusRecord, error)

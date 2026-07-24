@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Activity, AlertCircle } from "lucide-react";
 
 import { useNavigate } from "@tanstack/react-router";
@@ -5,23 +6,16 @@ import { useNavigate } from "@tanstack/react-router";
 import { Empty, Spinner, useTopbarSlot, type TopbarSlotValue } from "@agh/ui";
 import { useLoopRunPage } from "./use-loop-run-page";
 import {
-  LoopApprovalGate,
-  LoopFailureDetail,
-  LoopGenerationTimeline,
-  LoopRunContractHeader,
   LoopRunControls,
-  LoopRunEventsRail,
-  LoopRunFacts,
-  LoopRunMeters,
+  LoopRunOverflowMenu,
+  LoopRunPageBody,
   LoopStatusPill,
-  LoopStatusLegend,
-  LoopWatchEventsPanel,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export function LoopRunDetailLocation({ runId }: { runId: string }) {
   const navigate = useNavigate();
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
   const backToRuns = () => {
     void navigate({ to: "/loop-runs" });
@@ -64,6 +58,7 @@ export function LoopRunDetailLocation({ runId }: { runId: string }) {
       workspaceId={workspaceId}
       runId={runId}
       topbarIdentity={topbarIdentity}
+      workspaceName={activeWorkspace?.name}
     />
   );
 }
@@ -72,10 +67,12 @@ interface LoopRunDetailProps {
   workspaceId: string;
   runId: string;
   topbarIdentity: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">;
+  workspaceName?: string;
 }
 
-function LoopRunDetail({ workspaceId, runId, topbarIdentity }: LoopRunDetailProps) {
+function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: LoopRunDetailProps) {
   const page = useLoopRunPage(workspaceId, runId);
+  const [inspectOpen, setInspectOpen] = useState(false);
 
   useTopbarSlot({
     ...topbarIdentity,
@@ -83,16 +80,19 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity }: LoopRunDetailProp
       <LoopStatusPill status={page.run.status} data-testid="loop-run-status-pill" />
     ) : undefined,
     actions: page.run ? (
-      <LoopRunControls
-        status={page.run.status}
-        pauseRequested={page.run.pause_requested}
-        isPausePending={page.isPausePending}
-        isResumePending={page.isResumePending}
-        isStopPending={page.isStopPending}
-        onPause={page.handlePause}
-        onResume={page.handleResume}
-        onStop={page.handleStop}
-      />
+      <div className="flex items-center gap-2">
+        <LoopRunControls
+          status={page.run.status}
+          pauseRequested={page.run.pause_requested}
+          isPausePending={page.isPausePending}
+          isResumePending={page.isResumePending}
+          isStopPending={page.isStopPending}
+          onPause={page.handlePause}
+          onResume={page.handleResume}
+          onStop={page.handleStop}
+        />
+        <LoopRunOverflowMenu loopName={page.run.loop_name} onInspect={() => setInspectOpen(true)} />
+      </div>
     ) : undefined,
   });
 
@@ -107,7 +107,7 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity }: LoopRunDetailProp
     );
   }
 
-  if (page.runQuery.error || !page.run) {
+  if (page.runQuery.error || !page.effectiveRun || !page.progress) {
     return (
       <div
         className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
@@ -121,52 +121,48 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity }: LoopRunDetailProp
     );
   }
 
-  const { run } = page;
   return (
-    <div className="flex min-h-0 flex-1" data-testid="loop-run-detail-content">
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-        <LoopRunContractHeader
-          run={run}
-          contract={page.contract}
-          meters={<LoopRunMeters meters={page.meters} />}
-        />
-        <div className="flex flex-col gap-4 px-6 py-5">
-          {page.live.failure ? <LoopFailureDetail failure={page.live.failure} /> : null}
-          {run.status === "needs-approval" ? (
-            <LoopApprovalGate
-              run={run}
-              request={page.live.needsApproval}
-              isPending={page.isApprovePending}
-              onDecision={page.handleDecision}
-            />
-          ) : null}
-          <LoopGenerationTimeline
-            generations={page.timeline}
-            gateVerdicts={page.live.gateVerdicts}
-            channelMessages={page.live.channelMessages}
-            isLive={page.isLive}
-            goalTurns={page.goalTurns}
-            hasMoreGoalTurns={page.goalTurnsQuery.hasNextPage}
-            isLoadingMoreGoalTurns={page.goalTurnsQuery.isFetchingNextPage}
-            onLoadMoreGoalTurns={() => {
-              void page.goalTurnsQuery.fetchNextPage();
-            }}
-          />
-        </div>
-      </div>
-      <aside
-        className="hidden w-[332px] shrink-0 overflow-y-auto border-l border-line bg-canvas-soft xl:block"
-        data-testid="loop-run-detail-rail"
-      >
-        <LoopRunEventsRail events={page.live.events} isLive={page.isLive} />
-        <LoopWatchEventsPanel state={page.watchEvents} />
-        <LoopRunFacts
-          run={run}
-          loopVersion={page.loopVersion}
-          concurrency={page.definition?.concurrency}
-        />
-        <LoopStatusLegend />
-      </aside>
-    </div>
+    <LoopRunPageBody
+      run={page.effectiveRun}
+      definition={page.definition}
+      graph={page.graph}
+      isLive={page.isLive}
+      subject={page.subject}
+      hasWatchSource={page.hasWatchSource}
+      elapsedLabel={page.elapsedLabel}
+      stepElapsedLabel={page.stepElapsedLabel}
+      progress={page.progress}
+      story={page.story}
+      goalIds={page.goalIds}
+      goalTurns={page.goalTurns}
+      goalTurnsPaging={{
+        hasMore: page.goalTurnsQuery.hasNextPage,
+        isLoading: page.goalTurnsQuery.isFetchingNextPage,
+        onLoadMore: () => {
+          void page.goalTurnsQuery.fetchNextPage();
+        },
+      }}
+      usageRows={page.usageRows}
+      usageNote={page.usageNote}
+      approvalRequest={page.live.needsApproval}
+      approvalFallbackFacts={page.approvalFallbackFacts}
+      failure={page.live.failure}
+      latestVerdict={page.latestVerdict}
+      watchEvents={page.watchEvents}
+      watchCadence={page.watchCadence}
+      frames={page.live.frames}
+      inputRows={page.inputRows}
+      startedBy={page.startedBy}
+      workspaceLabel={workspaceName ?? page.effectiveRun.workspace_id}
+      versionLabel={page.versionLabel}
+      nextNote={page.nextNote}
+      showNowCard={page.showNowCard}
+      terminalFromStatus={page.terminalFromStatus}
+      terminalAt={page.terminalAt}
+      inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }}
+      pendingAction={page.pendingAction}
+      onDecision={page.handleDecision}
+      onStartNewRun={page.handleStartNewRun}
+    />
   );
 }

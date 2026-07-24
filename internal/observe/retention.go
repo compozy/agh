@@ -38,6 +38,7 @@ type RetentionHealth struct {
 	LastSweepError           string     `json:"last_sweep_error,omitempty"`
 	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
 	DeletedTokenStats        int64      `json:"deleted_token_stats"`
+	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
 	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
 }
 
@@ -171,6 +172,7 @@ func (o *Observer) SweepRetention(ctx context.Context) (RetentionHealth, error) 
 		LastCutoffAt:             timePtr(result.CutoffAt),
 		DeletedEventSummaries:    result.DeletedEventSummaries,
 		DeletedTokenStats:        result.DeletedTokenStats,
+		DeletedTokenUsageDaily:   result.DeletedTokenUsageDaily,
 		DeletedPermissionLogRows: result.DeletedPermissionLogs,
 	}
 	o.setRetentionHealth(health)
@@ -204,6 +206,8 @@ func (o *Observer) sweepRetentionBestEffort(ctx context.Context) {
 			health.DeletedEventSummaries,
 			"deleted_token_stats",
 			health.DeletedTokenStats,
+			"deleted_token_usage_daily",
+			health.DeletedTokenUsageDaily,
 			"deleted_permission_log_rows",
 			health.DeletedPermissionLogRows,
 		)

@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { loopDetailByName } from "../../mocks/fixtures";
 import type { LoopDefinition } from "../../types";
-import { fanOutSummary, nodeClassLabel, readLoopGraph } from "../loop-graph";
+import {
+  fanOutSummary,
+  findWatchNode,
+  goalNodeIds,
+  nodeClassLabel,
+  readLoopGraph,
+  topoOrder,
+} from "../loop-graph";
 
 const definition = loopDetailByName.get("software-delivery")!.definition;
 
@@ -61,5 +68,87 @@ describe("loop-graph", () => {
     expect(fanOutSummary(fanOut)).toBe("batch 1 · seq · ≤64");
     const source = graph.nodes.find(node => node.id === "slug")!;
     expect(fanOutSummary(source)).toBeNull();
+  });
+
+  it("Should resolve the park node from a watch spec, declared events, then a watch-source kind", () => {
+    const byWatchSpec = readLoopGraph({
+      graph: {
+        nodes: [
+          { id: "a", class: "action", kind: "run-agent" },
+          { id: "w", class: "source", kind: "watch-events", watch: { poll: "30s" } },
+        ],
+        edges: [],
+      },
+    } as unknown as Pick<LoopDefinition, "graph">);
+    expect(findWatchNode(byWatchSpec)?.id).toBe("w");
+
+    const byEvents = readLoopGraph({
+      graph: {
+        nodes: [
+          { id: "a", class: "action", kind: "run-agent" },
+          {
+            id: "w",
+            class: "source",
+            kind: "watch-events",
+            events: [{ kind: "review.completed" }],
+          },
+        ],
+        edges: [],
+      },
+    } as unknown as Pick<LoopDefinition, "graph">);
+    expect(findWatchNode(byEvents)?.id).toBe("w");
+
+    const bySourceKind = readLoopGraph({
+      graph: {
+        nodes: [
+          { id: "a", class: "action", kind: "run-agent" },
+          { id: "s", class: "source", kind: "watch-source" },
+        ],
+        edges: [],
+      },
+    } as unknown as Pick<LoopDefinition, "graph">);
+    expect(findWatchNode(bySourceKind)?.id).toBe("s");
+
+    const noWatch = readLoopGraph({
+      graph: { nodes: [{ id: "a", class: "action", kind: "run-agent" }], edges: [] },
+    } as unknown as Pick<LoopDefinition, "graph">);
+    expect(findWatchNode(noWatch)).toBeNull();
+  });
+
+  it("Should collect only goal-kind node ids", () => {
+    const graph = readLoopGraph({
+      graph: {
+        nodes: [
+          { id: "g1", class: "action", kind: "goal" },
+          { id: "act", class: "action", kind: "run-agent" },
+          { id: "g2", class: "action", kind: "goal" },
+        ],
+        edges: [],
+      },
+    } as unknown as Pick<LoopDefinition, "graph">);
+    const ids = goalNodeIds(graph);
+    expect([...ids].sort()).toEqual(["g1", "g2"]);
+    expect(ids.has("act")).toBe(false);
+  });
+
+  it("Should topologically order nodes and append cyclic leftovers in declaration order", () => {
+    const graph = readLoopGraph({
+      graph: {
+        nodes: [
+          { id: "a", class: "action", kind: "run-agent" },
+          { id: "b", class: "action", kind: "run-agent" },
+          { id: "c", class: "action", kind: "run-agent" },
+          { id: "x", class: "action", kind: "run-agent" },
+          { id: "y", class: "action", kind: "run-agent" },
+        ],
+        edges: [
+          { from: "a", to: "b" },
+          { from: "b", to: "c" },
+          { from: "x", to: "y" },
+          { from: "y", to: "x" },
+        ],
+      },
+    } as unknown as Pick<LoopDefinition, "graph">);
+    expect(topoOrder(graph)).toEqual(["a", "b", "c", "x", "y"]);
   });
 });

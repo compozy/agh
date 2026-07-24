@@ -10,6 +10,31 @@ import (
 	"github.com/compozy/agh/internal/network/participation"
 )
 
+func TestOwnerKindForActor(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		actor ActorKind
+		want  OwnerKind
+	}{
+		{"Should map human actor to human owner", ActorKindHuman, OwnerKindHuman},
+		{"Should map agent-session actor to agent-session owner", ActorKindAgentSession, OwnerKindAgentSession},
+		{"Should map automation actor to automation owner", ActorKindAutomation, OwnerKindAutomation},
+		{"Should map extension actor to extension owner", ActorKindExtension, OwnerKindExtension},
+		{"Should map network-peer actor to network-peer owner", ActorKindNetworkPeer, OwnerKindNetworkPeer},
+		{"Should map an unknown actor kind to an empty owner kind", ActorKind("mystery"), ""},
+		{"Should map an empty actor kind to an empty owner kind", ActorKind(""), ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := OwnerKindForActor(tc.actor); got != tc.want {
+				t.Fatalf("OwnerKindForActor(%q) = %q, want %q", tc.actor, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestValidateScopeBinding(t *testing.T) {
 	t.Parallel()
 

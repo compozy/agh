@@ -36,6 +36,7 @@ type StubObserver struct {
 		observe.TaskInboxQuery,
 		taskpkg.ActorIdentity,
 	) (observe.TaskInboxView, error)
+	QueryObserveOverviewFn func(context.Context, observe.OverviewQuery) (observe.OverviewView, error)
 }
 
 func (s StubObserver) CheckBridgeCatalogReady() error {
@@ -82,6 +83,16 @@ func (s StubObserver) QueryTaskInbox(
 		return s.QueryTaskInboxFn(ctx, query, actor)
 	}
 	return observe.TaskInboxView{}, nil
+}
+
+func (s StubObserver) QueryObserveOverview(
+	ctx context.Context,
+	query observe.OverviewQuery,
+) (observe.OverviewView, error) {
+	if s.QueryObserveOverviewFn != nil {
+		return s.QueryObserveOverviewFn(ctx, query)
+	}
+	return observe.OverviewView{}, nil
 }
 
 func (s StubObserver) Health(ctx context.Context) (observe.Health, error) {

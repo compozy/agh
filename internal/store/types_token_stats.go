@@ -47,15 +47,18 @@ func (u TokenStatsUpdate) Validate() error {
 	if err := requireField(u.AgentName, "token stats agent name"); err != nil {
 		return err
 	}
-	return validateTokenStatsCost(u)
+	return validateTokenCostShape(u.CostStatus, u.CostSource, u.CostAmount, u.CostCurrency)
 }
 
-func validateTokenStatsCost(update TokenStatsUpdate) error {
-	status := strings.TrimSpace(update.CostStatus)
-	source := strings.TrimSpace(update.CostSource)
+func validateTokenCostShape(costStatus string, costSource string, amount *float64, currency *string) error {
+	status := strings.TrimSpace(costStatus)
+	source := strings.TrimSpace(costSource)
+	if status != costStatus || source != costSource {
+		return errors.New("store: token cost status and source must not carry surrounding whitespace")
+	}
 	switch status {
 	case tokenCostStatusActual:
-		if source != tokenCostSourceAgentReported || !validTokenStatsMoney(update.CostAmount, update.CostCurrency) {
+		if source != tokenCostSourceAgentReported || !validTokenStatsMoney(amount, currency) {
 			return errors.New(
 				"store: actual token cost requires agent_reported amount and currency; " +
 					"amount must be finite and non-negative",
@@ -67,22 +70,22 @@ func validateTokenStatsCost(update TokenStatsUpdate) error {
 			source != tokenCostSourceBuiltin {
 			return errors.New("store: estimated token cost requires a catalog source")
 		}
-		if !validTokenStatsMoney(update.CostAmount, update.CostCurrency) {
+		if !validTokenStatsMoney(amount, currency) {
 			return errors.New(
 				"store: estimated token cost requires amount and currency; " +
 					"amount must be finite and non-negative",
 			)
 		}
 	case tokenCostStatusIncluded:
-		if source != tokenCostSourceNone || update.CostAmount != nil || update.CostCurrency != nil {
+		if source != tokenCostSourceNone || amount != nil || currency != nil {
 			return errors.New("store: included token cost cannot carry amount or currency")
 		}
 	case tokenCostStatusUnknown:
-		if source != tokenCostSourceNone || update.CostAmount != nil || update.CostCurrency != nil {
+		if source != tokenCostSourceNone || amount != nil || currency != nil {
 			return errors.New("store: unknown token cost cannot carry amount or currency")
 		}
 	default:
-		return fmt.Errorf("store: invalid token cost status %q", update.CostStatus)
+		return fmt.Errorf("store: invalid token cost status %q", costStatus)
 	}
 	return nil
 }

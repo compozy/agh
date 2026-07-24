@@ -282,6 +282,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/onboarding/complete",
 			"DELETE /api/onboarding",
 			"GET /api/fs/browse",
+			"GET /api/observe/overview",
 			"GET /api/observe/tasks/dashboard",
 			"GET /api/observe/tasks/inbox",
 			"GET /api/model-catalog/*catalog_path",

@@ -106,6 +106,7 @@ func registerSupportRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerObserveRoutes(api gin.IRouter, handlers *Handlers) {
 	observeGroup := api.Group("/observe")
+	observeGroup.GET("/overview", handlers.ObserveOverview)
 
 	taskObserveGroup := observeGroup.Group("/tasks")
 	taskObserveGroup.GET("/dashboard", handlers.TaskDashboard)

@@ -55,6 +55,25 @@ type Ownership struct {
 	Ref  string    `json:"ref"`
 }
 
+// OwnerKindForActor maps an actor identity kind to its operational owner kind so
+// actor-scoped reads can filter tasks by the same ownership the inbox applies.
+func OwnerKindForActor(kind ActorKind) OwnerKind {
+	switch kind.Normalize() {
+	case ActorKindHuman:
+		return OwnerKindHuman
+	case ActorKindAgentSession:
+		return OwnerKindAgentSession
+	case ActorKindAutomation:
+		return OwnerKindAutomation
+	case ActorKindExtension:
+		return OwnerKindExtension
+	case ActorKindNetworkPeer:
+		return OwnerKindNetworkPeer
+	default:
+		return ""
+	}
+}
+
 // Origin is the immutable technical ingress context attached to task and run writes.
 type Origin struct {
 	Kind OriginKind `json:"kind"`

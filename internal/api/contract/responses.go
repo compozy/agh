@@ -241,6 +241,11 @@ type TaskDashboardResponse struct {
 	Dashboard TaskDashboardPayload `json:"dashboard"`
 }
 
+// ObserveOverviewResponse wraps the shared home overview payload.
+type ObserveOverviewResponse struct {
+	Overview ObserveOverviewPayload `json:"overview"`
+}
+
 // TaskInboxResponse wraps the shared task inbox payload.
 type TaskInboxResponse struct {
 	Inbox TaskInboxPayload `json:"inbox"`

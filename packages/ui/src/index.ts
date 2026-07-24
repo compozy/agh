@@ -20,6 +20,18 @@ export { RightRail, type RightRailMode, type RightRailProps } from "./components
 
 // Net-new shared-kit composites (P3).
 export { LaneTabs, type LaneTabsItem, type LaneTabsProps } from "./components/custom/lane-tabs";
+export {
+  DayAreaChart,
+  type DayAreaChartDatum,
+  type DayAreaChartProps,
+} from "./components/custom/day-area-chart";
+export {
+  DayStackedBars,
+  type DayStackedBarsDatum,
+  type DayStackedBarsProps,
+  type DayStackedBarsSeries,
+} from "./components/custom/day-stacked-bars";
+export { Panel, type PanelProps } from "./components/custom/panel";
 export { Sparkline, type SparklineProps } from "./components/custom/sparkline";
 export { IntensityMeter, type IntensityMeterProps } from "./components/custom/intensity-meter";
 export { FieldRow, type FieldRowProps } from "./components/custom/field-row";

@@ -149,6 +149,7 @@ type Observer interface {
 		query observe.TaskInboxQuery,
 		actor taskpkg.ActorIdentity,
 	) (observe.TaskInboxView, error)
+	QueryObserveOverview(ctx context.Context, query observe.OverviewQuery) (observe.OverviewView, error)
 }
 
 // NotificationPresetService is the daemon-owned notification preset runtime.

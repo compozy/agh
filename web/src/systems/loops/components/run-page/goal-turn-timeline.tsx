@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { CheckCircle2, CircleAlert, Clock3, FileWarning, ShieldAlert } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 import {
   cn,
@@ -96,7 +97,14 @@ function GoalTurnRow({ turn }: { turn: GoalTurnTimelineItem }) {
           <span className={turn.verdictOutcome ? "text-fg" : "text-faint"}>{verdictLabel}</span>
         </TurnFact>
         <TurnFact label="Session">
-          <MonoId value={turn.sessionId} className="max-w-full text-fg" />
+          <Link
+            className="inline-flex min-h-6 min-w-0 max-w-full items-center rounded-xs hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"
+            data-testid={`goal-turn-session-link-${turn.seq}`}
+            params={{ id: turn.sessionId }}
+            to="/session/$id"
+          >
+            <MonoId value={turn.sessionId} className="max-w-full text-fg" />
+          </Link>
         </TurnFact>
       </dl>
 

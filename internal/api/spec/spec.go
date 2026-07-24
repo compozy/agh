@@ -102,6 +102,7 @@ const (
 	specForbiddenWorkspaceOrPermissionMismatchDescription    = "Forbidden - workspace or permission mismatch"
 	specInternalDaemonErrorDescription                       = "Internal daemon error"
 	specInternalServerErrorDescription                       = "Internal server error"
+	specObserveNotConfiguredDescription                      = "Observe service is not configured"
 	specOnboardingStoreUnavailableDescription                = "Onboarding store is not configured"
 	specSessionPromptConflictDescription                     = "Session prompt conflict"
 	specInvalidAgentLocalLayerDescription                    = "Invalid agent-local layer"

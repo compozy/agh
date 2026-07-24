@@ -5,8 +5,8 @@ import {
   Bot,
   Clock3,
   Globe,
+  Home,
   KeyRound,
-  LayoutDashboard,
   ListChecks,
   Repeat2,
   Settings,
@@ -151,8 +151,8 @@ async function preloadTriggers(qc: QueryClient): Promise<void> {
 export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   dashboard: {
     id: "dashboard",
-    title: "Dashboard",
-    icon: LayoutDashboard,
+    title: "Home",
+    icon: Home,
     paths: ["/"],
     dock: { group: 1 },
     preload: preloadDashboard,

@@ -2072,6 +2072,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/observe/overview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the observer-backed home overview */
+    get: operations["getObserveOverview"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/observe/tasks/dashboard": {
     parameters: {
       query?: never;
@@ -38751,6 +38768,237 @@ export interface operations {
       };
     };
   };
+  getObserveOverview: {
+    parameters: {
+      query?: {
+        /** @description Scope aggregates to one workspace; empty selects the global home scope */
+        workspace?: string;
+        /** @description Usage window in days (default 30) */
+        usage_window?: "7" | "30" | "90";
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            overview: {
+              attention: {
+                by_kind: {
+                  [key: string]: number;
+                };
+                items: {
+                  actions: string[];
+                  detail?: string;
+                  kind: string;
+                  /** Format: date-time */
+                  occurred_at: string;
+                  run_id?: string;
+                  session_id?: string;
+                  task_id?: string;
+                  title: string;
+                }[];
+                total: number;
+              };
+              freshness: {
+                /** Format: int64 */
+                age_ms: number;
+                has_live_work: boolean;
+                /** Format: date-time */
+                latest_activity_at: string;
+                /** Format: date-time */
+                observed_at: string;
+                stale: boolean;
+                /** Format: int64 */
+                stale_after_ms: number;
+                status: string;
+              };
+              /** Format: date-time */
+              generated_at: string;
+              network: {
+                messages_today: number;
+              };
+              outcomes: {
+                canceled: number;
+                completed: number;
+                days: {
+                  canceled: number;
+                  completed: number;
+                  date: string;
+                  failed: number;
+                }[];
+                failed: number;
+                /** Format: double */
+                success_pct: number;
+                window_days: number;
+              };
+              pulse: {
+                buckets: {
+                  events: number;
+                  hour: number;
+                  weekday: number;
+                }[];
+                busiest?: {
+                  events: number;
+                  hour: number;
+                  weekday: number;
+                } | null;
+                longest_session?: {
+                  agent_name: string;
+                  date: string;
+                  /** Format: int64 */
+                  duration_seconds: number;
+                  session_id: string;
+                } | null;
+                window_days: number;
+              };
+              schema_version: string;
+              system: {
+                hook_failures_today: number;
+                hook_runs_today: number;
+                retention_days: number;
+              };
+              today: {
+                runs_completed: number;
+                runs_failed: number;
+                tasks_closed: number;
+              };
+              usage: {
+                agent_share: {
+                  agent_name: string;
+                  /** Format: double */
+                  fraction: number;
+                  /** Format: int64 */
+                  tokens: number;
+                }[];
+                cost_currency?: string;
+                cost_status?: string;
+                days: {
+                  date: string;
+                  /** Format: int64 */
+                  tokens: number;
+                }[];
+                /** Format: double */
+                estimated_cost?: number | null;
+                retention_days: number;
+                /** Format: int64 */
+                total_tokens: number;
+                truncated: boolean;
+                window_days: number;
+              };
+            };
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid overview query */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Observe service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getTaskDashboard: {
     parameters: {
       query?: {
@@ -55578,6 +55826,8 @@ export interface operations {
                 deleted_permission_log_rows: number;
                 /** Format: int64 */
                 deleted_token_stats: number;
+                /** Format: int64 */
+                deleted_token_usage_daily: number;
                 enabled: boolean;
                 /** Format: date-time */
                 last_cutoff_at?: string | null;

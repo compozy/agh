@@ -65,6 +65,7 @@
   --color-viz-bar: rgba(255, 255, 255, 0.3);
   --color-viz-other: rgba(255, 255, 255, 0.26);
   --color-viz-grid: rgba(255, 255, 255, 0.045);
+  --color-viz-cell: #ffffff;
 
   /* Surface glaze ladder — translucent white tints over the warm ramp. */
   --color-row-hover: rgba(255, 255, 255, 0.022);
@@ -469,15 +470,9 @@
   --shell-glass: rgba(12, 11, 11, 0.72);
   --shell-glass-pop: rgba(19, 18, 17, 0.94);
 
-  /* Non-utility runtime var: consumed inside `backdrop-filter: blur(...)` on
-     dialog/sheet scrims; no Tailwind namespace matches `backdrop-filter`
-     directly so this stays out of `@theme`. */
+  /* Scrim blur stays outside @theme: no matching Tailwind namespace. */
   --overlay-blur: 3px;
-
-  /* Component-internal sizing — consumed via arbitrary syntax inside the
-     owning component only. Kept out of `@theme` to prevent third-party
-     tooling from inferring generic 2px / 720px / 1.5rem matches against
-     these names. Names mirror the callsites verbatim. */
+  /* Component-internal sizing stays outside @theme. */
   --width-modal-sm: 560px;
   --width-modal-md: 720px;
   --width-modal-lg: 880px;
@@ -492,13 +487,19 @@
   --space-pill-group-segment-sm-x: 8px;
   --space-pill-group-segment-md-x: 10px;
   --space-pill-group-badge-x: 4px;
-
-  /* Switch thumb inset — consumed inside calc() inside arbitrary translate
-     value (`translate-x-[calc(100%-var(--space-switch-thumb-inset))]`).
-     Kept out of @theme because Tailwind has no `--space-*` namespace that
-     would generate a useful utility for this calc context. */
+  /* Home pulse geometry. */
+  --space-home-pulse-gap: 3px;
+  --size-home-pulse-label: 34px;
+  --size-home-pulse-cell-min: 18px;
+  --size-home-pulse-cell: 15px;
+  --size-home-pulse-min-w: 640px;
+  /* Switch thumb inset stays outside @theme: it is consumed in the
+     calc-based transform value. */
   --space-switch-thumb-inset: 2px;
 
+  /* Chart tooltip padding. */
+  --space-chart-tooltip-y: 6px;
+  --space-chart-tooltip-x: 8px;
   /* Wallpaper stacks — OsWallpaper composes these via the background
      shorthand. Gradient geometry is not a utility scale, so the family
      stays out of @theme. --wallpaper-teal is a registered brand tone for

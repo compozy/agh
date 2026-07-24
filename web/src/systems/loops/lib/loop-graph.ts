@@ -30,6 +30,10 @@ export interface LoopGraphNode {
   maxFanOut?: number;
   /** Gate metadata (present on `control` `gate` nodes). */
   isGate: boolean;
+  /** The watch spec map (`poll` / `settle` / …) when this node watches a source. */
+  watch?: Record<string, unknown>;
+  /** Declared watch-event subscription count (event-driven watch nodes). */
+  eventsCount: number;
 }
 
 export interface LoopGraphEdge {
@@ -74,6 +78,8 @@ function projectNode(raw: unknown): LoopGraphNode | null {
     maxParallel: asOptionalNumber(record.max_parallel),
     maxFanOut: asOptionalNumber(record.max_fan_out),
     isGate: kind === "gate" || Boolean(record.criteria) || Boolean(record.verdict_policy),
+    watch: asRecord(record.watch) ?? undefined,
+    eventsCount: Array.isArray(record.events) ? record.events.length : 0,
   };
 }
 
@@ -106,6 +112,60 @@ export function nodeClassLabel(node: LoopGraphNode): string {
   if (node.nodeClass === "control" && node.kind === "fan-out") return "control · fan-out";
   if (node.nodeClass === "control" && node.isGate) return "control · gate";
   return node.nodeClass ?? "node";
+}
+
+/** The node this graph parks on between ticks; null when the loop has no watch source. */
+export function findWatchNode(graph: LoopGraph): LoopGraphNode | null {
+  return (
+    graph.nodes.find(node => node.watch !== undefined || node.eventsCount > 0) ??
+    graph.nodes.find(node => node.kind === "watch-source") ??
+    null
+  );
+}
+
+/** Ids of `goal` nodes — the only nodes whose story rows expose a Turns disclosure. */
+export function goalNodeIds(graph: LoopGraph): Set<string> {
+  const ids = new Set<string>();
+  for (const node of graph.nodes) {
+    if (node.kind === "goal") ids.add(node.id);
+  }
+  return ids;
+}
+
+/**
+ * Node ids in topological order (Kahn), used to phrase "what happens next" from
+ * the pinned graph. Nodes caught in a cycle (invalid graphs degrade, never throw)
+ * append in declaration order.
+ */
+export function topoOrder(graph: LoopGraph): string[] {
+  const indegree = new Map<string, number>(graph.nodes.map(node => [node.id, 0]));
+  const downstream = new Map<string, string[]>();
+  for (const edge of graph.edges) {
+    if (!indegree.has(edge.from) || !indegree.has(edge.to)) continue;
+    indegree.set(edge.to, (indegree.get(edge.to) ?? 0) + 1);
+    downstream.set(edge.from, [...(downstream.get(edge.from) ?? []), edge.to]);
+  }
+  const queue: string[] = [];
+  for (const node of graph.nodes) {
+    if (indegree.get(node.id) === 0) queue.push(node.id);
+  }
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (id === undefined || seen.has(id)) continue;
+    seen.add(id);
+    ordered.push(id);
+    for (const next of downstream.get(id) ?? []) {
+      const remaining = (indegree.get(next) ?? 0) - 1;
+      indegree.set(next, remaining);
+      if (remaining <= 0) queue.push(next);
+    }
+  }
+  for (const node of graph.nodes) {
+    if (!seen.has(node.id)) ordered.push(node.id);
+  }
+  return ordered;
 }
 
 /** The fan-out summary line (`batch 1 · seq · ≤64`) shown under a fan-out node. */

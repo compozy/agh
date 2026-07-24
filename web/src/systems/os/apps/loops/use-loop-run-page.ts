@@ -1,33 +1,38 @@
 import { useReducer } from "react";
 
+import { useNavigate } from "@tanstack/react-router";
+
 import { toast } from "@agh/ui";
+
 import {
   applyLoopEventFrame,
-  buildRunMeters,
-  buildRunTimeline,
   emptyLoopRunLiveState,
   isTerminalLoopStatus,
-  latestGenerationBreadth,
-  mergeGoalTurnTimeline,
   type LoopGateDecision,
+  mergeGoalTurnTimeline,
+  projectLoopRunPageView,
   useApproveLoopRun,
+  useGoalTurns,
   useLoop,
   useLoopRun,
   useLoopStream,
-  useGoalTurns,
+  useNowTick,
   usePauseLoopRun,
   useResumeLoopRun,
+  useRunLoop,
   useStopLoopRun,
 } from "@/systems/loops";
 
 /**
- * The live run-page view-model (§4.4): composes the run projection (`getLoopRun`) with
- * the loop definition (`getLoop`, for the contract/graph the run projection omits) and
- * an SSE reducer over the forward event contract. Meters, timeline, and breadth derive
- * from daemon truth; the live token count overlays the polled run when fresher. The
- * operator controls and the gate decision go through the sanctioned mutation hooks.
+ * The live run-page view-model (redesign spec §2-§5): composes the run
+ * projection (`getLoopRun`) with the pinned definition and the SSE reducer over
+ * the forward event contract, then delegates every derived body field to the
+ * shared `projectLoopRunPageView` so Storybook fixtures and the live page stay
+ * on one derivation. Controls and the gate decision go through the sanctioned
+ * mutation hooks.
  */
 export function useLoopRunPage(workspaceId: string, runId: string) {
+  const navigate = useNavigate();
   const enabled = workspaceId !== "" && runId !== "";
   const runQuery = useLoopRun(workspaceId, runId, enabled);
   const run = runQuery.data?.run;
@@ -54,16 +59,11 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   const resumeMutation = useResumeLoopRun();
   const stopMutation = useStopLoopRun();
   const approveMutation = useApproveLoopRun();
+  const runLoopMutation = useRunLoop();
 
-  const breadth = latestGenerationBreadth(generations);
-  // A lifecycle refetch can return tokens newer than the latest streamed tick;
-  // take the max so the meter never steps backward between a tick and a poll.
-  const effectiveRun =
-    run && live.tokensUsed !== null
-      ? { ...run, tokens_used: Math.max(run.tokens_used, live.tokensUsed) }
-      : run;
-  const meters = effectiveRun ? buildRunMeters(effectiveRun, breadth) : [];
-  const timeline = buildRunTimeline(generations, definition);
+  const nowMs = useNowTick(run?.status === "running");
+  const view = run ? projectLoopRunPageView({ run, generations, live, definition, nowMs }) : null;
+  const effectiveRun = view?.effectiveRun ?? run;
 
   const handlePause = () => {
     pauseMutation.mutate(
@@ -102,33 +102,87 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     approveMutation.mutate(
       { workspaceId, runId, data: { decision, gate_id: gateId } },
       {
-        onSuccess: () => toast.success(`Gate decision recorded — ${decision}`),
+        onSuccess: () => toast.success("Decision recorded"),
         onError: error =>
-          toast.error(error instanceof Error ? error.message : "Failed to record gate decision"),
+          toast.error(error instanceof Error ? error.message : "Failed to record the decision"),
       }
     );
   };
 
+  const handleStartNewRun = () => {
+    if (!run) return;
+    runLoopMutation.mutate(
+      { workspaceId, name: run.loop_name, data: { inputs: run.inputs } },
+      {
+        onSuccess: result => {
+          const newRunId = result.run?.id;
+          if (newRunId) {
+            toast.success("New run started");
+            void navigate({ to: "/loop-runs/$runId", params: { runId: newRunId } });
+            return;
+          }
+          toast.error("The daemon accepted the request but returned no run");
+        },
+        onError: error =>
+          toast.error(error instanceof Error ? error.message : "Failed to start a new run"),
+      }
+    );
+  };
+
+  const version = run?.definition_version ?? loopQuery.data?.version;
+  const versionLabel =
+    version !== undefined
+      ? executedDefinition
+        ? `v${version} · pinned`
+        : `v${version}`
+      : undefined;
+  const pendingAction = approveMutation.isPending
+    ? ("approve" as const)
+    : runLoopMutation.isPending
+      ? ("start-new-run" as const)
+      : undefined;
+
   return {
     runQuery,
+    // `run` is the polled projection (existence/status/chrome). `effectiveRun`
+    // overlays the fresher streamed token count and owns Usage + body reads —
+    // the two differ only in `tokens_used`.
     run,
-    watchEvents,
+    effectiveRun,
     definition,
-    contract: definition?.contract,
-    loopVersion: run?.definition_version ?? loopQuery.data?.version,
+    graph: view?.graph ?? null,
+    watchEvents,
+    versionLabel,
     live,
+    story: view?.story ?? { rows: [], now: null },
+    goalIds: view?.goalIds ?? new Set<string>(),
     goalTurns,
     goalTurnsQuery,
     isLive,
-    meters,
-    timeline,
+    progress: view?.progress ?? null,
+    usageRows: view?.usageRows ?? [],
+    usageNote: view?.usageNote ?? null,
+    approvalFallbackFacts: view?.approvalFallbackFacts ?? [],
+    latestVerdict: view?.latestVerdict ?? null,
+    subject: view?.subject ?? null,
+    hasWatchSource: view?.hasWatchSource ?? false,
+    watchCadence: view?.watchCadence ?? null,
+    inputRows: view?.inputRows ?? [],
+    startedBy: view?.startedBy ?? "",
+    elapsedLabel: view?.elapsedLabel ?? "",
+    stepElapsedLabel: view?.stepElapsedLabel ?? null,
+    nextNote: view?.nextNote ?? null,
+    showNowCard: view?.showNowCard ?? false,
+    terminalFromStatus: view?.terminalFromStatus,
+    terminalAt: view?.terminalAt,
     handlePause,
     handleResume,
     handleStop,
     handleDecision,
+    handleStartNewRun,
+    pendingAction,
     isPausePending: pauseMutation.isPending,
     isResumePending: resumeMutation.isPending,
     isStopPending: stopMutation.isPending,
-    isApprovePending: approveMutation.isPending,
   };
 }

@@ -472,6 +472,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/task-runs/:id/reviews", handlers.ListTaskRunReviews)
 	engine.GET("/task-reviews/:id", handlers.GetTaskRunReview)
 	engine.POST("/task-reviews/:id/verdict", handlers.SubmitTaskRunReviewVerdict)
+	engine.GET("/observe/overview", handlers.ObserveOverview)
 	engine.GET("/observe/tasks/dashboard", handlers.TaskDashboard)
 	engine.GET("/observe/tasks/inbox", handlers.TaskInbox)
 	engine.GET("/memory", handlers.ListMemory)

@@ -135,7 +135,7 @@ func taskInboxStatement(selectSQL string, baseWhere []string, where []string) st
 }
 
 func taskInboxArgs(actor taskpkg.ActorIdentity) []any {
-	ownerKind := taskInboxOwnerKind(actor.Kind)
+	ownerKind := taskpkg.OwnerKindForActor(actor.Kind)
 	return []any{
 		string(ownerKind), actor.Ref,
 		string(actor.Kind), actor.Ref,
@@ -199,21 +199,4 @@ func taskInboxPageFilter(
 		cursor.TaskID,
 	)
 	return where, args, nil
-}
-
-func taskInboxOwnerKind(kind taskpkg.ActorKind) taskpkg.OwnerKind {
-	switch kind.Normalize() {
-	case taskpkg.ActorKindHuman:
-		return taskpkg.OwnerKindHuman
-	case taskpkg.ActorKindAgentSession:
-		return taskpkg.OwnerKindAgentSession
-	case taskpkg.ActorKindAutomation:
-		return taskpkg.OwnerKindAutomation
-	case taskpkg.ActorKindExtension:
-		return taskpkg.OwnerKindExtension
-	case taskpkg.ActorKindNetworkPeer:
-		return taskpkg.OwnerKindNetworkPeer
-	default:
-		return ""
-	}
 }

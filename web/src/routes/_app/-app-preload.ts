@@ -1,9 +1,19 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { agentCatalogOptions, agentDetailOptions, agentsListOptions } from "@/systems/agent";
+import {
+  homeActivityOptions,
+  homeOverviewOptions,
+  homeScopeForActiveWorkspace,
+  homeWorkingNowSessionFilters,
+  useHomePrefsStore,
+} from "@/systems/dashboard";
+import { networkStatusOptions } from "@/systems/network";
 import { onboardingStatusOptions } from "@/systems/onboarding";
 import { sessionsListOptions } from "@/systems/session";
-import { workspaceDetailOptions } from "@/systems/workspace";
+import { statusOptions } from "@/systems/status";
+import { taskDashboardOptions } from "@/systems/tasks";
+import { workspaceDetailOptions, workspacesListOptions } from "@/systems/workspace";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 
@@ -45,11 +55,35 @@ export async function preloadHomeWorkspace(
   queryClient: QueryClient,
   workspaceId: string
 ): Promise<void> {
+  const usageWindow = useHomePrefsStore.getState().usageWindow;
+  // Resolve scope from the awaited daemon status so preload and first paint use
+  // the same workspace-specific query keys.
+  const [statusResult, workspaces] = await Promise.all([
+    queryClient.ensureQueryData(statusOptions()),
+    queryClient.ensureQueryData(workspacesListOptions()),
+  ]);
+  const active = workspaces.find(workspace => workspace.id === workspaceId);
+  const scope = homeScopeForActiveWorkspace(active, statusResult.daemon.user_home_dir);
+  if (!scope) {
+    // Never warm a global placeholder while workspace scope is undetermined.
+    return;
+  }
   await settleRouteQueries([
     queryClient.ensureQueryData(agentsListOptions(workspaceId)),
     queryClient.ensureInfiniteQueryData(
-      sessionsListOptions({ workspace: workspaceId, state: "active", type: "user", limit: 1 })
+      sessionsListOptions({
+        ...homeWorkingNowSessionFilters(),
+        ...(scope.workspaceParam ? { workspace: scope.workspaceParam } : {}),
+      })
     ),
+    queryClient.ensureQueryData(
+      homeOverviewOptions({ workspace: scope.workspaceParam || undefined, usageWindow })
+    ),
+    queryClient.ensureQueryData(
+      homeActivityOptions({ workspace_id: scope.workspaceParam || undefined })
+    ),
+    queryClient.ensureQueryData(taskDashboardOptions(scope.taskScope)),
+    queryClient.ensureQueryData(networkStatusOptions()),
   ]);
 }
 
