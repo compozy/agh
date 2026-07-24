@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
-
 	"github.com/compozy/agh/internal/coordinator"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -66,7 +66,7 @@ type coordinatorRuntime struct {
 	mu             sync.Mutex
 	store          coordinatorTaskStore
 	sessions       coordinatorSessionManager
-	config         CoordinatorConfigResolver
+	config         CoordinatorRoleResolver
 	hooks          coordinatorHookDispatcher
 	contextOverlay taskSessionContextOverlay
 	logger         *slog.Logger
@@ -92,7 +92,7 @@ func newCoordinatorRuntime(
 	ctx context.Context,
 	store coordinatorTaskStore,
 	sessions coordinatorSessionManager,
-	config CoordinatorConfigResolver,
+	config CoordinatorRoleResolver,
 	hooks coordinatorHookDispatcher,
 	logger *slog.Logger,
 	now func() time.Time,
@@ -143,15 +143,15 @@ func (d *Daemon) bootCoordinator(ctx context.Context, state *bootState, cleanup 
 	if state.sessions == nil {
 		return errors.New("daemon: coordinator runtime requires session manager")
 	}
-	if state.deps.CoordinatorConfig == nil {
-		return errors.New("daemon: coordinator runtime requires coordinator config resolver")
+	if state.deps.CoordinatorRole == nil {
+		return errors.New("daemon: coordinator runtime requires coordinator role resolver")
 	}
 
 	runtime, err := newCoordinatorRuntime(
 		ctx,
 		state.tasks.store,
 		state.sessions,
-		state.deps.CoordinatorConfig,
+		state.deps.CoordinatorRole,
 		state.notifier,
 		state.logger,
 		d.now,
@@ -308,17 +308,29 @@ func (r *coordinatorRuntime) bootstrapRun(
 		return nil, false, errors.New("daemon: coordinator bootstrap context is required")
 	}
 
-	preflightConfig := defaultEnabledCoordinatorConfig()
+	preflightConfig := defaultEnabledCoordinatorRole()
 	preflight := coordinator.DecideBootstrap(taskRecord, run, preflightConfig)
 	if !preflight.ShouldBootstrap {
 		r.dispatchDecision(ctx, preflight, nil, reason, "")
 		return nil, false, nil
 	}
 
-	cfg, err := r.config.ResolveCoordinatorConfig(ctx, preflight.WorkspaceID)
+	correlation := roleInvocationCorrelation{
+		WorkspaceID: strings.TrimSpace(preflight.WorkspaceID),
+		Event: store.EventCorrelation{
+			TaskID:          strings.TrimSpace(preflight.TaskID),
+			RunID:           strings.TrimSpace(preflight.RunID),
+			WorkflowID:      strings.TrimSpace(preflight.WorkflowID),
+			SchedulerReason: strings.TrimSpace(reason),
+			ActorKind:       string(taskpkg.ActorKindDaemon),
+			ActorID:         "coordinator-runtime",
+		},
+	}
+	ctx = withRoleInvocationCorrelation(ctx, correlation)
+	cfg, err := r.config.ResolveCoordinatorRole(ctx, preflight.WorkspaceID)
 	if err != nil {
 		r.dispatchFailed(ctx, preflight, nil, reason, err)
-		return nil, false, fmt.Errorf("daemon: resolve coordinator config: %w", err)
+		return nil, false, fmt.Errorf("daemon: resolve coordinator role: %w", err)
 	}
 	decision := coordinator.DecideBootstrap(taskRecord, run, cfg)
 	if !decision.ShouldBootstrap {

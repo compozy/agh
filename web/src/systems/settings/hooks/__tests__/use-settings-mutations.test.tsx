@@ -165,7 +165,7 @@ describe("useUpdateSettingsMemory", () => {
       await result.current.mutateAsync({
         config: {
           ...settingsMemoryConfigFixture,
-          dream: { ...settingsMemoryConfigFixture.dream, agent: "dreamer", min_hours: 1 },
+          dream: { ...settingsMemoryConfigFixture.dream, min_hours: 1 },
         },
       });
     });

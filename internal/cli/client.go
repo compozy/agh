@@ -2,9 +2,7 @@ package cli
 
 import (
 	"context"
-
 	"io"
-
 	"time"
 
 	"github.com/compozy/agh/internal/agentidentity"
@@ -167,6 +165,8 @@ type DaemonClient interface {
 	UpdateAgent(ctx context.Context, name string, request contract.UpdateAgentRequest) (AgentRecord, error)
 	DeleteAgent(ctx context.Context, name string, workspace string) (contract.DeleteAgentResponse, error)
 	DuplicateAgent(ctx context.Context, name string, request contract.DuplicateAgentRequest) (AgentRecord, error)
+	ListRoles(ctx context.Context, query RoleQuery) ([]RoleRecord, error)
+	GetRole(ctx context.Context, role string, query RoleQuery) (RoleRecord, error)
 	GetAgentSoul(ctx context.Context, name string, query AgentQuery) (AgentSoulRecord, error)
 	ValidateAgentSoul(ctx context.Context, name string, request AgentSoulValidateRequest) (AgentSoulRecord, error)
 	PutAgentSoul(ctx context.Context, name string, request AgentSoulPutRequest) (AgentSoulMutationRecord, error)

@@ -109,6 +109,7 @@ type bootState struct {
 	resourceKernel        *resources.Kernel
 	resourceCodecs        *resources.CodecRegistry
 	agentCatalog          *resourceCatalog[aghconfig.AgentDef]
+	roleResolver          *roleResolver
 	soulCatalog           *resourceCatalog[soul.ResourceSpec]
 	heartbeatCatalog      *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog           *resourceCatalog[toolspkg.Tool]
@@ -323,8 +324,8 @@ func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 		NetworkFunc: func() situation.NetworkReader {
 			return state.network
 		},
-		CoordinatorConfigFunc: func() situation.CoordinatorConfigResolver {
-			return state.deps.CoordinatorConfig
+		CoordinatorRoleFunc: func() situation.CoordinatorRoleResolver {
+			return state.deps.CoordinatorRole
 		},
 		SoulSnapshotsFunc: func() situation.SoulSnapshotStore {
 			return soulSnapshotStoreDependency(state.registry)

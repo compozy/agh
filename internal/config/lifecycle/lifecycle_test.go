@@ -85,6 +85,12 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify role changes as live",
+			path:          "roles.dream.model",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
 			name:          "Should keep extension registry changes restart required",
 			path:          "extensions.marketplace.registry",
 			wantLifecycle: RestartRequired,

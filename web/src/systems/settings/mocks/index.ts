@@ -23,6 +23,14 @@ export {
   settingsRestartStatusFixture,
   settingsSkillsSectionFixture,
 } from "./fixtures";
+export {
+  rolesStatusFixture,
+  rolesStatusWithDiagnosticFixture,
+  settingsRolesConfigFixture,
+  settingsRolesConfigWithFallbackFixture,
+  settingsRolesSectionFixture,
+  settingsRolesSectionWithFallbackFixture,
+} from "./roles-fixtures";
 export { handlers } from "./handlers";
 export {
   settingsWindowManagerSectionFixture,

@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -496,4 +497,128 @@ func TestValidateRejectsOverflowingNetworkDurations(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRolesOverlayPreservesLayeredMergeSemantics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should change one field without clobbering defaults or sibling roles", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		path := filepath.Join(t.TempDir(), "roles.toml")
+		writeFile(t, path, "[roles.dream]\nmodel = \"model-x\"\n")
+		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		if cfg.Roles.Dream.Model != "model-x" || !cfg.Roles.Dream.Enabled {
+			t.Fatalf("Roles.Dream = %#v, want model override with enabled default", cfg.Roles.Dream)
+		}
+		if !reflect.DeepEqual(cfg.Roles.CheckpointSummary, DefaultRolesConfig().CheckpointSummary) {
+			t.Fatalf("Roles.CheckpointSummary = %#v, want defaults", cfg.Roles.CheckpointSummary)
+		}
+	})
+
+	t.Run("Should leave enabled intact for an empty role table", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		path := filepath.Join(t.TempDir(), "roles.toml")
+		writeFile(t, path, "[roles.dream]\n")
+		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		if !cfg.Roles.Dream.Enabled {
+			t.Fatal("Roles.Dream.Enabled = false, want default true")
+		}
+	})
+
+	t.Run("Should replace a fallback chain wholesale", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Roles.Dream.FallbackChain = []RoleFallback{
+			{Provider: "a", Model: "one"},
+			{Provider: "b", Model: "two"},
+		}
+		path := filepath.Join(t.TempDir(), "roles.toml")
+		writeFile(t, path, `
+[[roles.dream.fallback_chain]]
+provider = "c"
+model = "three"
+`)
+		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		got := cfg.Roles.Dream.FallbackChain
+		want := []RoleFallback{{Provider: "c", Model: "three"}}
+		if !slices.Equal(got, want) {
+			t.Fatalf("Roles.Dream.FallbackChain = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should layer workspace values after global values", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Roles.Dream.Model = "default-model"
+		globalPath := filepath.Join(t.TempDir(), "global.toml")
+		workspacePath := filepath.Join(t.TempDir(), "workspace.toml")
+		writeFile(t, globalPath, "[roles.dream]\nmodel = \"global-model\"\n")
+		writeFile(t, workspacePath, "[roles.dream]\nmodel = \"workspace-model\"\n")
+		if err := ApplyConfigOverlayFile(globalPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile(global) error = %v", err)
+		}
+		if err := applyWorkspaceConfigOverlayFile(workspacePath, &cfg); err != nil {
+			t.Fatalf("applyWorkspaceConfigOverlayFile() error = %v", err)
+		}
+		if cfg.Roles.Dream.Model != "workspace-model" {
+			t.Fatalf("Roles.Dream.Model = %q, want workspace-model", cfg.Roles.Dream.Model)
+		}
+	})
+
+	t.Run("Should accept roles in workspace overlays", func(t *testing.T) {
+		t.Parallel()
+
+		overlay, err := loadConfigOverlayBytes([]byte("[roles.auto_title]\nenabled = false\n"), "workspace.toml")
+		if err != nil {
+			t.Fatalf("loadConfigOverlayBytes() error = %v", err)
+		}
+		if err := validateWorkspaceConfigOverlay("workspace.toml", &overlay); err != nil {
+			t.Fatalf("validateWorkspaceConfigOverlay() error = %v", err)
+		}
+	})
+
+	t.Run("Should honor the last explicit coordinator enabled value", func(t *testing.T) {
+		t.Parallel()
+
+		falseValue := false
+		trueValue := true
+		for _, tc := range []struct {
+			name  string
+			first *bool
+			last  *bool
+			want  bool
+		}{
+			{name: "Should end enabled", first: &falseValue, last: &trueValue, want: true},
+			{name: "Should end disabled", first: &trueValue, last: &falseValue, want: false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := DefaultWithHome(HomePaths{})
+				first := rolesOverlay{
+					Coordinator: coordinatorRoleOverlay{roleOverlay: roleOverlay{Enabled: tc.first}},
+				}
+				last := rolesOverlay{
+					Coordinator: coordinatorRoleOverlay{roleOverlay: roleOverlay{Enabled: tc.last}},
+				}
+				first.Apply(&cfg.Roles)
+				last.Apply(&cfg.Roles)
+				if cfg.Roles.Coordinator.Enabled != tc.want {
+					t.Fatalf("Roles.Coordinator.Enabled = %t, want %t", cfg.Roles.Coordinator.Enabled, tc.want)
+				}
+			})
+		}
+	})
 }

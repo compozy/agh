@@ -18,6 +18,8 @@ func (s *service) updateConfigBackedSection(
 		return s.updateGeneralSection(ctx, req)
 	case SectionMemory:
 		return s.updateMemorySection(ctx, req)
+	case SectionRoles:
+		return s.updateRolesSection(ctx, req)
 	case SectionAutomation:
 		return s.updateAutomationSection(ctx, req)
 	case SectionNetwork:
@@ -31,6 +33,27 @@ func (s *service) updateConfigBackedSection(
 	default:
 		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown section %q", req.Section))
 	}
+}
+
+func (s *service) updateRolesSection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if req.Roles == nil {
+		return MutationResult{}, validationError(errors.New("settings: roles section payload is required"))
+	}
+	desired := cloneRolesConfig(req.Roles)
+	if err := desired.Validate("roles", &cfg); err != nil {
+		return MutationResult{}, validationError(err)
+	}
+	changed := diffRolesSettings(&cfg.Roles, &desired)
+	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+		return applyRolesSettings(editor, &desired)
+	})
 }
 
 func (s *service) updateGeneralSection(

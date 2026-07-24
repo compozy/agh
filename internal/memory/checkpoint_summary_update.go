@@ -181,12 +181,18 @@ func (s *CheckpointSummaryService) resolveCheckpointWorkspace(
 			err,
 		)
 	}
-	workspaceID := firstCheckpointValue(resolved.WorkspaceID, resolved.ID)
-	if workspaceID == "" || workspaceID != strings.TrimSpace(requestedWorkspaceID) {
+	requestedID := strings.TrimSpace(requestedWorkspaceID)
+	registrationID := strings.TrimSpace(resolved.ID)
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	if workspaceID == "" {
+		workspaceID = registrationID
+	}
+	if workspaceID == "" || (requestedID != registrationID && requestedID != workspaceID) {
 		return "", "", nil, fmt.Errorf(
-			"memory: checkpoint workspace identity mismatch: resolved %q for %q",
+			"memory: checkpoint workspace identity mismatch: resolved registration %q stable %q for %q",
+			registrationID,
 			workspaceID,
-			requestedWorkspaceID,
+			requestedID,
 		)
 	}
 	workspaceRoot := strings.TrimSpace(resolved.RootDir)

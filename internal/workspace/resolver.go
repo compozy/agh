@@ -270,6 +270,16 @@ func (r *Resolver) Invalidate(workspaceID string) {
 	r.mu.Unlock()
 }
 
+// InvalidateAll clears every cached runtime snapshot after a global dependency changes.
+func (r *Resolver) InvalidateAll() {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	clear(r.cache)
+	r.mu.Unlock()
+}
+
 func (r *Resolver) notifyChangeHook(ctx context.Context, operation string, workspaceID string) error {
 	if r == nil || r.changeHook == nil {
 		return nil

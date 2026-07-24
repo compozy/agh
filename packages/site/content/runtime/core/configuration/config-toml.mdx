@@ -33,8 +33,13 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                               |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                             |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                              |
+| `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace             |
+| `[roles.dream]`                      | Dream-session routing.                                                               | enabled, builtin `dreaming-curator`                                                               |
+| `[roles.checkpoint_summary]`         | Checkpoint-summary session routing.                                                  | enabled, builtin `dreaming-curator`                                                               |
+| `[roles.memory_extractor]`           | Memory-extractor session routing.                                                    | enabled, inherits the invoking agent                                                              |
+| `[roles.auto_title]`                 | Automatic-title session routing.                                                     | enabled, inherits the invoking agent                                                              |
+| `[roles.memory_controller]`          | In-process memory-controller model routing and call bounds.                          | enabled, `anthropic/claude-haiku-4`, 250 ms, top-K 5, prompt v1, 256 output tokens                |
 | `[limits]`                           | Daemon-level concurrently running agent cap.                                         | `max_concurrent_agents = 20`                                                                      |
-| `[session]`                          | Daemon-owned automatic title generation for unnamed user sessions.                   | `auto_title_enabled = true`                                                                       |
 | `[session.limits]`                   | Session-scoped wall-clock timeout.                                                   | `timeout = "0s"`                                                                                  |
 | `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.      | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes                 |
 | `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.               | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                             |
@@ -56,12 +61,11 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[redact]`                           | Additive secret heuristics for agent-visible content, logs, and persisted events.    | `enabled = true`                                                                                  |
 | `[memory]`                           | Persistent memory runtime and global memory directory.                               | enabled, `$AGH_HOME/memory`                                                                       |
 | `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                              | hybrid, 300 ms, noop                                                                              |
-| `[memory.controller.llm]`            | Controller LLM tiebreaker.                                                           | enabled, `anthropic/claude-haiku-4`, 250 ms, top_k 5                                              |
 | `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                         | 4096 chars, 60 writes/min, all canonical origins                                                  |
 | `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                       | top-K 5, raw 50, weighted fusion                                                                  |
 | `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                         | 90 days, audit summary on, 64 KiB body cap                                                        |
-| `[memory.extractor]`                 | Post-message extractor and bounded queue.                                            | enabled, post_message mode, capacity 1, coalesce 16                                               |
-| `[memory.dream]`                     | Dreaming runtime, gates, and scoring.                                                | enabled, agent `dreaming-curator`, 24 h, 3 sessions, 30 min ticker                                |
+| `[memory.extractor]`                 | Post-message extractor policy and bounded queue.                                     | post_message mode, capacity 1, coalesce 16                                                        |
+| `[memory.dream]`                     | Dreaming gates, cadence, and scoring policy.                                         | 24 h, 3 sessions, 30 min ticker                                                                   |
 | `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.             | jsonl, `$AGH_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition                |
 | `[memory.daily]`                     | Daily-log retention and rotation.                                                    | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00                              |
 | `[memory.file]`                      | Curated memory body and prompt-index limits.                                         | 200 lines, 25 KiB                                                                                 |
@@ -77,7 +81,6 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[loops.defaults.watch]`             | Global/workspace seed defaults for watch loops.                                      | no iteration cap, no-progress window 2, fan-out 2                                                 |
 | `[goals]`                            | Goal defaults and durable session-event relay controls.                              | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                          |
 | `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                                | block recurrence limit 2                                                                          |
-| `[autonomy.coordinator]`             | Coordinator session bootstrap for workspace-scoped task runs.                        | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 coordinator + 5 sessions per workspace  |
 | `[task.orchestration]`               | Bounds for active workspace runs, summaries, context, scheduler health, and runtime. | 16 active runs/workspace, 4 KiB summaries, 8 KiB context, prior 5/recent 50 events                |
 | `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                      | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                    |
 | `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                               | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                    |
@@ -168,13 +171,51 @@ provider = "claude"
 # Sandbox profile used when a workspace does not set sandbox_ref.
 sandbox = "local"
 
+[roles.coordinator]
+# Coordinator is a virtual builtin when agent is omitted. It is disabled by default.
+enabled = false
+ttl = "2h"
+max_children = 5
+max_active_sessions_per_workspace = 5
+
+[roles.dream]
+# Route dreaming work to a custom authored curator instead of the builtin dreaming-curator.
+enabled = true
+agent = "memory-curator"
+
+[roles.checkpoint_summary]
+# Empty agent selects the builtin dreaming-curator.
+enabled = true
+
+[roles.memory_extractor]
+# Empty agent inherits the invoking context's agent at runtime.
+enabled = true
+
+[roles.auto_title]
+# Use a small model for the bounded automatic-title pass.
+enabled = true
+provider = "claude"
+model = "claude-haiku-4-5-20251001"
+reasoning_effort = "low"
+
+[[roles.auto_title.fallback_chain]]
+# Fallback routes are tried in declaration order before a session is accepted.
+provider = "codex"
+model = "gpt-5.4-mini"
+reasoning_effort = "low"
+
+[roles.memory_controller]
+# This in-process role has no agent field.
+enabled = true
+model = "anthropic/claude-haiku-4"
+timeout = "250ms"
+top_k = 5
+prompt_version = "v1"
+max_tokens_out = 256
+
 [limits]
 # Positive daemon-wide agent concurrency bound.
 max_concurrent_agents = 20
-
-[session]
-# Generate one durable title after the first assistant response is persisted.
-auto_title_enabled = true
 
 [session.limits]
 # 0 means no configured wall-clock timeout. Use Go durations such as "30m" or "2h".
@@ -396,14 +437,6 @@ mode = "hybrid"                              # hybrid | rules | llm
 max_latency = "300ms"
 default_op_on_fail = "noop"
 
-[memory.controller.llm]
-enabled = true
-model = "anthropic/claude-haiku-4"
-top_k = 5
-prompt_version = "v1"
-timeout = "250ms"
-max_tokens_out = 256
-
 [memory.controller.policy]
 max_content_chars = 4096
 max_writes_per_min = 60
@@ -436,22 +469,18 @@ keep_audit_summary = true
 max_post_content_bytes = 65536
 
 [memory.extractor]
-enabled = true
 mode = "post_message"
 throttle_turns = 1
 deadline = "60s"
 sandbox_inbox_only = true
 inbox_path = "$AGH_HOME/memory/_inbox"
 dlq_path = "$AGH_HOME/memory/_system/extractor/failures"
-model = ""
 
 [memory.extractor.queue]
 capacity = 1
 coalesce_max = 16
 
 [memory.dream]
-enabled = true
-agent = "dreaming-curator"
 min_hours = 24
 min_sessions = 3
 debounce = "10m"
@@ -614,19 +643,6 @@ outbox_poll_interval = "100ms"
 [autonomy]
 # Same-kind re-block count that escalates a task to needs_attention. 0 disables the breaker.
 block_recurrence_limit = 2
-
-[autonomy.coordinator]
-# Disabled by default. When enabled, a workspace-scoped coordinated task run may start
-# one coordinator session for that workspace after publish, start, approval, or an
-# equivalent execution boundary enqueues the run.
-enabled = false
-agent_name = "coordinator"
-# Optional provider/model overrides. Empty values fall through to agent/provider defaults.
-provider = ""
-model = ""
-default_ttl = "2h"
-max_children = 5
-max_active_sessions_per_workspace = 5
 
 [task.orchestration]
 # Bounds for task summaries, context bundles, scheduler health, and runtime watchdogs.
@@ -799,22 +815,95 @@ not a second config source.
 | `agent`    | string | `general` | Non-empty agent name.                              | Agent selected when a command or API request omits an agent.                                                       |
 | `provider` | string | empty     | Built-in provider name or configured provider key. | Provider selected when an `AGENT.md` omits `provider`. Empty is valid until an agent without provider is resolved. |
 
+## `[roles.<role>]`
+
+`[roles]` is the closed routing roster for daemon-owned background work. It is not an extension
+registry: only the six sections below are accepted. Global `$AGH_HOME/config.toml` values apply to
+every workspace unless the selected workspace's `.agh/config.toml` overlays them.
+
+| Role                 | Default | Empty `agent` resolution   | Extra policy owned here                                   |
+| -------------------- | ------- | -------------------------- | --------------------------------------------------------- |
+| `coordinator`        | off     | builtin `coordinator`      | `ttl`, child cap, workspace active-session cap            |
+| `dream`              | on      | builtin `dreaming-curator` | none                                                      |
+| `checkpoint_summary` | on      | builtin `dreaming-curator` | none                                                      |
+| `memory_extractor`   | on      | invoking context           | none                                                      |
+| `auto_title`         | on      | invoking context           | none                                                      |
+| `memory_controller`  | on      | not applicable             | call timeout, candidate count, prompt version, output cap |
+
+`coordinator` and `dreaming-curator` are AGH-owned virtual identities. They resolve without an
+authored `AGENT.md`, do not appear in public agent catalogs, and are reserved from create, update,
+duplicate, and bundle materialization. Their embedded prompts are fixed; selecting a custom
+`agent` changes routing, not the builtin prompt.
+
+### Session-backed role fields
+
+These fields apply to `coordinator`, `dream`, `checkpoint_summary`, `memory_extractor`, and
+`auto_title`.
+
+| Field              | Type                  | Default       | Valid values                                               | Description                                                                                                |
+| ------------------ | --------------------- | ------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `enabled`          | boolean               | role-specific | `true` or `false`                                          | Admits new work for the role. Disabling a role does not stop an already accepted session.                  |
+| `agent`            | string                | empty         | Empty or an authored agent name                            | Selects an authored agent. Empty resolves to the builtin or invoking-context behavior in the roster above. |
+| `provider`         | string                | empty         | Empty or a configured provider key                         | Optional provider override applied after agent resolution.                                                 |
+| `model`            | string                | empty         | Empty or an exact provider model ID                        | Optional model override.                                                                                   |
+| `reasoning_effort` | string                | empty         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | Optional reasoning override.                                                                               |
+| `fallback_chain`   | array of route tables | empty         | Each entry requires `provider` and `model`                 | Ordered fallback routes; each entry may also set `reasoning_effort`.                                       |
+
+Fallback chains replace as a whole when a workspace overlay declares them. A session-backed
+consumer may advance only before ACP accepts a session; AGH never silently reroutes work after
+acceptance. Immediately before each fallback attempt, AGH emits `role.fallback.used` with the role,
+the fallback's one-based `attempt`, provider, and model. The event records an attempt, not success.
+
+```toml
+[[roles.auto_title.fallback_chain]]
+provider = "codex"
+model = "gpt-5.4-mini"
+reasoning_effort = "low"
+```
+
+### `[roles.coordinator]`
+
+Coordinator routing uses the shared session-backed fields plus these coordinator-owned safety
+limits. Task creation alone does not start a coordinator; an executable workspace run must be
+enqueued, the role must be enabled, and no healthy workspace coordinator may already exist.
+
+| Field                               | Type     | Default | Valid values       | Description                                                   |
+| ----------------------------------- | -------- | ------- | ------------------ | ------------------------------------------------------------- |
+| `ttl`                               | duration | `2h`    | `1m` through `24h` | Managed coordinator session lifetime.                         |
+| `max_children`                      | integer  | `5`     | `1` through `5`    | Maximum concurrently held safe-spawn children.                |
+| `max_active_sessions_per_workspace` | integer  | `5`     | Positive integer   | Active coordinator and spawned-session cap for one workspace. |
+
+### `[roles.memory_controller]`
+
+The memory controller is an in-process model call, so it has no `agent` field. It accepts
+`enabled`, `provider`, `model`, `reasoning_effort`, and `fallback_chain` with the same routing
+semantics above, plus these call-policy fields:
+
+| Field            | Type     | Default                    | Valid values             | Description                                        |
+| ---------------- | -------- | -------------------------- | ------------------------ | -------------------------------------------------- |
+| `model`          | string   | `anthropic/claude-haiku-4` | Non-empty when enabled   | Model used by the controller tiebreaker.           |
+| `timeout`        | duration | `250ms`                    | Positive Go duration     | Deadline for one controller model call.            |
+| `top_k`          | integer  | `5`                        | Positive integer         | Candidate count passed to the tiebreaker.          |
+| `prompt_version` | string   | `v1`                       | Non-empty pinned version | Fixed prompt version recorded for replay fidelity. |
+| `max_tokens_out` | integer  | `256`                      | Positive integer         | Output-token cap for one call.                     |
+
+`timeout` is valid only for `roles.memory_controller`; the strict decoder rejects it on any
+session-backed role. Role changes are classified `live` and affect later invocations without a
+daemon restart. Inspect the resolved roster and per-field provenance with:
+
+```bash
+agh roles list --workspace <workspace> -o json
+agh roles show auto_title --workspace <workspace> -o json
+```
+
+HTTP and UDS expose the same `GET /api/roles` and `GET /api/roles/{role}` projections. A missing
+authored agent remains visible as `role_agent_not_found`; an unknown role returns `role_unknown`.
+
 ## `[limits]`
 
 | Field                   | Type    | Default | Valid values      | Description                                                  |
 | ----------------------- | ------- | ------- | ----------------- | ------------------------------------------------------------ |
 | `max_concurrent_agents` | integer | `20`    | Positive integer. | Daemon-wide cap for concurrently running agent subprocesses. |
-
-## `[session]`
-
-| Field                | Type    | Default | Valid values      | Description                                                                                                |
-| -------------------- | ------- | ------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
-| `auto_title_enabled` | boolean | `true`  | `true` or `false` | Starts one bounded title pass for an unnamed user session after its first assistant response is persisted. |
-
-An explicit session name always wins. If generation is disabled or fails, the session remains
-unnamed; AGH does not derive a title from prompt text in the client or during prompt admission.
-The setting is global or workspace desired state, is agent-mutable through `agh config set` and
-the `agh__config_*` native tools, and follows the restart-required `session.*` lifecycle.
 
 ## `[session.limits]`
 
@@ -1347,17 +1436,6 @@ and the bundled local provider.
 | `max_latency`        | duration | `300ms`  | Positive Go duration.    | Maximum end-to-end controller latency before fall-back behavior triggers.                           |
 | `default_op_on_fail` | string   | `noop`   | `noop`, `reject`         | Decision op used when the controller fails or its deadline is exceeded.                             |
 
-## `[memory.controller.llm]`
-
-| Field            | Type     | Default                    | Valid values                | Description                                                      |
-| ---------------- | -------- | -------------------------- | --------------------------- | ---------------------------------------------------------------- |
-| `enabled`        | boolean  | `true`                     | `true` or `false`           | Enables the LLM tiebreaker for ambiguous rule traces.            |
-| `model`          | string   | `anthropic/claude-haiku-4` | Non-empty model identifier. | Model used by the controller tiebreaker.                         |
-| `top_k`          | integer  | `5`                        | Positive integer.           | Candidates passed to the entity-slot tiebreaker.                 |
-| `prompt_version` | string   | `v1`                       | Non-empty pinned version.   | Prompt template version pinned in decisions for replay fidelity. |
-| `timeout`        | duration | `250ms`                    | Positive Go duration.       | LLM call deadline before fall-through to the rule trace.         |
-| `max_tokens_out` | integer  | `256`                      | Positive integer.           | Output cap for the tiebreaker call.                              |
-
 ## `[memory.controller.policy]`
 
 | Field                | Type         | Default                                                                | Valid values                 | Description                                                                       |
@@ -1420,14 +1498,12 @@ locations.
 
 | Field                | Type     | Default                                       | Valid values          | Description                                                                                                       |
 | -------------------- | -------- | --------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `enabled`            | boolean  | `true`                                        | `true` or `false`     | Enables the extractor runtime.                                                                                    |
 | `mode`               | string   | `post_message`                                | `post_message`        | Extraction mode. AGH currently supports only post-message extraction.                                             |
 | `throttle_turns`     | integer  | `1`                                           | Positive integer.     | Minimum same-session queued turns to coalesce before launching another extraction; drain flushes pending content. |
 | `deadline`           | duration | `60s`                                         | Positive Go duration. | Per-extraction deadline before the runtime drops the candidate.                                                   |
 | `sandbox_inbox_only` | boolean  | `true`                                        | `true` or `false`     | Restricts extractor writes to `_inbox/` until the controller accepts them.                                        |
 | `inbox_path`         | string   | `$AGH_HOME/memory/_inbox`                     | Daemon-managed.       | Read-only display field; the daemon manages the inbox path.                                                       |
 | `dlq_path`           | string   | `$AGH_HOME/memory/_system/extractor/failures` | Daemon-managed.       | Read-only display field; the daemon manages the DLQ path.                                                         |
-| `model`              | string   | empty                                         | Empty or model id.    | Optional model override for the extractor child session. Empty uses the agent/provider default.                   |
 
 ## `[memory.extractor.queue]`
 
@@ -1438,17 +1514,13 @@ locations.
 
 ## `[memory.dream]`
 
-If `enabled = false`, the remaining dream validation is skipped.
-
-| Field            | Type     | Default            | Valid values              | Description                                                              |
-| ---------------- | -------- | ------------------ | ------------------------- | ------------------------------------------------------------------------ |
-| `enabled`        | boolean  | `true`             | `true` or `false`         | Enables the dreaming runtime and the Trigger-dream action.               |
-| `agent`          | string   | `dreaming-curator` | Non-empty when enabled.   | Dedicated curator agent. Does **not** inherit `[defaults].agent`.        |
-| `min_hours`      | float    | `24`               | Positive number.          | Time-gate threshold before another successful run.                       |
-| `min_sessions`   | integer  | `3`                | Positive integer.         | Sessions-gate threshold (completed sessions since last run).             |
-| `debounce`       | duration | `10m`              | Positive Go duration.     | Debounce window for triggers fed by `session.post_stop`.                 |
-| `prompt_version` | string   | `v1`               | Non-empty pinned version. | Prompt template version pinned to dreaming sessions for replay fidelity. |
-| `check_interval` | duration | `30m`              | Positive Go duration.     | Background ticker interval.                                              |
+| Field            | Type     | Default | Valid values              | Description                                                              |
+| ---------------- | -------- | ------- | ------------------------- | ------------------------------------------------------------------------ |
+| `min_hours`      | float    | `24`    | Positive number.          | Time-gate threshold before another successful run.                       |
+| `min_sessions`   | integer  | `3`     | Positive integer.         | Sessions-gate threshold (completed sessions since last run).             |
+| `debounce`       | duration | `10m`   | Positive Go duration.     | Debounce window for triggers fed by `session.post_stop`.                 |
+| `prompt_version` | string   | `v1`    | Non-empty pinned version. | Prompt template version pinned to dreaming sessions for replay fidelity. |
+| `check_interval` | duration | `30m`   | Positive Go duration.     | Background ticker interval.                                              |
 
 ## `[memory.dream.gates]`
 
@@ -1715,33 +1787,6 @@ scheduler subtables. The default below is loaded from `internal/config/autonomy.
 | Field                    | Type    | Default | Valid values          | Description                                                                                                                                                                         |
 | ------------------------ | ------- | ------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `block_recurrence_limit` | integer | `2`     | `0` or a positive int | Same-kind re-block count that escalates a task to `needs_attention`. `0` disables the [unblock-loop breaker](/runtime/core/autonomy/task-runs-and-leases#the-unblock-loop-breaker). |
-
-## `[autonomy.coordinator]`
-
-Coordinator config controls whether AGH may start a workspace coordinator when executable task-run
-work is enqueued. Task creation is not executable work. Creating or saving a task does not enqueue a
-run or spawn a coordinator. Coordinator bootstrap is independent from Network participation: a
-Local run can use the coordinator, and a Live channel is not a bootstrap precondition.
-
-| Field                               | Type     | Default       | Valid values                              | Description                                                                                                                                                |
-| ----------------------------------- | -------- | ------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`                           | boolean  | `false`       | `true` or `false`                         | Allows coordinator bootstrap after a coordinated workspace run is enqueued.                                                                                |
-| `agent_name`                        | string   | `coordinator` | Non-empty when enabled.                   | Agent definition used for managed coordinator sessions.                                                                                                    |
-| `provider`                          | string   | empty         | Empty or a configured provider key.       | Optional provider override for the coordinator agent.                                                                                                      |
-| `model`                             | string   | empty         | Empty or provider-supported model string. | Optional model override. If set, `provider` or provider default resolution must exist.                                                                     |
-| `default_ttl`                       | duration | `2h`          | `1m` through `24h`.                       | Lifetime assigned to managed coordinator sessions.                                                                                                         |
-| `max_children`                      | integer  | `5`           | `1` through `5`.                          | Maximum safe-spawn children a coordinator may hold at once.                                                                                                |
-| `max_active_sessions_per_workspace` | integer  | `5`           | Positive integer.                         | Caps concurrent autonomy-managed sessions (coordinator + spawned workers) per workspace. Coordinator uniqueness is enforced by the daemon singleton check. |
-
-Provider and model resolution is intentionally narrow. The daemon applies:
-
-1. Workspace `.agh/config.toml` override for the resolved workspace.
-2. Global `$AGH_HOME/config.toml`.
-3. The bundled/default coordinator agent definition and provider defaults.
-
-Safe-spawn limits still apply after a coordinator starts. Coordinator children inherit the workspace
-and coordination channel, must use a positive TTL, and can only narrow the coordinator's permission
-set.
 
 ## `[task.orchestration]`
 

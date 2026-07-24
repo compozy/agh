@@ -39,6 +39,7 @@ const (
 )
 
 const (
+	CodeAgentNameReserved             = diagnosticcontract.CodeAgentNameReserved
 	CodeBinaryVersionMismatch         = diagnosticcontract.CodeBinaryVersionMismatch
 	CodeBridgeHealthUnavailable       = diagnosticcontract.CodeBridgeHealthUnavailable
 	CodeBridgeNotFound                = diagnosticcontract.CodeBridgeNotFound
@@ -115,6 +116,8 @@ const (
 	CodeProviderTransientFailure      = diagnosticcontract.CodeProviderTransientFailure
 	CodeReasoningEffortUnsupported    = diagnosticcontract.CodeReasoningEffortUnsupported
 	CodeReasoningOptionMissing        = diagnosticcontract.CodeReasoningOptionMissing
+	CodeRoleAgentNotFound             = diagnosticcontract.CodeRoleAgentNotFound
+	CodeRoleUnknown                   = diagnosticcontract.CodeRoleUnknown
 	CodeRetryChainTooDeep             = diagnosticcontract.CodeRetryChainTooDeep
 	CodeSchedulerReady                = diagnosticcontract.CodeSchedulerReady
 	CodeSchedulerPaused               = diagnosticcontract.CodeSchedulerPaused

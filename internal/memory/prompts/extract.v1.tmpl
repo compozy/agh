@@ -5,7 +5,7 @@ You are extracting candidate AGH Memory v2 facts from a completed assistant turn
 Return JSONL. Each line is one candidate with:
 
 ```json
-{"type":"user|feedback|project|reference","scope":"global|workspace|agent","agent_tier":"workspace|global","content":"","evidence":"","entity":"","attribute":""}
+{"type":"user|feedback|project|reference","scope":"global|workspace|agent","agent_tier":"","content":"","evidence":"","entity":"","attribute":""}
 ```
 
 Hard rules:
@@ -15,6 +15,7 @@ Hard rules:
 - Do not emit candidates when the same turn already made an explicit memory write.
 - Keep every candidate lexical-only. Do not include embeddings, vectors, or similarity scores.
 - Include concise evidence tied to the provided message sequence range.
+- Set `agent_tier` to `workspace` or `global` only when `scope` is `agent`; otherwise leave it empty.
 - Apply the WHAT_NOT_TO_SAVE policy below before emitting any line.
 
 WHAT_NOT_TO_SAVE policy:

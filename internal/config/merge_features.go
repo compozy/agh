@@ -60,7 +60,6 @@ func (o autonomyOverlay) Apply(dst *AutonomyConfig) {
 	if o.BlockRecurrenceLimit != nil {
 		dst.BlockRecurrenceLimit = *o.BlockRecurrenceLimit
 	}
-	o.Coordinator.Apply(&dst.Coordinator)
 	o.Scheduler.Apply(&dst.Scheduler)
 }
 
@@ -79,30 +78,6 @@ func (o schedulerOverlay) Apply(dst *SchedulerConfig) {
 	}
 	if o.MinQueuedAge != nil {
 		dst.MinQueuedAge = *o.MinQueuedAge
-	}
-}
-
-func (o coordinatorOverlay) Apply(dst *CoordinatorConfig) {
-	if o.Enabled != nil {
-		dst.Enabled = *o.Enabled
-	}
-	if o.AgentName != nil {
-		dst.AgentName = *o.AgentName
-	}
-	if o.Provider != nil {
-		dst.Provider = *o.Provider
-	}
-	if o.Model != nil {
-		dst.Model = *o.Model
-	}
-	if o.DefaultTTL != nil {
-		dst.DefaultTTL = *o.DefaultTTL
-	}
-	if o.MaxChildren != nil {
-		dst.MaxChildren = *o.MaxChildren
-	}
-	if o.MaxActiveSessionsPerWorkspace != nil {
-		dst.MaxActiveSessionsPerWorkspace = *o.MaxActiveSessionsPerWorkspace
 	}
 }
 

@@ -23,7 +23,7 @@ AGH sessions are daemon-owned runtimes. Common states:
 
 Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
-With `session.auto_title_enabled = true`, an unnamed user session receives at most one daemon-owned durable title after its first assistant response is persisted. An explicit session name wins any race; daemon-managed session types are ineligible. Treat the persisted session name as catalog identity and leave the session unnamed when generation is disabled or fails.
+With `roles.auto_title.enabled = true`, an unnamed user session receives at most one daemon-owned durable title after its first assistant response is persisted. Configure its agent, provider, model, reasoning, and fallback routes under `[roles.auto_title]`. An explicit session name wins any race; daemon-managed session types are ineligible. Treat the persisted session name as catalog identity and leave the session unnamed when generation is disabled or fails.
 
 Attachability is explicit runtime state. Use `agh session list --resumable -o json` and `agh session resume` instead of assuming a stopped or idle session can be reused.
 
@@ -82,6 +82,40 @@ the durable session stops with a failure. Use `--no-wait` when a controller need
 API until it becomes `active` or durably `stopped` with `failure.kind=startup_failure`.
 
 If an AGH-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
+
+## Background Roles
+
+AGH routes six daemon-owned background responsibilities through the closed `[roles]` roster:
+`coordinator`, `dream`, `checkpoint_summary`, `memory_extractor`, `auto_title`, and
+`memory_controller`. Inspect the effective global or workspace projection with structured output:
+
+    agh roles list -o json
+    agh roles list --workspace <id|name|path> -o json
+    agh roles show dream --workspace <id|name|path> -o json
+
+HTTP and UDS expose the same `GET /api/roles` and `GET /api/roles/{role}` payloads. Each projection
+reports `enabled`, `resolution_mode`, nullable agent/provider/model/reasoning values, controller-only
+`timeout`, the ordered `fallback_chain`, per-field `provenance`, and current `diagnostics`. Preserve
+nulls: `resolution_mode=inherit` means the invoking context decides at invocation, not that a client
+should substitute `[defaults]`.
+
+`coordinator` and `dreaming-curator` are virtual builtin identities and never fleet entries. A
+configured authored agent that cannot be resolved produces `role_agent_not_found`; an unknown role
+returns `role_unknown`. The reads are diagnostic only and never simulate a provider invocation.
+
+Scalar role keys can be written through `agh config set roles.<role>.<field> <value> -o json` or the
+live `agh__config_set` descriptor. Role writes are Live desired state at global or workspace scope
+and affect later invocations without restarting the daemon. Use `config.toml` or the Settings Roles
+API/UI for the ordered `fallback_chain`, which is an array of route tables and replaces as a whole in
+a workspace overlay. A fallback may advance only at the owning invocation's pre-acceptance boundary;
+an accepted ACP session is never silently rerouted. Immediately before each fallback attempt, AGH
+emits `role.fallback.used`; the event records that the route was tried, not that it succeeded.
+
+Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, and
+`fallback_chain`. Coordinator additionally owns `ttl`, `max_children`, and
+`max_active_sessions_per_workspace`. The in-process `memory_controller` has no `agent`; it owns
+`timeout`, `top_k`, `prompt_version`, and `max_tokens_out`. Do not move Loop model defaults,
+TaskExecutionProfile selectors, automation resources, or subsystem policy into `[roles]`.
 
 ### Usage cost truth
 

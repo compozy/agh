@@ -77,6 +77,7 @@ func cloneBundleSpecs(values []BundleSpec) []BundleSpec {
 					Items:   normalizeBundleChannels(profile.Channels.Items),
 				},
 				Layouts:  cloneBundleLayouts(profile.Layouts),
+				Agents:   cloneBundleAgents(profile.Agents),
 				Jobs:     append([]BundleJob(nil), profile.Jobs...),
 				Triggers: append([]BundleTrigger(nil), profile.Triggers...),
 				Bridges:  normalizeBundleBridges(profile.Bridges),
@@ -85,6 +86,29 @@ func cloneBundleSpecs(values []BundleSpec) []BundleSpec {
 				clonedProfile.Jobs[idx].Task = cloneBundleTaskConfig(clonedProfile.Jobs[idx].Task)
 			}
 			next.Profiles = append(next.Profiles, clonedProfile)
+		}
+		cloned = append(cloned, next)
+	}
+	return cloned
+}
+
+func cloneBundleAgents(values []BundleAgent) []BundleAgent {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]BundleAgent, 0, len(values))
+	for _, value := range values {
+		next := BundleAgent{
+			Path:  strings.TrimSpace(value.Path),
+			Agent: aghconfig.CloneAgentDef(value.Agent),
+		}
+		if value.Soul != nil {
+			soul := *value.Soul
+			next.Soul = &soul
+		}
+		if value.Heartbeat != nil {
+			heartbeat := *value.Heartbeat
+			next.Heartbeat = &heartbeat
 		}
 		cloned = append(cloned, next)
 	}

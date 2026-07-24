@@ -65,6 +65,22 @@ AGH ensures one managed agent definition exists on first boot and during `agh in
 
 It is recreated only when missing; operator edits are preserved.
 
+## Reserved Background-Role Identities
+
+`coordinator` and `dreaming-curator` are virtual AGH-owned identities, not managed or authored
+agent definitions. They resolve for the coordinator, dream, and checkpoint-summary roles without an
+`AGENT.md`, use embedded fixed prompts, and stay absent from public fleet/catalog reads.
+
+Do not create, update, rename, duplicate, or bundle-materialize either name. Every authoring surface
+returns `agent_name_reserved` and leaves the filesystem and catalog unchanged. `general` is not
+reserved; it remains the editable managed public agent described above.
+
+Background routing lives under `[roles.coordinator]`, `[roles.dream]`,
+`[roles.checkpoint_summary]`, `[roles.memory_extractor]`, `[roles.auto_title]`, and
+`[roles.memory_controller]`. A non-empty session-role `agent` selects an authored definition; it
+does not customize an embedded builtin prompt. Read the effective projection with `agh roles list`
+or `agh roles show <role>` before diagnosing provider or model behavior.
+
 ## Providers And MCP
 
 Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kiro, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers.

@@ -30636,6 +30636,70 @@
             },
             "description": "Workspace root missing"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Agent name is reserved"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -32883,6 +32947,70 @@
             },
             "description": "Workspace root missing"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Agent name is reserved"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -33648,6 +33776,70 @@
               }
             },
             "description": "Workspace root missing"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Agent name is reserved"
           },
           "500": {
             "content": {
@@ -82176,37 +82368,6 @@
                             "default_op_on_fail": {
                               "type": "string"
                             },
-                            "llm": {
-                              "properties": {
-                                "enabled": {
-                                  "type": "boolean"
-                                },
-                                "max_tokens_out": {
-                                  "type": "integer"
-                                },
-                                "model": {
-                                  "type": "string"
-                                },
-                                "prompt_version": {
-                                  "type": "string"
-                                },
-                                "timeout": {
-                                  "type": "string"
-                                },
-                                "top_k": {
-                                  "type": "integer"
-                                }
-                              },
-                              "required": [
-                                "enabled",
-                                "max_tokens_out",
-                                "model",
-                                "prompt_version",
-                                "timeout",
-                                "top_k"
-                              ],
-                              "type": "object"
-                            },
                             "max_latency": {
                               "type": "string"
                             },
@@ -82238,7 +82399,6 @@
                           },
                           "required": [
                             "default_op_on_fail",
-                            "llm",
                             "max_latency",
                             "mode",
                             "policy"
@@ -82312,17 +82472,11 @@
                         },
                         "dream": {
                           "properties": {
-                            "agent": {
-                              "type": "string"
-                            },
                             "check_interval": {
                               "type": "string"
                             },
                             "debounce": {
                               "type": "string"
-                            },
-                            "enabled": {
-                              "type": "boolean"
                             },
                             "gates": {
                               "properties": {
@@ -82395,10 +82549,8 @@
                             }
                           },
                           "required": [
-                            "agent",
                             "check_interval",
                             "debounce",
-                            "enabled",
                             "gates",
                             "min_hours",
                             "min_sessions",
@@ -82418,16 +82570,10 @@
                             "dlq_path": {
                               "type": "string"
                             },
-                            "enabled": {
-                              "type": "boolean"
-                            },
                             "inbox_path": {
                               "type": "string"
                             },
                             "mode": {
-                              "type": "string"
-                            },
-                            "model": {
                               "type": "string"
                             },
                             "queue": {
@@ -82455,10 +82601,8 @@
                           "required": [
                             "deadline",
                             "dlq_path",
-                            "enabled",
                             "inbox_path",
                             "mode",
-                            "model",
                             "queue",
                             "sandbox_inbox_only",
                             "throttle_turns"
@@ -91422,6 +91566,7 @@
                           "enum": [
                             "general",
                             "memory",
+                            "roles",
                             "skills",
                             "automation",
                             "network",
@@ -101611,6 +101756,808 @@
         "summary": "Create or replace one desired-state resource on the local operator control plane",
         "tags": [
           "resources"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/roles": {
+      "get": {
+        "operationId": "listRoles",
+        "parameters": [
+          {
+            "description": "Workspace id, name, or path used to resolve effective role configuration",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "roles": {
+                      "items": {
+                        "properties": {
+                          "agent": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "diagnostics": {
+                            "items": {
+                              "properties": {
+                                "agent": {
+                                  "type": "string"
+                                },
+                                "code": {
+                                  "type": "string"
+                                },
+                                "message": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "code",
+                                "message"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "fallback_chain": {
+                            "items": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "model",
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "model": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "provenance": {
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "type": "object"
+                          },
+                          "provider": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "reasoning_effort": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "resolution_mode": {
+                            "enum": [
+                              "builtin",
+                              "catalog",
+                              "inherit"
+                            ],
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "timeout": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "diagnostics",
+                          "enabled",
+                          "fallback_chain",
+                          "model",
+                          "provenance",
+                          "provider",
+                          "reasoning_effort",
+                          "resolution_mode",
+                          "role"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "roles"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Workspace root missing"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Roles status provider unavailable"
+          }
+        },
+        "summary": "List effective background role configuration",
+        "tags": [
+          "roles"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/roles/{role}": {
+      "get": {
+        "operationId": "getRole",
+        "parameters": [
+          {
+            "description": "Background role name",
+            "in": "path",
+            "name": "role",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id, name, or path used to resolve effective role configuration",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "role": {
+                      "properties": {
+                        "agent": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "diagnostics": {
+                          "items": {
+                            "properties": {
+                              "agent": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "fallback_chain": {
+                          "items": {
+                            "properties": {
+                              "model": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "reasoning_effort": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "provider"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "model": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "provenance": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "provider": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "reasoning_effort": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "resolution_mode": {
+                          "enum": [
+                            "builtin",
+                            "catalog",
+                            "inherit"
+                          ],
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "timeout": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "agent",
+                        "diagnostics",
+                        "enabled",
+                        "fallback_chain",
+                        "model",
+                        "provenance",
+                        "provider",
+                        "reasoning_effort",
+                        "resolution_mode",
+                        "role"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "role"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Role or workspace not found"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Workspace root missing"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Roles status provider unavailable"
+          }
+        },
+        "summary": "Get effective background role configuration",
+        "tags": [
+          "roles"
         ],
         "x-agh-transports": [
           "http",
@@ -115971,6 +116918,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -116240,6 +117188,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -116821,6 +117770,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -117179,6 +118129,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -118595,6 +119546,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -118943,6 +119895,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -119397,6 +120350,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -120096,6 +121050,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -121222,6 +122177,7 @@
                           "enum": [
                             "general",
                             "memory",
+                            "roles",
                             "skills",
                             "automation",
                             "network",
@@ -122259,6 +123215,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -122935,6 +123892,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -124724,37 +125682,6 @@
                             "default_op_on_fail": {
                               "type": "string"
                             },
-                            "llm": {
-                              "properties": {
-                                "enabled": {
-                                  "type": "boolean"
-                                },
-                                "max_tokens_out": {
-                                  "type": "integer"
-                                },
-                                "model": {
-                                  "type": "string"
-                                },
-                                "prompt_version": {
-                                  "type": "string"
-                                },
-                                "timeout": {
-                                  "type": "string"
-                                },
-                                "top_k": {
-                                  "type": "integer"
-                                }
-                              },
-                              "required": [
-                                "enabled",
-                                "max_tokens_out",
-                                "model",
-                                "prompt_version",
-                                "timeout",
-                                "top_k"
-                              ],
-                              "type": "object"
-                            },
                             "max_latency": {
                               "type": "string"
                             },
@@ -124786,7 +125713,6 @@
                           },
                           "required": [
                             "default_op_on_fail",
-                            "llm",
                             "max_latency",
                             "mode",
                             "policy"
@@ -124860,17 +125786,11 @@
                         },
                         "dream": {
                           "properties": {
-                            "agent": {
-                              "type": "string"
-                            },
                             "check_interval": {
                               "type": "string"
                             },
                             "debounce": {
                               "type": "string"
-                            },
-                            "enabled": {
-                              "type": "boolean"
                             },
                             "gates": {
                               "properties": {
@@ -124943,10 +125863,8 @@
                             }
                           },
                           "required": [
-                            "agent",
                             "check_interval",
                             "debounce",
-                            "enabled",
                             "gates",
                             "min_hours",
                             "min_sessions",
@@ -124966,16 +125884,10 @@
                             "dlq_path": {
                               "type": "string"
                             },
-                            "enabled": {
-                              "type": "boolean"
-                            },
                             "inbox_path": {
                               "type": "string"
                             },
                             "mode": {
-                              "type": "string"
-                            },
-                            "model": {
                               "type": "string"
                             },
                             "queue": {
@@ -125003,10 +125915,8 @@
                           "required": [
                             "deadline",
                             "dlq_path",
-                            "enabled",
                             "inbox_path",
                             "mode",
-                            "model",
                             "queue",
                             "sandbox_inbox_only",
                             "throttle_turns"
@@ -125243,6 +126153,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -125355,37 +126266,6 @@
                           "default_op_on_fail": {
                             "type": "string"
                           },
-                          "llm": {
-                            "properties": {
-                              "enabled": {
-                                "type": "boolean"
-                              },
-                              "max_tokens_out": {
-                                "type": "integer"
-                              },
-                              "model": {
-                                "type": "string"
-                              },
-                              "prompt_version": {
-                                "type": "string"
-                              },
-                              "timeout": {
-                                "type": "string"
-                              },
-                              "top_k": {
-                                "type": "integer"
-                              }
-                            },
-                            "required": [
-                              "enabled",
-                              "max_tokens_out",
-                              "model",
-                              "prompt_version",
-                              "timeout",
-                              "top_k"
-                            ],
-                            "type": "object"
-                          },
                           "max_latency": {
                             "type": "string"
                           },
@@ -125417,7 +126297,6 @@
                         },
                         "required": [
                           "default_op_on_fail",
-                          "llm",
                           "max_latency",
                           "mode",
                           "policy"
@@ -125491,17 +126370,11 @@
                       },
                       "dream": {
                         "properties": {
-                          "agent": {
-                            "type": "string"
-                          },
                           "check_interval": {
                             "type": "string"
                           },
                           "debounce": {
                             "type": "string"
-                          },
-                          "enabled": {
-                            "type": "boolean"
                           },
                           "gates": {
                             "properties": {
@@ -125574,10 +126447,8 @@
                           }
                         },
                         "required": [
-                          "agent",
                           "check_interval",
                           "debounce",
-                          "enabled",
                           "gates",
                           "min_hours",
                           "min_sessions",
@@ -125597,16 +126468,10 @@
                           "dlq_path": {
                             "type": "string"
                           },
-                          "enabled": {
-                            "type": "boolean"
-                          },
                           "inbox_path": {
                             "type": "string"
                           },
                           "mode": {
-                            "type": "string"
-                          },
-                          "model": {
                             "type": "string"
                           },
                           "queue": {
@@ -125634,10 +126499,8 @@
                         "required": [
                           "deadline",
                           "dlq_path",
-                          "enabled",
                           "inbox_path",
                           "mode",
-                          "model",
                           "queue",
                           "sandbox_inbox_only",
                           "throttle_turns"
@@ -125970,6 +126833,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -126481,6 +127345,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -126818,6 +127683,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -127265,6 +128131,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -127541,6 +128408,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -128893,6 +129761,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -130431,6 +131300,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -130874,6 +131744,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -131122,6 +131993,1264 @@
           }
         },
         "summary": "Reconcile config.toml with the daemon active generation",
+        "tags": [
+          "settings"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/roles": {
+      "get": {
+        "operationId": "getSettingsRoles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "available_scopes": {
+                      "items": {
+                        "enum": [
+                          "global"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "config": {
+                      "properties": {
+                        "auto_title": {
+                          "properties": {
+                            "agent": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "fallback_chain": {
+                              "items": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "model",
+                                  "provider",
+                                  "reasoning_effort"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "agent",
+                            "enabled",
+                            "fallback_chain",
+                            "model",
+                            "provider",
+                            "reasoning_effort"
+                          ],
+                          "type": "object"
+                        },
+                        "checkpoint_summary": {
+                          "properties": {
+                            "agent": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "fallback_chain": {
+                              "items": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "model",
+                                  "provider",
+                                  "reasoning_effort"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "agent",
+                            "enabled",
+                            "fallback_chain",
+                            "model",
+                            "provider",
+                            "reasoning_effort"
+                          ],
+                          "type": "object"
+                        },
+                        "coordinator": {
+                          "properties": {
+                            "agent": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "fallback_chain": {
+                              "items": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "model",
+                                  "provider",
+                                  "reasoning_effort"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "max_active_sessions_per_workspace": {
+                              "type": "integer"
+                            },
+                            "max_children": {
+                              "type": "integer"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "type": "string"
+                            },
+                            "ttl": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "agent",
+                            "enabled",
+                            "fallback_chain",
+                            "max_active_sessions_per_workspace",
+                            "max_children",
+                            "model",
+                            "provider",
+                            "reasoning_effort",
+                            "ttl"
+                          ],
+                          "type": "object"
+                        },
+                        "dream": {
+                          "properties": {
+                            "agent": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "fallback_chain": {
+                              "items": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "model",
+                                  "provider",
+                                  "reasoning_effort"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "agent",
+                            "enabled",
+                            "fallback_chain",
+                            "model",
+                            "provider",
+                            "reasoning_effort"
+                          ],
+                          "type": "object"
+                        },
+                        "memory_controller": {
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "fallback_chain": {
+                              "items": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "model",
+                                  "provider",
+                                  "reasoning_effort"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "max_tokens_out": {
+                              "type": "integer"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "prompt_version": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "type": "string"
+                            },
+                            "timeout": {
+                              "type": "string"
+                            },
+                            "top_k": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "fallback_chain",
+                            "max_tokens_out",
+                            "model",
+                            "prompt_version",
+                            "provider",
+                            "reasoning_effort",
+                            "timeout",
+                            "top_k"
+                          ],
+                          "type": "object"
+                        },
+                        "memory_extractor": {
+                          "properties": {
+                            "agent": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "fallback_chain": {
+                              "items": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "model",
+                                  "provider",
+                                  "reasoning_effort"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "reasoning_effort": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "agent",
+                            "enabled",
+                            "fallback_chain",
+                            "model",
+                            "provider",
+                            "reasoning_effort"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "auto_title",
+                        "checkpoint_summary",
+                        "coordinator",
+                        "dream",
+                        "memory_controller",
+                        "memory_extractor"
+                      ],
+                      "type": "object"
+                    },
+                    "scope": {
+                      "enum": [
+                        "global"
+                      ],
+                      "type": "string"
+                    },
+                    "section": {
+                      "enum": [
+                        "general",
+                        "memory",
+                        "roles",
+                        "skills",
+                        "automation",
+                        "network",
+                        "window-manager",
+                        "observability",
+                        "hooks-extensions"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "available_scopes",
+                    "config",
+                    "scope",
+                    "section"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Read the background-role routing settings section",
+        "tags": [
+          "settings"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "patch": {
+        "operationId": "updateSettingsRoles",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "config": {
+                    "properties": {
+                      "auto_title": {
+                        "properties": {
+                          "agent": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "fallback_chain": {
+                            "items": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "model",
+                                "provider",
+                                "reasoning_effort"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "reasoning_effort": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "enabled",
+                          "fallback_chain",
+                          "model",
+                          "provider",
+                          "reasoning_effort"
+                        ],
+                        "type": "object"
+                      },
+                      "checkpoint_summary": {
+                        "properties": {
+                          "agent": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "fallback_chain": {
+                            "items": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "model",
+                                "provider",
+                                "reasoning_effort"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "reasoning_effort": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "enabled",
+                          "fallback_chain",
+                          "model",
+                          "provider",
+                          "reasoning_effort"
+                        ],
+                        "type": "object"
+                      },
+                      "coordinator": {
+                        "properties": {
+                          "agent": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "fallback_chain": {
+                            "items": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "model",
+                                "provider",
+                                "reasoning_effort"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "max_active_sessions_per_workspace": {
+                            "type": "integer"
+                          },
+                          "max_children": {
+                            "type": "integer"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "reasoning_effort": {
+                            "type": "string"
+                          },
+                          "ttl": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "enabled",
+                          "fallback_chain",
+                          "max_active_sessions_per_workspace",
+                          "max_children",
+                          "model",
+                          "provider",
+                          "reasoning_effort",
+                          "ttl"
+                        ],
+                        "type": "object"
+                      },
+                      "dream": {
+                        "properties": {
+                          "agent": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "fallback_chain": {
+                            "items": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "model",
+                                "provider",
+                                "reasoning_effort"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "reasoning_effort": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "enabled",
+                          "fallback_chain",
+                          "model",
+                          "provider",
+                          "reasoning_effort"
+                        ],
+                        "type": "object"
+                      },
+                      "memory_controller": {
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "fallback_chain": {
+                            "items": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "model",
+                                "provider",
+                                "reasoning_effort"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "max_tokens_out": {
+                            "type": "integer"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "prompt_version": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "reasoning_effort": {
+                            "type": "string"
+                          },
+                          "timeout": {
+                            "type": "string"
+                          },
+                          "top_k": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "fallback_chain",
+                          "max_tokens_out",
+                          "model",
+                          "prompt_version",
+                          "provider",
+                          "reasoning_effort",
+                          "timeout",
+                          "top_k"
+                        ],
+                        "type": "object"
+                      },
+                      "memory_extractor": {
+                        "properties": {
+                          "agent": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "fallback_chain": {
+                            "items": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "model",
+                                "provider",
+                                "reasoning_effort"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "reasoning_effort": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "enabled",
+                          "fallback_chain",
+                          "model",
+                          "provider",
+                          "reasoning_effort"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "auto_title",
+                      "checkpoint_summary",
+                      "coordinator",
+                      "dream",
+                      "memory_controller",
+                      "memory_extractor"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "config"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "active_config_hash": {
+                      "type": "string"
+                    },
+                    "active_generation": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "agent_name": {
+                      "type": "string"
+                    },
+                    "applied": {
+                      "type": "boolean"
+                    },
+                    "apply_record_id": {
+                      "type": "string"
+                    },
+                    "lifecycle": {
+                      "enum": [
+                        "live",
+                        "live-add",
+                        "live-remove-if-unused",
+                        "restart-required",
+                        "session-rebind"
+                      ],
+                      "type": "string"
+                    },
+                    "next_action": {
+                      "enum": [
+                        "none",
+                        "restart-daemon",
+                        "new-session",
+                        "retry"
+                      ],
+                      "type": "string"
+                    },
+                    "partial_failures": {
+                      "items": {
+                        "properties": {
+                          "diagnostic": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "data_freshness": {
+                                "type": "string"
+                              },
+                              "doc_url": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string"
+                              },
+                              "suggested_command": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "category",
+                              "code",
+                              "data_freshness",
+                              "id",
+                              "message",
+                              "severity",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "subsystem": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "diagnostic",
+                          "subsystem"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "restart_required": {
+                      "type": "boolean"
+                    },
+                    "restart_scope": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "enum": [
+                        "global",
+                        "workspace",
+                        "agent"
+                      ],
+                      "type": "string"
+                    },
+                    "section": {
+                      "enum": [
+                        "general",
+                        "memory",
+                        "roles",
+                        "skills",
+                        "automation",
+                        "network",
+                        "window-manager",
+                        "observability",
+                        "hooks-extensions",
+                        "providers",
+                        "mcp-servers",
+                        "sandboxes",
+                        "hooks"
+                      ],
+                      "type": "string"
+                    },
+                    "skipped": {
+                      "type": "boolean"
+                    },
+                    "skipped_reason": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    },
+                    "write_target": {
+                      "enum": [
+                        "global-config",
+                        "workspace-config",
+                        "global-mcp-sidecar",
+                        "workspace-mcp-sidecar",
+                        "global-agent-file",
+                        "workspace-agent-file"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "active_config_hash",
+                    "active_generation",
+                    "applied",
+                    "apply_record_id",
+                    "lifecycle",
+                    "next_action"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid settings payload"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Conflicting settings change"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Update the background-role routing settings section",
         "tags": [
           "settings"
         ],
@@ -131587,6 +133716,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -132443,6 +134573,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -133027,6 +135158,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -133536,6 +135668,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -134399,6 +136532,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -134812,6 +136946,7 @@
                       "enum": [
                         "general",
                         "memory",
+                        "roles",
                         "skills",
                         "automation",
                         "network",
@@ -272911,6 +275046,9 @@
     },
     {
       "name": "resources"
+    },
+    {
+      "name": "roles"
     },
     {
       "name": "sessions"

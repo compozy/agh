@@ -87,6 +87,71 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist role routing as a live apply with history", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		service := testService(t, homePaths, Dependencies{
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		roles := cfg.Roles
+		roles.MemoryExtractor.Model = "anthropic/claude-sonnet-4"
+
+		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionRoles},
+			Roles:          &roles,
+		})
+		if err != nil {
+			t.Fatalf("ApplySection(roles) error = %v", err)
+		}
+		if !result.Applied || result.Record.Lifecycle != lifecycle.Live ||
+			result.Record.Status != lifecycle.StatusApplied {
+			t.Fatalf("ApplySection(roles) = %#v, want applied live record", result)
+		}
+
+		persisted, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(persisted) error = %v", err)
+		}
+		if got, want := persisted.Roles.MemoryExtractor.Model, "anthropic/claude-sonnet-4"; got != want {
+			t.Fatalf("persisted roles.memory_extractor.model = %q, want %q", got, want)
+		}
+		active, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig() error = %v", err)
+		}
+		if active.Roles.MemoryExtractor.Model != persisted.Roles.MemoryExtractor.Model {
+			t.Fatalf(
+				"active roles.memory_extractor.model = %q, want persisted %q",
+				active.Roles.MemoryExtractor.Model,
+				persisted.Roles.MemoryExtractor.Model,
+			)
+		}
+		records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{})
+		if err != nil {
+			t.Fatalf("ListApplyRecords() error = %v", err)
+		}
+		if len(records) != 1 || records[0].Actor != "http" || records[0].Lifecycle != lifecycle.Live {
+			t.Fatalf("role apply records = %#v, want one HTTP live record", records)
+		}
+	})
+
 	t.Run("Should return provider snapshots without shared nested state", func(t *testing.T) {
 		t.Parallel()
 
@@ -815,6 +880,22 @@ func TestReloadChangedPaths(t *testing.T) {
 		}
 		if got := reloadChangedPaths(current, &desired); !slices.Equal(got, want) {
 			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should classify role mutations as live", func(t *testing.T) {
+		t.Parallel()
+
+		current := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+		desired := current
+		desired.Roles.AutoTitle.Enabled = false
+
+		want := []string{"roles.*"}
+		if got := reloadChangedPaths(&current, &desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(&current, &desired); got != lifecycle.Live {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)
 		}
 	})
 

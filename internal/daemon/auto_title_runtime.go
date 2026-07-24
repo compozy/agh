@@ -44,6 +44,7 @@ type autoTitleRuntime struct {
 type autoTitleJob struct {
 	sessionID     string
 	agentName     string
+	workspaceID   string
 	turnID        string
 	assistantText string
 }
@@ -105,6 +106,7 @@ func (r *autoTitleRuntime) HandleSessionMessagePersisted(
 	job := autoTitleJob{
 		sessionID:     strings.TrimSpace(payload.SessionID),
 		agentName:     strings.TrimSpace(payload.AgentName),
+		workspaceID:   firstNonEmptyString(payload.WorkspaceID, payload.Workspace),
 		turnID:        strings.TrimSpace(payload.TurnID),
 		assistantText: strings.TrimSpace(payload.Text),
 	}
@@ -227,10 +229,14 @@ func (r *autoTitleRuntime) process(ctx context.Context, job autoTitleJob) {
 	title, err := r.generator.Generate(jobCtx, autoTitleRequest{
 		SessionID:      job.sessionID,
 		AgentName:      job.agentName,
+		WorkspaceID:    job.workspaceID,
 		UserMessage:    userMessage,
 		AssistantReply: job.assistantText,
 	})
 	if err != nil {
+		if errors.Is(err, errAutoTitleRoleDisabled) {
+			return
+		}
 		r.warn(job, "generate title", err)
 		return
 	}

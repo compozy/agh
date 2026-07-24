@@ -265,7 +265,7 @@ describe("runtime docs truth", () => {
     expect(memoryDocs).not.toMatch(/`GET \/api\/memory\/search`/);
   });
 
-  it("documents the Memory v2 config keys that the runtime actually validates", () => {
+  it("documents the Memory policy and background-role keys that the runtime validates", () => {
     const configDoc = readRepoFile(
       "packages/site/content/runtime/core/configuration/config-toml.mdx"
     );
@@ -273,10 +273,9 @@ describe("runtime docs truth", () => {
 
     expect(configSource).toContain("MemoryWorkspaceConfig");
     expect(configSource).toContain("MemoryDreamScoringWeightsConfig");
-    expect(configSource).toContain("DefaultMemoryDreamAgentName");
+    expect(configSource).toContain("DefaultRolesConfig");
 
     expect(configDoc).toContain("[memory.controller]");
-    expect(configDoc).toContain("[memory.controller.llm]");
     expect(configDoc).toContain("[memory.controller.policy]");
     expect(configDoc).toContain("[memory.recall]");
     expect(configDoc).toContain("[memory.recall.weights]");
@@ -293,7 +292,13 @@ describe("runtime docs truth", () => {
     expect(configDoc).toContain("[memory.file]");
     expect(configDoc).toContain("[memory.provider]");
     expect(configDoc).toContain("[memory.workspace]");
+    expect(configDoc).toContain("[roles.dream]");
+    expect(configDoc).toContain("[roles.memory_extractor]");
+    expect(configDoc).toContain("[roles.memory_controller]");
     expect(configDoc).toContain("`dreaming-curator`");
+    expect(configDoc).not.toContain("[memory.controller.llm]");
+    expect(configDoc).not.toContain("memory.dream.agent");
+    expect(configDoc).not.toContain("memory.extractor.model");
     // [memory.v2] must never appear as a current-tense TOML config header.
     expect(configDoc).not.toMatch(/^\s*\[memory\.v2\]/m);
   });

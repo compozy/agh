@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
 	"reflect"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -46,6 +45,7 @@ const (
 	specAPISettingsHooksNamePath                             = "/api/settings/hooks/{name}"
 	specAPISettingsMCPServersNamePath                        = "/api/settings/mcp-servers/{name}"
 	specAPISettingsMemoryPath                                = "/api/settings/memory"
+	specAPISettingsRolesPath                                 = "/api/settings/roles"
 	specAPISettingsNetworkPath                               = "/api/settings/network"
 	specAPISettingsWindowManagerPath                         = "/api/settings/window-manager"
 	specAPISettingsObservabilityPath                         = "/api/settings/observability"
@@ -157,6 +157,7 @@ const (
 	specObserveKey                                           = "observe"
 	specProvidersKey                                         = "providers"
 	specResourcesKey                                         = "resources"
+	specRolesKey                                             = "roles"
 	specSessionsKey                                          = "sessions"
 	specSettingsKey                                          = "settings"
 	specSkillsKey                                            = "skills"
@@ -255,6 +256,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specOpenAIKey},
 			{Name: specProvidersKey},
 			{Name: specResourcesKey},
+			{Name: specRolesKey},
 			{Name: specSessionsKey},
 			{Name: specSettingsKey},
 			{Name: specSupportKey},

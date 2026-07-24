@@ -26,11 +26,10 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			MaxConcurrentAgents: 20,
 		},
 		Session: SessionConfig{
-			AutoTitleEnabled: true,
-			Limits:           SessionLimitsConfig{},
-			Supervision:      DefaultSessionSupervisionConfig(),
-			BusyInput:        DefaultSessionBusyInputConfig(),
-			Compaction:       DefaultSessionCompactionConfig(),
+			Limits:      SessionLimitsConfig{},
+			Supervision: DefaultSessionSupervisionConfig(),
+			BusyInput:   DefaultSessionBusyInputConfig(),
+			Compaction:  DefaultSessionCompactionConfig(),
 		},
 		Permissions: PermissionsConfig{
 			Mode: PermissionModeApproveAll,
@@ -57,8 +56,10 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			MaxAgeDays:      30,
 			CompressBackups: false,
 		},
-		Redact: RedactConfig{Enabled: true},
-		Memory: DefaultMemoryConfig(homePaths),
+		Redact:      RedactConfig{Enabled: true},
+		Memory:      DefaultMemoryConfig(homePaths),
+		Roles:       DefaultRolesConfig(),
+		RoleSources: defaultRoleFieldSources(),
 		Skills: SkillsConfig{
 			Enabled:      true,
 			PollInterval: 3 * time.Second,
@@ -80,7 +81,6 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Network: DefaultNetworkConfig(),
 		Autonomy: AutonomyConfig{
 			BlockRecurrenceLimit: DefaultBlockRecurrenceLimit,
-			Coordinator:          DefaultCoordinatorConfig(),
 			Scheduler:            DefaultSchedulerConfig(),
 		},
 	}

@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-
 	"strings"
 
 	tomltree "github.com/pelletier/go-toml"
@@ -30,6 +29,7 @@ func validateEffectiveConfigWrite(
 	if err := globalOverlay.Apply(&cfg); err != nil {
 		return Config{}, fmt.Errorf("apply global config overlay: %w", err)
 	}
+	globalOverlay.Roles.recordSources(&cfg, RoleFieldSourceGlobal)
 	if err := applyConfigMCPSidecarContent(globalMCPJSONFile(homePaths), target, rendered, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
 	}

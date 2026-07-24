@@ -2,14 +2,11 @@ package settings
 
 import (
 	"context"
-
 	"maps"
-
 	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/config/lifecycle"
-
 	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
@@ -28,6 +25,11 @@ func (s *service) classifySectionApplyRequest(
 			return lifecycle.RestartRequired
 		}
 		return s.classifyGeneralRequest(ctx, req)
+	case SectionRoles:
+		if req.Roles == nil {
+			return lifecycle.Live
+		}
+		return s.classifyRolesRequest(ctx, req)
 	case SectionHooksExtensions:
 		if req.HooksExtensions == nil {
 			return lifecycle.RestartRequired

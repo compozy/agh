@@ -31,29 +31,7 @@ func (o memoryControllerOverlay) Apply(dst *MemoryControllerConfig) {
 	if o.DefaultOpOnFail != nil {
 		dst.DefaultOpOnFail = *o.DefaultOpOnFail
 	}
-	o.LLM.Apply(&dst.LLM)
 	o.Policy.Apply(&dst.Policy)
-}
-
-func (o memoryControllerLLMOverlay) Apply(dst *MemoryControllerLLMConfig) {
-	if o.Enabled != nil {
-		dst.Enabled = *o.Enabled
-	}
-	if o.Model != nil {
-		dst.Model = *o.Model
-	}
-	if o.TopK != nil {
-		dst.TopK = *o.TopK
-	}
-	if o.PromptVersion != nil {
-		dst.PromptVersion = *o.PromptVersion
-	}
-	if o.Timeout != nil {
-		dst.Timeout = *o.Timeout
-	}
-	if o.MaxTokensOut != nil {
-		dst.MaxTokensOut = *o.MaxTokensOut
-	}
 }
 
 func (o memoryControllerPolicyOverlay) Apply(dst *MemoryControllerPolicyConfig) {

@@ -211,6 +211,20 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 	if !agentHasMCP(extAgent, "ext-agent-mcp") {
 		t.Fatalf("ResolveAgent(ext-agent).MCPServers = %#v, want ext-agent-mcp", extAgent.MCPServers)
 	}
+	resolved.Config.Providers["claude"] = aghconfig.ProviderConfig{Command: "claude-acp"}
+	resolved.Config.Roles.Dream.Agent = "ext-agent"
+	roleResolver := newRoleResolver(
+		&resolved.Config,
+		roleWorkspaceResolverStub{configs: map[string]aghconfig.Config{workspace.ID: resolved.Config}},
+		agentCatalog,
+	)
+	resolvedRole, err := roleResolver.Resolve(testutil.Context(t), workspace.ID, aghconfig.RoleDream)
+	if err != nil {
+		t.Fatalf("roleResolver.Resolve(dream) error = %v", err)
+	}
+	if resolvedRole.AgentName != "ext-agent" || !agentHasMCP(resolvedRole.AgentDef, "ext-agent-mcp") {
+		t.Fatalf("roleResolver.Resolve(dream) = %#v, want projected ext-agent resource", resolvedRole)
+	}
 
 	projectedSkills, err := rebuiltSkillRegistry.ForWorkspace(testutil.Context(t), &resolved)
 	if err != nil {

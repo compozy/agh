@@ -56,7 +56,8 @@ type handlerConfig struct {
 	modelCatalog       core.ModelCatalogService
 	marketplaceCatalog core.MarketplaceCatalogService
 	agentContext       core.AgentContextService
-	coordinatorConfig  core.CoordinatorConfigResolver
+	coordinatorRole    core.CoordinatorRoleResolver
+	roles              core.RolesStatusProvider
 	soulAuthoring      core.SoulAuthoringService
 	soulHistoryPurger  core.SoulHistoryPurger
 	soulRefresher      core.SoulRefresher
@@ -164,7 +165,8 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		ModelCatalog:                 cfg.modelCatalog,
 		MarketplaceCatalog:           cfg.marketplaceCatalog,
 		AgentContextService:          cfg.agentContext,
-		CoordinatorConfig:            cfg.coordinatorConfig,
+		CoordinatorRole:              cfg.coordinatorRole,
+		Roles:                        cfg.roles,
 		SoulAuthoring:                cfg.soulAuthoring,
 		SoulHistoryPurger:            cfg.soulHistoryPurger,
 		SoulRefresher:                cfg.soulRefresher,

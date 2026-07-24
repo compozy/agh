@@ -83,14 +83,6 @@ func settingsMemoryControllerPayload(value aghconfig.MemoryControllerConfig) con
 		Mode:            strings.TrimSpace(value.Mode),
 		MaxLatency:      value.MaxLatency.String(),
 		DefaultOpOnFail: strings.TrimSpace(value.DefaultOpOnFail),
-		LLM: contract.SettingsMemoryControllerLLMPayload{
-			Enabled:       value.LLM.Enabled,
-			Model:         strings.TrimSpace(value.LLM.Model),
-			TopK:          value.LLM.TopK,
-			PromptVersion: strings.TrimSpace(value.LLM.PromptVersion),
-			Timeout:       value.LLM.Timeout.String(),
-			MaxTokensOut:  value.LLM.MaxTokensOut,
-		},
 		Policy: contract.SettingsMemoryControllerPolicyPayload{
 			MaxContentChars: value.Policy.MaxContentChars,
 			MaxWritesPerMin: value.Policy.MaxWritesPerMin,
@@ -133,14 +125,12 @@ func settingsMemoryDecisionsPayload(value aghconfig.MemoryDecisionsConfig) contr
 
 func settingsMemoryExtractorPayload(value aghconfig.MemoryExtractorConfig) contract.SettingsMemoryExtractorPayload {
 	return contract.SettingsMemoryExtractorPayload{
-		Enabled:          value.Enabled,
 		Mode:             strings.TrimSpace(value.Mode),
 		ThrottleTurns:    value.ThrottleTurns,
 		Deadline:         value.Deadline.String(),
 		SandboxInboxOnly: value.SandboxInboxOnly,
 		InboxPath:        strings.TrimSpace(value.InboxPath),
 		DLQPath:          strings.TrimSpace(value.DLQPath),
-		Model:            strings.TrimSpace(value.Model),
 		Queue: contract.SettingsMemoryExtractorQueuePayload{
 			Capacity:    value.Queue.Capacity,
 			CoalesceMax: value.Queue.CoalesceMax,
@@ -150,8 +140,6 @@ func settingsMemoryExtractorPayload(value aghconfig.MemoryExtractorConfig) contr
 
 func settingsMemoryDreamPayload(value aghconfig.DreamConfig) contract.SettingsMemoryDreamPayload {
 	return contract.SettingsMemoryDreamPayload{
-		Enabled:       value.Enabled,
-		Agent:         strings.TrimSpace(value.Agent),
 		MinHours:      value.MinHours,
 		MinSessions:   value.MinSessions,
 		Debounce:      value.Debounce.String(),

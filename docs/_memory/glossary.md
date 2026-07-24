@@ -204,6 +204,20 @@ Default write scope is declared per agent in `memory.scope`.
 
 ## Autonomy
 
+### Background role
+
+A named daemon-owned responsibility routed through the closed `[roles]` roster: `coordinator`,
+`dream`, `checkpoint_summary`, `memory_extractor`, `auto_title`, or `memory_controller`. Empty
+session-role agents resolve either to a virtual builtin (`coordinator` or `dreaming-curator`) or to
+the invoking context (`memory_extractor` and `auto_title`); the memory controller is an in-process
+model call and has no agent identity.
+
+`[roles]` owns routing — enabled state, agent/provider/model/reasoning selection, ordered fallbacks,
+and the small amount of policy inseparable from coordinator sessions or controller calls. The
+owning subsystem keeps its operational policy, gates, scoring, cadence, and prompts. Background
+roles do not replace or govern Loop DSL model defaults, `TaskExecutionProfile`, or automation
+resources.
+
 ### `task_run`
 
 The single durable work-queue row. Carries `claim_token`, `lease_until`, `heartbeat_at`, the owning `session_id`, and the execution's immutable resolved Network participation snapshot. A `run_kind = "network_wake"` row is taskless and identifies the wake, owner execution, and target session explicitly. **Never duplicated by a parallel queue.**

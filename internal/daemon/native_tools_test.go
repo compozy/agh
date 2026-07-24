@@ -792,6 +792,36 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, result, []byte(`"ext-bundle"`))
 	})
 
+	t.Run("Should preserve the reserved agent code from bundle activation", func(t *testing.T) {
+		t.Parallel()
+
+		bundleService := &nativeBundleServiceStub{
+			activateErr: fmt.Errorf("bundle agent: %w", aghconfig.ErrAgentNameReserved),
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			BundleService: func() core.BundleService { return bundleService },
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDBundlesActivate,
+				Input: json.RawMessage(
+					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default","scope":"global"}`,
+				),
+			},
+		)
+		if !errors.Is(err, aghconfig.ErrAgentNameReserved) {
+			t.Fatalf("Registry.Call(bundles_activate reserved) error = %v, want ErrAgentNameReserved", err)
+		}
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeAgentNameReserved {
+			t.Fatalf("Registry.Call(bundles_activate reserved) error = %#v, want agent_name_reserved", err)
+		}
+	})
+
 	t.Run("Should bind bundle and resource native tools to the caller workspace", func(t *testing.T) {
 		t.Parallel()
 
@@ -1942,6 +1972,37 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Defaults.Agent = %q, want planner", cfg.Defaults.Agent)
 		}
 
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input:  json.RawMessage(`{"path":"roles.dream.model","value":"claude-haiku-4-5"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_set dream role model) error = %v", err)
+		}
+		cfg, err = aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after dream role model) error = %v", err)
+		}
+		if cfg.Roles.Dream.Model != "claude-haiku-4-5" {
+			t.Fatalf("Roles.Dream.Model = %q, want claude-haiku-4-5", cfg.Roles.Dream.Model)
+		}
+		dreamRoleResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigGet,
+				Input:  json.RawMessage(`{"path":"roles.dream.model"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_get dream role model) error = %v", err)
+		}
+		requireNativeStructuredContains(t, dreamRoleResult, []byte(`"claude-haiku-4-5"`))
+
 		goalResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
@@ -2009,8 +2070,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, marketplaceResult, []byte(`"applied":true`))
 		requireNativeStructuredContains(t, marketplaceResult, []byte(`"apply_record_id":"cfgapp-native-marketplace"`))
 		requireNativeStructuredContains(t, marketplaceResult, []byte(`"active_generation":7`))
-		if settingsService.reloadCalls != 1 {
-			t.Fatalf("Settings.Reload calls = %d, want 1", settingsService.reloadCalls)
+		if settingsService.reloadCalls != 2 {
+			t.Fatalf("Settings.Reload calls = %d, want 2", settingsService.reloadCalls)
 		}
 
 		workspaceRoot := t.TempDir()
@@ -2071,8 +2132,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, unsetResult, []byte(`"applied":true`))
 		requireNativeStructuredContains(t, unsetResult, []byte(`"apply_record_id":"cfgapp-native-marketplace"`))
-		if settingsService.reloadCalls != 2 {
-			t.Fatalf("Settings.Reload calls = %d, want 2", settingsService.reloadCalls)
+		if settingsService.reloadCalls != 3 {
+			t.Fatalf("Settings.Reload calls = %d, want 3", settingsService.reloadCalls)
 		}
 
 		result, err := registry.Call(
@@ -2098,6 +2159,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			{path: "mcp_servers[0].env.TOKEN", reason: toolspkg.ReasonConfigSecretPathForbidden},
 			{path: "sandboxes.default.runtime_root", reason: toolspkg.ReasonConfigTrustRootForbidden},
 			{path: "marketplace.catalog.base_url", reason: toolspkg.ReasonConfigTrustRootForbidden},
+			{path: "memory.dream.agent", reason: toolspkg.ReasonConfigPathForbidden},
+			{path: "memory.dream.enabled", reason: toolspkg.ReasonConfigPathForbidden},
+			{path: "memory.extractor.model", reason: toolspkg.ReasonConfigPathForbidden},
+			{path: "memory.extractor.enabled", reason: toolspkg.ReasonConfigPathForbidden},
+			{path: "memory.controller.llm.model", reason: toolspkg.ReasonConfigPathForbidden},
+			{path: "session.auto_title_enabled", reason: toolspkg.ReasonConfigPathForbidden},
 		}
 		for _, tc := range cases {
 			t.Run(tc.path, func(t *testing.T) {
@@ -7686,7 +7753,7 @@ func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
 	cfg := aghconfig.Config{}
 	cfg.Memory.Enabled = true
 	cfg.Memory.GlobalDir = globalDir
-	cfg.Memory.Dream.Agent = "dreaming-curator"
+	cfg.Roles.Dream.Agent = aghconfig.BuiltinDreamingCuratorAgentName
 	cfg.Memory.Dream.CheckInterval = time.Hour
 	dream := &nativeDreamTriggerService{enabled: true, triggered: true, reason: "queued", last: now}
 	extractor := &nativeMemoryExtractorService{
@@ -8377,6 +8444,7 @@ type nativeBundleServiceStub struct {
 	network         bundlepkg.NetworkSettings
 	activateCalls   int
 	lastActivate    bundlepkg.ActivateRequest
+	activateErr     error
 	deactivateCalls int
 }
 
@@ -8397,6 +8465,9 @@ func (s *nativeBundleServiceStub) Activate(
 ) (bundlepkg.ActivationPreview, error) {
 	s.activateCalls++
 	s.lastActivate = req
+	if s.activateErr != nil {
+		return bundlepkg.ActivationPreview{}, s.activateErr
+	}
 	return bundlepkg.ActivationPreview{
 		Activation: bundlepkg.Activation{
 			ID:            "act-created",

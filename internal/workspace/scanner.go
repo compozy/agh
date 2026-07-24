@@ -120,6 +120,10 @@ func scanAgentSource(
 		if _, ok := snapshots[agentPath]; !ok {
 			continue
 		}
+		if aghconfig.IsReservedAgentName(entry.Name()) {
+			*dst = append(*dst, agentCandidate{path: agentPath})
+			continue
+		}
 		if err := scanAgentCapabilityCatalog(agentDir, snapshots); err != nil {
 			return err
 		}
@@ -207,6 +211,12 @@ func loadAgents(ctx context.Context, candidates []agentCandidate) ([]aghconfig.A
 			return nil, nil, err
 		}
 
+		candidateName := filepath.Base(filepath.Dir(candidate.path))
+		if aghconfig.IsReservedAgentName(candidateName) {
+			diagnostics = append(diagnostics, reservedAgentDiagnostic(candidate.path, candidateName))
+			continue
+		}
+
 		agent, err := aghconfig.LoadAgentDefFile(candidate.path)
 		if err != nil {
 			diagnostics = append(diagnostics, agentDiagnosticFromError(candidate.path, err))
@@ -222,6 +232,17 @@ func loadAgents(ctx context.Context, candidates []agentCandidate) ([]aghconfig.A
 	}
 
 	return agents, diagnostics, nil
+}
+
+const reservedAgentDiagnosticKind = "agent.name_reserved"
+
+func reservedAgentDiagnostic(path string, name string) AgentDiagnostic {
+	return AgentDiagnostic{
+		Name:      name,
+		Path:      filepath.Clean(path),
+		ErrorKind: reservedAgentDiagnosticKind,
+		Message:   fmt.Sprintf("workspace: skipped reserved agent definition %q", path),
+	}
 }
 
 func agentDiagnosticFromError(path string, err error) AgentDiagnostic {

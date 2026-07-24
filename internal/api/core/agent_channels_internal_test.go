@@ -536,7 +536,7 @@ func TestAgentMeCoreHandlerEnrichesContextAndChannels(t *testing.T) {
 	})
 }
 
-func TestAgentCoordinatorConfigCoreHandlerReturnsResolvedWorkspaceConfig(t *testing.T) {
+func TestAgentCoordinatorRoleCoreHandlerReturnsResolvedWorkspaceConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should return resolved coordinator config for the caller workspace", func(t *testing.T) {
@@ -935,18 +935,18 @@ func (f agentCoreContextService) ContextForSession(
 	return f(ctx, info)
 }
 
-type agentCoreCoordinatorConfigResolver struct{}
+type agentCoreCoordinatorRoleResolver struct{}
 
-func (agentCoreCoordinatorConfigResolver) ResolveCoordinatorConfig(
+func (agentCoreCoordinatorRoleResolver) ResolveCoordinatorRole(
 	_ context.Context,
 	_ string,
-) (aghconfig.CoordinatorConfig, error) {
-	return aghconfig.CoordinatorConfig{
+) (aghconfig.ResolvedCoordinatorRole, error) {
+	return aghconfig.ResolvedCoordinatorRole{
 		Enabled:                       true,
 		AgentName:                     "coordinator",
 		Provider:                      "codex",
 		Model:                         "gpt-4o",
-		DefaultTTL:                    45 * time.Minute,
+		TTL:                           45 * time.Minute,
 		MaxChildren:                   5,
 		MaxActiveSessionsPerWorkspace: 5,
 	}, nil
@@ -977,7 +977,7 @@ func newAgentCoreTestRouterWithNetworkStore(
 		Network:             networkService,
 		NetworkStore:        networkStore,
 		AgentContextService: agentCoreContextService(agentCoreContextPayload),
-		CoordinatorConfig:   agentCoreCoordinatorConfigResolver{},
+		CoordinatorRole:     agentCoreCoordinatorRoleResolver{},
 		Config:              cfg,
 		Logger:              slog.New(slog.NewTextHandler(io.Discard, nil)),
 		StreamDone:          make(chan struct{}),
@@ -991,7 +991,7 @@ func newAgentCoreTestRouterWithNetworkStore(
 	engine := gin.New()
 	engine.GET("/agent/me", handlers.AgentMe)
 	engine.GET("/agent/context", handlers.AgentContext)
-	engine.GET("/agent/coordinator/config", handlers.AgentCoordinatorConfig)
+	engine.GET("/agent/coordinator/config", handlers.AgentCoordinatorRole)
 	engine.GET("/agent/channels", handlers.AgentChannels)
 	engine.GET("/agent/channels/:channel/recv", handlers.AgentChannelRecv)
 	engine.POST("/agent/channels/:channel/send", handlers.AgentChannelSend)

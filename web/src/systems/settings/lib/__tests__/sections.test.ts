@@ -15,6 +15,7 @@ describe("settings sections metadata", () => {
       "layouts",
       "providers",
       "memory",
+      "roles",
       "skills",
       "automation",
       "network",

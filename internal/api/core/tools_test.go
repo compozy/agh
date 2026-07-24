@@ -293,8 +293,29 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 	})
 }
 
-func TestToolErrorsPreserveBoundedPartialResults(t *testing.T) {
+func TestToolErrorResponses(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should return HTTP 422 for reserved agent names", func(t *testing.T) {
+		t.Parallel()
+
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCodeAgentNameReserved,
+			toolspkg.ToolIDAgentCreate,
+			"agent name is reserved",
+			toolspkg.ErrToolInvalidInput,
+			toolspkg.ReasonSchemaInvalid,
+		)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+
+		if status != http.StatusUnprocessableEntity {
+			t.Fatalf("tool error status = %d, want %d", status, http.StatusUnprocessableEntity)
+		}
+		if payload.Error.Code != toolspkg.ErrorCodeAgentNameReserved {
+			t.Fatalf("tool error code = %q, want %q", payload.Error.Code, toolspkg.ErrorCodeAgentNameReserved)
+		}
+	})
 
 	t.Run("Should return HTTP 507 with the safe partial result", func(t *testing.T) {
 		t.Parallel()

@@ -11,12 +11,17 @@ import { cn, Collapsible, CollapsibleContent, CollapsibleTrigger, Pill } from "@
 export function SettingsAdvancedFold({
   children,
   defaultOpen = false,
+  open,
+  onOpenChange,
   padded = false,
   label = "Advanced",
   "data-testid": testId,
 }: {
   children: ReactNode;
   defaultOpen?: boolean;
+  /** Controlled open state; when provided the fold ignores `defaultOpen`. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   /** Pad the body when it hosts whole groups instead of flush rows. */
   padded?: boolean;
   /** Descriptive toggle label, e.g. "Advanced — limits". */
@@ -27,7 +32,7 @@ export function SettingsAdvancedFold({
 
   return (
     <Collapsible
-      defaultOpen={defaultOpen}
+      {...(open !== undefined ? { open, onOpenChange } : { defaultOpen })}
       className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
       data-testid={testId ?? "settings-advanced"}
     >

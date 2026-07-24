@@ -89,6 +89,17 @@ func (m *Manager) sessionStartRun(sessionID string) *sessionStartRun {
 	return m.startRuns[strings.TrimSpace(sessionID)]
 }
 
+func (m *Manager) sessionInfoForRead(session *Session) *Info {
+	if session == nil {
+		return nil
+	}
+	info := session.Info()
+	if info != nil && info.State == StateActive && m.sessionStartRun(info.ID) != nil {
+		info.State = StateStarting
+	}
+	return info
+}
+
 func waitForSessionStartRun(ctx context.Context, run *sessionStartRun) error {
 	if run == nil {
 		return nil

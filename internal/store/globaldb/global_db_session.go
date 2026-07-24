@@ -246,70 +246,67 @@ func sessionListOrderClause(sortKey string) string {
 func (g *SessionRepo) ReconcileSessions(
 	ctx context.Context,
 	sessions []store.SessionInfo,
-) (result store.ReconcileResult, err error) {
+) (store.ReconcileResult, error) {
 	if err := g.checkReady(ctx, "reconcile sessions"); err != nil {
 		return store.ReconcileResult{}, err
 	}
 
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return store.ReconcileResult{}, fmt.Errorf("store: begin session reconcile transaction: %w", err)
-	}
-	defer func() {
-		joinCleanupError(&err, rollbackTx(tx, "session reconcile"))
-	}()
+	var result store.ReconcileResult
+	err := g.withImmediateTransaction(ctx, "reconcile sessions", func(exec globalSQLExecutor) error {
+		existing, err := g.loadSessionIDs(ctx, exec)
+		if err != nil {
+			return err
+		}
 
-	existing, err := g.loadSessionIDs(ctx, tx)
+		attemptResult := store.ReconcileResult{
+			Indexed:  make([]string, 0),
+			Orphaned: make([]string, 0),
+		}
+		seen := make(map[string]struct{}, len(sessions))
+
+		for _, session := range sessions {
+			if err := session.Validate(); err != nil {
+				return err
+			}
+			normalized := session
+			if normalized.CreatedAt.IsZero() {
+				normalized.CreatedAt = g.now()
+			}
+			if normalized.UpdatedAt.IsZero() {
+				normalized.UpdatedAt = normalized.CreatedAt
+			}
+			if _, ok := seen[normalized.ID]; ok {
+				continue
+			}
+			seen[normalized.ID] = struct{}{}
+			if _, ok := existing[normalized.ID]; !ok {
+				attemptResult.Indexed = append(attemptResult.Indexed, normalized.ID)
+			}
+			if err := g.registerSession(ctx, exec, normalized); err != nil {
+				return fmt.Errorf("store: reconcile session %q: %w", normalized.ID, err)
+			}
+		}
+
+		orphanedAt := store.FormatTimestamp(g.now())
+		queries := sqlcgen.New(exec)
+		for id := range existing {
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			if err := queries.MarkSessionOrphaned(ctx, sqlcgen.MarkSessionOrphanedParams{
+				State: sessionStateOrphaned, UpdatedAt: orphanedAt, ID: id,
+			}); err != nil {
+				return fmt.Errorf("store: mark orphaned session %q: %w", id, err)
+			}
+			attemptResult.Orphaned = append(attemptResult.Orphaned, id)
+		}
+
+		result = attemptResult
+		return nil
+	})
 	if err != nil {
 		return store.ReconcileResult{}, err
 	}
-
-	result = store.ReconcileResult{
-		Indexed:  make([]string, 0),
-		Orphaned: make([]string, 0),
-	}
-	seen := make(map[string]struct{}, len(sessions))
-
-	for _, session := range sessions {
-		if err := session.Validate(); err != nil {
-			return store.ReconcileResult{}, err
-		}
-		normalized := session
-		if normalized.CreatedAt.IsZero() {
-			normalized.CreatedAt = g.now()
-		}
-		if normalized.UpdatedAt.IsZero() {
-			normalized.UpdatedAt = normalized.CreatedAt
-		}
-		if _, ok := seen[normalized.ID]; ok {
-			continue
-		}
-		seen[normalized.ID] = struct{}{}
-		if _, ok := existing[normalized.ID]; !ok {
-			result.Indexed = append(result.Indexed, normalized.ID)
-		}
-		if err := g.registerSession(ctx, tx, normalized); err != nil {
-			return store.ReconcileResult{}, fmt.Errorf("store: reconcile session %q: %w", normalized.ID, err)
-		}
-	}
-
-	orphanedAt := store.FormatTimestamp(g.now())
-	for id := range existing {
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		if err := sqlcgen.New(tx).MarkSessionOrphaned(ctx, sqlcgen.MarkSessionOrphanedParams{
-			State: sessionStateOrphaned, UpdatedAt: orphanedAt, ID: id,
-		}); err != nil {
-			return store.ReconcileResult{}, fmt.Errorf("store: mark orphaned session %q: %w", id, err)
-		}
-		result.Orphaned = append(result.Orphaned, id)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return store.ReconcileResult{}, fmt.Errorf("store: commit session reconcile transaction: %w", err)
-	}
-
 	return result, nil
 }
 

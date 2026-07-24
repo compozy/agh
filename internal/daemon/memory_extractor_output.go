@@ -169,8 +169,12 @@ func candidateFromExtractedLine(
 		return memcontract.Candidate{}, errors.New("content is required")
 	}
 	agentTier := memcontract.AgentTier(strings.TrimSpace(line.AgentTier)).Normalize()
-	if scope == memcontract.ScopeAgent && agentTier == "" {
-		agentTier = memcontract.AgentTierWorkspace
+	if scope == memcontract.ScopeAgent {
+		if agentTier == "" {
+			agentTier = memcontract.AgentTierWorkspace
+		}
+	} else {
+		agentTier = ""
 	}
 	agentName := ""
 	if scope == memcontract.ScopeAgent {

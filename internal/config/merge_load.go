@@ -19,7 +19,11 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 		return err
 	}
 
-	return overlay.Apply(dst)
+	if err := overlay.Apply(dst); err != nil {
+		return err
+	}
+	overlay.Roles.recordSources(dst, RoleFieldSourceGlobal)
+	return nil
 }
 
 func loadConfigOverlayFile(path string) (configOverlay, error) {

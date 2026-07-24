@@ -43,6 +43,7 @@ func settingsSectionValues() []string {
 	return []string{
 		string(contract.SettingsSectionGeneral),
 		string(contract.SettingsSectionMemory),
+		string(contract.SettingsSectionRoles),
 		string(contract.SettingsSectionSkills),
 		string(contract.SettingsSectionAutomation),
 		string(contract.SettingsSectionNetwork),
@@ -56,6 +57,7 @@ func settingsApplyTargetValues() []string {
 	return []string{
 		string(contract.SettingsApplyTargetGeneral),
 		string(contract.SettingsApplyTargetMemory),
+		string(contract.SettingsApplyTargetRoles),
 		string(contract.SettingsApplyTargetSkills),
 		string(contract.SettingsApplyTargetAutomation),
 		string(contract.SettingsApplyTargetNetwork),

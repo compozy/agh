@@ -22,7 +22,7 @@ func (r *coordinatorRuntime) reconcileCreatedCoordinator(
 	ctx context.Context,
 	info *session.Info,
 	decision coordinator.Decision,
-	createdCfg aghconfig.CoordinatorConfig,
+	createdCfg aghconfig.ResolvedCoordinatorRole,
 	reason string,
 ) (*session.Info, bool, error) {
 	r.mu.Lock()
@@ -115,9 +115,9 @@ func (r *coordinatorRuntime) cleanupCreatedCoordinatorSession(
 func (r *coordinatorRuntime) createCoordinatorSession(
 	ctx context.Context,
 	decision coordinator.Decision,
-	cfg aghconfig.CoordinatorConfig,
+	cfg aghconfig.ResolvedCoordinatorRole,
 	reason string,
-) (*session.Info, aghconfig.CoordinatorConfig, bool, error) {
+) (*session.Info, aghconfig.ResolvedCoordinatorRole, bool, error) {
 	coordinatorParticipation, err := bindCoordinatorParticipation(decision)
 	if err != nil {
 		r.dispatchFailed(ctx, decision, nil, reason, err)

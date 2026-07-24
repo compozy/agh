@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	aghconfig "github.com/compozy/agh/internal/config"
-
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -29,11 +28,14 @@ const (
 	sectionsLlmKey                    = "llm"
 	sectionsMarketplaceKey            = "marketplace"
 	sectionsMaxKey                    = "max"
+	sectionsModelKey                  = "model"
 	sectionsModeKey                   = "mode"
 	sectionsNoChangesValue            = "no changes"
 	sectionsOperatorWriteRateLimitKey = "operator_write_rate_limit"
 	sectionsPolicyKey                 = "policy"
 	sectionsProviderKey               = "provider"
+	sectionsReasoningEffortKey        = "reasoning_effort"
+	sectionsFallbackChainKey          = "fallback_chain"
 	sectionsQueueKey                  = "queue"
 	sectionsRecallKey                 = "recall"
 	sectionsResourcesKey              = "resources"
@@ -155,6 +157,10 @@ func (s *service) populateSectionEnvelope(
 			return err
 		}
 		envelope.Memory = &section
+	case SectionRoles:
+		envelope.Scope = ScopeGlobal
+		section := RolesSection{Config: cloneRolesConfig(&cfg.Roles)}
+		envelope.Roles = &section
 	case SectionSkills:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeAgent}
 		section, err := s.buildSkillsSection(

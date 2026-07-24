@@ -36,6 +36,7 @@
         "vault",
         "agent",
         "tasks",
-        "openai"
+        "openai",
+        "roles"
     ]
 }

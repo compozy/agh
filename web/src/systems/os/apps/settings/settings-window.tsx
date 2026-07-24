@@ -46,6 +46,11 @@ const SECTION_PAGES = {
       default: m.MemorySettingsPage,
     }))
   ),
+  roles: lazy(() =>
+    import("@/routes/_app/settings/-roles-settings-page").then(m => ({
+      default: m.RolesSettingsPage,
+    }))
+  ),
   skills: lazy(() =>
     import("@/routes/_app/settings/-skills-settings-page").then(m => ({
       default: m.SkillsSettingsPage,

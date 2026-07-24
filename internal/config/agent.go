@@ -208,6 +208,9 @@ func LoadWorkspaceAgentDefs(rootDir string, additionalDirs []string, homePaths H
 			if !entry.IsDir() {
 				continue
 			}
+			if IsReservedAgentName(entry.Name()) {
+				continue
+			}
 
 			agentPath := filepath.Join(root.AgentsDir(), entry.Name(), agentDefName)
 			agent, err := LoadAgentDefFile(agentPath)
@@ -324,6 +327,18 @@ func ValidateAgentName(name string) error {
 	default:
 		return nil
 	}
+}
+
+// ValidateAuthoredAgentName rejects names that cannot be materialized in an agent catalog.
+func ValidateAuthoredAgentName(name string) error {
+	trimmed := NormalizeAgentName(name)
+	if err := ValidateAgentName(trimmed); err != nil {
+		return err
+	}
+	if IsReservedAgentName(trimmed) {
+		return fmt.Errorf("%w: %q", ErrAgentNameReserved, trimmed)
+	}
+	return nil
 }
 
 func normalizeAgentSkillsConfig(config AgentSkillsConfig) AgentSkillsConfig {

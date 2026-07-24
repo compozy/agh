@@ -36,14 +36,14 @@ func TestDecideBootstrap(t *testing.T) {
 		ChannelID:       "ch-run-1",
 		Source:          participation.SourceExplicitRequest,
 	}, "", "", "")
-	enabled := aghconfig.DefaultCoordinatorConfig()
+	enabled := aghconfig.DefaultResolvedCoordinatorRole()
 	enabled.Enabled = true
 
 	tests := []struct {
 		name   string
 		task   taskpkg.Task
 		run    taskpkg.Run
-		cfg    aghconfig.CoordinatorConfig
+		cfg    aghconfig.ResolvedCoordinatorRole
 		want   string
 		should bool
 	}{
@@ -58,7 +58,7 @@ func TestDecideBootstrap(t *testing.T) {
 			name: "Should skip disabled config",
 			task: baseTask,
 			run:  baseRun,
-			cfg:  aghconfig.DefaultCoordinatorConfig(),
+			cfg:  aghconfig.DefaultResolvedCoordinatorRole(),
 			want: DecisionDisabled,
 		},
 		{
@@ -246,9 +246,9 @@ func TestLineageAndHealthySession(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultCoordinatorConfig()
+		cfg := aghconfig.DefaultResolvedCoordinatorRole()
 		cfg.Enabled = true
-		cfg.DefaultTTL = 2 * time.Hour
+		cfg.TTL = 2 * time.Hour
 		cfg.MaxChildren = 3
 		policy := PermissionPolicy(participation.Spec{
 			Version: participation.SpecVersion, Mode: participation.ModeLive,

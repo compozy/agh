@@ -900,6 +900,25 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 		{Path: "providers.claude.models", Value: []string{"sonnet", "opus"}},
 	}
 
+	t.Run("Should flatten anonymous TOML fields into canonical parent paths", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := aghconfig.Config{Roles: aghconfig.DefaultRolesConfig()}
+		flattened := flattenConfigEntries(redactedConfigMap(&cfg))
+		foundCanonical := false
+		for _, entry := range flattened {
+			switch entry.Path {
+			case "roles.coordinator.enabled":
+				foundCanonical = true
+			case "roles.coordinator.roleconfig.enabled":
+				t.Fatalf("config list exposed embedded Go field path %q", entry.Path)
+			}
+		}
+		if !foundCanonical {
+			t.Fatal("config list omitted canonical path roles.coordinator.enabled")
+		}
+	})
+
 	t.Run("Should render show bundle outputs", func(t *testing.T) {
 		t.Parallel()
 
@@ -1081,6 +1100,23 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				path:        "window_manager.snap.unknown",
 				wantAllowed: false,
 			},
+			{
+				name:        "Should allow dream role model",
+				path:        "roles.dream.model",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow memory controller role timeout",
+				path:        "roles.memory_controller.timeout",
+				wantKind:    configSetDuration,
+				wantAllowed: true,
+			},
+			{name: "Should reject removed dream agent", path: "memory.dream.agent", wantAllowed: false},
+			{name: "Should reject removed dream enabled", path: "memory.dream.enabled", wantAllowed: false},
+			{name: "Should reject removed extractor model", path: "memory.extractor.model", wantAllowed: false},
+			{name: "Should reject removed extractor enabled", path: "memory.extractor.enabled", wantAllowed: false},
+			{name: "Should reject removed controller model", path: "memory.controller.llm.model", wantAllowed: false},
 			{name: "Should reject unknown sandbox values", path: "sandboxes.dev.unknown.value", wantAllowed: false},
 		}
 		for _, tc := range testCases {

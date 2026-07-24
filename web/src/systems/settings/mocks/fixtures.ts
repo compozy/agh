@@ -195,14 +195,6 @@ export const settingsAutomationSectionFixture: SettingsAutomationSection = {
 export const settingsMemoryConfigFixture: SettingsMemorySection["config"] = {
   controller: {
     default_op_on_fail: "noop",
-    llm: {
-      enabled: true,
-      max_tokens_out: 256,
-      model: "anthropic/claude-haiku-4",
-      prompt_version: "v1",
-      timeout: "250ms",
-      top_k: 5,
-    },
     max_latency: "300ms",
     mode: "hybrid",
     policy: {
@@ -228,10 +220,8 @@ export const settingsMemoryConfigFixture: SettingsMemorySection["config"] = {
     prune_after_applied_days: 90,
   },
   dream: {
-    agent: storyAgentNames.compliance,
     check_interval: "30m",
     debounce: "10m",
-    enabled: true,
     gates: {
       min_recall_count: 2,
       min_score: 0.75,
@@ -254,10 +244,8 @@ export const settingsMemoryConfigFixture: SettingsMemorySection["config"] = {
   extractor: {
     deadline: "60s",
     dlq_path: "~/.agh/memory/_system/extractor/failures",
-    enabled: true,
     inbox_path: "~/.agh/memory/_inbox",
     mode: "post_message",
-    model: "",
     queue: {
       capacity: 1,
       coalesce_max: 16,

@@ -566,6 +566,14 @@ export const settingsSkillsTestIds = {
   restartNotice: "settings-page-skills-restart-notice",
 } as const;
 
+export const settingsRolesTestIds = {
+  page: "settings-page-roles",
+  saveBar: "settings-page-roles-save-bar",
+  saveButton: "settings-page-roles-save",
+  resetButton: "settings-page-roles-reset",
+  saveMessage: "settings-page-roles-save-message",
+} as const;
+
 export const settingsProvidersTestIds = {
   page: "settings-page-providers",
   list: "settings-page-providers-list",
@@ -652,6 +660,19 @@ interface SettingsSkillsSelectors {
   restartNotice: Locator;
 }
 
+interface SettingsRolesSelectors {
+  page: Locator;
+  saveBar: Locator;
+  saveButton: Locator;
+  resetButton: Locator;
+  saveMessage: Locator;
+  group(role: string): Locator;
+  badgeOff(role: string): Locator;
+  fieldInput(role: string, field: string): Locator;
+  enabledSwitch(role: string): Locator;
+  diagnostics(role: string): Locator;
+}
+
 interface SettingsProvidersSelectors {
   actionResult: Locator;
   actionResultDismiss: Locator;
@@ -717,6 +738,7 @@ export interface SettingsOperatorSelectors {
   hooks: SettingsHooksSelectors;
   mcpServers: SettingsMCPServersSelectors;
   providers: SettingsProvidersSelectors;
+  roles: SettingsRolesSelectors;
   skills: SettingsSkillsSelectors;
 }
 export const tasksOperatorTestIds = {
@@ -1369,6 +1391,20 @@ export function settingsOperatorSelectors(
       policyBaseURLInput: page.getByTestId(settingsSkillsTestIds.policyBaseURLInput),
       policySave: page.getByTestId(settingsSkillsTestIds.policySave),
       restartNotice: page.getByTestId(settingsSkillsTestIds.restartNotice),
+    },
+    roles: {
+      page: page.getByTestId(settingsRolesTestIds.page),
+      saveBar: page.getByTestId(settingsRolesTestIds.saveBar),
+      saveButton: page.getByTestId(settingsRolesTestIds.saveButton),
+      resetButton: page.getByTestId(settingsRolesTestIds.resetButton),
+      saveMessage: page.getByTestId(settingsRolesTestIds.saveMessage),
+      group: (role: string) => page.getByTestId(`settings-page-roles-group-${role}`),
+      badgeOff: (role: string) => page.getByTestId(`settings-page-roles-${role}-badges-off`),
+      fieldInput: (role: string, field: string) =>
+        page.getByTestId(`settings-page-roles-${role}-${field}-input`),
+      enabledSwitch: (role: string) =>
+        page.getByTestId(`settings-page-roles-${role}-enabled-switch`),
+      diagnostics: (role: string) => page.getByTestId(`settings-page-roles-${role}-diagnostics`),
     },
     providers: {
       page: page.getByTestId(settingsProvidersTestIds.page),

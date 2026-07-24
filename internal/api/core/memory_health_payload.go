@@ -14,6 +14,7 @@ import (
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 
 	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
 
 	"github.com/compozy/agh/internal/memory"
 	ssepkg "github.com/compozy/agh/internal/sse"
@@ -28,20 +29,28 @@ func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayloa
 	)
 }
 
+func memoryHealthConfigPayload(cfg *aghconfig.Config) contract.MemoryHealthPayload {
+	dreamAgent := strings.TrimSpace(cfg.Roles.Dream.Agent)
+	if dreamAgent == "" {
+		dreamAgent = aghconfig.BuiltinDreamingCuratorAgentName
+	}
+	return contract.MemoryHealthPayload{
+		Status:             memoryHealthStatusOK,
+		Enabled:            cfg.Memory.Enabled,
+		Configured:         strings.TrimSpace(cfg.Memory.GlobalDir) != "",
+		GlobalDir:          strings.TrimSpace(cfg.Memory.GlobalDir),
+		DreamAgent:         dreamAgent,
+		DreamMinHours:      cfg.Memory.Dream.MinHours,
+		DreamMinSessions:   cfg.Memory.Dream.MinSessions,
+		DreamCheckInterval: cfg.Memory.Dream.CheckInterval.String(),
+	}
+}
+
 func (h *BaseHandlers) memoryHealthSnapshot(
 	ctx context.Context,
 	rawWorkspace string,
 ) (contract.MemoryHealthPayload, error) {
-	payload := contract.MemoryHealthPayload{
-		Status:             memoryHealthStatusOK,
-		Enabled:            h.Config.Memory.Enabled,
-		Configured:         strings.TrimSpace(h.Config.Memory.GlobalDir) != "",
-		GlobalDir:          strings.TrimSpace(h.Config.Memory.GlobalDir),
-		DreamAgent:         strings.TrimSpace(h.Config.Memory.Dream.Agent),
-		DreamMinHours:      h.Config.Memory.Dream.MinHours,
-		DreamMinSessions:   h.Config.Memory.Dream.MinSessions,
-		DreamCheckInterval: h.Config.Memory.Dream.CheckInterval.String(),
-	}
+	payload := memoryHealthConfigPayload(&h.Config)
 	if !payload.Enabled {
 		payload.Status = memoryHealthStatusDisabled
 		payload.Reason = "memory is disabled"

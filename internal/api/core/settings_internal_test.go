@@ -488,7 +488,7 @@ func TestMemorySettingsPayloadRoundTripIncludesV2Config(t *testing.T) {
 	want.Controller.Policy.AllowOrigins = []string{"cli", "tool"}
 	want.Recall.IncludeAlreadySurfaced = true
 	want.Extractor.Queue.CoalesceMax = 12
-	want.Dream.Agent = "curator"
+	want.Dream.MinHours = 18
 	want.Session.UnboundPartition = "_orphans"
 	want.Provider.Name = "local"
 	want.Workspace.AutoCreate = false

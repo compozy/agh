@@ -11,7 +11,7 @@ import {
   useSettingsTopbar,
 } from "@/systems/settings";
 import { Button, Spinner, Time } from "@agh/ui";
-import { ControllerLLMSection, ControllerSection } from "./-memory-controller-sections";
+import { ControllerSection } from "./-memory-controller-sections";
 import { DreamSection } from "./-memory-dream-section";
 import {
   DailyLogsSection,
@@ -73,10 +73,7 @@ export function MemorySettingsPage() {
   const { envelope, draft, setDraft, restart } = page;
   const health = envelope.health;
   const dreamAvailable =
-    health.available &&
-    envelope.actions.consolidate.available &&
-    envelope.health.dream_enabled &&
-    draft.dream.enabled;
+    health.available && envelope.actions.consolidate.available && envelope.health.dream_enabled;
   const validatedSectionProps = { draft, setDraft, validationErrors, setValidationError };
 
   return (
@@ -142,7 +139,6 @@ export function MemorySettingsPage() {
       <SettingsAdvancedFold data-testid={`${TEST_PREFIX}-advanced`} padded>
         <ProviderResilienceSection {...validatedSectionProps} />
         <ControllerSection {...validatedSectionProps} />
-        <ControllerLLMSection {...validatedSectionProps} />
         <DecisionsSection {...validatedSectionProps} />
         <ExtractorSection {...validatedSectionProps} />
         <FileCapsSection {...validatedSectionProps} />

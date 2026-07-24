@@ -218,16 +218,16 @@ func (r *Registry) resolveAgentScope(
 			}
 			return aghconfig.CloneAgentDef(agent), nil
 		}
-		if fallback, ok := fallbackAgentScope(agentName); ok {
-			return fallback, nil
+		if builtin, ok := aghconfig.BuiltinAgentDef(agentName); ok {
+			return builtin, nil
 		}
 		return aghconfig.AgentDef{}, fmt.Errorf("%w: %q", ErrAgentNotFound, agentName)
 	}
 
 	agentsDir := r.globalAgentsDir()
 	if strings.TrimSpace(agentsDir) == "" {
-		if fallback, ok := fallbackAgentScope(agentName); ok {
-			return fallback, nil
+		if builtin, ok := aghconfig.BuiltinAgentDef(agentName); ok {
+			return builtin, nil
 		}
 		return aghconfig.AgentDef{}, fmt.Errorf("%w: %q", ErrAgentNotFound, agentName)
 	}
@@ -235,8 +235,8 @@ func (r *Registry) resolveAgentScope(
 	agent, err := aghconfig.LoadAgentDefFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			if fallback, ok := fallbackAgentScope(agentName); ok {
-				return fallback, nil
+			if builtin, ok := aghconfig.BuiltinAgentDef(agentName); ok {
+				return builtin, nil
 			}
 			return aghconfig.AgentDef{}, fmt.Errorf("%w: %q", ErrAgentNotFound, agentName)
 		}
@@ -259,13 +259,6 @@ func (r *Registry) resolveAgentScope(
 		))
 	}
 	return agent, nil
-}
-
-func fallbackAgentScope(agentName string) (aghconfig.AgentDef, bool) {
-	if strings.TrimSpace(agentName) != aghconfig.DefaultCoordinatorAgentName {
-		return aghconfig.AgentDef{}, false
-	}
-	return aghconfig.DefaultCoordinatorAgentDef(), true
 }
 
 func (r *Registry) loadAgentLocalSkills(

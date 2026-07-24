@@ -57,6 +57,7 @@ describe("useSettingsPage", () => {
       "layouts",
       "providers",
       "memory",
+      "roles",
       "skills",
       "automation",
       "network",

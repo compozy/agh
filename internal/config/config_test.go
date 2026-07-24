@@ -142,11 +142,12 @@ enabled = true
 global_dir = "~/agh-memory-test"
 
 [memory.dream]
-enabled = true
-agent = "claude"
 min_hours = 48
 min_sessions = 5
 check_interval = "45m"
+
+[roles.dream]
+agent = "claude"
 
 [network]
 enabled = true
@@ -317,8 +318,8 @@ max_wakes = 80
 	if got, want := cfg.Memory.GlobalDir, filepath.Join(userHome, "agh-memory-test"); got != want {
 		t.Fatalf("Load() Memory.GlobalDir = %q, want %q", got, want)
 	}
-	if got, want := cfg.Memory.Dream.Agent, "claude"; got != want {
-		t.Fatalf("Load() Memory.Dream.Agent = %q, want %q", got, want)
+	if got, want := cfg.Roles.Dream.Agent, "claude"; got != want {
+		t.Fatalf("Load() Roles.Dream.Agent = %q, want %q", got, want)
 	}
 	if got, want := cfg.Memory.Dream.MinHours, 48.0; got != want {
 		t.Fatalf("Load() Memory.Dream.MinHours = %v, want %v", got, want)
@@ -872,71 +873,6 @@ func TestHeartbeatConfigDefaultsAndValidation(t *testing.T) {
 	}
 }
 
-func TestLoadDreamAgentKeepsDedicatedCuratorWhenDefaultAgentChanges(t *testing.T) {
-	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
-
-	homePaths, err := ResolveHomePaths()
-	if err != nil {
-		t.Fatalf("ResolveHomePaths() error = %v", err)
-	}
-	if err := EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("EnsureHomeLayout() error = %v", err)
-	}
-
-	writeFile(t, homePaths.ConfigFile, `
-[defaults]
-agent = "operator"
-provider = "codex"
-
-[memory.dream]
-min_hours = 1
-min_sessions = 1
-check_interval = "1m"
-`)
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-	if got, want := cfg.Memory.Dream.Agent, DefaultMemoryDreamAgentName; got != want {
-		t.Fatalf("Load() Memory.Dream.Agent = %q, want %q", got, want)
-	}
-}
-
-func TestLoadDreamAgentPreservesExplicitAgent(t *testing.T) {
-	homeRoot := filepath.Join(t.TempDir(), "home")
-	t.Setenv("AGH_HOME", homeRoot)
-
-	homePaths, err := ResolveHomePaths()
-	if err != nil {
-		t.Fatalf("ResolveHomePaths() error = %v", err)
-	}
-	if err := EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("EnsureHomeLayout() error = %v", err)
-	}
-
-	writeFile(t, homePaths.ConfigFile, `
-[defaults]
-agent = "operator"
-provider = "codex"
-
-[memory.dream]
-agent = "memory-agent"
-min_hours = 1
-min_sessions = 1
-check_interval = "1m"
-`)
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-	if got, want := cfg.Memory.Dream.Agent, "memory-agent"; got != want {
-		t.Fatalf("Load() Memory.Dream.Agent = %q, want %q", got, want)
-	}
-}
-
 func TestSandboxProfileValidationRejectsInvalidSyncMode(t *testing.T) {
 	t.Parallel()
 
@@ -1013,8 +949,8 @@ port = 2123
 	kind = "api_key"
 	required = true
 
-[session]
-auto_title_enabled = false
+[roles.auto_title]
+enabled = false
 
 [session.limits]
 timeout = "20m"
@@ -1049,8 +985,8 @@ display_name = "Workspace Model"
 reasoning_efforts = ["low", "high"]
 default_reasoning_effort = "high"
 
-[session]
-auto_title_enabled = true
+[roles.auto_title]
+enabled = true
 
 [session.limits]
 timeout = "45m"
@@ -1081,8 +1017,8 @@ base_url = "https://workspace.example.test/api/v1"
 	if got, want := cfg.Session.Limits.Timeout, 45*time.Minute; got != want {
 		t.Fatalf("Load() Session.Limits.Timeout = %s, want %s", got, want)
 	}
-	if !cfg.Session.AutoTitleEnabled {
-		t.Fatal("Load() Session.AutoTitleEnabled = false, want workspace override true")
+	if !cfg.Roles.AutoTitle.Enabled {
+		t.Fatal("Load() Roles.AutoTitle.Enabled = false, want workspace override true")
 	}
 	if got, want := cfg.Session.Compaction.PressureThreshold, 0.90; got != want {
 		t.Fatalf("Load() Session.Compaction.PressureThreshold = %v, want %v", got, want)
@@ -1851,6 +1787,87 @@ unknown = true
 	}
 }
 
+func TestLoadRejectsTimeoutOnSessionBackedRoles(t *testing.T) {
+	t.Parallel()
+
+	for _, role := range []RoleName{
+		RoleCoordinator,
+		RoleDream,
+		RoleCheckpointSummary,
+		RoleMemoryExtractor,
+		RoleAutoTitle,
+	} {
+		t.Run("Should reject timeout on "+string(role), func(t *testing.T) {
+			t.Parallel()
+
+			contents := []byte("[roles." + string(role) + "]\ntimeout = \"1s\"\n")
+			_, err := loadConfigOverlayBytes(contents, "roles.toml")
+			if err == nil {
+				t.Fatal("loadConfigOverlayBytes() error = nil, want unknown-key rejection")
+			}
+			path := "roles." + string(role) + ".timeout"
+			if !strings.Contains(err.Error(), path) {
+				t.Fatalf("loadConfigOverlayBytes() error = %v, want %s", err, path)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsRemovedRoleConfigKeys(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		config  string
+		wantKey string
+	}{
+		{
+			name:    "Should reject the autonomy coordinator table",
+			config:  "[autonomy.coordinator]\nenabled = true\n",
+			wantKey: "autonomy.coordinator",
+		},
+		{
+			name:    "Should reject the memory dream agent",
+			config:  "[memory.dream]\nagent = \"curator\"\n",
+			wantKey: "memory.dream.agent",
+		},
+		{
+			name:    "Should reject the memory dream enabled flag",
+			config:  "[memory.dream]\nenabled = false\n",
+			wantKey: "memory.dream.enabled",
+		},
+		{
+			name:    "Should reject the memory extractor model",
+			config:  "[memory.extractor]\nmodel = \"model-a\"\n",
+			wantKey: "memory.extractor.model",
+		},
+		{
+			name:    "Should reject the memory extractor enabled flag",
+			config:  "[memory.extractor]\nenabled = false\n",
+			wantKey: "memory.extractor.enabled",
+		},
+		{
+			name:    "Should reject the memory controller LLM table",
+			config:  "[memory.controller.llm]\nenabled = true\n",
+			wantKey: "memory.controller.llm",
+		},
+		{
+			name:    "Should reject the session auto title flag",
+			config:  "[session]\nauto_title_enabled = false\n",
+			wantKey: "session.auto_title_enabled",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := loadConfigOverlayBytes([]byte(tc.config), "removed-role-key.toml")
+			if err == nil || !strings.Contains(err.Error(), tc.wantKey) {
+				t.Fatalf("loadConfigOverlayBytes() error = %v, want removed key %s", err, tc.wantKey)
+			}
+		})
+	}
+}
+
 func TestLoadRejectsUnknownSkillsConfigKeys(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
@@ -2289,8 +2306,6 @@ func TestDreamConfigValidateRejectsNonPositiveThresholds(t *testing.T) {
 			t.Parallel()
 
 			cfg := DreamConfig{
-				Enabled:       true,
-				Agent:         "claude",
 				MinHours:      24,
 				MinSessions:   3,
 				CheckInterval: 30 * time.Minute,
@@ -2526,8 +2541,8 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 	if !cfg.Network.Enabled {
 		t.Fatal("Load() Network.Enabled = false, want true by default")
 	}
-	if !cfg.Session.AutoTitleEnabled {
-		t.Fatal("Load() Session.AutoTitleEnabled = false, want true by default")
+	if !cfg.Roles.AutoTitle.Enabled {
+		t.Fatal("Load() Roles.AutoTitle.Enabled = false, want true by default")
 	}
 }
 
@@ -2544,12 +2559,8 @@ func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 	if cfg.Permissions.Mode != PermissionModeApproveAll {
 		t.Fatalf("defaultConfig() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
 	}
-	if cfg.Memory.Dream.Agent != DefaultMemoryDreamAgentName {
-		t.Fatalf(
-			"defaultConfig() Memory.Dream.Agent = %q, want %q",
-			cfg.Memory.Dream.Agent,
-			DefaultMemoryDreamAgentName,
-		)
+	if !cfg.Roles.Dream.Enabled || cfg.Roles.Dream.Agent != "" {
+		t.Fatalf("defaultConfig() Roles.Dream = %#v, want enabled builtin routing", cfg.Roles.Dream)
 	}
 	if !cfg.Skills.Enabled {
 		t.Fatal("defaultConfig() Skills.Enabled = false, want true")

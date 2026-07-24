@@ -36,7 +36,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 				}},
 			}
 
-			skills, err := registry.ForAgent(context.Background(), resolved, aghconfig.DefaultCoordinatorAgentName)
+			skills, err := registry.ForAgent(context.Background(), resolved, aghconfig.BuiltinCoordinatorAgentName)
 			if err != nil {
 				t.Fatalf("ForAgent(coordinator) error = %v", err)
 			}
@@ -76,7 +76,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 
 			section, err := provider.PromptAgentSection(
 				context.Background(),
-				aghconfig.DefaultCoordinatorAgentDef(),
+				mustBuiltinAgentDef(t, aghconfig.BuiltinCoordinatorAgentName),
 				resolved,
 			)
 			if err != nil {
@@ -87,4 +87,13 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 			}
 		},
 	)
+}
+
+func mustBuiltinAgentDef(t *testing.T, name string) aghconfig.AgentDef {
+	t.Helper()
+	def, ok := aghconfig.BuiltinAgentDef(name)
+	if !ok {
+		t.Fatalf("BuiltinAgentDef(%q) ok = false, want true", name)
+	}
+	return def
 }

@@ -61,6 +61,7 @@ func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
+	session = waitForHTTPTransportSessionActive(t, ctx, runtimeHarness, session)
 
 	var approvedRequestID string
 	events, err := runtimeHarness.PromptSessionHTTPWithEvents(
@@ -158,6 +159,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		if created.Session.Provider != provider {
 			t.Fatalf("HTTP create provider = %q, want %q", created.Session.Provider, provider)
 		}
+		created.Session = waitForHTTPTransportSessionActive(t, ctx, runtimeHarness, created.Session)
 
 		var detail aghcontract.SessionResponse
 		if err := runtimeHarness.HTTPJSON(
@@ -195,6 +197,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		}, &created); err != nil {
 			t.Fatalf("HTTP create session error = %v", err)
 		}
+		created.Session = waitForHTTPTransportSessionActive(t, ctx, runtimeHarness, created.Session)
 
 		stopResp := mustHTTPRequest(
 			t,
@@ -341,6 +344,7 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
+	session = waitForHTTPTransportSessionActive(t, ctx, runtimeHarness, session)
 
 	stream, err := runtimeHarness.PromptSessionHTTP(ctx, session.ID, "trigger invalid frame")
 	if err != nil {
@@ -366,6 +370,20 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 	if !httpSessionEventsContainType(eventsResp.Events, "error") {
 		t.Fatalf("HTTP session events = %#v, want error projection", eventsResp.Events)
 	}
+}
+
+func waitForHTTPTransportSessionActive(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	accepted aghcontract.SessionPayload,
+) aghcontract.SessionPayload {
+	t.Helper()
+	active, err := harness.WaitForSessionActive(ctx, accepted.ID)
+	if err != nil {
+		t.Fatalf("WaitForSessionActive(%q) error = %v; accepted=%#v", accepted.ID, err, accepted)
+	}
+	return active
 }
 
 func transportHarnessSessionPath(

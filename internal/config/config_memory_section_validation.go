@@ -9,12 +9,6 @@ import (
 
 // Validate ensures the dream configuration is internally consistent.
 func (c DreamConfig) Validate() error {
-	if !c.Enabled {
-		return nil
-	}
-	if strings.TrimSpace(c.Agent) == "" {
-		return errors.New("memory.dream.agent is required")
-	}
 	if c.MinHours <= 0 {
 		return fmt.Errorf("memory.dream.min_hours must be positive: %v", c.MinHours)
 	}
@@ -43,9 +37,6 @@ func (c *MemoryControllerConfig) Validate() error {
 		return err
 	}
 	c.Mode = mode
-	if c.Mode == "llm" && !c.LLM.Enabled {
-		return errors.New(`memory.controller.llm.enabled must be true when memory.controller.mode is "llm"`)
-	}
 	if c.MaxLatency <= 0 {
 		return fmt.Errorf("memory.controller.max_latency must be positive: %s", c.MaxLatency)
 	}
@@ -54,33 +45,7 @@ func (c *MemoryControllerConfig) Validate() error {
 		return err
 	}
 	c.DefaultOpOnFail = defaultOpOnFail
-	if err := c.LLM.Validate(); err != nil {
-		return err
-	}
 	return c.Policy.Validate()
-}
-
-// Validate ensures the controller LLM configuration is internally consistent.
-func (c MemoryControllerLLMConfig) Validate() error {
-	if !c.Enabled {
-		return nil
-	}
-	if strings.TrimSpace(c.Model) == "" {
-		return errors.New("memory.controller.llm.model is required")
-	}
-	if c.TopK <= 0 {
-		return fmt.Errorf("memory.controller.llm.top_k must be positive: %d", c.TopK)
-	}
-	if strings.TrimSpace(c.PromptVersion) == "" {
-		return errors.New("memory.controller.llm.prompt_version is required")
-	}
-	if c.Timeout <= 0 {
-		return fmt.Errorf("memory.controller.llm.timeout must be positive: %s", c.Timeout)
-	}
-	if c.MaxTokensOut <= 0 {
-		return fmt.Errorf("memory.controller.llm.max_tokens_out must be positive: %d", c.MaxTokensOut)
-	}
-	return nil
 }
 
 // Validate ensures the controller policy configuration is internally consistent.
@@ -195,9 +160,6 @@ func (c MemoryDecisionsConfig) Validate() error {
 
 // Validate ensures extractor settings are internally consistent.
 func (c *MemoryExtractorConfig) Validate() error {
-	if !c.Enabled {
-		return nil
-	}
 	mode, err := validateEnum("memory.extractor.mode", c.Mode, configExtractorModePostMessage)
 	if err != nil {
 		return err

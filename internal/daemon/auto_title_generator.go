@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/session"
 )
 
@@ -33,26 +34,31 @@ type autoTitleGenerator interface {
 type autoTitleRequest struct {
 	SessionID      string
 	AgentName      string
+	WorkspaceID    string
 	UserMessage    string
 	AssistantReply string
 }
 
 type forkedAutoTitleGenerator struct {
 	sessions autoTitleSpawnSessions
+	roles    RoleResolver
 	deadline time.Duration
 	logger   *slog.Logger
 }
 
 func newForkedAutoTitleGenerator(
 	sessions autoTitleSpawnSessions,
+	roles RoleResolver,
 	deadline time.Duration,
 	logger *slog.Logger,
 ) *forkedAutoTitleGenerator {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &forkedAutoTitleGenerator{sessions: sessions, deadline: deadline, logger: logger}
+	return &forkedAutoTitleGenerator{sessions: sessions, roles: roles, deadline: deadline, logger: logger}
 }
+
+var errAutoTitleRoleDisabled = errors.New("daemon: automatic title role is disabled")
 
 func (g *forkedAutoTitleGenerator) Generate(
 	ctx context.Context,
@@ -64,45 +70,60 @@ func (g *forkedAutoTitleGenerator) Generate(
 	if ctx == nil {
 		return "", errors.New("daemon: automatic title context is required")
 	}
-	runCtx := ctx
-	if g.deadline > 0 {
-		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(runCtx, g.deadline)
-		defer cancel()
+	if g.roles == nil {
+		return "", errors.New("daemon: automatic title role resolver is not configured")
 	}
+	correlation := roleInvocationCorrelation{
+		WorkspaceID: strings.TrimSpace(request.WorkspaceID),
+		SessionID:   strings.TrimSpace(request.SessionID),
+		AgentName:   strings.TrimSpace(request.AgentName),
+	}
+	roleCtx := withRoleInvocationCorrelation(ctx, correlation)
+	role, err := g.roles.Resolve(roleCtx, request.WorkspaceID, aghconfig.RoleAutoTitle)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve automatic title role: %w", err)
+	}
+	if !role.Enabled {
+		return "", errAutoTitleRoleDisabled
+	}
+	agentName := role.AgentName
+	if role.Inherit {
+		agentName = strings.TrimSpace(request.AgentName)
+	}
+	runCtx, cancelRun := autoTitleRunContext(ctx, g.deadline)
+	defer cancelRun()
 	prompt := renderAutoTitlePrompt(request)
-	child, err := g.sessions.Spawn(runCtx, session.SpawnOpts{
-		ParentSessionID:  strings.TrimSpace(request.SessionID),
-		AgentName:        strings.TrimSpace(request.AgentName),
-		Name:             autoTitleSessionName,
-		PromptOverlay:    autoTitlePromptOverlay(),
-		SpawnRole:        session.SpawnRoleAutoTitle,
-		TTL:              g.childTTL(),
-		AutoStopOnParent: true,
+	role.AgentName = agentName
+	child, err := invokeRoleWithFallback(runCtx, role, correlation, func(
+		attemptCtx context.Context,
+		route roleAttemptRoute,
+	) (*session.Session, bool, error) {
+		spawned, spawnErr := g.sessions.Spawn(attemptCtx, session.SpawnOpts{
+			ParentSessionID:  strings.TrimSpace(request.SessionID),
+			AgentName:        route.AgentName,
+			Provider:         route.Provider,
+			Model:            route.Model,
+			ReasoningEffort:  route.ReasoningEffort,
+			Name:             autoTitleSessionName,
+			PromptOverlay:    autoTitlePromptOverlay(),
+			SpawnRole:        session.SpawnRoleAutoTitle,
+			TTL:              g.childTTL(),
+			AutoStopOnParent: true,
+		})
+		return spawned, spawned != nil, spawnErr
 	})
+	if child != nil {
+		defer g.stopAutoTitleSession(ctx, child.ID, &title, &err)
+	}
 	if err != nil {
 		return "", fmt.Errorf("daemon: spawn automatic title session: %w", err)
 	}
-	defer func() {
-		cause := session.CauseCompleted
-		detail := "automatic title generation completed"
-		if err != nil {
-			cause = session.CauseFailed
-			detail = "automatic title generation failed"
-		}
-		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoTitleStopTimeout)
-		defer cancel()
-		if stopErr := g.sessions.StopWithCause(stopCtx, child.ID, cause, detail); stopErr != nil {
-			title = ""
-			err = errors.Join(err, fmt.Errorf("daemon: stop automatic title session: %w", stopErr))
-		}
-	}()
 
 	events, err := g.sessions.PromptSynthetic(runCtx, child.ID, session.SyntheticPromptOpts{
 		Message: prompt,
 		Metadata: acp.PromptSyntheticMeta{
 			TaskID:  autoTitleSyntheticTaskID,
-			Reason:  "auto_title",
+			Reason:  string(aghconfig.RoleAutoTitle),
 			Summary: "generate a concise session title",
 		},
 	})
@@ -118,6 +139,33 @@ func (g *forkedAutoTitleGenerator) Generate(
 		return "", errors.New("daemon: automatic title output is empty")
 	}
 	return title, nil
+}
+
+func autoTitleRunContext(ctx context.Context, deadline time.Duration) (context.Context, context.CancelFunc) {
+	if deadline > 0 {
+		return context.WithTimeout(ctx, deadline)
+	}
+	return context.WithCancel(ctx)
+}
+
+func (g *forkedAutoTitleGenerator) stopAutoTitleSession(
+	ctx context.Context,
+	sessionID string,
+	title *string,
+	operationErr *error,
+) {
+	cause := session.CauseCompleted
+	detail := "automatic title generation completed"
+	if *operationErr != nil {
+		cause = session.CauseFailed
+		detail = "automatic title generation failed"
+	}
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoTitleStopTimeout)
+	defer cancel()
+	if err := g.sessions.StopWithCause(stopCtx, sessionID, cause, detail); err != nil {
+		*title = ""
+		*operationErr = errors.Join(*operationErr, fmt.Errorf("daemon: stop automatic title session: %w", err))
+	}
 }
 
 func (g *forkedAutoTitleGenerator) childTTL() time.Duration {

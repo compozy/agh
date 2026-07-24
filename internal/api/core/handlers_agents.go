@@ -2,19 +2,15 @@ package core
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"net/http"
 	"os"
 	"sort"
-
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
-
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -66,8 +62,19 @@ func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 	return entries,
 		strings.TrimSpace(resolved.ID),
 		resolved.Config,
-		append([]workspacepkg.AgentDiagnostic(nil), resolved.AgentDiagnostics...),
+		publicAgentDiagnostics(resolved.AgentDiagnostics),
 		nil
+}
+
+func publicAgentDiagnostics(diagnostics []workspacepkg.AgentDiagnostic) []workspacepkg.AgentDiagnostic {
+	visible := make([]workspacepkg.AgentDiagnostic, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		if aghconfig.IsReservedAgentName(diagnostic.Name) {
+			continue
+		}
+		visible = append(visible, diagnostic)
+	}
+	return visible
 }
 
 func (h *BaseHandlers) workspaceAgentDef(
@@ -159,6 +166,8 @@ func statusForAgentWorkspaceError(err error) int {
 
 func statusForCreateAgentError(err error) int {
 	switch {
+	case errors.Is(err, aghconfig.ErrAgentNameReserved):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, errCreateAgentRequestInvalid),
 		errors.Is(err, aghconfig.ErrInvalidAgentDefinition):
 		return http.StatusBadRequest

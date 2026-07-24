@@ -8,6 +8,8 @@ import {
   settingsMemoryOptions,
   settingsNetworkOptions,
   settingsObservabilityOptions,
+  settingsRolesOptions,
+  settingsRolesStatusOptions,
   settingsSkillsOptions,
   settingsUpdateOptions,
 } from "../lib/query-options";
@@ -27,6 +29,14 @@ export function useSettingsApplyRecords(filter: SettingsApplyRecordsFilter = {})
 
 export function useSettingsMemory() {
   return useQuery(settingsMemoryOptions());
+}
+
+export function useRolesStatus() {
+  return useQuery(settingsRolesStatusOptions());
+}
+
+export function useSettingsRoles() {
+  return useQuery(settingsRolesOptions());
 }
 
 export function useSettingsSkills(filter: SettingsSkillsFilter = {}) {

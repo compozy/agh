@@ -2,6 +2,8 @@ package spec
 
 import "github.com/compozy/agh/internal/api/contract"
 
+const agentNameReservedDescription = "Agent name is reserved"
+
 var agentDefinitionMutationOperationRegistry = []OperationSpec{
 	{
 		Method:      httpMethodPut,
@@ -20,6 +22,7 @@ var agentDefinitionMutationOperationRegistry = []OperationSpec{
 			{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Agent definition digest conflict", Body: contract.ErrorPayload{}},
 			{Status: 410, Description: specWorkspaceRootMissingDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: agentNameReservedDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{
 				Status:      503,
@@ -68,6 +71,7 @@ var agentDefinitionMutationOperationRegistry = []OperationSpec{
 			{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Target agent definition already exists", Body: contract.ErrorPayload{}},
 			{Status: 410, Description: specWorkspaceRootMissingDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: agentNameReservedDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{
 				Status:      503,

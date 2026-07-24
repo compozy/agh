@@ -18,6 +18,7 @@ type configOverlay struct {
 	Log           logOverlay                 `toml:"log"`
 	Redact        redactOverlay              `toml:"redact"`
 	Memory        memoryOverlay              `toml:"memory"`
+	Roles         rolesOverlay               `toml:"roles"`
 	Skills        skillsOverlay              `toml:"skills"`
 	Extensions    extensionsOverlay          `toml:"extensions"`
 	Tools         toolsOverlay               `toml:"tools"`
@@ -52,6 +53,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Log.Apply(&dst.Log)
 	o.Redact.Apply(&dst.Redact)
 	o.Memory.Apply(&dst.Memory)
+	o.Roles.Apply(&dst.Roles)
 	o.Skills.Apply(&dst.Skills)
 	o.Extensions.Apply(&dst.Extensions)
 	o.Tools.Apply(&dst.Tools)

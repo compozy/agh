@@ -17,6 +17,7 @@ func (d *Daemon) runtimeDeps(
 	if state.memoryProviderRegistry != nil {
 		memoryProviders = daemonMemoryProviderService{registry: state.memoryProviderRegistry}
 	}
+	roles := roleResolverForState(state)
 	return RuntimeDeps{
 		Config:              state.cfg,
 		HomePaths:           d.homePaths,
@@ -53,14 +54,16 @@ func (d *Daemon) runtimeDeps(
 		HeartbeatWake:       authoredContext.HeartbeatWake,
 		SessionHealth:       authoredContext.SessionHealth,
 		WakeEvents:          authoredContext.WakeEvents,
-		CoordinatorConfig: newCoordinatorConfigResolver(
+		CoordinatorRole: newCoordinatorRoleResolver(
 			&state.cfg,
 			state.workspaceResolver,
 			agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 				soul:      state.soulCatalog,
 				heartbeat: state.heartbeatCatalog,
 			}),
+			state.registry,
 		),
+		Roles:          roles,
 		SkillsRegistry: skillsRegistryAPI(state.skillsRegistry),
 		ToolRegistry:   state.toolRegistry,
 		Toolsets:       state.toolsets,

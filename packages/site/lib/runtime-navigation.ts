@@ -88,6 +88,7 @@ export const API_SECTIONS: CoreSection[] = [
       "agent",
       "tasks",
       "openai",
+      "roles",
     ],
   },
 ];

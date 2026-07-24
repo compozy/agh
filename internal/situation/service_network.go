@@ -111,14 +111,14 @@ func (s *Service) networkValue() NetworkReader {
 	return s.network
 }
 
-func (s *Service) coordinatorConfigValue() CoordinatorConfigResolver {
+func (s *Service) coordinatorRoleValue() CoordinatorRoleResolver {
 	if s == nil {
 		return nil
 	}
-	if s.coordinatorConfigFunc != nil {
-		return s.coordinatorConfigFunc()
+	if s.coordinatorRoleFunc != nil {
+		return s.coordinatorRoleFunc()
 	}
-	return s.coordinatorConfig
+	return s.coordinatorRole
 }
 
 func (s *Service) soulSnapshotsValue() SoulSnapshotStore {

@@ -165,7 +165,7 @@ func agentSpawnBundle(record *AgentSpawnRecord) outputBundle {
 					{Label: spawnParentValue, Value: stringOrDash(record.Lineage.ParentSessionID)},
 					{Label: spawnRootValue, Value: stringOrDash(record.Lineage.RootSessionID)},
 					{Label: "Depth", Value: fmt.Sprintf("%d", record.Lineage.SpawnDepth)},
-					{Label: "Role", Value: stringOrDash(record.Lineage.SpawnRole)},
+					{Label: roleOutputLabel, Value: stringOrDash(record.Lineage.SpawnRole)},
 					{Label: "TTL Expires", Value: stringOrDash(formatTimePtr(record.Lineage.TTLExpiresAt))},
 				}),
 			), nil

@@ -19,6 +19,27 @@ import (
 func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should normalize a resolved registration id to the stable workspace identity", func(t *testing.T) {
+		t.Parallel()
+
+		env := newCheckpointSummaryTestEnv(t)
+		const registrationID = "ws_runtime_registration"
+		env.resolver.resolved.ID = registrationID
+		record := env.sessionEndRecord("sess-registration", "selected SQLite")
+		record.WorkspaceID = registrationID
+		summarizer := &checkpointSummarizerStub{outputs: []string{
+			checkpointSummaryFixture("The session selected SQLite."),
+		}}
+		service := NewCheckpointSummaryService(env.store, env.resolver, summarizer)
+
+		if _, err := service.Update(testutil.Context(t), record); err != nil {
+			t.Fatalf("Update(registration id) error = %v", err)
+		}
+		if got := summarizer.requests[0].WorkspaceID; got != env.workspaceID {
+			t.Fatalf("summarizer workspace id = %q, want stable identity %q", got, env.workspaceID)
+		}
+	})
+
 	t.Run("Should update one workspace record and consume the prior summary", func(t *testing.T) {
 		t.Parallel()
 

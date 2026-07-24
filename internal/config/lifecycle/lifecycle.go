@@ -79,6 +79,7 @@ var Matrix = []Rule{
 	{Pattern: "providers.*.models.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "marketplace.catalog.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "extensions.marketplace.allow_unverified", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "roles.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp-servers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "sandboxes.*", Lifecycle: SessionRebind, DiffClass: DiffClassSessionRebind},
@@ -156,7 +157,7 @@ func ClassifyPaths(paths []string) (Lifecycle, DiffClass, error) {
 // DiffClassForRoot maps a settings section or collection name onto a diff class.
 func DiffClassForRoot(root string) DiffClass {
 	switch strings.TrimSpace(root) {
-	case "skills", "window-manager":
+	case "skills", "roles", "window-manager":
 		return DiffClassLive
 	case "sandboxes":
 		return DiffClassSessionRebind

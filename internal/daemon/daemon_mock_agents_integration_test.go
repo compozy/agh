@@ -21,6 +21,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	eventspkg "github.com/compozy/agh/internal/events"
 	mcppkg "github.com/compozy/agh/internal/mcp"
+	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -153,6 +154,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		if err != nil {
 			t.Fatalf("CreateSession(agent default) error = %v", err)
 		}
+		sessionPayload = waitForReasoningSessionActive(t, ctx, harness, sessionPayload)
 		if sessionPayload.Provider != "claude" || sessionPayload.Model != "claude-sonnet-5" ||
 			sessionPayload.ReasoningEffort != aghcontract.ReasoningEffort("max") {
 			t.Fatalf("session runtime = %#v, want claude/claude-sonnet-5/max", sessionPayload)
@@ -230,6 +232,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			if err != nil {
 				t.Fatalf("CreateSession(%q) error = %v", tt.agentName, err)
 			}
+			sessionPayload = waitForReasoningSessionActive(t, ctx, harness, sessionPayload)
 			if sessionPayload.Provider != tt.provider || sessionPayload.Model != tt.model ||
 				sessionPayload.ReasoningEffort != tt.effort {
 				t.Fatalf("session runtime = %#v, want %s/%s/%s", sessionPayload, tt.provider, tt.model, tt.effort)
@@ -270,6 +273,9 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 				t.Fatalf("CreateSession(concurrent %d) error = %v", index, err)
 			}
 			sessions = append(sessions, sessionPayload)
+		}
+		for index, sessionPayload := range sessions {
+			sessions[index] = waitForReasoningSessionActive(t, ctx, harness, sessionPayload)
 		}
 		if sessions[0].ID == sessions[1].ID {
 			t.Fatalf("concurrent AGH session IDs = %q, want distinct owners", sessions[0].ID)
@@ -325,24 +331,28 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		}
 	})
 
-	t.Run("Should return reasoning_option_missing before the first prompt", func(t *testing.T) {
+	t.Run("Should persist reasoning_option_missing before the first prompt", func(t *testing.T) {
 		registration, ok := harness.MockAgentRegistration("reasoning-codex-missing")
 		if !ok {
 			t.Fatal("MockAgentRegistration(reasoning-codex-missing) = missing")
 		}
-		status, payload := createSessionHTTPFailure(t, ctx, harness, aghcontract.CreateSessionRequest{
+		status, accepted := createSessionHTTPAccepted(t, ctx, harness, aghcontract.CreateSessionRequest{
 			AgentName:       "reasoning-codex-missing",
 			Provider:        "codex",
 			Model:           "gpt-5.6-sol",
 			ReasoningEffort: "max",
 			WorkspacePath:   harness.WorkspaceRoot,
 		})
-		if status != http.StatusUnprocessableEntity {
-			t.Fatalf("HTTP create session status = %d, want %d", status, http.StatusUnprocessableEntity)
+		if status != http.StatusCreated || accepted.State != session.StateStarting {
+			t.Fatalf("HTTP create session = status:%d session:%#v, want 201 starting", status, accepted)
 		}
-		if payload.Diagnostic == nil || payload.Diagnostic.Code != aghcontract.CodeReasoningOptionMissing {
-			t.Fatalf("HTTP create session diagnostic = %#v, want reasoning_option_missing", payload.Diagnostic)
-		}
+		waitForReasoningNegotiationFailure(
+			t,
+			ctx,
+			harness,
+			accepted.ID,
+			`reasoning effort "max" is unavailable`,
+		)
 		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 		if err != nil {
 			t.Fatalf("ReadDiagnostics(reasoning-codex-missing) error = %v", err)
@@ -359,27 +369,28 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		}
 	})
 
-	t.Run("Should return model_unavailable before the first prompt", func(t *testing.T) {
+	t.Run("Should persist model_unavailable before the first prompt", func(t *testing.T) {
 		registration, ok := harness.MockAgentRegistration("reasoning-codex-unavailable")
 		if !ok {
 			t.Fatal("MockAgentRegistration(reasoning-codex-unavailable) = missing")
 		}
-		status, payload := createSessionHTTPFailure(t, ctx, harness, aghcontract.CreateSessionRequest{
+		status, accepted := createSessionHTTPAccepted(t, ctx, harness, aghcontract.CreateSessionRequest{
 			AgentName:       "reasoning-codex-unavailable",
 			Provider:        "codex",
 			Model:           "gpt-5.6-terra",
 			ReasoningEffort: "max",
 			WorkspacePath:   harness.WorkspaceRoot,
 		})
-		if status != http.StatusUnprocessableEntity {
-			t.Fatalf("HTTP create session status = %d, want %d", status, http.StatusUnprocessableEntity)
+		if status != http.StatusCreated || accepted.State != session.StateStarting {
+			t.Fatalf("HTTP create session = status:%d session:%#v, want 201 starting", status, accepted)
 		}
-		if payload.Diagnostic == nil || payload.Diagnostic.Code != aghcontract.CodeModelUnavailable {
-			t.Fatalf("HTTP create session diagnostic = %#v, want model_unavailable", payload.Diagnostic)
-		}
-		if got := payload.Diagnostic.Evidence["requested"]; got != "gpt-5.6-terra" {
-			t.Fatalf("model_unavailable requested evidence = %#v, want gpt-5.6-terra", got)
-		}
+		waitForReasoningNegotiationFailure(
+			t,
+			ctx,
+			harness,
+			accepted.ID,
+			`model "gpt-5.6-terra" is unavailable`,
+		)
 		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 		if err != nil {
 			t.Fatalf("ReadDiagnostics(reasoning-codex-unavailable) error = %v", err)
@@ -392,27 +403,28 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		}
 	})
 
-	t.Run("Should return reasoning_effort_unsupported before the first prompt", func(t *testing.T) {
+	t.Run("Should persist reasoning_effort_unsupported before the first prompt", func(t *testing.T) {
 		registration, ok := harness.MockAgentRegistration("reasoning-codex-unsupported")
 		if !ok {
 			t.Fatal("MockAgentRegistration(reasoning-codex-unsupported) = missing")
 		}
-		status, payload := createSessionHTTPFailure(t, ctx, harness, aghcontract.CreateSessionRequest{
+		status, accepted := createSessionHTTPAccepted(t, ctx, harness, aghcontract.CreateSessionRequest{
 			AgentName:       "reasoning-codex-unsupported",
 			Provider:        "codex",
 			Model:           "gpt-5.6-sol",
 			ReasoningEffort: "minimal",
 			WorkspacePath:   harness.WorkspaceRoot,
 		})
-		if status != http.StatusUnprocessableEntity {
-			t.Fatalf("HTTP create session status = %d, want %d", status, http.StatusUnprocessableEntity)
+		if status != http.StatusCreated || accepted.State != session.StateStarting {
+			t.Fatalf("HTTP create session = status:%d session:%#v, want 201 starting", status, accepted)
 		}
-		if payload.Diagnostic == nil || payload.Diagnostic.Code != aghcontract.CodeReasoningEffortUnsupported {
-			t.Fatalf("HTTP create session diagnostic = %#v, want reasoning_effort_unsupported", payload.Diagnostic)
-		}
-		if got := payload.Diagnostic.Evidence["requested"]; got != "minimal" {
-			t.Fatalf("unsupported effort requested evidence = %#v, want minimal", got)
-		}
+		waitForReasoningNegotiationFailure(
+			t,
+			ctx,
+			harness,
+			accepted.ID,
+			`reasoning effort "minimal" is unavailable`,
+		)
 		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 		if err != nil {
 			t.Fatalf("ReadDiagnostics(reasoning-codex-unsupported) error = %v", err)
@@ -428,6 +440,57 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			t.Fatalf("prompt diagnostics = %#v, want no prompt after unsupported effort", promptRecords)
 		}
 	})
+}
+
+func waitForReasoningSessionActive(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	accepted aghcontract.SessionPayload,
+) aghcontract.SessionPayload {
+	t.Helper()
+	current := accepted
+	waitForRuntimeCondition(t, "reasoning session startup", 10*time.Second, func() bool {
+		resolved, err := harness.GetSession(ctx, accepted.ID)
+		if err != nil {
+			return false
+		}
+		current = resolved
+		return current.State == session.StateActive || current.State == session.StateStopped
+	})
+	if current.State != session.StateActive {
+		t.Fatalf("reasoning session startup = %#v, want active", current)
+	}
+	return current
+}
+
+func waitForReasoningNegotiationFailure(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	wantSummary string,
+) aghcontract.SessionPayload {
+	t.Helper()
+	var current aghcontract.SessionPayload
+	waitForRuntimeCondition(t, "reasoning negotiation failure", 10*time.Second, func() bool {
+		resolved, err := harness.GetSession(ctx, sessionID)
+		if err != nil {
+			return false
+		}
+		current = resolved
+		return current.State == session.StateStopped
+	})
+	if current.Failure == nil || current.Failure.Kind != store.FailureProtocol ||
+		!strings.Contains(current.Failure.Summary, wantSummary) {
+		t.Fatalf(
+			"reasoning negotiation failure = %#v, want kind %q containing %q",
+			current.Failure,
+			store.FailureProtocol,
+			wantSummary,
+		)
+	}
+	return current
 }
 
 func assertReasoningProtocolSequence(

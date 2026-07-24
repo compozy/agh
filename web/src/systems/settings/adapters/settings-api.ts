@@ -44,3 +44,4 @@ export {
   settingsObservabilityLogTailPath,
   triggerSettingsRestart,
 } from "./settings-operations-api";
+export { getRolesStatus, getSettingsRoles, updateSettingsRoles } from "./settings-roles-api";

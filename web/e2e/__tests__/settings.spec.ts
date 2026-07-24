@@ -44,6 +44,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "Appearance",
       "Providers",
       "Memory",
+      "Roles",
       "Skills",
       "Automation",
       "Network",
@@ -396,6 +397,57 @@ test("operator can manage restart-aware hooks and extension policy on split sett
   } finally {
     await cleanupBrowserSettingsFixtures(runtime, seeded);
   }
+});
+
+test("operator routes a background role, persists it across reload, and keeps builtins out of the Agents fleet", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const sessionUI = sessionLifecycleSelectors(appPage);
+  const settingsUI = settingsOperatorSelectors(appPage);
+  const nextModel = "claude-haiku-4-5";
+
+  await ensureGlobalWorkspace(runtime);
+  await useGlobalWorkspaceIfPrompted(sessionUI);
+  await appPage.goto(runtime.url("/settings/roles"), { waitUntil: "domcontentloaded" });
+
+  await expect(settingsUI.roles.page).toBeVisible({ timeout: 20_000 });
+  // Coordinator ships disabled — its OFF state is projected truthfully.
+  await expect(settingsUI.roles.badgeOff("coordinator")).toBeVisible();
+
+  const modelInput = settingsUI.roles.fieldInput("auto_title", "model");
+  await expect(modelInput).toHaveValue("");
+  await modelInput.fill(nextModel);
+  await expect(settingsUI.roles.saveButton).toBeEnabled();
+
+  const applyResponse = appPage.waitForResponse(
+    response =>
+      new URL(response.url()).pathname === "/api/settings/roles" &&
+      response.request().method() === "PATCH"
+  );
+  await settingsUI.roles.saveButton.click();
+  await applyResponse;
+  await expect(settingsUI.roles.saveMessage).toContainText("applied immediately");
+  await browserArtifacts.captureScreenshot("e2e-006-roles-auto-title-saved", appPage);
+
+  // The routed model survives a reload — panel and daemon config agree.
+  await reloadDaemonServedPage(appPage, runtime, "/settings/roles", {
+    readyTestId: "settings-page-roles",
+  });
+  await expect(settingsUI.roles.fieldInput("auto_title", "model")).toHaveValue(nextModel);
+
+  const section = await runtime.requestJSON<{ config: { auto_title: { model: string } } }>(
+    "/api/settings/roles"
+  );
+  expect(section.config.auto_title.model).toBe(nextModel);
+
+  // Virtual builtins never enter the Agents fleet.
+  await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
+  await expect(sessionUI.agentRow("general")).toBeVisible();
+  await expect(sessionUI.agentRow("coordinator")).toHaveCount(0);
+  await expect(sessionUI.agentRow("dreaming-curator")).toHaveCount(0);
+  await browserArtifacts.captureScreenshot("e2e-006-agents-fleet-no-builtins", appPage);
 });
 
 function normalizeTexts(values: string[]): string[] {

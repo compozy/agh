@@ -37,6 +37,7 @@ import {
 } from "./window-manager-fixtures";
 import { settingsUpdateStatusFixture } from "./settings-update-fixture";
 import { windowManagerSnapshotFixture, windowManagerStoryDesktopId } from "@/systems/os/mocks";
+import { rolesStatusFixture, settingsRolesSectionFixture } from "./roles-fixtures";
 
 function layoutDocumentForWorkspace(workspaceId: string) {
   return structuredClone({ ...windowManagerLayoutDocumentFixture, workspace_id: workspaceId });
@@ -100,6 +101,10 @@ export const handlers: HttpHandler[] = [
 
   aghApiMock.get("/api/settings/memory", () => HttpResponse.json(settingsMemorySectionFixture)),
   aghApiMock.patch("/api/settings/memory", () => HttpResponse.json(mutationResult("memory"))),
+
+  aghApiMock.get("/api/roles", () => HttpResponse.json(rolesStatusFixture)),
+  aghApiMock.get("/api/settings/roles", () => HttpResponse.json(settingsRolesSectionFixture)),
+  aghApiMock.patch("/api/settings/roles", () => HttpResponse.json(mutationResult("roles"))),
 
   aghApiMock.get("/api/settings/skills", () => HttpResponse.json(settingsSkillsSectionFixture)),
   aghApiMock.patch("/api/settings/skills", () => HttpResponse.json(mutationResult("skills", true))),

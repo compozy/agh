@@ -530,125 +530,139 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	t.Parallel()
 	t.Run("Should isolate cached config and invalidate every watched input", func(t *testing.T) {
 		t.Parallel()
-
-		ctx := context.Background()
-		homePaths := newTestHomePaths(t)
-		root := t.TempDir()
-		workspaceConfig := filepath.Join(root, aghconfig.DirName, aghconfig.ConfigName)
-		agentFile := filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "coder", agentDefinitionFile)
-		skillsDir := filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName)
-		skillOne := filepath.Join(skillsDir, "alpha")
-		skillTwo := filepath.Join(skillsDir, "beta")
-
-		writeFile(t, workspaceConfig, "[http]\nport = 4242\n")
-		writeAgentDef(t, agentFile, "coder", "v1")
-		writeSkill(t, skillOne)
-
-		ws := Workspace{ID: "ws_cache", RootDir: root, Name: "repo"}
-		store := newMockWorkspaceStore(ws)
-		loadedConfig := validConfig(homePaths)
-		loadedConfig.WindowManager.HistoryLimit = 77
-		loadedConfig.WindowManager.Snap.RepeatRatios = []float64{0.5, 0.75, 0.25}
-		loadedConfig.WindowManager.Shortcuts = map[string]string{"window.focus.left": "alt+KeyH"}
-		loader := &countingConfigLoader{cfg: loadedConfig}
-		currentTime := time.Unix(1_700_000_000, 0).UTC()
-
-		resolver := newTestResolver(t, store,
-			WithHomePaths(homePaths),
-			WithConfigLoader(loader.Load),
-			withNow(func() time.Time { return currentTime }),
-			WithCacheTTL(10*time.Minute),
-		)
-
-		first, err := resolver.Resolve(ctx, ws.ID)
-		if err != nil {
-			t.Fatalf("Resolve(first) error = %v", err)
-		}
-		if got := loader.Calls(); got != 1 {
-			t.Fatalf("config loader calls after first resolve = %d, want 1", got)
-		}
-		if first.Config.WindowManager.HistoryLimit != 77 ||
-			first.Config.WindowManager.Shortcuts["window.focus.left"] != "alt+KeyH" {
-			t.Fatalf("Resolve(first) WindowManager = %#v, want loaded config", first.Config.WindowManager)
-		}
-		first.Config.WindowManager.Snap.RepeatRatios[0] = 0.4
-		first.Config.WindowManager.Shortcuts["window.focus.left"] = "meta+KeyH"
-
-		currentTime = currentTime.Add(1 * time.Minute)
-		second, err := resolver.Resolve(ctx, ws.ID)
-		if err != nil {
-			t.Fatalf("Resolve(second) error = %v", err)
-		}
-		if got := loader.Calls(); got != 1 {
-			t.Fatalf("config loader calls after cache hit = %d, want 1", got)
-		}
-		if !second.ResolvedAt.Equal(first.ResolvedAt) {
-			t.Fatalf("ResolvedAt on cache hit = %v, want %v", second.ResolvedAt, first.ResolvedAt)
-		}
-		if got := second.Config.WindowManager.Snap.RepeatRatios; len(got) != 3 || got[0] != 0.5 {
-			t.Fatalf("Resolve(cache hit) repeat ratios = %#v, want isolated loaded ratios", got)
-		}
-		if got := second.Config.WindowManager.Shortcuts["window.focus.left"]; got != "alt+KeyH" {
-			t.Fatalf("Resolve(cache hit) shortcut = %q, want isolated alt+KeyH", got)
-		}
-
-		modTime := time.Unix(1_700_000_100, 0).UTC()
-		writeFile(t, workspaceConfig, "[http]\nport = 4343\n")
-		touchPath(t, workspaceConfig, modTime)
-		currentTime = currentTime.Add(1 * time.Minute)
-		if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
-			t.Fatalf("Resolve(after config change) error = %v", err)
-		}
-		if got := loader.Calls(); got != 2 {
-			t.Fatalf("config loader calls after config invalidation = %d, want 2", got)
-		}
-
-		modTime = modTime.Add(1 * time.Minute)
-		writeAgentDef(t, agentFile, "coder", "v2")
-		touchPath(t, agentFile, modTime)
-		currentTime = currentTime.Add(1 * time.Minute)
-		afterAgent, err := resolver.Resolve(ctx, ws.ID)
-		if err != nil {
-			t.Fatalf("Resolve(after agent change) error = %v", err)
-		}
-		if got := loader.Calls(); got != 3 {
-			t.Fatalf("config loader calls after agent invalidation = %d, want 3", got)
-		}
-		if got := agentModel(afterAgent.Agents, "coder"); got != "v2" {
-			t.Fatalf("agent model after agent invalidation = %q, want %q", got, "v2")
-		}
-
-		writeSkill(t, skillTwo)
-		touchPath(t, skillsDir, modTime.Add(1*time.Minute))
-		currentTime = currentTime.Add(1 * time.Minute)
-		afterSkill, err := resolver.Resolve(ctx, ws.ID)
-		if err != nil {
-			t.Fatalf("Resolve(after skill change) error = %v", err)
-		}
-		if got := loader.Calls(); got != 4 {
-			t.Fatalf("config loader calls after skill invalidation = %d, want 4", got)
-		}
-		if got := skillNames(afterSkill.Skills); !slices.Equal(got, []string{"alpha", "beta"}) {
-			t.Fatalf("skill names after skill invalidation = %#v, want %#v", got, []string{"alpha", "beta"})
-		}
-
-		resolver.Invalidate(ws.ID)
-		currentTime = currentTime.Add(1 * time.Minute)
-		if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
-			t.Fatalf("Resolve(after invalidate) error = %v", err)
-		}
-		if got := loader.Calls(); got != 5 {
-			t.Fatalf("config loader calls after Invalidate = %d, want 5", got)
-		}
-
-		currentTime = currentTime.Add(11 * time.Minute)
-		if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
-			t.Fatalf("Resolve(after TTL expiry) error = %v", err)
-		}
-		if got := loader.Calls(); got != 6 {
-			t.Fatalf("config loader calls after TTL eviction = %d, want 6", got)
-		}
+		runResolveCacheHitInvalidateAndEviction(t)
 	})
+}
+
+func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
+	t.Helper()
+
+	ctx := context.Background()
+	homePaths := newTestHomePaths(t)
+	root := t.TempDir()
+	workspaceConfig := filepath.Join(root, aghconfig.DirName, aghconfig.ConfigName)
+	agentFile := filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "coder", agentDefinitionFile)
+	skillsDir := filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName)
+	skillOne := filepath.Join(skillsDir, "alpha")
+	skillTwo := filepath.Join(skillsDir, "beta")
+
+	writeFile(t, workspaceConfig, "[http]\nport = 4242\n")
+	writeAgentDef(t, agentFile, "coder", "v1")
+	writeSkill(t, skillOne)
+
+	ws := Workspace{ID: "ws_cache", RootDir: root, Name: "repo"}
+	store := newMockWorkspaceStore(ws)
+	loadedConfig := validConfig(homePaths)
+	loadedConfig.WindowManager.HistoryLimit = 77
+	loadedConfig.WindowManager.Snap.RepeatRatios = []float64{0.5, 0.75, 0.25}
+	loadedConfig.WindowManager.Shortcuts = map[string]string{"window.focus.left": "alt+KeyH"}
+	loader := &countingConfigLoader{cfg: loadedConfig}
+	currentTime := time.Unix(1_700_000_000, 0).UTC()
+
+	resolver := newTestResolver(t, store,
+		WithHomePaths(homePaths),
+		WithConfigLoader(loader.Load),
+		withNow(func() time.Time { return currentTime }),
+		WithCacheTTL(10*time.Minute),
+	)
+
+	first, err := resolver.Resolve(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("Resolve(first) error = %v", err)
+	}
+	if got := loader.Calls(); got != 1 {
+		t.Fatalf("config loader calls after first resolve = %d, want 1", got)
+	}
+	if first.Config.WindowManager.HistoryLimit != 77 ||
+		first.Config.WindowManager.Shortcuts["window.focus.left"] != "alt+KeyH" {
+		t.Fatalf("Resolve(first) WindowManager = %#v, want loaded config", first.Config.WindowManager)
+	}
+	first.Config.WindowManager.Snap.RepeatRatios[0] = 0.4
+	first.Config.WindowManager.Shortcuts["window.focus.left"] = "meta+KeyH"
+
+	currentTime = currentTime.Add(1 * time.Minute)
+	second, err := resolver.Resolve(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("Resolve(second) error = %v", err)
+	}
+	if got := loader.Calls(); got != 1 {
+		t.Fatalf("config loader calls after cache hit = %d, want 1", got)
+	}
+	if !second.ResolvedAt.Equal(first.ResolvedAt) {
+		t.Fatalf("ResolvedAt on cache hit = %v, want %v", second.ResolvedAt, first.ResolvedAt)
+	}
+	if got := second.Config.WindowManager.Snap.RepeatRatios; len(got) != 3 || got[0] != 0.5 {
+		t.Fatalf("Resolve(cache hit) repeat ratios = %#v, want isolated loaded ratios", got)
+	}
+	if got := second.Config.WindowManager.Shortcuts["window.focus.left"]; got != "alt+KeyH" {
+		t.Fatalf("Resolve(cache hit) shortcut = %q, want isolated alt+KeyH", got)
+	}
+
+	modTime := time.Unix(1_700_000_100, 0).UTC()
+	writeFile(t, workspaceConfig, "[http]\nport = 4343\n")
+	touchPath(t, workspaceConfig, modTime)
+	currentTime = currentTime.Add(1 * time.Minute)
+	if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
+		t.Fatalf("Resolve(after config change) error = %v", err)
+	}
+	if got := loader.Calls(); got != 2 {
+		t.Fatalf("config loader calls after config invalidation = %d, want 2", got)
+	}
+
+	modTime = modTime.Add(1 * time.Minute)
+	writeAgentDef(t, agentFile, "coder", "v2")
+	touchPath(t, agentFile, modTime)
+	currentTime = currentTime.Add(1 * time.Minute)
+	afterAgent, err := resolver.Resolve(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("Resolve(after agent change) error = %v", err)
+	}
+	if got := loader.Calls(); got != 3 {
+		t.Fatalf("config loader calls after agent invalidation = %d, want 3", got)
+	}
+	if got := agentModel(afterAgent.Agents, "coder"); got != "v2" {
+		t.Fatalf("agent model after agent invalidation = %q, want %q", got, "v2")
+	}
+
+	writeSkill(t, skillTwo)
+	touchPath(t, skillsDir, modTime.Add(1*time.Minute))
+	currentTime = currentTime.Add(1 * time.Minute)
+	afterSkill, err := resolver.Resolve(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("Resolve(after skill change) error = %v", err)
+	}
+	if got := loader.Calls(); got != 4 {
+		t.Fatalf("config loader calls after skill invalidation = %d, want 4", got)
+	}
+	if got := skillNames(afterSkill.Skills); !slices.Equal(got, []string{"alpha", "beta"}) {
+		t.Fatalf("skill names after skill invalidation = %#v, want %#v", got, []string{"alpha", "beta"})
+	}
+
+	resolver.Invalidate(ws.ID)
+	currentTime = currentTime.Add(1 * time.Minute)
+	if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
+		t.Fatalf("Resolve(after invalidate) error = %v", err)
+	}
+	if got := loader.Calls(); got != 5 {
+		t.Fatalf("config loader calls after Invalidate = %d, want 5", got)
+	}
+
+	resolver.InvalidateAll()
+	currentTime = currentTime.Add(1 * time.Minute)
+	if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
+		t.Fatalf("Resolve(after InvalidateAll) error = %v", err)
+	}
+	if got := loader.Calls(); got != 6 {
+		t.Fatalf("config loader calls after InvalidateAll = %d, want 6", got)
+	}
+
+	currentTime = currentTime.Add(11 * time.Minute)
+	if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
+		t.Fatalf("Resolve(after TTL expiry) error = %v", err)
+	}
+	if got := loader.Calls(); got != 7 {
+		t.Fatalf("config loader calls after TTL eviction = %d, want 7", got)
+	}
 }
 
 func TestResolveMissingRootReturnsErrWorkspaceRootMissing(t *testing.T) {
@@ -955,6 +969,28 @@ func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "embedded-tab", agentDefinitionFile),
 		"---\nna\tme: broken\n---\nPrompt.",
 	)
+	writeAgentDef(
+		t,
+		filepath.Join(
+			root,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			aghconfig.BuiltinCoordinatorAgentName,
+			agentDefinitionFile,
+		),
+		aghconfig.BuiltinCoordinatorAgentName,
+		"shadowed-coordinator",
+	)
+	writeAgentDef(
+		t,
+		filepath.Join(
+			homePaths.AgentsDir,
+			aghconfig.BuiltinDreamingCuratorAgentName,
+			agentDefinitionFile,
+		),
+		aghconfig.BuiltinDreamingCuratorAgentName,
+		"shadowed-curator",
+	)
 
 	store := newMockWorkspaceStore(Workspace{ID: "ws_agents", RootDir: root, Name: "repo"})
 	loader := &countingConfigLoader{cfg: validConfig(homePaths)}
@@ -970,7 +1006,13 @@ func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 	if got := agentModel(resolved.Agents, "healthy"); got != "local" {
 		t.Fatalf("healthy model = %q, want local", got)
 	}
-	if got, want := len(resolved.AgentDiagnostics), 4; got != want {
+	if got := agentModel(resolved.Agents, aghconfig.BuiltinCoordinatorAgentName); got != "" {
+		t.Fatalf("reserved coordinator model = %q, want excluded", got)
+	}
+	if got := agentModel(resolved.Agents, aghconfig.BuiltinDreamingCuratorAgentName); got != "" {
+		t.Fatalf("reserved dreaming-curator model = %q, want excluded", got)
+	}
+	if got, want := len(resolved.AgentDiagnostics), 6; got != want {
 		t.Fatalf("len(AgentDiagnostics) = %d, want %d: %#v", got, want, resolved.AgentDiagnostics)
 	}
 	kinds := make(map[string]string, len(resolved.AgentDiagnostics))
@@ -981,10 +1023,12 @@ func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 		}
 	}
 	wantKinds := map[string]string{
-		"no-fence":     "frontmatter.missing",
-		"unterminated": "frontmatter.unterminated",
-		"bom":          "frontmatter.bom",
-		"embedded-tab": "frontmatter.invalid_key",
+		"no-fence":                            "frontmatter.missing",
+		"unterminated":                        "frontmatter.unterminated",
+		"bom":                                 "frontmatter.bom",
+		"embedded-tab":                        "frontmatter.invalid_key",
+		aghconfig.BuiltinCoordinatorAgentName: reservedAgentDiagnosticKind,
+		aghconfig.BuiltinDreamingCuratorAgentName: reservedAgentDiagnosticKind,
 	}
 	if !maps.Equal(kinds, wantKinds) {
 		t.Fatalf("diagnostic kinds = %#v, want %#v", kinds, wantKinds)
@@ -1633,13 +1677,16 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 					Timeout: time.Minute,
 				},
 			},
-			Autonomy: aghconfig.AutonomyConfig{
-				Coordinator: aghconfig.CoordinatorConfig{
-					Enabled:                       true,
-					AgentName:                     "coordinator",
-					Provider:                      "codex",
-					Model:                         "gpt-4o",
-					DefaultTTL:                    45 * time.Minute,
+			Roles: aghconfig.RolesConfig{
+				Coordinator: aghconfig.CoordinatorRoleConfig{
+					RoleConfig: aghconfig.RoleConfig{
+						Enabled:       true,
+						Agent:         "coordinator",
+						Provider:      "codex",
+						Model:         "gpt-4o",
+						FallbackChain: []aghconfig.RoleFallback{{Provider: "claude", Model: "sonnet"}},
+					},
+					TTL:                           45 * time.Minute,
 					MaxChildren:                   5,
 					MaxActiveSessionsPerWorkspace: 5,
 				},
@@ -1690,12 +1737,18 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		}
 
 		cloned := cloneConfig(&original)
+		if !cloned.Roles.Coordinator.Enabled || cloned.Roles.Coordinator.Agent != "coordinator" ||
+			cloned.Roles.Coordinator.TTL != 45*time.Minute ||
+			!slices.Equal(cloned.Roles.Coordinator.FallbackChain, original.Roles.Coordinator.FallbackChain) {
+			t.Fatalf("cloned Roles.Coordinator = %#v, want preserved role config", cloned.Roles.Coordinator)
+		}
 		cloned.Agents.Soul.MaxBodyBytes = 8192
 		cloned.Agents.Heartbeat.MaxBodyBytes = 8192
 		cloned.Session.Limits.Timeout = 2 * time.Minute
-		cloned.Autonomy.Coordinator.Enabled = false
-		cloned.Autonomy.Coordinator.AgentName = "mutated-coordinator"
-		cloned.Autonomy.Coordinator.DefaultTTL = 2 * time.Hour
+		cloned.Roles.Coordinator.Enabled = false
+		cloned.Roles.Coordinator.Agent = "mutated-coordinator"
+		cloned.Roles.Coordinator.TTL = 2 * time.Hour
+		cloned.Roles.Coordinator.FallbackChain[0].Model = "mutated-model"
 		cloned.Providers["claude"] = aghconfig.ProviderConfig{}
 		cloned.Skills.DisabledSkills[0] = "beta"
 		cloned.Hooks.Declarations[0].Args[0] = "two"
@@ -1712,14 +1765,17 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		if got, want := original.Session.Limits.Timeout, time.Minute; got != want {
 			t.Fatalf("original Session.Limits.Timeout = %s, want %s", got, want)
 		}
-		if got, want := original.Autonomy.Coordinator.DefaultTTL, 45*time.Minute; got != want {
-			t.Fatalf("original Autonomy.Coordinator.DefaultTTL = %s, want %s", got, want)
+		if got, want := original.Roles.Coordinator.TTL, 45*time.Minute; got != want {
+			t.Fatalf("original Roles.Coordinator.TTL = %s, want %s", got, want)
 		}
-		if !original.Autonomy.Coordinator.Enabled {
-			t.Fatal("original Autonomy.Coordinator.Enabled = false, want true")
+		if !original.Roles.Coordinator.Enabled {
+			t.Fatal("original Roles.Coordinator.Enabled = false, want true")
 		}
-		if got, want := original.Autonomy.Coordinator.AgentName, "coordinator"; got != want {
-			t.Fatalf("original Autonomy.Coordinator.AgentName = %q, want %q", got, want)
+		if got, want := original.Roles.Coordinator.Agent, "coordinator"; got != want {
+			t.Fatalf("original Roles.Coordinator.Agent = %q, want %q", got, want)
+		}
+		if got, want := original.Roles.Coordinator.FallbackChain[0].Model, "sonnet"; got != want {
+			t.Fatalf("original.Roles.Coordinator.FallbackChain[0].Model = %q, want %q", got, want)
 		}
 		provider := original.Providers["claude"]
 		if provider.Command != "claude" || provider.MCPServers[0].Env["TOKEN"] != "one" {

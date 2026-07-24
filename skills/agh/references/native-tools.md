@@ -140,6 +140,14 @@ binding semantics.
 
 Config tools live under `agh__config_*` for show/list/get/set/unset/diff/path. Hook tools live under `agh__hooks_*` for list/info/events/runs/create/update/delete/enable/disable; hooks are typed dispatch, not an event bus.
 
+Background-role inspection has no `agh__roles_*` native tool. Use `agh roles list|show -o json` or
+the HTTP/UDS `GET /api/roles` reads. Scalar `roles.<role>.*` routing and role-policy keys are exposed
+through the live `agh__config_set`/`agh__config_unset` descriptors, including coordinator limits and
+memory-controller call bounds. Fallback chains are structured arrays and must be changed through
+`config.toml` or the Settings Roles API/UI, not guessed into a scalar config-tool call. Inspect the
+live descriptor before any mutation; successful role writes report the `live` lifecycle and affect
+later invocations.
+
 Automation catalogs use CLI, HTTP/UDS, and `agh__automation_jobs_list` / `agh__automation_triggers_list`.
 Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, search, and event;
 run history stays uncounted and must be bounded. Other `agh__automation_*` tools cover detail,

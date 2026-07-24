@@ -289,14 +289,14 @@ func TestCoordinatorRuntimeSkipsIneligibleRuns(t *testing.T) {
 		name       string
 		task       taskpkg.Task
 		run        taskpkg.Run
-		cfg        aghconfig.CoordinatorConfig
+		cfg        aghconfig.ResolvedCoordinatorRole
 		wantReason string
 	}{
 		{
 			name:       "disabled config",
 			task:       coordinatorRuntimeTask(),
 			run:        coordinatorRuntimeRun(),
-			cfg:        aghconfig.DefaultCoordinatorConfig(),
+			cfg:        aghconfig.DefaultResolvedCoordinatorRole(),
 			wantReason: coordinator.DecisionDisabled,
 		},
 		{
@@ -742,7 +742,7 @@ func newCoordinatorRuntimeForTest(
 	store *coordinatorRuntimeStore,
 	sessions *coordinatorRuntimeSessions,
 	hooks *recordingCoordinatorHooks,
-	cfg aghconfig.CoordinatorConfig,
+	cfg aghconfig.ResolvedCoordinatorRole,
 	now time.Time,
 ) *coordinatorRuntime {
 	t.Helper()
@@ -750,7 +750,7 @@ func newCoordinatorRuntimeForTest(
 		context.Background(),
 		store,
 		sessions,
-		&staticCoordinatorConfigResolver{cfg: cfg},
+		&staticCoordinatorRoleResolver{cfg: cfg},
 		hooks,
 		discardLogger(),
 		func() time.Time { return now },
@@ -761,13 +761,13 @@ func newCoordinatorRuntimeForTest(
 	return runtime
 }
 
-func coordinatorRuntimeConfig() aghconfig.CoordinatorConfig {
-	cfg := aghconfig.DefaultCoordinatorConfig()
+func coordinatorRuntimeConfig() aghconfig.ResolvedCoordinatorRole {
+	cfg := aghconfig.DefaultResolvedCoordinatorRole()
 	cfg.Enabled = true
 	cfg.AgentName = "coordinator"
 	cfg.Provider = "codex"
 	cfg.Model = "gpt-5"
-	cfg.DefaultTTL = 2 * time.Hour
+	cfg.TTL = 2 * time.Hour
 	cfg.MaxChildren = 5
 	cfg.MaxActiveSessionsPerWorkspace = 5
 	return cfg
@@ -794,22 +794,22 @@ func coordinatorRuntimeRun() taskpkg.Run {
 	return run
 }
 
-type staticCoordinatorConfigResolver struct {
-	cfg aghconfig.CoordinatorConfig
+type staticCoordinatorRoleResolver struct {
+	cfg aghconfig.ResolvedCoordinatorRole
 	err error
 	mu  sync.Mutex
 	got []string
 }
 
-func (r *staticCoordinatorConfigResolver) ResolveCoordinatorConfig(
+func (r *staticCoordinatorRoleResolver) ResolveCoordinatorRole(
 	_ context.Context,
 	workspaceID string,
-) (aghconfig.CoordinatorConfig, error) {
+) (aghconfig.ResolvedCoordinatorRole, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.got = append(r.got, workspaceID)
 	if r.err != nil {
-		return aghconfig.CoordinatorConfig{}, r.err
+		return aghconfig.ResolvedCoordinatorRole{}, r.err
 	}
 	return r.cfg, nil
 }

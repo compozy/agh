@@ -163,7 +163,8 @@ func (n *daemonNativeTools) agentCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if n.deps.AgentSkills == nil {
+	agentSkills := n.deps.agentSkills()
+	if agentSkills == nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(
 			req.ToolID,
 			errors.New("daemon: agent definition sync is unavailable"),
@@ -180,7 +181,7 @@ func (n *daemonNativeTools) agentCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
 	}
-	if err := n.deps.AgentSkills.Sync(ctx); err != nil {
+	if err := agentSkills.Sync(ctx); err != nil {
 		syncErr := errors.Join(
 			fmt.Errorf("daemon: sync created agent definition: %w", err),
 			n.rollbackNativeAgentCreate(ctx, agent.SourcePath),
@@ -204,7 +205,11 @@ func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourc
 	if err := aghconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
 		return fmt.Errorf("daemon: roll back created agent definition: %w", err)
 	}
-	if err := n.deps.AgentSkills.Sync(ctx); err != nil {
+	agentSkills := n.deps.agentSkills()
+	if agentSkills == nil {
+		return errors.New("daemon: agent definition sync is unavailable")
+	}
+	if err := agentSkills.Sync(ctx); err != nil {
 		return fmt.Errorf("daemon: reconcile catalog after agent create rollback: %w", err)
 	}
 	return nil
@@ -252,6 +257,14 @@ func (n *daemonNativeTools) agentCreateRequest(
 
 func nativeAgentCreateToolError(id toolspkg.ToolID, err error) error {
 	switch {
+	case errors.Is(err, aghconfig.ErrAgentNameReserved):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeAgentNameReserved,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
 	case errors.Is(err, aghconfig.ErrAgentDefinitionExists):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeConflict,

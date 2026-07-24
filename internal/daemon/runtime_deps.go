@@ -63,7 +63,8 @@ type RuntimeDeps struct {
 	HeartbeatWake       core.HeartbeatWakeService
 	SessionHealth       core.SessionHealthReader
 	WakeEvents          core.HeartbeatWakeEventReader
-	CoordinatorConfig   CoordinatorConfigResolver
+	CoordinatorRole     CoordinatorRoleResolver
+	Roles               core.RolesStatusProvider
 	SkillsRegistry      core.SkillsRegistry
 	SkillResources      core.SkillResourceSyncer
 	DreamTrigger        DreamTrigger

@@ -103,7 +103,7 @@ type PromptInput struct {
 // DecideBootstrap evaluates the mechanical coordinator bootstrap rules. It
 // does not check for already-running coordinator sessions; that singleton check
 // belongs to the daemon runtime.
-func DecideBootstrap(task taskpkg.Task, run taskpkg.Run, cfg aghconfig.CoordinatorConfig) Decision {
+func DecideBootstrap(task taskpkg.Task, run taskpkg.Run, cfg aghconfig.ResolvedCoordinatorRole) Decision {
 	decision := Decision{
 		WorkspaceID:          strings.TrimSpace(task.WorkspaceID),
 		TaskID:               strings.TrimSpace(task.ID),
@@ -194,17 +194,17 @@ func SpawnRoleAllowed(role string) bool {
 // Lineage builds root lineage metadata for a managed coordinator session.
 func Lineage(
 	now time.Time,
-	cfg aghconfig.CoordinatorConfig,
+	cfg aghconfig.ResolvedCoordinatorRole,
 	policy store.SessionPermissionPolicy,
 ) *store.SessionLineage {
-	ttl := now.UTC().Add(cfg.DefaultTTL)
+	ttl := now.UTC().Add(cfg.TTL)
 	return &store.SessionLineage{
 		SpawnRole:    string(session.SessionTypeCoordinator),
 		TTLExpiresAt: &ttl,
 		SpawnBudget: store.SessionSpawnBudget{
 			MaxChildren: cfg.MaxChildren,
 			MaxDepth:    session.DefaultSpawnMaxDepth,
-			TTLSeconds:  int64(cfg.DefaultTTL.Seconds()),
+			TTLSeconds:  int64(cfg.TTL.Seconds()),
 			// Coordinator uniqueness is enforced by the daemon singleton; this caps managed sessions.
 			MaxActivePerWorkspace: cfg.MaxActiveSessionsPerWorkspace,
 		},

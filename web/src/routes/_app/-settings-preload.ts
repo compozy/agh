@@ -9,6 +9,8 @@ import {
   settingsMemoryOptions,
   settingsObservabilityOptions,
   settingsProvidersListOptions,
+  settingsRolesOptions,
+  settingsRolesStatusOptions,
   settingsSandboxesListOptions,
   settingsSkillsOptions,
   settingsUpdateOptions,
@@ -46,6 +48,13 @@ export function preloadSettingsSkillsRoute(queryClient: QueryClient): Promise<vo
 
 export function preloadSettingsMemoryRoute(queryClient: QueryClient): Promise<void> {
   return settleRouteQueries([queryClient.ensureQueryData(settingsMemoryOptions())]);
+}
+
+export function preloadSettingsRolesRoute(queryClient: QueryClient): Promise<void> {
+  return settleRouteQueries([
+    queryClient.ensureQueryData(settingsRolesStatusOptions()),
+    queryClient.ensureQueryData(settingsRolesOptions()),
+  ]);
 }
 
 export function preloadSettingsObservabilityRoute(queryClient: QueryClient): Promise<void> {

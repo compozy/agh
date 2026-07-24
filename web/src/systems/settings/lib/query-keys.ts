@@ -42,6 +42,8 @@ export const settingsKeys = {
       normalizeText(filter.agent_name),
     ] as const,
 
+  rolesStatus: () => [...settingsKeys.all, "roles-status"] as const,
+
   collections: () => [...settingsKeys.all, "collection"] as const,
 
   providersRoot: () => [...settingsKeys.collections(), "providers"] as const,

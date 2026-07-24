@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/session"
 )
@@ -22,18 +23,18 @@ type checkpointSummarySessionManager interface {
 
 type daemonCheckpointSummarizer struct {
 	sessions checkpointSummarySessionManager
-	agent    string
+	roles    RoleResolver
 }
 
 var _ memory.CheckpointSummarizer = (*daemonCheckpointSummarizer)(nil)
 
 func newDaemonCheckpointSummarizer(
 	sessions checkpointSummarySessionManager,
-	agent string,
+	roles RoleResolver,
 ) *daemonCheckpointSummarizer {
 	return &daemonCheckpointSummarizer{
 		sessions: sessions,
-		agent:    strings.TrimSpace(agent),
+		roles:    roles,
 	}
 }
 
@@ -47,42 +48,47 @@ func (s *daemonCheckpointSummarizer) Summarize(
 	if ctx == nil {
 		return "", errors.New("daemon: checkpoint summary context is required")
 	}
+	if s.roles == nil {
+		return "", errors.New("daemon: checkpoint summary role resolver is not configured")
+	}
+	correlation := roleInvocationCorrelation{
+		WorkspaceID: strings.TrimSpace(request.WorkspaceID),
+		SessionID:   strings.TrimSpace(request.SessionID),
+		AgentName:   strings.TrimSpace(request.AgentName),
+	}
+	roleCtx := withRoleInvocationCorrelation(ctx, correlation)
+	role, err := s.roles.Resolve(roleCtx, request.WorkspaceRoot, aghconfig.RoleCheckpointSummary)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve checkpoint summary role: %w", err)
+	}
+	if !role.Enabled {
+		return "", nil
+	}
 	prompt, err := memory.RenderCheckpointSummaryPrompt(request)
 	if err != nil {
 		return "", err
 	}
-	summarySession, err := s.sessions.Create(ctx, session.CreateOpts{
-		AgentName: s.agent,
-		Name:      checkpointSummarySessionName,
-		Workspace: strings.TrimSpace(request.WorkspaceRoot),
-		Type:      session.SessionTypeDream,
+	summarySession, err := invokeRoleWithFallback(ctx, role, correlation, func(
+		attemptCtx context.Context,
+		route roleAttemptRoute,
+	) (*session.Session, bool, error) {
+		created, createErr := s.sessions.Create(attemptCtx, session.CreateOpts{
+			AgentName:       route.AgentName,
+			Provider:        route.Provider,
+			Model:           route.Model,
+			ReasoningEffort: route.ReasoningEffort,
+			Name:            checkpointSummarySessionName,
+			Workspace:       strings.TrimSpace(request.WorkspaceRoot),
+			Type:            session.SessionTypeDream,
+		})
+		return created, created != nil, createErr
 	})
+	if summarySession != nil {
+		defer s.stopCheckpointSummarySession(ctx, summarySession.ID, &err)
+	}
 	if err != nil {
 		return "", fmt.Errorf("daemon: create checkpoint summary session: %w", err)
 	}
-	defer func() {
-		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), checkpointSummaryStopTimeout)
-		defer cancel()
-		cause := session.CauseCompleted
-		detail := "checkpoint summary completed"
-		if err != nil {
-			cause = session.CauseFailed
-			detail = err.Error()
-		}
-		stopErr := s.sessions.StopWithCause(
-			stopCtx,
-			summarySession.ID,
-			cause,
-			detail,
-		)
-		if stopErr != nil {
-			err = errors.Join(err, fmt.Errorf(
-				"daemon: stop checkpoint summary session %q: %w",
-				summarySession.ID,
-				stopErr,
-			))
-		}
-	}()
 
 	events, err := s.sessions.Prompt(ctx, summarySession.ID, prompt)
 	if err != nil {
@@ -93,6 +99,28 @@ func (s *daemonCheckpointSummarizer) Summarize(
 		return "", err
 	}
 	return strings.TrimSpace(output), nil
+}
+
+func (s *daemonCheckpointSummarizer) stopCheckpointSummarySession(
+	ctx context.Context,
+	sessionID string,
+	operationErr *error,
+) {
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), checkpointSummaryStopTimeout)
+	defer cancel()
+	cause := session.CauseCompleted
+	detail := "checkpoint summary completed"
+	if *operationErr != nil {
+		cause = session.CauseFailed
+		detail = (*operationErr).Error()
+	}
+	if err := s.sessions.StopWithCause(stopCtx, sessionID, cause, detail); err != nil {
+		*operationErr = errors.Join(*operationErr, fmt.Errorf(
+			"daemon: stop checkpoint summary session %q: %w",
+			sessionID,
+			err,
+		))
+	}
 }
 
 func collectCheckpointSummaryOutput(ctx context.Context, events <-chan acp.AgentEvent) (string, error) {

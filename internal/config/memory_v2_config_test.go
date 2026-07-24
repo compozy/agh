@@ -27,13 +27,6 @@ func TestMemoryV2ConfigDefaultsAndOverlay(t *testing.T) {
 			memory.Controller.DefaultOpOnFail != "noop" {
 			t.Fatalf("DefaultWithHome() Controller = %#v", memory.Controller)
 		}
-		if memory.Controller.LLM.Model != "anthropic/claude-haiku-4" ||
-			memory.Controller.LLM.TopK != 5 ||
-			memory.Controller.LLM.PromptVersion != "v1" ||
-			memory.Controller.LLM.Timeout != 250*time.Millisecond ||
-			memory.Controller.LLM.MaxTokensOut != 256 {
-			t.Fatalf("DefaultWithHome() Controller.LLM = %#v", memory.Controller.LLM)
-		}
 		if !slices.Equal(memory.Controller.Policy.AllowOrigins, []string{
 			"cli",
 			"http",
@@ -65,8 +58,7 @@ func TestMemoryV2ConfigDefaultsAndOverlay(t *testing.T) {
 			memory.Extractor.Queue.CoalesceMax != 16 {
 			t.Fatalf("DefaultWithHome() Extractor = %#v", memory.Extractor)
 		}
-		if memory.Dream.Agent != DefaultMemoryDreamAgentName ||
-			memory.Dream.Debounce != 10*time.Minute ||
+		if memory.Dream.Debounce != 10*time.Minute ||
 			memory.Dream.PromptVersion != "v1" ||
 			memory.Dream.Gates.MinScore != 0.75 ||
 			memory.Dream.Scoring.RecencyHalfLifeDays != 14 {
@@ -107,14 +99,6 @@ mode = "rules"
 max_latency = "150ms"
 default_op_on_fail = "reject"
 
-[memory.controller.llm]
-enabled = false
-model = "anthropic/test"
-top_k = 3
-prompt_version = "v2"
-timeout = "125ms"
-max_tokens_out = 128
-
 [memory.controller.policy]
 max_content_chars = 2048
 max_writes_per_min = 30
@@ -147,21 +131,18 @@ keep_audit_summary = false
 max_post_content_bytes = 32768
 
 [memory.extractor]
-enabled = true
 mode = "post_message"
 throttle_turns = 2
 deadline = "45s"
 sandbox_inbox_only = false
 inbox_path = "~/agh-inbox"
 dlq_path = "~/agh-dlq"
-model = "extractor-model"
 
 [memory.extractor.queue]
 capacity = 2
 coalesce_max = 8
 
 [memory.dream]
-agent = "curator"
 min_hours = 12
 min_sessions = 4
 debounce = "5m"
@@ -223,7 +204,6 @@ auto_create = false
 		memory := cfg.Memory
 		if memory.Controller.Mode != "rules" ||
 			memory.Controller.MaxLatency != 150*time.Millisecond ||
-			memory.Controller.LLM.Enabled ||
 			!slices.Equal(memory.Controller.Policy.AllowOrigins, []string{"cli", "tool"}) {
 			t.Fatalf("Load() Controller = %#v", memory.Controller)
 		}
@@ -269,14 +249,6 @@ func TestMemoryV2ConfigValidationRejectsInvalidValues(t *testing.T) {
 				cfg.Controller.Mode = "auto"
 			},
 			want: "memory.controller.mode",
-		},
-		{
-			name: "llm controller mode with disabled llm",
-			patch: func(cfg *MemoryConfig) {
-				cfg.Controller.Mode = "llm"
-				cfg.Controller.LLM.Enabled = false
-			},
-			want: "memory.controller.llm.enabled",
 		},
 		{
 			name: "recall weights",
@@ -348,16 +320,11 @@ func TestMemoryV2ConfigValidationCoversOptionalBranches(t *testing.T) {
 	}
 	base := DefaultWithHome(homePaths).Memory
 
-	t.Run("Should accept disabled optional workers without nested runtime fields", func(t *testing.T) {
+	t.Run("Should accept controller LLM mode because role routing is validated separately", func(t *testing.T) {
 		t.Parallel()
 
 		cfg := base
-		cfg.Controller.LLM.Enabled = false
-		cfg.Controller.LLM.Model = ""
-		cfg.Extractor.Enabled = false
-		cfg.Extractor.Mode = ""
-		cfg.Dream.Enabled = false
-		cfg.Dream.Agent = ""
+		cfg.Controller.Mode = "llm"
 
 		if err := cfg.Validate(); err != nil {
 			t.Fatalf("Validate() error = %v, want nil", err)

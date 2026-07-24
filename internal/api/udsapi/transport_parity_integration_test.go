@@ -381,6 +381,7 @@ func TestUDSTransportAutomaticSessionTitlePersistsAndMatchesHTTP(t *testing.T) {
 	if sessionPayload.Name != "" {
 		t.Fatalf("created session name = %q, want unnamed", sessionPayload.Name)
 	}
+	sessionPayload = waitForUDSTransportSessionActive(t, ctx, runtimeHarness, sessionPayload)
 
 	if _, err := runtimeHarness.PromptSessionHTTP(
 		ctx,
@@ -438,6 +439,7 @@ func TestUDSTransportApprovalFlowMatchesHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
+	session = waitForUDSTransportSessionActive(t, ctx, runtimeHarness, session)
 
 	var approvedRequestID string
 	events, err := runtimeHarness.PromptSessionHTTPWithEvents(
@@ -610,6 +612,7 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 	}, &created); err != nil {
 		t.Fatalf("UDS create session error = %v", err)
 	}
+	created.Session = waitForUDSTransportSessionActive(t, ctx, runtimeHarness, created.Session)
 
 	stopResp := mustUnixRequest(
 		t,
@@ -1026,6 +1029,7 @@ func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
+	session = waitForUDSTransportSessionActive(t, ctx, runtimeHarness, session)
 
 	stream, err := runtimeHarness.PromptSession(ctx, session.ID, "trigger crash mid-stream")
 	if err != nil {
@@ -1075,6 +1079,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
+	session = waitForUDSTransportSessionActive(t, ctx, runtimeHarness, session)
 
 	stream, err := runtimeHarness.PromptSessionHTTP(ctx, session.ID, "hello alpha")
 	if err != nil {
@@ -1737,6 +1742,20 @@ func waitForTransportSessionTitle(
 		case <-ticker.C:
 		}
 	}
+}
+
+func waitForUDSTransportSessionActive(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	accepted aghcontract.SessionPayload,
+) aghcontract.SessionPayload {
+	t.Helper()
+	active, err := harness.WaitForSessionActive(ctx, accepted.ID)
+	if err != nil {
+		t.Fatalf("WaitForSessionActive(%q) error = %v; accepted=%#v", accepted.ID, err, accepted)
+	}
+	return active
 }
 
 func transportCatalogHasSingleTitle(

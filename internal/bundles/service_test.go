@@ -764,6 +764,63 @@ func TestServiceActivationSpecDriftUsesContentHashAndClearsOnReapply(t *testing.
 func TestServiceAgentValidation(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject a reserved bundle agent before activation", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		ext := newMarketingExtension()
+		profile := &ext.Bundles[0].Profiles[0]
+		profile.Agents[0].Agent.Name = "coordinator"
+		profile.Jobs[0].AgentName = "coordinator"
+		profile.Triggers[0].AgentName = "coordinator"
+		service := newServiceForExtensions(store, []*extensionpkg.Extension{ext}, WithLogger(discardBundleTestLogger()))
+
+		_, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
+		})
+		if !errors.Is(err, aghconfig.ErrAgentNameReserved) {
+			t.Fatalf("Activate() error = %v, want ErrAgentNameReserved", err)
+		}
+		if !strings.Contains(err.Error(), "/agents/coordinator/AGENT.md") {
+			t.Fatalf("Activate() error = %v, want reserved bundle path", err)
+		}
+		if len(store.activations) != 0 || len(store.agents) != 0 || len(store.applied) != 0 {
+			t.Fatalf(
+				"reserved activation mutated state: activations=%d agents=%d applied=%d",
+				len(store.activations),
+				len(store.agents),
+				len(store.applied),
+			)
+		}
+	})
+
+	t.Run("Should materialize an ordinary bundle agent", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		ext := newMarketingExtension()
+		profile := &ext.Bundles[0].Profiles[0]
+		profile.Agents[0].Agent.Name = "code_implementer"
+		profile.Jobs[0].AgentName = "code_implementer"
+		profile.Triggers[0].AgentName = "code_implementer"
+		service := newServiceForExtensions(store, []*extensionpkg.Extension{ext}, WithLogger(discardBundleTestLogger()))
+
+		if _, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
+		}); err != nil {
+			t.Fatalf("Activate() error = %v", err)
+		}
+		if len(store.agents) != 1 || store.agents[0].Spec.Name != "code_implementer" {
+			t.Fatalf("materialized agents = %#v, want code_implementer", store.agents)
+		}
+	})
+
 	t.Run("Should reject conflicting visible agent name", func(t *testing.T) {
 		t.Parallel()
 

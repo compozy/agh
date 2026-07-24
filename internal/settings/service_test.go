@@ -143,8 +143,8 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if envelope.Memory == nil {
 					t.Fatal("Memory section = nil")
 				}
-				if got, want := envelope.Memory.Config.Dream.Agent, "writer"; got != want {
-					t.Fatalf("Memory dream agent = %q, want %q", got, want)
+				if got, want := envelope.Memory.Config.Dream.MinHours, 12.0; got != want {
+					t.Fatalf("Memory dream minimum hours = %v, want %v", got, want)
 				}
 				if got, want := envelope.Memory.Health.FileCount, 5; got != want {
 					t.Fatalf("Memory file count = %d, want %d", got, want)
@@ -4117,7 +4117,6 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 	}
 	memoryConfig := aghconfig.DefaultWithHome(memoryHomePaths).Memory
 	memoryConfig.GlobalDir = "/tmp/updated-memory"
-	memoryConfig.Dream.Agent = "writer"
 	memoryConfig.Dream.MinHours = 12
 	memoryConfig.Dream.MinSessions = 3
 	memoryConfig.Dream.CheckInterval = 15 * time.Minute
@@ -5214,8 +5213,6 @@ enabled = true
 global_dir = "/tmp/memory"
 
 [memory.dream]
-enabled = true
-agent = "writer"
 min_hours = 12
 min_sessions = 2
 check_interval = "15m"

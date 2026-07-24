@@ -2,7 +2,6 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
@@ -10,9 +9,9 @@ import (
 
 func (g *SessionRepo) loadSessionIDs(
 	ctx context.Context,
-	tx *sql.Tx,
+	exec globalSQLExecutor,
 ) (ids map[string]struct{}, err error) {
-	rows, err := sqlcgen.New(tx).ListSessionIDs(ctx)
+	rows, err := sqlcgen.New(exec).ListSessionIDs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: query existing session ids: %w", err)
 	}

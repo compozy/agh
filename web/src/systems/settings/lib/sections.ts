@@ -6,6 +6,7 @@ import {
   Palette,
   PanelTop,
   Puzzle,
+  Route,
   SlidersHorizontal,
   Webhook,
   Wrench,
@@ -61,6 +62,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: Brain,
     group: "runtime",
     keywords: "recall dream ledger persistence daily logs extractor",
+  },
+  {
+    slug: "roles",
+    label: "Roles",
+    icon: Route,
+    group: "runtime",
+    keywords:
+      "background agents coordinator dream checkpoint auto-title memory controller routing model provider fallback",
   },
   {
     slug: "skills",

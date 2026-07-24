@@ -88,6 +88,8 @@ type Config struct {
 	Log           LogConfig                 `toml:"log"`
 	Redact        RedactConfig              `toml:"redact"`
 	Memory        MemoryConfig              `toml:"memory"`
+	Roles         RolesConfig               `toml:"roles"`
+	RoleSources   RoleFieldSources          `toml:"-"                     json:"-"`
 	Skills        SkillsConfig              `toml:"skills"`
 	Extensions    ExtensionsConfig          `toml:"extensions"`
 	Tools         ToolsConfig               `toml:"tools"`

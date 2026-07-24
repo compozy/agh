@@ -4,89 +4,66 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
-// CoordinatorConfigResolver resolves coordinator policy without starting coordinator behavior.
-type CoordinatorConfigResolver interface {
-	ResolveCoordinatorConfig(ctx context.Context, workspaceID string) (aghconfig.CoordinatorConfig, error)
+// CoordinatorRoleResolver resolves coordinator routing and safety policy without starting behavior.
+type CoordinatorRoleResolver interface {
+	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (aghconfig.ResolvedCoordinatorRole, error)
 }
 
 type coordinatorAgentResolver interface {
 	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error)
 }
 
-type defaultCoordinatorConfigResolver struct {
-	config            *aghconfig.Config
-	workspaceResolver workspacepkg.RuntimeResolver
-	agents            coordinatorAgentResolver
+type defaultCoordinatorRoleResolver struct {
+	roles *roleResolver
 }
 
-var _ CoordinatorConfigResolver = (*defaultCoordinatorConfigResolver)(nil)
+var _ CoordinatorRoleResolver = (*defaultCoordinatorRoleResolver)(nil)
 
-func newCoordinatorConfigResolver(
+func newCoordinatorRoleResolver(
 	cfg *aghconfig.Config,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	agents coordinatorAgentResolver,
-) CoordinatorConfigResolver {
-	return &defaultCoordinatorConfigResolver{
-		config:            cfg,
-		workspaceResolver: workspaceResolver,
-		agents:            agents,
+	eventWriters ...roleEventSummaryWriter,
+) CoordinatorRoleResolver {
+	return &defaultCoordinatorRoleResolver{
+		roles: newRoleResolver(cfg, workspaceResolver, agents, eventWriters...),
 	}
 }
 
-func (r *defaultCoordinatorConfigResolver) ResolveCoordinatorConfig(
+func (r *defaultCoordinatorRoleResolver) ResolveCoordinatorRole(
 	ctx context.Context,
 	workspaceID string,
-) (aghconfig.CoordinatorConfig, error) {
+) (aghconfig.ResolvedCoordinatorRole, error) {
 	if ctx == nil {
-		return aghconfig.CoordinatorConfig{}, errors.New("daemon: coordinator config context is required")
+		return aghconfig.ResolvedCoordinatorRole{}, errors.New("daemon: coordinator role context is required")
 	}
-	if r.config == nil {
-		return aghconfig.CoordinatorConfig{}, errors.New("daemon: coordinator config is required")
-	}
-
-	cfg := r.config
-	var resolvedWorkspace *workspacepkg.ResolvedWorkspace
-	if target := strings.TrimSpace(workspaceID); target != "" {
-		if r.workspaceResolver == nil {
-			return aghconfig.CoordinatorConfig{}, errors.New(
-				"daemon: workspace resolver is required for workspace coordinator config",
-			)
-		}
-		resolved, err := r.workspaceResolver.Resolve(ctx, target)
-		if err != nil {
-			return aghconfig.CoordinatorConfig{}, fmt.Errorf(
-				"daemon: resolve coordinator workspace %q: %w",
-				target,
-				err,
-			)
-		}
-		cfg = &resolved.Config
-		resolvedWorkspace = &resolved
+	if r == nil || r.roles == nil {
+		return aghconfig.ResolvedCoordinatorRole{}, errors.New("daemon: coordinator role resolver is required")
 	}
 
-	fallback := aghconfig.DefaultCoordinatorAgentDef()
-	agentName := strings.TrimSpace(cfg.Autonomy.Coordinator.AgentName)
-	if agentName == "" {
-		agentName = fallback.Name
-	}
-	if agentName != "" && r.agents != nil {
-		agent, err := r.agents.ResolveAgent(agentName, resolvedWorkspace)
-		if err == nil {
-			fallback = agent
-		} else if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
-			return aghconfig.CoordinatorConfig{}, fmt.Errorf("daemon: resolve coordinator agent %q: %w", agentName, err)
-		}
-	}
-
-	resolved, err := cfg.ResolveCoordinatorConfig(fallback)
+	resolvedRole, effectiveConfig, err := r.roles.resolveEffective(ctx, workspaceID, aghconfig.RoleCoordinator)
 	if err != nil {
-		return aghconfig.CoordinatorConfig{}, fmt.Errorf("daemon: resolve coordinator config: %w", err)
+		recordErr := r.roles.recordRoleResolveError(ctx, workspaceID, aghconfig.RoleCoordinator, err)
+		return aghconfig.ResolvedCoordinatorRole{}, fmt.Errorf(
+			"daemon: resolve coordinator role: %w",
+			errors.Join(err, recordErr),
+		)
 	}
-	return resolved, nil
+	effective := effectiveConfig.Roles.Coordinator
+	return aghconfig.ResolvedCoordinatorRole{
+		Enabled:                       resolvedRole.Enabled,
+		AgentName:                     resolvedRole.AgentName,
+		Provider:                      resolvedRole.Provider,
+		Model:                         resolvedRole.Model,
+		ReasoningEffort:               resolvedRole.ReasoningEffort,
+		Fallbacks:                     append([]aghconfig.RoleFallback(nil), resolvedRole.Fallbacks...),
+		TTL:                           effective.TTL,
+		MaxChildren:                   effective.MaxChildren,
+		MaxActiveSessionsPerWorkspace: effective.MaxActiveSessionsPerWorkspace,
+	}, nil
 }

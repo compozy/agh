@@ -33,6 +33,7 @@ type SettingsSectionName string
 const (
 	SettingsSectionGeneral         SettingsSectionName = "general"
 	SettingsSectionMemory          SettingsSectionName = "memory"
+	SettingsSectionRoles           SettingsSectionName = "roles"
 	SettingsSectionSkills          SettingsSectionName = "skills"
 	SettingsSectionAutomation      SettingsSectionName = "automation"
 	SettingsSectionNetwork         SettingsSectionName = "network"
@@ -55,6 +56,7 @@ type SettingsApplyTargetName string
 const (
 	SettingsApplyTargetGeneral         SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionGeneral)
 	SettingsApplyTargetMemory          SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionMemory)
+	SettingsApplyTargetRoles           SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionRoles)
 	SettingsApplyTargetSkills          SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionSkills)
 	SettingsApplyTargetAutomation      SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionAutomation)
 	SettingsApplyTargetNetwork         SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionNetwork)

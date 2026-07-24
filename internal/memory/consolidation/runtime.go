@@ -37,7 +37,7 @@ type SessionManager interface {
 
 // Runtime owns dream scheduling, trigger behavior, and session spawning.
 type Runtime struct {
-	enabled            bool
+	enabled            func() bool
 	service            Service
 	spawner            memory.SessionSpawner
 	logger             *slog.Logger
@@ -58,13 +58,25 @@ type checkRequest struct {
 const (
 	defaultSessionStopTimeout    = 10 * time.Second
 	dreamGatesNotSatisfiedReason = "dream consolidation gates are not satisfied"
-	// DreamingCuratorAgentName is the dedicated default agent for memory dreaming.
-	DreamingCuratorAgentName = "dreaming-curator"
 )
+
+// SessionRoute is the resolved dream-session route supplied by the daemon role resolver.
+type SessionRoute struct {
+	Enabled         bool
+	AgentName       string
+	Provider        string
+	Model           string
+	ReasoningEffort string
+	Fallbacks       []aghconfig.RoleFallback
+	BeforeFallback  func(context.Context, int, aghconfig.RoleFallback) error
+}
+
+// SessionRouteResolver resolves the dream route for one effective workspace config.
+type SessionRouteResolver func(ctx context.Context, workspaceID string) (SessionRoute, error)
 
 // NewRuntime constructs a dream runtime that can be started by the daemon.
 func NewRuntime(
-	enabled bool,
+	enabled func() bool,
 	service Service,
 	spawner memory.SessionSpawner,
 	interval time.Duration,
@@ -86,7 +98,7 @@ func NewRuntime(
 
 // Enabled reports whether dream consolidation is available.
 func (r *Runtime) Enabled() bool {
-	return r != nil && r.enabled
+	return r != nil && r.enabled != nil && r.enabled()
 }
 
 // LastConsolidatedAt returns the most recent lock timestamp.
@@ -130,7 +142,7 @@ func (r *Runtime) Start(parent context.Context) {
 	}
 
 	r.mu.Lock()
-	if !r.enabled || r.service == nil || r.spawner == nil || r.checkCh != nil {
+	if r.service == nil || r.spawner == nil || r.checkCh != nil {
 		r.mu.Unlock()
 		return
 	}
@@ -216,7 +228,7 @@ func (r *Runtime) runCheck(
 	reason string,
 	workspaceRef string,
 ) {
-	if service == nil || spawner == nil {
+	if !r.Enabled() || service == nil || spawner == nil {
 		return
 	}
 	if logger == nil {
@@ -262,12 +274,12 @@ func (r *Runtime) runCheck(
 func NewSessionSpawner(
 	sessions SessionManager,
 	resolver workspacepkg.RuntimeResolver,
-	cfg *aghconfig.Config,
+	memoryEnabled bool,
+	resolveRoute SessionRouteResolver,
 ) memory.SessionSpawner {
-	if cfg == nil || !cfg.Memory.Enabled || !cfg.Memory.Dream.Enabled || sessions == nil || resolver == nil {
+	if !memoryEnabled || sessions == nil || resolver == nil || resolveRoute == nil {
 		return nil
 	}
-	agentName := dreamingAgentName(cfg.Memory.Dream.Agent)
 
 	return func(ctx context.Context, goal, prompt, workspace string, lastConsolidatedAt time.Time) error {
 		workspaces, err := resolveWorkspaces(ctx, sessions, resolver, lastConsolidatedAt, workspace)
@@ -276,10 +288,17 @@ func NewSessionSpawner(
 		}
 
 		for _, workspaceID := range workspaces {
+			route, err := resolveRoute(ctx, workspaceID)
+			if err != nil {
+				return fmt.Errorf("daemon: resolve dream role for workspace %q: %w", workspaceID, err)
+			}
+			if !route.Enabled {
+				continue
+			}
 			if err := spawnSession(
 				ctx,
 				sessions,
-				agentName,
+				route,
 				goal,
 				prompt,
 				workspaceID,
@@ -291,14 +310,6 @@ func NewSessionSpawner(
 
 		return nil
 	}
-}
-
-func dreamingAgentName(configured string) string {
-	trimmed := strings.TrimSpace(configured)
-	if trimmed == "" || trimmed == aghconfig.DefaultAgentName {
-		return DreamingCuratorAgentName
-	}
-	return trimmed
 }
 
 func resolveWorkspaces(
@@ -423,7 +434,7 @@ func isPathLikeWorkspaceRef(ref string) bool {
 func spawnSession(
 	ctx context.Context,
 	sessions SessionManager,
-	agentName string,
+	route SessionRoute,
 	goal string,
 	prompt string,
 	workspace string,
@@ -436,24 +447,23 @@ func spawnSession(
 		stopTimeout = defaultSessionStopTimeout
 	}
 
-	dreamSession, err := sessions.Create(ctx, session.CreateOpts{
-		AgentName: agentName,
-		Provider:  "",
-		Name:      strings.TrimSpace(goal),
-		Workspace: strings.TrimSpace(workspace),
-		Type:      session.SessionTypeDream,
-	})
+	dreamSession, err := createDreamSessionWithFallback(ctx, sessions, route, goal, workspace)
+	if dreamSession != nil {
+		defer func() {
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stopTimeout)
+			defer cancel()
+			stopErr := sessions.Stop(stopCtx, dreamSession.ID)
+			if stopErr != nil {
+				err = errors.Join(err, fmt.Errorf("daemon: stop dream session %q: %w", dreamSession.ID, stopErr))
+			}
+		}()
+	}
 	if err != nil {
 		return fmt.Errorf("daemon: create dream session: %w", err)
 	}
-	defer func() {
-		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stopTimeout)
-		defer cancel()
-		stopErr := sessions.Stop(stopCtx, dreamSession.ID)
-		if stopErr != nil {
-			err = errors.Join(err, fmt.Errorf("daemon: stop dream session %q: %w", dreamSession.ID, stopErr))
-		}
-	}()
+	if dreamSession == nil {
+		return errors.New("daemon: create dream session returned nil")
+	}
 
 	events, err := sessions.Prompt(ctx, dreamSession.ID, prompt)
 	if err != nil {

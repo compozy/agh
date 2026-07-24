@@ -174,10 +174,11 @@ are `enabled = true`, `pressure_threshold = 0.85`, `max_attempts_per_turn = 1`, 
 `agh config set` and the native config tools, are restart-required under the canonical `session.*`
 lifecycle rule, and do not mutate the policy bound to the running daemon.
 
-`session.auto_title_enabled` defaults to `true` and gates the daemon-owned title pass for unnamed
-user sessions after their first persisted assistant response. It is agent-mutable through the same
-config surfaces and restart-required under the canonical `session.*` lifecycle rule. Explicit names
-win; disabled or failed generation leaves the session unnamed.
+`roles.auto_title.enabled` defaults to `true` and gates the daemon-owned title pass for unnamed user
+sessions after their first persisted assistant response. The remaining `roles.auto_title.*` fields
+select its agent, provider, model, reasoning effort, and ordered fallback routes. Role changes are
+Live desired state for later invocations at global or workspace scope. Explicit names win; disabled
+or failed generation leaves the session unnamed.
 
 `[window_manager]` controls global behavior defaults for new-window placement, small-viewport
 fallback, focus and raise policy, drag-away grouping, bounded history, desktop transitions, gaps,

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
 	"strings"
 	"syscall"
 	"time"
@@ -16,7 +15,6 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	aghdaemon "github.com/compozy/agh/internal/daemon"
 	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
-
 	"github.com/compozy/agh/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -143,6 +141,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newWindowCommand(deps))
 	cmd.AddCommand(newLayoutCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
+	cmd.AddCommand(newRolesCommand(deps))
 	cmd.AddCommand(newExtensionCommand(deps))
 	cmd.AddCommand(newHooksCommand(deps))
 	cmd.AddCommand(newAutomationCommand(deps))

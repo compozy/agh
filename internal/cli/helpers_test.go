@@ -209,6 +209,8 @@ type stubClient struct {
 	updateAgentFn               func(context.Context, string, contract.UpdateAgentRequest) (AgentRecord, error)
 	deleteAgentFn               func(context.Context, string, string) (contract.DeleteAgentResponse, error)
 	duplicateAgentFn            func(context.Context, string, contract.DuplicateAgentRequest) (AgentRecord, error)
+	listRolesFn                 func(context.Context, RoleQuery) ([]RoleRecord, error)
+	getRoleFn                   func(context.Context, string, RoleQuery) (RoleRecord, error)
 	getAgentSoulFn              func(context.Context, string, AgentQuery) (AgentSoulRecord, error)
 	validateAgentSoulFn         func(context.Context, string, AgentSoulValidateRequest) (AgentSoulRecord, error)
 	putAgentSoulFn              func(context.Context, string, AgentSoulPutRequest) (AgentSoulMutationRecord, error)
@@ -1835,6 +1837,20 @@ func (s *stubClient) GetAgent(ctx context.Context, name string, query AgentQuery
 		return s.getAgentFn(ctx, name, query)
 	}
 	return AgentRecord{}, errors.New("unexpected GetAgent call")
+}
+
+func (s *stubClient) ListRoles(ctx context.Context, query RoleQuery) ([]RoleRecord, error) {
+	if s.listRolesFn != nil {
+		return s.listRolesFn(ctx, query)
+	}
+	return nil, errors.New("unexpected ListRoles call")
+}
+
+func (s *stubClient) GetRole(ctx context.Context, role string, query RoleQuery) (RoleRecord, error) {
+	if s.getRoleFn != nil {
+		return s.getRoleFn(ctx, role, query)
+	}
+	return RoleRecord{}, errors.New("unexpected GetRole call")
 }
 
 func (s *stubClient) CreateAgent(ctx context.Context, request contract.CreateAgentRequest) (AgentRecord, error) {

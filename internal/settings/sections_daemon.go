@@ -84,7 +84,7 @@ func applyGeneralSettings(editor *aghconfig.OverlayEditor, settings GeneralSetti
 			path:  []string{sectionsDaemonKey, sectionsReloadTimeoutsKey, "bridges"},
 			value: settings.Daemon.ReloadTimeouts.Bridges.String(),
 		},
-		{path: []string{"redact", "enabled"}, value: settings.Redact.Enabled},
+		{path: []string{"redact", sectionsEnabledKey}, value: settings.Redact.Enabled},
 	}
 	return applyValueUpdates(editor, updates)
 }

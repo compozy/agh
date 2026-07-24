@@ -15,8 +15,10 @@ import (
 	"path/filepath"
 
 	"strings"
+	"time"
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
+	sessionpkg "github.com/compozy/agh/internal/session"
 )
 
 // RuntimeManifestPath returns the stable runtime-manifest path under the harness artifact root.
@@ -227,6 +229,54 @@ func (h *RuntimeHarness) GetSession(
 		return aghcontract.SessionPayload{}, err
 	}
 	return response.Session, nil
+}
+
+// WaitForSessionActive waits for asynchronous session startup to become prompt-ready.
+func (h *RuntimeHarness) WaitForSessionActive(
+	ctx context.Context,
+	sessionID string,
+) (aghcontract.SessionPayload, error) {
+	if ctx == nil {
+		return aghcontract.SessionPayload{}, errors.New("runtime harness session wait context is required")
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return aghcontract.SessionPayload{}, errors.New("runtime harness session wait ID is required")
+	}
+
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	var (
+		current aghcontract.SessionPayload
+		lastErr error
+	)
+	for {
+		resolved, err := h.GetSession(ctx, sessionID)
+		if err == nil {
+			current = resolved
+			switch current.State {
+			case sessionpkg.StateActive:
+				return current, nil
+			case sessionpkg.StateStopped:
+				return current, fmt.Errorf(
+					"runtime harness session %q startup stopped: failure=%#v",
+					sessionID,
+					current.Failure,
+				)
+			}
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			return current, errors.Join(
+				fmt.Errorf("runtime harness wait for session %q active: %w; last=%#v", sessionID, ctx.Err(), current),
+				lastErr,
+			)
+		case <-ticker.C:
+		}
+	}
 }
 
 // StopSession stops one session through the operator surface.

@@ -60,7 +60,8 @@ type handlerConfig struct {
 	heartbeatWake      core.HeartbeatWakeService
 	sessionHealth      core.SessionHealthReader
 	wakeEvents         core.HeartbeatWakeEventReader
-	coordinatorConfig  core.CoordinatorConfigResolver
+	coordinatorRole    core.CoordinatorRoleResolver
+	roles              core.RolesStatusProvider
 	skillsRegistry     core.SkillsRegistry
 	skillResources     core.SkillResourceSyncer
 	memoryStore        *memory.Store

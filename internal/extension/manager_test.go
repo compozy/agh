@@ -16,6 +16,7 @@ import (
 
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	aghconfig "github.com/compozy/agh/internal/config"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	hookspkg "github.com/compozy/agh/internal/hooks"
@@ -1363,6 +1364,20 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 					Path:   "layouts/two-up.json",
 					Layout: testBundleLayoutResource("two-up"),
 				}},
+				Agents: []BundleAgent{{
+					Path: "agents/coder",
+					Agent: aghconfig.AgentDef{
+						Name:       "coder",
+						Provider:   "codex",
+						Tools:      []string{"read"},
+						Prompt:     "Run bundle work.",
+						SourcePath: "/extension/agents/coder/AGENT.md",
+					},
+					Soul: &BundleAgentSidecar{
+						SourcePath: "agents/coder/SOUL.md",
+						Body:       "Original soul.",
+					},
+				}},
 				Jobs: []BundleJob{{
 					Name:      "job-one",
 					AgentName: "coder",
@@ -1414,6 +1429,8 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	clone.Skills[0].MCPServers[0].Env["ROOT"] = "/tmp/changed"
 	clone.Skills[0].Provenance.Hash = "hash-changed"
 	clone.Bundles[0].Profiles[0].Layouts[0].Layout.ParticipantSlots[0] = "changed"
+	clone.Bundles[0].Profiles[0].Agents[0].Agent.Tools[0] = "changed"
+	clone.Bundles[0].Profiles[0].Agents[0].Soul.Body = "Changed soul."
 	clone.Bundles[0].Profiles[0].Jobs[0].Task.Title = "changed"
 	clone.Bundles[0].Profiles[0].Bridges[0].DisplayName = "changed"
 	clone.GrantedResourceKinds[0] = resources.ResourceKind("changed")
@@ -1460,6 +1477,12 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	if got, want := ext.bundles[0].Profiles[0].Layouts[0].Layout.ParticipantSlots[0],
 		windowmanager.WindowID("primary"); got != want {
 		t.Fatalf("original bundle layout participant slot = %q, want %q", got, want)
+	}
+	if got := ext.bundles[0].Profiles[0].Agents[0].Agent.Tools[0]; got != "read" {
+		t.Fatalf("original bundle agent tools mutated to %q", got)
+	}
+	if got := ext.bundles[0].Profiles[0].Agents[0].Soul.Body; got != "Original soul." {
+		t.Fatalf("original bundle agent soul mutated to %q", got)
 	}
 	if ext.bundles[0].Profiles[0].Jobs[0].Task.Title != "Job task" {
 		t.Fatalf("original bundle job task mutated to %#v", ext.bundles[0].Profiles[0].Jobs[0].Task)

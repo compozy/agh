@@ -92,6 +92,64 @@ func TestSeedConfigPersistsNetworkOverlay(t *testing.T) {
 	}
 }
 
+func TestSeedConfigPersistsRolesOverlay(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist role mutations for a real daemon", func(t *testing.T) {
+		t.Parallel()
+		runSeedConfigPersistsRolesOverlay(t)
+	})
+}
+
+func runSeedConfigPersistsRolesOverlay(t *testing.T) {
+	t.Helper()
+
+	homePaths := NewHomePaths(t)
+	SeedConfig(t, homePaths, ConfigSeedOptions{
+		Mutate: func(cfg *aghconfig.Config) {
+			cfg.Roles.Dream.Model = "routed-dream-model"
+			cfg.Roles.AutoTitle.Enabled = false
+		},
+	})
+
+	loaded, err := aghconfig.LoadForHome(homePaths)
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+	if loaded.Roles.Dream.Model != "routed-dream-model" || loaded.Roles.AutoTitle.Enabled {
+		t.Fatalf("LoadForHome().Roles = %#v, want routed dream and disabled auto-title", loaded.Roles)
+	}
+}
+
+func TestSeedConfigPersistsMemoryOverlay(t *testing.T) {
+	t.Run("Should persist memory mutations for a real daemon", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := NewHomePaths(t)
+		SeedConfig(t, homePaths, ConfigSeedOptions{
+			Mutate: func(cfg *aghconfig.Config) {
+				cfg.Memory.Dream.MinSessions = 1
+				cfg.Memory.Dream.Gates.MinUnpromoted = 1
+				cfg.Memory.Dream.Gates.MinRecallCount = 1
+			},
+		})
+
+		loaded, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if got, want := loaded.Memory.Dream.MinSessions, 1; got != want {
+			t.Fatalf("loaded.Memory.Dream.MinSessions = %d, want %d", got, want)
+		}
+		if got, want := loaded.Memory.Dream.Gates.MinUnpromoted, 1; got != want {
+			t.Fatalf("loaded.Memory.Dream.Gates.MinUnpromoted = %d, want %d", got, want)
+		}
+		if got, want := loaded.Memory.Dream.Gates.MinRecallCount, 1; got != want {
+			t.Fatalf("loaded.Memory.Dream.Gates.MinRecallCount = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestSeedConfigPersistsMarketplaceCatalogOverlay(t *testing.T) {
 	t.Run("Should persist the configured catalog source for a real daemon", func(t *testing.T) {
 		t.Parallel()

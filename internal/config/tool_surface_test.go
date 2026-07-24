@@ -28,7 +28,7 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		},
 		{
 			name: "Should allow automatic title enablement mutation",
-			path: "session.auto_title_enabled",
+			path: "roles.auto_title.enabled",
 			kind: ConfigValueBool,
 		},
 		{
@@ -297,6 +297,16 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueDuration,
 		},
 		{
+			name: "Should allow dream role model mutation",
+			path: "roles.dream.model",
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow memory controller role timeout mutation",
+			path: "roles.memory_controller.timeout",
+			kind: ConfigValueDuration,
+		},
+		{
 			name: "Should allow Marketplace catalog TTL mutation",
 			path: "marketplace.catalog.ttl",
 			kind: ConfigValueDuration,
@@ -364,6 +374,36 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name:   "Should reject removed network port path",
 			path:   "network.port",
+			denial: ConfigPathForbidden,
+		},
+		{
+			name:   "Should reject removed dream agent path",
+			path:   "memory.dream.agent",
+			denial: ConfigPathForbidden,
+		},
+		{
+			name:   "Should reject removed dream enabled path",
+			path:   "memory.dream.enabled",
+			denial: ConfigPathForbidden,
+		},
+		{
+			name:   "Should reject removed extractor model path",
+			path:   "memory.extractor.model",
+			denial: ConfigPathForbidden,
+		},
+		{
+			name:   "Should reject removed extractor enabled path",
+			path:   "memory.extractor.enabled",
+			denial: ConfigPathForbidden,
+		},
+		{
+			name:   "Should reject removed controller LLM model path",
+			path:   "memory.controller.llm.model",
+			denial: ConfigPathForbidden,
+		},
+		{
+			name:   "Should reject removed automatic title path",
+			path:   "session.auto_title_enabled",
 			denial: ConfigPathForbidden,
 		},
 		{

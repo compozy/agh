@@ -21,6 +21,10 @@ func TestCreateAcceptedPersistsStartingBeforeProviderStartupCompletes(t *testing
 		"Should persist starting and expose an empty transcript before provider activation",
 		testCreateAcceptedPersistsStarting,
 	)
+	t.Run(
+		"Should remain externally starting until the committed startup run completes",
+		testCreateAcceptedRemainsStartingUntilCommitted,
+	)
 }
 
 func testCreateAcceptedPersistsStarting(t *testing.T) {
@@ -73,6 +77,69 @@ func testCreateAcceptedPersistsStarting(t *testing.T) {
 		t.Fatalf("Stop() cleanup error = %v", err)
 	}
 }
+
+func testCreateAcceptedRemainsStartingUntilCommitted(t *testing.T) {
+	t.Helper()
+	created := make(chan struct{})
+	release := make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	h := newHarness(t, WithNotifier(&blockingCreatedNotifier{created: created, release: release}))
+
+	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("CreateAccepted() error = %v", err)
+	}
+	<-created
+
+	status, err := h.manager.Status(testutil.Context(t), accepted.ID)
+	if err != nil {
+		t.Fatalf("Status(starting commit) error = %v", err)
+	}
+	if status.State != StateStarting {
+		t.Fatalf("Status(starting commit) State = %q, want %q", status.State, StateStarting)
+	}
+	listed := h.manager.List()
+	if len(listed) != 1 || listed[0].ID != accepted.ID || listed[0].State != StateStarting {
+		t.Fatalf("List(starting commit) = %#v, want one starting session", listed)
+	}
+	if _, err := h.manager.SendPrompt(testutil.Context(t), accepted.ID, SendPromptOpts{
+		Message: "too early",
+	}); !errors.Is(err, ErrSessionNotActive) {
+		t.Fatalf("SendPrompt(starting commit) error = %v, want %v", err, ErrSessionNotActive)
+	}
+
+	close(release)
+	released = true
+	waitForCondition(t, "committed session activation", func() bool {
+		current, statusErr := h.manager.Status(testutil.Context(t), accepted.ID)
+		return statusErr == nil && current.State == StateActive
+	})
+	if err := h.manager.Stop(testutil.Context(t), accepted.ID); err != nil {
+		t.Fatalf("Stop() cleanup error = %v", err)
+	}
+}
+
+type blockingCreatedNotifier struct {
+	created chan struct{}
+	release chan struct{}
+}
+
+func (n *blockingCreatedNotifier) OnSessionCreated(context.Context, *Session) {
+	close(n.created)
+	<-n.release
+}
+
+func (*blockingCreatedNotifier) OnSessionStopped(context.Context, *Session) {}
+
+func (*blockingCreatedNotifier) OnAgentEvent(context.Context, string, any) {}
 
 func TestCreateAcceptedPersistsBackgroundStartupFailure(t *testing.T) {
 	t.Parallel()

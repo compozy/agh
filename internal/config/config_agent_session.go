@@ -40,11 +40,10 @@ type LimitsConfig struct {
 
 // SessionConfig defines session-scoped runtime controls.
 type SessionConfig struct {
-	AutoTitleEnabled bool                     `toml:"auto_title_enabled"`
-	Limits           SessionLimitsConfig      `toml:"limits"`
-	Supervision      SessionSupervisionConfig `toml:"supervision"`
-	BusyInput        SessionBusyInputConfig   `toml:"busy_input"`
-	Compaction       SessionCompactionConfig  `toml:"compaction"`
+	Limits      SessionLimitsConfig      `toml:"limits"`
+	Supervision SessionSupervisionConfig `toml:"supervision"`
+	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
+	Compaction  SessionCompactionConfig  `toml:"compaction"`
 }
 
 // SessionLimitsConfig defines runtime limits applied to every session.

@@ -3,7 +3,6 @@ package settings
 import (
 	"context"
 	"fmt"
-
 	"strings"
 	"time"
 
@@ -68,6 +67,8 @@ const (
 	SectionGeneral SectionName = "general"
 	// SectionMemory exposes memory and dream settings.
 	SectionMemory SectionName = "memory"
+	// SectionRoles exposes background role routing settings.
+	SectionRoles SectionName = "roles"
 	// SectionSkills exposes global skills-engine settings.
 	SectionSkills SectionName = "skills"
 	// SectionAutomation exposes automation engine settings.
@@ -173,6 +174,7 @@ type SectionUpdateRequest struct {
 	SectionRequest
 	General         *GeneralSettings
 	Memory          *aghconfig.MemoryConfig
+	Roles           *aghconfig.RolesConfig
 	Skills          *aghconfig.SkillsConfig
 	Automation      *AutomationSettings
 	Network         *aghconfig.NetworkConfig
@@ -220,6 +222,7 @@ type SectionEnvelope struct {
 	AvailableScopes []ScopeKind
 	General         *GeneralSection
 	Memory          *MemorySection
+	Roles           *RolesSection
 	Skills          *SkillsSection
 	Automation      *AutomationSection
 	Network         *NetworkSection

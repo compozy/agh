@@ -156,7 +156,7 @@ func toolApprovalGrantSetBundle(grant ToolApprovalGrantRecord) outputBundle {
 				{Label: "Tool ID", Value: grant.ToolID.String()},
 				{Label: "Decision", Value: string(grant.Decision)},
 				{Label: automationScopeValue, Value: scope},
-				{Label: "Agent", Value: stringOrDash(grant.AgentName)},
+				{Label: agentOutputLabel, Value: stringOrDash(grant.AgentName)},
 			}), nil
 		},
 		toon: func() (string, error) {

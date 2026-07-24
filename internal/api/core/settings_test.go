@@ -517,6 +517,8 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
 	settings.GET("/memory", handlers.GetSettingsMemory)
 	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
+	settings.GET("/roles", handlers.GetSettingsRoles)
+	settings.PATCH("/roles", handlers.UpdateSettingsRoles)
 	settings.GET("/skills", handlers.GetSettingsSkills)
 	settings.PATCH("/skills", handlers.UpdateSettingsSkills)
 	settings.GET("/automation", handlers.GetSettingsAutomation)
@@ -1111,8 +1113,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					Enabled:   true,
 					GlobalDir: "/tmp/home/memory",
 					Dream: aghconfig.DreamConfig{
-						Enabled:       true,
-						Agent:         "dreamer",
 						MinHours:      1.5,
 						MinSessions:   2,
 						CheckInterval: time.Hour,
@@ -1628,6 +1628,7 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 	}{
 		{name: "general", path: "/api/settings/general", want: "general.config is required"},
 		{name: "memory", path: "/api/settings/memory", want: "memory.config is required"},
+		{name: "roles", path: "/api/settings/roles", want: "roles.config is required"},
 		{name: "skills", path: "/api/settings/skills", want: "skills.config is required"},
 		{name: "automation", path: "/api/settings/automation", want: "automation.config is required"},
 		{name: "network", path: "/api/settings/network", want: "network.config is required"},
@@ -1780,7 +1781,6 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 
 	memoryPayload := validSettingsMemoryConfigPayload()
 	memoryPayload.GlobalDir = "/tmp/memory"
-	memoryPayload.Dream.Agent = "dreamer"
 	memoryPayload.Dream.MinHours = 1.5
 	memoryPayload.Dream.MinSessions = 2
 	memoryPayload.Dream.CheckInterval = "1h"
@@ -1825,8 +1825,24 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.Memory == nil || req.Memory.Dream.Agent != "dreamer" {
+				if req.Memory == nil || req.Memory.Dream.MinHours != 1.5 {
 					t.Fatalf("req.Memory = %#v, want populated memory config", req.Memory)
+				}
+			},
+		},
+		{
+			name: "roles",
+			path: "/api/settings/roles",
+			body: contract.UpdateSettingsRolesRequest{
+				Config: validSettingsRolesConfigPayload(),
+			},
+			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
+				t.Helper()
+				if req.Roles == nil || req.Roles.Dream.Model != "claude-opus" ||
+					req.Roles.Coordinator.TTL != 2*time.Hour ||
+					len(req.Roles.AutoTitle.FallbackChain) != 1 ||
+					req.Roles.AutoTitle.FallbackChain[0].Model != "gpt-5-mini" {
+					t.Fatalf("req.Roles = %#v, want complete role settings", req.Roles)
 				}
 			},
 		},
@@ -2042,6 +2058,45 @@ func validSettingsWindowManagerConfigPayload() contract.SettingsWindowManagerCon
 	}
 }
 
+func validSettingsRolesConfigPayload() contract.SettingsRolesConfigPayload {
+	role := func(model string) contract.SettingsRoleConfigPayload {
+		return contract.SettingsRoleConfigPayload{
+			Enabled:         true,
+			Provider:        "anthropic",
+			Model:           model,
+			ReasoningEffort: "high",
+			FallbackChain: []contract.SettingsRoleFallbackPayload{{
+				Provider: "openai", Model: "gpt-5-mini", ReasoningEffort: "medium",
+			}},
+		}
+	}
+	return contract.SettingsRolesConfigPayload{
+		Coordinator: contract.SettingsCoordinatorRoleConfigPayload{
+			SettingsRoleConfigPayload:     role("claude-sonnet"),
+			TTL:                           "2h",
+			MaxChildren:                   5,
+			MaxActiveSessionsPerWorkspace: 3,
+		},
+		Dream:             role("claude-opus"),
+		CheckpointSummary: role("claude-haiku"),
+		MemoryExtractor:   role("claude-haiku"),
+		AutoTitle:         role("claude-haiku"),
+		MemoryController: contract.SettingsMemoryControllerRoleConfigPayload{
+			Enabled:         true,
+			Provider:        "anthropic",
+			Model:           "claude-haiku",
+			ReasoningEffort: "low",
+			Timeout:         "250ms",
+			TopK:            5,
+			PromptVersion:   "v1",
+			MaxTokensOut:    256,
+			FallbackChain: []contract.SettingsRoleFallbackPayload{{
+				Provider: "openai", Model: "gpt-5-mini", ReasoningEffort: "medium",
+			}},
+		},
+	}
+}
+
 func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
 	return contract.SettingsMemoryConfigPayload{
 		Enabled:   true,
@@ -2050,14 +2105,6 @@ func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
 			Mode:            "hybrid",
 			MaxLatency:      "300ms",
 			DefaultOpOnFail: "noop",
-			LLM: contract.SettingsMemoryControllerLLMPayload{
-				Enabled:       true,
-				Model:         "anthropic/claude-haiku-4",
-				TopK:          5,
-				PromptVersion: "v1",
-				Timeout:       "250ms",
-				MaxTokensOut:  256,
-			},
 			Policy: contract.SettingsMemoryControllerPolicyPayload{
 				MaxContentChars: 4096,
 				MaxWritesPerMin: 60,
@@ -2098,7 +2145,6 @@ func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
 			MaxPostContentBytes:   65536,
 		},
 		Extractor: contract.SettingsMemoryExtractorPayload{
-			Enabled:          true,
 			Mode:             "post_message",
 			ThrottleTurns:    1,
 			Deadline:         "60s",
@@ -2111,8 +2157,6 @@ func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
 			},
 		},
 		Dream: contract.SettingsMemoryDreamPayload{
-			Enabled:       true,
-			Agent:         "dreaming-curator",
 			MinHours:      24,
 			MinSessions:   3,
 			Debounce:      "10m",
@@ -2764,11 +2808,17 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 					Config: aghconfig.MemoryConfig{
 						Enabled: true,
 						Dream: aghconfig.DreamConfig{
-							Agent:         "dreamer",
 							CheckInterval: time.Hour,
 						},
 					},
 				}
+			case settingspkg.SectionRoles:
+				roles := aghconfig.DefaultRolesConfig()
+				roles.Dream.Model = "claude-opus"
+				roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
+					Provider: "openai", Model: "gpt-5-mini", ReasoningEffort: "medium",
+				}}
+				envelope.Roles = &settingspkg.RolesSection{Config: roles}
 			case settingspkg.SectionSkills:
 				envelope.Skills = &settingspkg.SkillsSection{
 					Config: aghconfig.SkillsConfig{
@@ -2845,6 +2895,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 
 	for _, path := range []string{
 		"/api/settings/memory",
+		"/api/settings/roles",
 		"/api/settings/skills",
 		"/api/settings/automation",
 		"/api/settings/network",
@@ -2855,6 +2906,16 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		if got, want := resp.Code, http.StatusOK; got != want {
 			t.Fatalf("%s status = %d, want %d; body=%s", path, got, want, resp.Body.String())
 		}
+	}
+
+	rolesResp := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/roles", nil)
+	var roles contract.SettingsRolesResponse
+	decodeJSON(t, rolesResp.Body.Bytes(), &roles)
+	if rolesResp.Code != http.StatusOK || roles.Section != contract.SettingsSectionRoles ||
+		roles.Config.Dream.Model != "claude-opus" ||
+		len(roles.Config.AutoTitle.FallbackChain) != 1 ||
+		roles.Config.AutoTitle.FallbackChain[0].Model != "gpt-5-mini" {
+		t.Fatalf("GET settings roles = status %d payload %#v", rolesResp.Code, roles)
 	}
 
 	for _, path := range []string{

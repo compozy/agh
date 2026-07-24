@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -227,6 +228,11 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 		{
 			name: "agent reference missing",
 			err:  bundlepkg.ErrAgentReferenceNotFound,
+			want: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "agent name reserved",
+			err:  fmt.Errorf("bundle agent: %w", aghconfig.ErrAgentNameReserved),
 			want: http.StatusUnprocessableEntity,
 		},
 		{

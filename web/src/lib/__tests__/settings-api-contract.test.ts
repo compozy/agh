@@ -18,6 +18,8 @@ type GetSettingsObservabilityResponse = OperationResponse<"getSettingsObservabil
 type TriggerSettingsRestartResponse = OperationResponse<"triggerSettingsRestart", 202>;
 type GetSettingsRestartStatusPath = OperationPath<"getSettingsRestartStatus">;
 type GetSettingsRestartStatusResponse = OperationResponse<"getSettingsRestartStatus", 200>;
+type GetSettingsRolesResponse = OperationResponse<"getSettingsRoles", 200>;
+type UpdateSettingsRolesBody = OperationRequestBody<"updateSettingsRoles">;
 
 describe("settings openapi contract", () => {
   it("keeps generated settings operation types aligned with the API surface", () => {
@@ -29,6 +31,7 @@ describe("settings openapi contract", () => {
     expectTypeOf<GetSettingsGeneralResponse["section"]>().toEqualTypeOf<
       | "general"
       | "memory"
+      | "roles"
       | "skills"
       | "automation"
       | "network"
@@ -54,6 +57,16 @@ describe("settings openapi contract", () => {
     >().toEqualTypeOf<boolean>();
     expectTypeOf<GetSettingsGeneralResponse["actions"]["restart"]["behavior"]>().toEqualTypeOf<
       "action_trigger" | "applied_now" | "restart_required"
+    >();
+
+    expectTypeOf<GetSettingsRolesResponse["scope"]>().toEqualTypeOf<"global">();
+    expectTypeOf<keyof NonNullable<UpdateSettingsRolesBody["config"]>>().toEqualTypeOf<
+      | "auto_title"
+      | "checkpoint_summary"
+      | "coordinator"
+      | "dream"
+      | "memory_controller"
+      | "memory_extractor"
     >();
 
     expectTypeOf<PutSettingsMCPServerQuery["scope"]>().toEqualTypeOf<

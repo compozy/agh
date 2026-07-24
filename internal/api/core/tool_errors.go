@@ -65,7 +65,8 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 	case toolspkg.ErrorCodeUnavailable,
 		toolspkg.ErrorCodeResultTooLarge,
 		toolspkg.ErrorCodeModelNotFound,
-		toolspkg.ErrorCodeReasoningEffortUnsupported:
+		toolspkg.ErrorCodeReasoningEffortUnsupported,
+		toolspkg.ErrorCodeAgentNameReserved:
 		return http.StatusUnprocessableEntity
 	case toolspkg.ErrorCodeResultPersistenceFailed:
 		return http.StatusInsufficientStorage
