@@ -386,14 +386,14 @@ func taskDashboardFreshnessFromSnapshot(
 		AgeMilli:         age.Milliseconds(),
 		StaleAfterMilli:  staleAfter.Milliseconds(),
 		HasLiveWork:      hasLiveWork,
-		Status:           "current",
+		Status:           freshnessStatusCurrent,
 	}
 
 	switch {
 	case latestActivity.IsZero():
-		freshness.Status = "empty"
+		freshness.Status = freshnessStatusEmpty
 	case hasLiveWork && staleAfter > 0 && age > staleAfter:
-		freshness.Status = "stale"
+		freshness.Status = freshnessStatusStale
 		freshness.Stale = true
 	}
 

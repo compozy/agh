@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight } from "lucide-react";
 
-import { Eyebrow, Pill } from "@agh/ui";
+import { Eyebrow, Pill, Panel } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -12,7 +12,6 @@ import {
   taskStatusSignal,
 } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
-import { TasksDashboardPanel } from "./tasks-dashboard-panel";
 
 export interface TasksDashboardActiveRunsProps {
   dashboard: TaskDashboardView;
@@ -29,7 +28,7 @@ export function TasksDashboardActiveRuns({
   const { running, queued, claimed, total } = dashboard.active_runs;
 
   return (
-    <TasksDashboardPanel
+    <Panel
       bodyClassName="p-0"
       data-testid="tasks-dashboard-active-runs"
       meta={total}
@@ -126,6 +125,6 @@ export function TasksDashboardActiveRuns({
           +{hidden} more active runs
         </p>
       ) : null}
-    </TasksDashboardPanel>
+    </Panel>
   );
 }

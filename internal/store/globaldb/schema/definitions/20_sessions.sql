@@ -101,6 +101,24 @@ CREATE TABLE token_stats (
 		updated_at    TEXT NOT NULL
 	);
 
+CREATE TABLE token_usage_daily (
+		day           TEXT NOT NULL CHECK (length(day) = 10),
+		workspace_id  TEXT NOT NULL DEFAULT '',
+		agent_name    TEXT NOT NULL DEFAULT '',
+		input_tokens  INTEGER NOT NULL DEFAULT 0 CHECK (input_tokens >= 0),
+		output_tokens INTEGER NOT NULL DEFAULT 0 CHECK (output_tokens >= 0),
+		total_tokens  INTEGER NOT NULL DEFAULT 0 CHECK (total_tokens >= 0),
+		total_cost    REAL,
+		cost_currency TEXT,
+		cost_status   TEXT NOT NULL DEFAULT 'unknown'
+			CHECK (cost_status IN ('actual', 'estimated', 'included', 'unknown')),
+		cost_source   TEXT NOT NULL DEFAULT 'none'
+			CHECK (cost_source IN ('agent_reported', 'catalog_config', 'models_dev', 'builtin', 'none')),
+		turn_count    INTEGER NOT NULL DEFAULT 0 CHECK (turn_count >= 0),
+		updated_at    TEXT NOT NULL,
+		PRIMARY KEY (day, workspace_id, agent_name)
+	);
+
 CREATE INDEX idx_session_health_wake
 			ON session_health(workspace_id, agent_name, eligible_for_wake, active_prompt, attachable);
 
@@ -145,6 +163,8 @@ CREATE INDEX idx_sessions_type_depth ON sessions(session_type, spawn_depth);
 CREATE INDEX idx_token_stats_session ON token_stats(session_id);
 
 CREATE UNIQUE INDEX idx_token_stats_session_agent ON token_stats(session_id, agent_name);
+
+CREATE INDEX idx_token_usage_daily_workspace ON token_usage_daily(workspace_id, day);
 
 CREATE UNIQUE INDEX uq_session_input_queue_active_steer
 			ON session_input_queue(session_id)

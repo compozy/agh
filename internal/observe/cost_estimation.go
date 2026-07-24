@@ -117,8 +117,28 @@ func (o *Observer) aggregateObservedUsage(
 	}
 
 	costAmount, costCurrency, costStatus, costSource := o.observedCostFields(ctx, snapshot, event.Usage)
-	return o.registry.UpdateTokenStats(ctx, store.TokenStatsUpdate{
+	if err := o.registry.UpdateTokenStats(ctx, store.TokenStatsUpdate{
 		SessionID:    sessionID,
+		AgentName:    snapshot.agentName,
+		InputTokens:  event.Usage.InputTokens,
+		OutputTokens: event.Usage.OutputTokens,
+		TotalTokens:  event.Usage.TotalTokens,
+		CostAmount:   costAmount,
+		CostCurrency: costCurrency,
+		CostStatus:   costStatus,
+		CostSource:   costSource,
+		Turns:        1,
+		UpdatedAt:    usageTimestamp,
+	}); err != nil {
+		return err
+	}
+	rollupStore, ok := o.registry.(OverviewStore)
+	if !ok {
+		return nil
+	}
+	return rollupStore.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{
+		Day:          store.LocalDay(usageTimestamp),
+		WorkspaceID:  snapshot.workspaceID,
 		AgentName:    snapshot.agentName,
 		InputTokens:  event.Usage.InputTokens,
 		OutputTokens: event.Usage.OutputTokens,

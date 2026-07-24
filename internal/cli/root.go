@@ -122,6 +122,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newUpdateCommand(deps))
 	cmd.AddCommand(newUninstallCommand(deps))
 	cmd.AddCommand(newStatusCommand(deps))
+	cmd.AddCommand(newObserveCommand(deps))
 	cmd.AddCommand(newDoctorCommand(deps))
 	cmd.AddCommand(newDrainCommand(deps))
 	cmd.AddCommand(newUndrainCommand(deps))

@@ -1,8 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { agentCatalogOptions, agentDetailOptions, agentsListOptions } from "@/systems/agent";
+import { homeActivityOptions, homeOverviewOptions, useHomePrefsStore } from "@/systems/dashboard";
+import { networkStatusOptions } from "@/systems/network";
 import { onboardingStatusOptions } from "@/systems/onboarding";
 import { sessionsListOptions } from "@/systems/session";
+import { taskDashboardOptions } from "@/systems/tasks";
 import { workspaceDetailOptions } from "@/systems/workspace";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
@@ -45,11 +48,18 @@ export async function preloadHomeWorkspace(
   queryClient: QueryClient,
   workspaceId: string
 ): Promise<void> {
+  // The home window opens on the global scope by default; workspace-scoped
+  // overview keys warm on mount once the scope resolves client-side.
+  const usageWindow = useHomePrefsStore.getState().usageWindow;
   await settleRouteQueries([
     queryClient.ensureQueryData(agentsListOptions(workspaceId)),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({ workspace: workspaceId, state: "active", type: "user", limit: 1 })
     ),
+    queryClient.ensureQueryData(homeOverviewOptions({ usageWindow })),
+    queryClient.ensureQueryData(homeActivityOptions()),
+    queryClient.ensureQueryData(taskDashboardOptions({ scope: "global" })),
+    queryClient.ensureQueryData(networkStatusOptions()),
   ]);
 }
 

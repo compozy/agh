@@ -65,6 +65,7 @@
   --color-viz-bar: rgba(255, 255, 255, 0.3);
   --color-viz-other: rgba(255, 255, 255, 0.26);
   --color-viz-grid: rgba(255, 255, 255, 0.045);
+  --color-viz-cell: #ffffff;
 
   /* Surface glaze ladder — translucent white tints over the warm ramp. */
   --color-row-hover: rgba(255, 255, 255, 0.022);

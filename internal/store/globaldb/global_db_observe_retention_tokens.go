@@ -49,6 +49,13 @@ func (g *ObserveRepo) SweepObservability(
 		err = fmt.Errorf("store: delete old token_stats rows: %w", err)
 		return store.ObservabilityRetentionSweepResult{}, err
 	}
+	if result.DeletedTokenUsageDaily, err = queries.DeleteTokenUsageDailyBefore(
+		ctx,
+		store.LocalDay(result.CutoffAt),
+	); err != nil {
+		err = fmt.Errorf("store: delete old token_usage_daily rows: %w", err)
+		return store.ObservabilityRetentionSweepResult{}, err
+	}
 	if result.DeletedPermissionLogs, err = queries.DeletePermissionLogsBefore(ctx, cutoffValue); err != nil {
 		err = fmt.Errorf("store: delete old permission_log rows: %w", err)
 		return store.ObservabilityRetentionSweepResult{}, err

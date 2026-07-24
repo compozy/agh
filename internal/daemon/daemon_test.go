@@ -6498,6 +6498,13 @@ func (f *fakeObserver) QueryTaskInbox(
 	return observe.TaskInboxView{}, nil
 }
 
+func (f *fakeObserver) QueryObserveOverview(
+	context.Context,
+	observe.OverviewQuery,
+) (observe.OverviewView, error) {
+	return observe.OverviewView{}, nil
+}
+
 func (f *fakeObserver) Health(context.Context) (observe.Health, error) {
 	return observe.Health{Status: "ok"}, nil
 }

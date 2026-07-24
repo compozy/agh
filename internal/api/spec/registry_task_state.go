@@ -19,6 +19,7 @@ func registryTaskStateOperations() []OperationSpec {
 		dismissTaskOperationSpec(),
 		getTaskDashboardOperationSpec(),
 		getTaskInboxOperationSpec(),
+		getObserveOverviewOperationSpec(),
 	}
 }
 func startTaskRunOperationSpec() OperationSpec {
@@ -323,7 +324,7 @@ func getTaskDashboardOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.TaskDashboardResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task dashboard query", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Observe service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specObserveNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
@@ -354,7 +355,7 @@ func getTaskInboxOperationSpec() OperationSpec {
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 400, Description: "Invalid task inbox query or cursor", Body: contract.ErrorPayload{}},
 			{Status: 410, Description: workspaceRootMissingDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Observe service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specObserveNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

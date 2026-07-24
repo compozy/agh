@@ -1,8 +1,7 @@
-import { cn, Eyebrow, type PillTone, Pill } from "@agh/ui";
+import { Panel, cn, Eyebrow, type PillTone, Pill } from "@agh/ui";
 
 import { formatPercent, taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
-import { TasksDashboardPanel } from "./tasks-dashboard-panel";
 
 export interface TasksDashboardStatusBreakdownProps {
   dashboard: TaskDashboardView;
@@ -22,7 +21,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
   const total = entries.reduce((sum, entry) => sum + entry.count, 0);
 
   return (
-    <TasksDashboardPanel
+    <Panel
       data-testid="tasks-dashboard-status-breakdown"
       right={
         total > 0 ? (
@@ -87,6 +86,6 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
           })}
         </ul>
       )}
-    </TasksDashboardPanel>
+    </Panel>
   );
 }

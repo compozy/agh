@@ -3389,6 +3389,7 @@ export interface RetentionHealth {
   last_sweep_error?: string;
   deleted_event_summaries: number;
   deleted_token_stats: number;
+  deleted_token_usage_daily: number;
   deleted_permission_log_rows: number;
 }
 

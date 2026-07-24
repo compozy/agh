@@ -174,6 +174,7 @@ func ObserveRetentionHealthPayloadFromHealth(
 		LastSweepError:           strings.TrimSpace(health.LastSweepError),
 		DeletedEventSummaries:    health.DeletedEventSummaries,
 		DeletedTokenStats:        health.DeletedTokenStats,
+		DeletedTokenUsageDaily:   health.DeletedTokenUsageDaily,
 		DeletedPermissionLogRows: health.DeletedPermissionLogRows,
 	}
 }

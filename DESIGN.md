@@ -50,6 +50,7 @@ tokens:
       viz-bar: "rgba(255, 255, 255, 0.3)"
       viz-other: "rgba(255, 255, 255, 0.26)"
       viz-grid: "rgba(255, 255, 255, 0.045)"
+      viz-cell: "#ffffff"
       row-hover: "rgba(255, 255, 255, 0.022)"
       row-selected: "rgba(255, 255, 255, 0.03)"
       surface-glaze: "rgba(255, 255, 255, 0.04)"

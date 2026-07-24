@@ -21,6 +21,7 @@ var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
 	statusFn                           func(context.Context) (StatusRecord, error)
+	observeOverviewFn                  func(context.Context, ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)
 	doctorFn                           func(context.Context, DoctorQuery) (DoctorRecord, error)
 	daemonStatusFn                     func(context.Context) (DaemonStatus, error)
 	drainFn                            func(context.Context) (DrainStatusRecord, error)
@@ -433,6 +434,16 @@ func (s *stubClient) Status(ctx context.Context) (StatusRecord, error) {
 		return s.statusFn(ctx)
 	}
 	return StatusRecord{}, errors.New("unexpected Status call")
+}
+
+func (s *stubClient) ObserveOverview(
+	ctx context.Context,
+	query ObserveOverviewQuery,
+) (contract.ObserveOverviewResponse, error) {
+	if s.observeOverviewFn != nil {
+		return s.observeOverviewFn(ctx, query)
+	}
+	return contract.ObserveOverviewResponse{}, errors.New("unexpected ObserveOverview call")
 }
 
 func (s *stubClient) Doctor(ctx context.Context, query DoctorQuery) (DoctorRecord, error) {

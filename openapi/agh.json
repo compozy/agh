@@ -94963,6 +94963,697 @@
         ]
       }
     },
+    "/api/observe/overview": {
+      "get": {
+        "operationId": "getObserveOverview",
+        "parameters": [
+          {
+            "description": "Scope aggregates to one workspace; empty selects the global home scope",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Usage window in days (default 30)",
+            "in": "query",
+            "name": "usage_window",
+            "schema": {
+              "enum": [
+                "7",
+                "30",
+                "90"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "overview": {
+                      "properties": {
+                        "attention": {
+                          "properties": {
+                            "by_kind": {
+                              "additionalProperties": {
+                                "type": "integer"
+                              },
+                              "type": "object"
+                            },
+                            "items": {
+                              "items": {
+                                "properties": {
+                                  "actions": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "agent_name": {
+                                    "type": "string"
+                                  },
+                                  "detail": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "type": "string"
+                                  },
+                                  "occurred_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "run_id": {
+                                    "type": "string"
+                                  },
+                                  "session_id": {
+                                    "type": "string"
+                                  },
+                                  "task_id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "actions",
+                                  "kind",
+                                  "occurred_at",
+                                  "title"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "by_kind",
+                            "items",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
+                        "freshness": {
+                          "properties": {
+                            "age_ms": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "has_live_work": {
+                              "type": "boolean"
+                            },
+                            "latest_activity_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "observed_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "stale": {
+                              "type": "boolean"
+                            },
+                            "stale_after_ms": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "status": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "age_ms",
+                            "has_live_work",
+                            "latest_activity_at",
+                            "observed_at",
+                            "stale",
+                            "stale_after_ms",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
+                        "generated_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "network": {
+                          "properties": {
+                            "messages_today": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "messages_today"
+                          ],
+                          "type": "object"
+                        },
+                        "outcomes": {
+                          "properties": {
+                            "canceled": {
+                              "type": "integer"
+                            },
+                            "completed": {
+                              "type": "integer"
+                            },
+                            "days": {
+                              "items": {
+                                "properties": {
+                                  "canceled": {
+                                    "type": "integer"
+                                  },
+                                  "completed": {
+                                    "type": "integer"
+                                  },
+                                  "date": {
+                                    "type": "string"
+                                  },
+                                  "failed": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "canceled",
+                                  "completed",
+                                  "date",
+                                  "failed"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "success_pct": {
+                              "format": "double",
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "canceled",
+                            "completed",
+                            "days",
+                            "failed",
+                            "success_pct"
+                          ],
+                          "type": "object"
+                        },
+                        "pulse": {
+                          "properties": {
+                            "buckets": {
+                              "items": {
+                                "properties": {
+                                  "events": {
+                                    "type": "integer"
+                                  },
+                                  "hour": {
+                                    "type": "integer"
+                                  },
+                                  "weekday": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "events",
+                                  "hour",
+                                  "weekday"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "busiest": {
+                              "nullable": true,
+                              "properties": {
+                                "events": {
+                                  "type": "integer"
+                                },
+                                "hour": {
+                                  "type": "integer"
+                                },
+                                "weekday": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "events",
+                                "hour",
+                                "weekday"
+                              ],
+                              "type": "object"
+                            },
+                            "longest_session": {
+                              "nullable": true,
+                              "properties": {
+                                "agent_name": {
+                                  "type": "string"
+                                },
+                                "date": {
+                                  "type": "string"
+                                },
+                                "duration_seconds": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "session_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "agent_name",
+                                "date",
+                                "duration_seconds",
+                                "session_id"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "buckets"
+                          ],
+                          "type": "object"
+                        },
+                        "schema_version": {
+                          "type": "string"
+                        },
+                        "system": {
+                          "properties": {
+                            "hook_failures_today": {
+                              "type": "integer"
+                            },
+                            "hook_runs_today": {
+                              "type": "integer"
+                            },
+                            "retention_days": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "hook_failures_today",
+                            "hook_runs_today",
+                            "retention_days"
+                          ],
+                          "type": "object"
+                        },
+                        "today": {
+                          "properties": {
+                            "runs_completed": {
+                              "type": "integer"
+                            },
+                            "runs_failed": {
+                              "type": "integer"
+                            },
+                            "tasks_closed": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "runs_completed",
+                            "runs_failed",
+                            "tasks_closed"
+                          ],
+                          "type": "object"
+                        },
+                        "usage": {
+                          "properties": {
+                            "agent_share": {
+                              "items": {
+                                "properties": {
+                                  "agent_name": {
+                                    "type": "string"
+                                  },
+                                  "fraction": {
+                                    "format": "double",
+                                    "type": "number"
+                                  },
+                                  "tokens": {
+                                    "format": "int64",
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "agent_name",
+                                  "fraction",
+                                  "tokens"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "cost_currency": {
+                              "type": "string"
+                            },
+                            "cost_status": {
+                              "type": "string"
+                            },
+                            "days": {
+                              "items": {
+                                "properties": {
+                                  "date": {
+                                    "type": "string"
+                                  },
+                                  "tokens": {
+                                    "format": "int64",
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "date",
+                                  "tokens"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "estimated_cost": {
+                              "format": "double",
+                              "nullable": true,
+                              "type": "number"
+                            },
+                            "retention_days": {
+                              "type": "integer"
+                            },
+                            "total_tokens": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "truncated": {
+                              "type": "boolean"
+                            },
+                            "window_days": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "agent_share",
+                            "days",
+                            "retention_days",
+                            "total_tokens",
+                            "truncated",
+                            "window_days"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "attention",
+                        "freshness",
+                        "generated_at",
+                        "network",
+                        "outcomes",
+                        "pulse",
+                        "schema_version",
+                        "system",
+                        "today",
+                        "usage"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "overview"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid overview query"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Observe service is not configured"
+          }
+        },
+        "summary": "Get the observer-backed home overview",
+        "tags": [
+          "observe"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/observe/tasks/dashboard": {
       "get": {
         "operationId": "getTaskDashboard",
@@ -139034,6 +139725,10 @@
                               "format": "int64",
                               "type": "integer"
                             },
+                            "deleted_token_usage_daily": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
                             "enabled": {
                               "type": "boolean"
                             },
@@ -139065,6 +139760,7 @@
                             "deleted_event_summaries",
                             "deleted_permission_log_rows",
                             "deleted_token_stats",
+                            "deleted_token_usage_daily",
                             "enabled",
                             "last_sweep_status",
                             "retention_days",

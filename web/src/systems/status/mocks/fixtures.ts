@@ -37,6 +37,7 @@ export const daemonHealthFixture: HealthPayload = {
     last_cutoff_at: "2026-04-10T18:00:00Z",
     deleted_event_summaries: 0,
     deleted_token_stats: 0,
+    deleted_token_usage_daily: 0,
     deleted_permission_log_rows: 0,
   },
   failures: {

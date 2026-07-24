@@ -2,6 +2,7 @@ import { AlertTriangle, Check, Gauge } from "lucide-react";
 
 import {
   Empty,
+  Panel,
   Pill,
   type PillTone,
   QueueHealthSparkline,
@@ -10,7 +11,6 @@ import {
 
 import { formatDurationMs } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
-import { TasksDashboardPanel } from "./tasks-dashboard-panel";
 
 export interface TasksDashboardQueueHealthProps {
   dashboard: TaskDashboardView;
@@ -44,7 +44,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
   const hasWarning = queue.backlog_warning || stuckRuns > 0 || orphanRuns > 0;
 
   return (
-    <TasksDashboardPanel
+    <Panel
       data-testid="tasks-dashboard-queue-health"
       meta="24h"
       right={
@@ -98,7 +98,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
           <span>Queue is healthy.</span>
         </div>
       )}
-    </TasksDashboardPanel>
+    </Panel>
   );
 }
 

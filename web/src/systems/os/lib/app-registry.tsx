@@ -151,7 +151,7 @@ async function preloadTriggers(qc: QueryClient): Promise<void> {
 export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   dashboard: {
     id: "dashboard",
-    title: "Dashboard",
+    title: "Home",
     icon: LayoutDashboard,
     paths: ["/"],
     dock: { group: 1 },

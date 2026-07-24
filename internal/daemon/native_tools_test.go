@@ -8654,6 +8654,13 @@ func (o *nativeObserverStub) QueryTaskInbox(
 	return observe.TaskInboxView{}, nil
 }
 
+func (o *nativeObserverStub) QueryObserveOverview(
+	context.Context,
+	observe.OverviewQuery,
+) (observe.OverviewView, error) {
+	return observe.OverviewView{}, nil
+}
+
 type nativeNetworkStub struct {
 	sendErr             error
 	sendCalls           int

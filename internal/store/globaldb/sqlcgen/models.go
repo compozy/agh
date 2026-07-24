@@ -1589,6 +1589,21 @@ type TokenStat struct {
 	UpdatedAt    string          `json:"updated_at"`
 }
 
+type TokenUsageDaily struct {
+	Day          string          `json:"day"`
+	WorkspaceID  string          `json:"workspace_id"`
+	AgentName    string          `json:"agent_name"`
+	InputTokens  int64           `json:"input_tokens"`
+	OutputTokens int64           `json:"output_tokens"`
+	TotalTokens  int64           `json:"total_tokens"`
+	TotalCost    sql.NullFloat64 `json:"total_cost"`
+	CostCurrency sql.NullString  `json:"cost_currency"`
+	CostStatus   string          `json:"cost_status"`
+	CostSource   string          `json:"cost_source"`
+	TurnCount    int64           `json:"turn_count"`
+	UpdatedAt    string          `json:"updated_at"`
+}
+
 type ToolApprovalGrant struct {
 	ID          string `json:"id"`
 	WorkspaceID string `json:"workspace_id"`
