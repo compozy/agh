@@ -5,10 +5,11 @@ import {
   type RuntimeCatalogProvider,
 } from "@/systems/model-catalog";
 import { useProviders } from "@/systems/providers";
-import type {
-  RuntimeModelOption,
-  RuntimeProviderOption,
-  RuntimeSelectorValue,
+import {
+  reasoningEffortLabel,
+  type RuntimeModelOption,
+  type RuntimeProviderOption,
+  type RuntimeSelectorValue,
 } from "@/systems/runtime";
 import {
   useSettingsGeneral,
@@ -17,6 +18,7 @@ import {
   usePutSettingsProvider,
 } from "@/systems/settings";
 
+import { onboardingModelFacts, type OnboardingModelFact } from "../lib/model-facts";
 import { buildOnboardingProviderRequest } from "../lib/provider-request";
 import {
   useOnboardingDraftStore,
@@ -29,6 +31,17 @@ export interface OnboardingDefaultModelApi {
   runtimeValue: RuntimeSelectorValue;
   runtimeProviders: RuntimeProviderOption[];
   runtimeModels: RuntimeModelOption[];
+  /** Harness the selected provider runs on (`acp`, `pi_acp`, …), null until loaded. */
+  harness: string | null;
+  /** Display name of the selected provider; empty until one is picked. */
+  providerName: string;
+  /** Display name of the selected model; empty until one is picked. */
+  modelName: string;
+  /** Effort label when the model exposes selectable levels, else null. */
+  reasoningLabel: string | null;
+  /** Facts the runtime reports about the selected model, in reading order. */
+  facts: OnboardingModelFact[];
+  /** Effective mode: the harness default until the operator picks one. */
   authMode: OnboardingAuthMode;
   envVar: string;
   apiKey: string;
@@ -36,6 +49,8 @@ export interface OnboardingDefaultModelApi {
   catalogLoaded: boolean;
   catalogRefreshing: boolean;
   catalogError: string | null;
+  /** The bound-secret target env is still unknown — drives the field's invalid state. */
+  missingEnvVar: boolean;
   configurationError: string | null;
   isValid: boolean;
   isCommitting: boolean;
@@ -58,6 +73,15 @@ function normalizeEffort(effort: string): ReasoningEffort | "" {
   return effort === "" ? "" : isReasoningEffort(effort) ? effort : "";
 }
 
+/**
+ * Providers reached through a key-bound harness (`pi_acp`) have no CLI sign-in
+ * to reuse, so the API-key mode is their honest default; every other harness
+ * spawns a CLI that already carries its own session.
+ */
+export function defaultAuthModeForHarness(harness: string | null): OnboardingAuthMode {
+  return harness?.trim().toLowerCase() === "pi_acp" ? "bound_secret" : "native_cli";
+}
+
 function updateRuntime(next: RuntimeSelectorValue): void {
   const store = useOnboardingDraftStore.getState();
   const providerChanged = next.provider !== store.provider;
@@ -65,14 +89,20 @@ function updateRuntime(next: RuntimeSelectorValue): void {
     provider: next.provider,
     model: next.model,
     reasoning: normalizeEffort(next.reasoning_effort),
-    ...(providerChanged ? { envVar: "", apiKey: "" } : {}),
+    // A new provider re-arms the harness default and drops credentials bound to
+    // the previous one.
+    ...(providerChanged ? { envVar: "", apiKey: "", authModeTouched: false } : {}),
   });
 }
 
 function updateAuthMode(authMode: OnboardingAuthMode): void {
   useOnboardingDraftStore
     .getState()
-    .patch(authMode === "native_cli" ? { authMode, envVar: "", apiKey: "" } : { authMode });
+    .patch(
+      authMode === "native_cli"
+        ? { authMode, authModeTouched: true, envVar: "", apiKey: "" }
+        : { authMode, authModeTouched: true }
+    );
 }
 
 function updateEnvVar(envVar: string): void {
@@ -100,6 +130,10 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
       ?.find(slot => slot.name === "api_key")
       ?.target_env.trim() ?? "";
 
+  const harness = providerDetailQuery.data?.settings.harness?.trim() || null;
+  // Derived, never an effect: the harness default holds until the operator picks.
+  const authMode = draft.authModeTouched ? draft.authMode : defaultAuthModeForHarness(harness);
+
   const runtimeProviders: RuntimeProviderOption[] = providers.map(entry => ({
     id: entry.name,
     name: entry.display_name?.trim() || entry.name,
@@ -121,6 +155,21 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     model: draft.model,
     reasoning_effort: draft.reasoning,
   };
+
+  const selectedModel = runtimeModels.find(
+    entry => entry.provider === draft.provider && entry.id === draft.model
+  );
+  const providerName =
+    runtimeProviders.find(entry => entry.id === draft.provider)?.name ?? draft.provider;
+  const modelName = selectedModel?.name ?? draft.model;
+  // `none` is not a selectable stop, so a model advertising only it has no levels.
+  const selectableEfforts = selectedModel?.efforts.filter(effort => effort !== "none") ?? [];
+  const reasoningLabel =
+    selectableEfforts.length === 0
+      ? null
+      : draft.reasoning === ""
+        ? "Default effort"
+        : reasoningEffortLabel(draft.reasoning);
 
   const onRefreshCatalog = catalog.refresh;
 
@@ -148,7 +197,7 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     const body = buildOnboardingProviderRequest(detail.settings, {
       model: draft.model.trim(),
       reasoning: draft.reasoning,
-      authMode: draft.authMode,
+      authMode,
       envVar: draft.envVar.trim(),
       apiKey: draft.apiKey.trim(),
       provider: trimmedProvider,
@@ -167,13 +216,15 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     ? describeError("Failed to load general settings.", generalQuery.error)
     : null;
   const missingBoundSecretTarget =
-    draft.authMode === "bound_secret" &&
+    authMode === "bound_secret" &&
     draft.envVar.trim().length === 0 &&
     existingApiKeyTargetEnv.length === 0;
-  const credentialTargetError =
-    provider.length > 0 && providerDetailQuery.isSuccess && missingBoundSecretTarget
-      ? "Enter the environment variable the provider expects."
-      : null;
+  // The semantic flag, not its sentence, is what the field's invalid state reads.
+  const missingEnvVar =
+    provider.length > 0 && providerDetailQuery.isSuccess && missingBoundSecretTarget;
+  const credentialTargetError = missingEnvVar
+    ? "Enter the environment variable the provider expects."
+    : null;
   const configurationError =
     providerSettingsError ?? generalSettingsError ?? credentialTargetError ?? null;
   const canCommit =
@@ -190,13 +241,19 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     runtimeValue,
     runtimeProviders,
     runtimeModels,
-    authMode: draft.authMode,
+    harness,
+    providerName,
+    modelName,
+    reasoningLabel,
+    facts: onboardingModelFacts(selectedModel, harness),
+    authMode,
     envVar: draft.envVar,
     apiKey: draft.apiKey,
     catalogLoading: catalog.loading,
     catalogLoaded: catalog.loaded,
     catalogRefreshing: catalog.refreshing,
     catalogError: catalog.error,
+    missingEnvVar,
     configurationError,
     isValid: canCommit,
     isCommitting: putProvider.isPending || updateGeneral.isPending,

@@ -470,6 +470,18 @@
   --spacing-workspaces-subtitle-gap: 22px;
   --spacing-workspaces-row-gap: 18px;
   --text-workspace-avatar: 9px;
+
+  /* First-run setup panel — window grammar without being a window: identity
+     head, progress strip in the context-strip slot, then the action footer.
+     The panel resizes per step (one decision → a browse-then-confirm split). */
+  --height-setup-head: 52px;
+  --height-setup-steps: 44px;
+  --height-setup-footer: 58px;
+  --height-setup-split: 300px;
+  --height-setup-row: 30px;
+  --size-setup-step-marker: 18px;
+  --width-setup-panel: 660px;
+  --width-setup-panel-wide: 960px;
 }
 
 :root {

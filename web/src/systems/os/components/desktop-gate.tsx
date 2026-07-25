@@ -3,11 +3,17 @@ import type { ReactNode } from "react";
 
 import { Button, Empty, Spinner } from "@agh/ui";
 
-import { OnboardingWizard, useOnboardingStatus } from "@/systems/onboarding";
+import { OnboardingSetupPanel, useOnboardingStatus } from "@/systems/onboarding";
 
 /**
- * Desktop-level onboarding gate (rewrite of the old `-onboarding-gate-frame`):
- * first-run setup renders before any desktop chrome exists.
+ * Desktop-level onboarding gate: first-run setup renders **over** the shell, not
+ * instead of it — you see the desktop you are about to unlock while a blocking
+ * panel asks the two setup questions. The chrome marks itself inert
+ * (`DesktopShell` threads `firstRun` down); wrapping `children` here would break
+ * the `flex min-h-0 flex-1` chain the shell layout depends on.
+ *
+ * Loading and error keep the standalone frame: before the daemon answers there
+ * is nothing truthful to render behind a scrim.
  */
 export function DesktopGate({ children }: { children: ReactNode }) {
   const onboarding = useOnboardingStatus();
@@ -17,7 +23,12 @@ export function DesktopGate({ children }: { children: ReactNode }) {
   }
 
   if (onboarding.data?.completed === false) {
-    return <OnboardingWizard onComplete={() => void onboarding.refetch()} />;
+    return (
+      <>
+        {children}
+        <OnboardingSetupPanel onComplete={() => void onboarding.refetch()} />
+      </>
+    );
   }
 
   if (onboarding.isError) {

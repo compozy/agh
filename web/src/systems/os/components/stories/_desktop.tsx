@@ -67,6 +67,14 @@ export interface DesktopShellProps {
   dock?: boolean;
   /** Override dock entries (defaults to full DESK_ITEMS). */
   dockItems?: OsDockEntry[];
+  /** Extra classes on the dock zone (first-run dormancy). */
+  dockClassName?: string;
+  /** Extra classes on the menubar (first-run dimming). */
+  menubarClassName?: string;
+  /** Menubar workspace slot; omit for the bound `agh` workspace. */
+  workspace?: { name: string; monogram: string };
+  /** Menubar approvals count; 0 renders no badge. */
+  notifications?: number;
   /** Show the empty-desktop ⌘K hint (OpenDesign `desk-hint`). */
   deskHint?: boolean;
 }
@@ -82,14 +90,19 @@ export function DesktopShell({
   menubar = true,
   dock = true,
   dockItems = DESK_ITEMS,
+  dockClassName,
+  menubarClassName,
+  workspace = { name: "agh", monogram: "AG" },
+  notifications = 2,
   deskHint = false,
 }: DesktopShellProps) {
   return (
     <div className="relative flex h-screen w-full flex-col overflow-hidden bg-rail">
       {menubar ? (
         <OsMenuBar
-          workspace={{ name: "agh", monogram: "AG" }}
-          notifications={2}
+          className={menubarClassName}
+          workspace={workspace}
+          notifications={notifications}
           onCommandClick={fn()}
           onSettingsClick={fn()}
         />
@@ -110,7 +123,14 @@ export function DesktopShell({
           </p>
         ) : null}
         {children}
-        {dock ? <OsDockZone items={dockItems} onSelect={fn()} onNewSession={fn()} /> : null}
+        {dock ? (
+          <OsDockZone
+            className={dockClassName}
+            items={dockItems}
+            onSelect={fn()}
+            onNewSession={fn()}
+          />
+        ) : null}
       </div>
     </div>
   );

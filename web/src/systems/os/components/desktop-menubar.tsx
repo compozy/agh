@@ -19,6 +19,8 @@ import { WindowMenu } from "./menubar/window-menu";
 import { WorkspaceMenu } from "./menubar/workspace-menu";
 
 export interface DesktopMenubarProps {
+  /** Extra classes on the bar itself (first-run dimming). */
+  className?: string;
   workspaces: WorkspacePayload[];
   activeWorkspace: WorkspacePayload | undefined;
   onSelectWorkspace: (workspaceId: string) => void;
@@ -37,6 +39,9 @@ function workspaceMonogram(name: string): string {
   return name.trim().slice(0, 2).toUpperCase() || "WS";
 }
 
+/** Nothing is bound yet — the slot says so instead of showing an empty dash. */
+const UNBOUND_WORKSPACE = { name: "No workspace", monogram: "··" } as const;
+
 /**
  * The wired menubar: the AGH system menu, the workspace switcher, the static
  * Session / Go / Window / Help set, the bell aggregator, the ⌘K chip, and the
@@ -44,6 +49,7 @@ function workspaceMonogram(name: string): string {
  * working mechanism, and none is hidden when its predicate fails (SD-007).
  */
 export function DesktopMenubar({
+  className,
   workspaces,
   activeWorkspace,
   onSelectWorkspace,
@@ -60,7 +66,10 @@ export function DesktopMenubar({
   const { coordinator } = useOsShell();
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
-  const workspaceName = activeWorkspace?.name ?? "—";
+  const bound = activeWorkspace !== undefined;
+  const workspaceSlot = bound
+    ? { name: activeWorkspace.name, monogram: workspaceMonogram(activeWorkspace.name) }
+    : UNBOUND_WORKSPACE;
   const overlay = (id: DesktopOverlay) => ({
     open: activeOverlay === id,
     onOpenChange: (open: boolean) => onOverlayOpenChange(id, open),
@@ -87,8 +96,10 @@ export function DesktopMenubar({
 
   return (
     <OsMenuBar
-      workspace={{ name: workspaceName, monogram: workspaceMonogram(workspaceName) }}
-      status={<OsHydrationStatus hydration={hydration} />}
+      className={className}
+      workspace={workspaceSlot}
+      // No workspace means no layout stream — there is nothing to be out of sync with.
+      status={bound ? <OsHydrationStatus hydration={hydration} /> : null}
       notifications={attention.notificationCount}
       onCommandClick={onOpenPalette}
       onSettingsClick={actions.openSettings}

@@ -26,10 +26,10 @@ export function DirectoryBrowser({ workspaces }: DirectoryBrowserProps) {
 
   return (
     <div
-      className="overflow-hidden rounded-md bg-canvas-soft ring-1 ring-inset ring-line"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md bg-canvas-soft ring-1 ring-inset ring-line max-md:h-60 max-md:flex-none"
       data-testid="onboarding-directory-browser"
     >
-      <div className="flex items-center gap-2 border-b border-line px-3 py-2">
+      <div className="flex flex-none items-center gap-2 border-b border-line px-3 py-2">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -65,7 +65,7 @@ export function DirectoryBrowser({ workspaces }: DirectoryBrowserProps) {
         </span>
       </div>
 
-      <div className="max-h-64 overflow-y-auto p-1.5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {isBrowsing ? (
           <div className="flex items-center gap-2 px-2.5 py-6 text-sm text-muted">
             <Spinner /> Reading directory…
@@ -80,7 +80,7 @@ export function DirectoryBrowser({ workspaces }: DirectoryBrowserProps) {
           entries.map(entry => (
             <div
               key={entry.path}
-              className="group flex items-center gap-2.5 rounded px-2.5 py-1.5 hover:bg-hover"
+              className="group flex h-setup-row items-center gap-2.5 rounded px-2 hover:bg-hover"
             >
               <button
                 type="button"

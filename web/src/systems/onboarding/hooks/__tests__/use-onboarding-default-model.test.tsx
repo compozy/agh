@@ -28,6 +28,7 @@ const {
     data: {
       settings: {
         display_name: "Claude Code",
+        harness: "acp",
         models: { default: "claude-sonnet-5", curated: [] as { id: string }[] },
         credential_slots: [{ name: "api_key", target_env: "ANTHROPIC_API_KEY" }],
       },
@@ -78,6 +79,7 @@ describe("useOnboardingDefaultModel", () => {
     mockSettingsProvider.data = {
       settings: {
         display_name: "Claude Code",
+        harness: "acp",
         models: { default: "claude-sonnet-5", curated: [] },
         credential_slots: [{ name: "api_key", target_env: "ANTHROPIC_API_KEY" }],
       },
@@ -165,5 +167,101 @@ describe("useOnboardingDefaultModel", () => {
     const { result } = renderHook(() => useOnboardingDefaultModel());
     act(() => result.current.onRefreshCatalog());
     expect(mockCatalogRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should default the auth mode to the provider harness until the operator picks", () => {
+    act(() => useOnboardingDraftStore.getState().patch({ provider: "openrouter" }));
+    mockSettingsProvider.data = {
+      settings: {
+        display_name: "OpenRouter",
+        harness: "pi_acp",
+        models: { default: "", curated: [] },
+        credential_slots: [],
+      },
+    };
+
+    const { result } = renderHook(() => useOnboardingDefaultModel());
+
+    expect(result.current.harness).toBe("pi_acp");
+    expect(result.current.authMode).toBe("bound_secret");
+    // Nothing was written to the draft — the mode is derived, not synced.
+    expect(useOnboardingDraftStore.getState().authMode).toBe("native_cli");
+    expect(useOnboardingDraftStore.getState().authModeTouched).toBe(false);
+  });
+
+  it("Should keep the operator's auth choice over the harness default", () => {
+    act(() => useOnboardingDraftStore.getState().patch({ provider: "openrouter" }));
+    mockSettingsProvider.data = {
+      settings: {
+        display_name: "OpenRouter",
+        harness: "pi_acp",
+        models: { default: "", curated: [] },
+        credential_slots: [],
+      },
+    };
+    const { result } = renderHook(() => useOnboardingDefaultModel());
+
+    act(() => result.current.onAuthModeChange("native_cli"));
+
+    expect(useOnboardingDraftStore.getState().authModeTouched).toBe(true);
+    expect(result.current.authMode).toBe("native_cli");
+  });
+
+  it("Should re-arm the harness default when the provider changes", () => {
+    act(() =>
+      useOnboardingDraftStore
+        .getState()
+        .patch({ provider: "claude", authMode: "bound_secret", authModeTouched: true })
+    );
+    const { result } = renderHook(() => useOnboardingDefaultModel());
+    expect(result.current.authMode).toBe("bound_secret");
+
+    act(() =>
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "gpt-5.6-sol",
+        reasoning_effort: "",
+      })
+    );
+
+    expect(useOnboardingDraftStore.getState().authModeTouched).toBe(false);
+    expect(result.current.authMode).toBe("native_cli");
+  });
+
+  it("Should commit the harness-derived mode when the operator never picked one", async () => {
+    act(() =>
+      useOnboardingDraftStore
+        .getState()
+        .patch({ provider: "openrouter", model: "grok-4", envVar: "OPENROUTER_API_KEY" })
+    );
+    mockSettingsProvider.data = {
+      settings: {
+        display_name: "OpenRouter",
+        harness: "pi_acp",
+        models: { default: "", curated: [] },
+        credential_slots: [],
+      },
+    };
+    const { result } = renderHook(() => useOnboardingDefaultModel());
+
+    await act(async () => {
+      await result.current.commit();
+    });
+
+    const [request] = mockPutProvider.mutateAsync.mock.calls[0] as [
+      {
+        body: {
+          settings?: {
+            auth_mode?: string;
+            credential_slots?: { name: string; target_env: string }[];
+          };
+        };
+      },
+    ];
+    expect(request.body.settings?.auth_mode).toBe("bound_secret");
+    expect(request.body.settings?.credential_slots?.[0]).toMatchObject({
+      name: "api_key",
+      target_env: "OPENROUTER_API_KEY",
+    });
   });
 });

@@ -1,6 +1,9 @@
 import { Outlet } from "@tanstack/react-router";
 
+import { cn } from "@agh/ui";
+
 import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
+import { useOnboardingStatus } from "@/systems/onboarding";
 import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
 
@@ -29,18 +32,24 @@ import { OsSessionsModal } from "./sessions-modal";
  * sync-controllers; windows render in the layer.
  */
 export function DesktopShell() {
+  // Same cached query the gate reads — no extra fetch, one truth for first run.
+  const onboarding = useOnboardingStatus();
+  const firstRun = onboarding.data?.completed === false;
+
   return (
     <DesktopGate>
-      <DesktopChrome />
+      <DesktopChrome firstRun={firstRun} />
     </DesktopGate>
   );
 }
 
-function DesktopChrome() {
+function DesktopChrome({ firstRun }: { firstRun: boolean }) {
   const model = useDesktopShellModel();
   const chrome = useDesktopChrome(model.activeWorkspaceId);
 
-  if (!model.areWorkspacesLoading && !model.workspacesError && !model.hasWorkspaces) {
+  // First run legitimately has no workspace yet — setup is the one that adds it.
+  // The post-setup workspace-less state still routes to workspace onboarding.
+  if (!firstRun && !model.areWorkspacesLoading && !model.workspacesError && !model.hasWorkspaces) {
     return <WorkspaceOnboarding onWorkspaceResolved={model.setActiveWorkspaceId} />;
   }
 
@@ -58,14 +67,14 @@ function DesktopChrome() {
           openDialog={model.agentCreate.openDialog}
           openForDuplicate={model.agentCreate.openForDuplicate}
         >
-          <DesktopShellBody model={model} />
+          <DesktopShellBody model={model} firstRun={firstRun} />
         </AgentCreateHostProvider>
       </SessionCreateProvider>
     </OsShellContext.Provider>
   );
 }
 
-function DesktopShellBody({ model }: { model: DesktopShellModel }) {
+function DesktopShellBody({ model, firstRun }: { model: DesktopShellModel; firstRun: boolean }) {
   const {
     attention,
     desktop,
@@ -83,16 +92,25 @@ function DesktopShellBody({ model }: { model: DesktopShellModel }) {
     windowManagerActions,
     winLayer,
     workspaceDetails,
-  } = useDesktopShellBody(model);
+  } = useDesktopShellBody(model, { firstRun });
 
   return (
     <div
       ref={desktopRef}
+      id="app-content"
       data-testid="os-desktop"
+      data-first-run={firstRun ? "true" : undefined}
+      inert={firstRun}
       tabIndex={-1}
       className="flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:shadow-focus-inset focus-visible:outline-none"
     >
       <DesktopMenubar
+        // Dimmed while setup blocks: readable enough to see what you unlock,
+        // never bright enough to read as available.
+        className={cn(
+          "transition-opacity duration-shell-slow motion-reduce:transition-none",
+          firstRun && "opacity-68"
+        )}
         workspaces={model.workspaces}
         activeWorkspace={model.activeWorkspace}
         onSelectWorkspace={model.setActiveWorkspaceId}
@@ -123,6 +141,9 @@ function DesktopShellBody({ model }: { model: DesktopShellModel }) {
         />
         <DesktopManagerSurfaces
           model={managerSurfaces}
+          // The window manager binds to the active workspace, not to the catalog
+          // being non-empty — a loaded catalog with no selection is still unbound.
+          unbound={model.activeWorkspaceId === null}
           onCreateDesktop={() => manager.createDesktop()}
           onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
           onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
@@ -144,6 +165,7 @@ function DesktopShellBody({ model }: { model: DesktopShellModel }) {
           }}
         />
         <DesktopDock
+          dormant={firstRun}
           onNewSession={() => model.sessionCreate.openForAgent("")}
           badges={attention.badges}
           sessionsOpen={overlays.activeOverlay === "sessions"}

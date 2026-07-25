@@ -31,6 +31,21 @@
   animation: marketplace-card-flash var(--duration-slow) var(--ease-out);
 }
 
+/* First-run setup step change: the incoming pane fades and rises so the panel
+   reads as one surface changing shape, not two panels swapping. */
+@keyframes onboarding-setup-pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Reduced motion is owned globally by `@agh/ui` tokens-runtime.css, which collapses
+   every animation/transition duration — this class adds no local override. */
+.onboarding-setup-pane-in {
+  animation: onboarding-setup-pane-in var(--duration-shell-slow) var(--ease-out) both;
+}
+
 /* Genie minimize (os-v2.css `.win.is-minimizing` verbatim): the window folds
    into its dock item before the minimize commits. Reduced motion (system OR
    in-product toggle) skips the class entirely — minimize is instant. */

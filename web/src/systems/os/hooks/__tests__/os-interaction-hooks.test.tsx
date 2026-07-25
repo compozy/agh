@@ -439,6 +439,28 @@ describe("useOsShortcuts", () => {
     expect(liveShell.controller.undoLayout).toHaveBeenCalledOnce();
     input.remove();
   });
+
+  it("Should dispatch nothing while disabled, so first-run setup blocks the whole set", () => {
+    const { wrapper, controller } = createShell();
+    const handlers: OsShortcutHandlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onDesktops: vi.fn(),
+      onEscape: vi.fn(),
+    };
+    renderHook(() => useOsShortcuts(handlers, { enabled: false }), { wrapper });
+
+    fireEvent.keyDown(document, { key: "k", code: "KeyK", metaKey: true });
+    fireEvent.keyDown(document, { key: "n", code: "KeyN", metaKey: true });
+    fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true });
+    fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
+
+    expect(handlers.onPalette).not.toHaveBeenCalled();
+    expect(handlers.onNewSession).not.toHaveBeenCalled();
+    expect(handlers.onDesktops).not.toHaveBeenCalled();
+    expect(handlers.onEscape).not.toHaveBeenCalled();
+    expect(controller.undoLayout).not.toHaveBeenCalled();
+  });
 });
 
 describe("useOsZoomMenu", () => {

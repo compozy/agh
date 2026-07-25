@@ -11,27 +11,30 @@ import { useOnboardingWorkspaces, type OnboardingWorkspacesApi } from "./use-onb
 
 export const ONBOARDING_STEP_COUNT = 2;
 
+/**
+ * The step strip carries progress and the footer carries what will be saved, so
+ * a pane only needs its own question and the sentence that answers "why".
+ */
 export interface OnboardingStepMeta {
-  eyebrow: string;
   title: string;
   lead: string;
-  hint: string;
 }
 
 const STEP_META: Record<number, OnboardingStepMeta> = {
   1: {
-    eyebrow: "Step 1 of 2",
-    title: "Choose your default model",
-    lead: "This is the provider and model new agents use unless you override it per agent. AGH reaches it through your chosen credentials.",
-    hint: "Default model",
+    title: "Choose the model your agents run on",
+    lead: "New agents use this provider and model unless you give them their own. Change it any time in Settings.",
   },
   2: {
-    eyebrow: "Step 2 of 2",
-    title: "Add your workspaces",
-    lead: "Workspaces are the folders AGH operates inside. Add at least one — every agent session is scoped to a workspace.",
-    hint: "Workspaces",
+    title: "Pick where agents can work",
+    lead: "A workspace is a folder AGH is allowed to open, read and write inside. Every session runs in one — add at least one to finish.",
   },
 };
+
+/** Shared with story/test fixtures so a fixture can never drift from the copy. */
+export function onboardingStepMeta(step: number): OnboardingStepMeta {
+  return STEP_META[step] ?? STEP_META[1];
+}
 
 export interface OnboardingWizardApi {
   step: number;
@@ -110,7 +113,7 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
   return {
     step,
     maxStep,
-    meta: STEP_META[step] ?? STEP_META[1],
+    meta: onboardingStepMeta(step),
     defaultModel,
     workspaces,
     canContinue,

@@ -50,7 +50,7 @@ function resolveWorkspaceShell(input: WorkspaceShellInput): WorkspaceShell {
   if (isPage(input)) {
     return {
       osDesktop: input.getByTestId("os-desktop"),
-      firstRunOnboarding: input.getByTestId("onboarding-wizard"),
+      firstRunOnboarding: input.getByTestId("onboarding-setup-panel"),
       page: input,
       workspaceOnboarding: input.getByTestId("workspace-onboarding"),
       workspaceUseGlobal: input.getByTestId("workspace-use-global"),
@@ -59,7 +59,7 @@ function resolveWorkspaceShell(input: WorkspaceShellInput): WorkspaceShell {
 
   return {
     osDesktop: input.osDesktop,
-    firstRunOnboarding: input.osDesktop.page().getByTestId("onboarding-wizard"),
+    firstRunOnboarding: input.osDesktop.page().getByTestId("onboarding-setup-panel"),
     page: input.osDesktop.page(),
     workspaceOnboarding: input.workspaceOnboarding,
     workspaceUseGlobal: input.workspaceUseGlobal,

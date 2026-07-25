@@ -12,6 +12,11 @@ export interface OsShortcutHandlers {
   onEscape: () => void;
 }
 
+export interface OsShortcutOptions {
+  /** Off while a blocking surface owns the shell (first-run setup). */
+  enabled?: boolean;
+}
+
 function isPlainMod(event: KeyboardEvent): boolean {
   return (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
 }
@@ -32,8 +37,15 @@ function isEditableTarget(target: EventTarget | null): boolean {
  * RuntimeSelector registry is deleted), ⌘N new session, Esc focus return,
  * and the live window-manager action registry. Config overrides are read at
  * event time, so a successful Settings apply changes dispatch immediately.
+ *
+ * `enabled: false` unbinds the listener entirely: ⌘K and ⌘N must not fire behind
+ * a blocking panel, and `inert` alone does not stop document-level keydown.
  */
-export function useOsShortcuts(handlers: OsShortcutHandlers): void {
+export function useOsShortcuts(
+  handlers: OsShortcutHandlers,
+  options: OsShortcutOptions = {}
+): void {
+  const enabled = options.enabled ?? true;
   const { store, manager } = useOsShell();
   const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.key === "Escape") {
@@ -75,8 +87,9 @@ export function useOsShortcuts(handlers: OsShortcutHandlers): void {
   });
 
   useEffect(() => {
+    if (!enabled) return undefined;
     const listener = (event: KeyboardEvent) => handleKeyDown(event);
     document.addEventListener("keydown", listener);
     return () => document.removeEventListener("keydown", listener);
-  }, []);
+  }, [enabled]);
 }

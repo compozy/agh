@@ -19,8 +19,17 @@ import { useOsShortcuts } from "./use-os-shortcuts";
 import { useOsWinLayer } from "./use-os-win-layer";
 import { useWorkspaceDetails } from "./use-workspace-details";
 
+export interface DesktopShellBodyOptions {
+  /** First-run setup owns the shell; the chrome is inert and shortcuts are off. */
+  firstRun?: boolean;
+}
+
 /** Composes the live runtime models consumed by the presentational desktop shell body. */
-export function useDesktopShellBody(model: DesktopShellModel) {
+export function useDesktopShellBody(
+  model: DesktopShellModel,
+  options: DesktopShellBodyOptions = {}
+) {
+  const firstRun = options.firstRun ?? false;
   const desktopRef = useRef<HTMLDivElement>(null);
   const desktop = useDesktopShellState();
   const overlays = useDesktopOverlays();
@@ -49,16 +58,19 @@ export function useDesktopShellBody(model: DesktopShellModel) {
     { enabled: overlays.activeOverlay === "workspaces" }
   );
 
-  useOsShortcuts({
-    onPalette: () => overlays.toggleOverlay("palette"),
-    onNewSession: () => model.sessionCreate.openForAgent(""),
-    onDesktops: () => overlays.toggleOverlay("desktops"),
-    onEscape: () => {
-      if (overlays.activeOverlay !== null) return;
-      if (document.querySelector('[data-slot="dialog-content"]')) return;
-      desktopRef.current?.focus();
+  useOsShortcuts(
+    {
+      onPalette: () => overlays.toggleOverlay("palette"),
+      onNewSession: () => model.sessionCreate.openForAgent(""),
+      onDesktops: () => overlays.toggleOverlay("desktops"),
+      onEscape: () => {
+        if (overlays.activeOverlay !== null) return;
+        if (document.querySelector('[data-slot="dialog-content"]')) return;
+        desktopRef.current?.focus();
+      },
     },
-  });
+    { enabled: !firstRun }
+  );
 
   const onResize = (splitId: string, boundaryIndex: number, delta: number) => {
     // Clear the live seam preview only after the resize reconciles, so panes go
