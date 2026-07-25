@@ -67,4 +67,5 @@ export { SettingsSaveBar } from "./settings-save-bar";
 export { SettingsSourceBadge } from "./settings-source-badge";
 export type { SettingsSource } from "./settings-source-badge";
 export { WindowManagerConfigEditor } from "./window-manager-config-editor";
-export { WindowManagerLayoutDocumentEditor } from "./window-manager-layout-document-editor";
+export { LayoutStage } from "./layouts/layout-stage";
+export { LayoutProfileGrid } from "./layouts/layout-profile-grid";

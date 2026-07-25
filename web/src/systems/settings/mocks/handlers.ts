@@ -31,13 +31,14 @@ import {
   settingsSkillsSectionFixture,
 } from "./fixtures";
 import {
+  settingsWindowManagerDesktopIds,
   settingsWindowManagerSectionFixture,
+  settingsWindowManagerSnapshotFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "./window-manager-fixtures";
-import { settingsUpdateStatusFixture } from "./settings-update-fixture";
-import { windowManagerSnapshotFixture, windowManagerStoryDesktopId } from "@/systems/os/mocks";
 import { rolesStatusFixture, settingsRolesSectionFixture } from "./roles-fixtures";
+import { settingsUpdateStatusFixture } from "./settings-update-fixture";
 
 function layoutDocumentForWorkspace(workspaceId: string) {
   return structuredClone({ ...windowManagerLayoutDocumentFixture, workspace_id: workspaceId });
@@ -134,9 +135,9 @@ export const handlers: HttpHandler[] = [
   aghApiMock.put("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>
     HttpResponse.json({
       snapshot: {
-        ...windowManagerSnapshotFixture,
+        ...settingsWindowManagerSnapshotFixture,
         workspace_id: String(params.workspace_id),
-        revision: 13,
+        revision: settingsWindowManagerSnapshotFixture.revision + 1,
       },
       applied: true,
       changes: {},
@@ -152,10 +153,15 @@ export const handlers: HttpHandler[] = [
   ),
   aghApiMock.post("/api/workspaces/{workspace_id}/window-manager/preview", ({ params }) =>
     HttpResponse.json({
-      snapshot: { ...windowManagerSnapshotFixture, workspace_id: String(params.workspace_id) },
+      snapshot: {
+        ...settingsWindowManagerSnapshotFixture,
+        workspace_id: String(params.workspace_id),
+      },
       changed: true,
       changes: {
-        desktop_ids: [windowManagerStoryDesktopId],
+        desktop_ids: [settingsWindowManagerDesktopIds.build],
+        group_ids: ["group-main"],
+        node_ids: ["split-main"],
         window_ids: [],
       },
       diagnostics: [],

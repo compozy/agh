@@ -247,6 +247,9 @@ tokens:
       container-setting-description: "52ch"
       container-settings-page-form: "768px"
       container-settings-page-wide: "960px"
+      container-settings-page-canvas: "1040px"
+      container-layout-stage-split: "720px"
+      width-layout-inspector: "236px"
       container-settings-page-description: "72ch"
       spacing-settings-page-bottom: "96px"
       spacing-layout-node-indent: "12px"
@@ -704,7 +707,8 @@ widths come from `--site-*` tokens.
 | `--width-settings-nav`             | `264px`  | `--container-settings-takeover`         | `56rem`  | `--container-task-detail-rail`             | `64rem`                                                                                                                           |
 | `--width-settings-sheet`           | `640px`  | `--width-task-properties-rail`          | `320px`  | `--spacing-settings-sheet-viewport-gutter` | `24px`                                                                                                                            |
 | `--height-setting-row`             | `54px`   | `--container-setting-description`       | `52ch`   | `--container-settings-page-form`           | `768px`                                                                                                                           |
-| `--container-settings-page-wide`   | `960px`  | `--container-settings-page-description` | `72ch`   | `--spacing-settings-page-bottom`           | `96px`                                                                                                                            |
+| `--container-settings-page-wide`   | `960px`  | `--container-settings-page-canvas`      | `1040px` | `--container-layout-stage-split`           | `720px`                                                                                                                           |
+| `--width-layout-inspector`         | `236px`  | `--container-settings-page-description` | `72ch`   | `--spacing-settings-page-bottom`           | `96px`                                                                                                                            |
 | `--spacing-layout-node-indent`     | `12px`   | `--container-settings-save-bar`         | `560px`  | `--size-settings-save-dot`                 | `7px`                                                                                                                             |
 | `--height-modal-md`                | `760px`  | `--height-modal-tall`                   | `900px`  | `--height-modal-wizard`                    | `960px`                                                                                                                           |
 | `--height-modal-xl`                | `840px`  | `--height-menubar`                      | `44px`   | `--height-menubar-chip`                    | `26px`                                                                                                                            |

@@ -48,6 +48,19 @@ type WindowManagerClient interface {
 		string,
 		contract.WindowManagerLayoutReplaceRequest,
 	) (contract.WindowManagerResult, error)
+	ListWindowManagerLayoutProfiles(context.Context, string) (contract.ResourcesResponse, error)
+	PutWindowManagerLayoutProfile(
+		context.Context,
+		string,
+		string,
+		contract.PutResourceRequest,
+	) (contract.ResourceResponse, error)
+	DeleteWindowManagerLayoutProfile(
+		context.Context,
+		string,
+		string,
+		contract.DeleteResourceRequest,
+	) error
 	WatchWindowManager(
 		context.Context,
 		string,
@@ -166,6 +179,47 @@ func (c *unixSocketClient) ApplyWindowManagerLayout(
 		return contract.WindowManagerResult{}, err
 	}
 	return response, nil
+}
+
+func (c *unixSocketClient) ListWindowManagerLayoutProfiles(
+	ctx context.Context,
+	workspace string,
+) (contract.ResourcesResponse, error) {
+	var response contract.ResourcesResponse
+	path := windowManagerClientPath(workspace) + "/layout-profiles"
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return contract.ResourcesResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) PutWindowManagerLayoutProfile(
+	ctx context.Context,
+	workspace string,
+	profileID string,
+	request contract.PutResourceRequest,
+) (contract.ResourceResponse, error) {
+	var response contract.ResourceResponse
+	path := windowManagerLayoutProfilePath(workspace, profileID)
+	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+		return contract.ResourceResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) DeleteWindowManagerLayoutProfile(
+	ctx context.Context,
+	workspace string,
+	profileID string,
+	request contract.DeleteResourceRequest,
+) error {
+	path := windowManagerLayoutProfilePath(workspace, profileID)
+	return c.doJSON(ctx, http.MethodDelete, path, nil, request, nil)
+}
+
+func windowManagerLayoutProfilePath(workspace string, profileID string) string {
+	return windowManagerClientPath(workspace) +
+		"/layout-profiles/" + url.PathEscape(strings.TrimSpace(profileID))
 }
 
 func windowManagerClientPath(workspace string) string {

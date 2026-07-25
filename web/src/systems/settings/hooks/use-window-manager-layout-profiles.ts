@@ -22,11 +22,14 @@ export function useWindowManagerLayoutProfiles({
   workspaceId,
   document,
   profiles,
+  draftDirty,
   onLoad,
 }: {
   workspaceId: string;
   document: WindowManagerLayoutDocument;
   profiles: readonly WindowManagerLayoutResourceRecord[];
+  /** Loading over unapplied edits discards them, so it asks first. */
+  draftDirty: boolean;
   onLoad: (document: WindowManagerLayoutDocument) => void;
 }) {
   const queryClient = useQueryClient();
@@ -37,6 +40,8 @@ export function useWindowManagerLayoutProfiles({
   const [aspect, setAspect] = useState<WindowManagerLayoutAspect>("any");
   const [overflow, setOverflow] = useState<WindowManagerLayoutOverflow>("stack");
   const [scope, setScope] = useState<WindowManagerLayoutScopeKind>("workspace");
+  const [pendingLoad, setPendingLoad] = useState<WindowManagerLayoutResourceRecord | null>(null);
+  const [deleteRequested, setDeleteRequested] = useState(false);
 
   const save = useMutation({
     mutationFn: () => {
@@ -83,12 +88,15 @@ export function useWindowManagerLayoutProfiles({
         settingsKeys.windowManagerLayoutProfiles(workspaceId),
         current => (current ?? []).filter(item => resourceKey(item) !== resourceKey(selected))
       );
-      setSelectedKey(null);
-      setId("");
-      setDisplayName("");
+      // The whole form belonged to the deleted record — clearing only the name
+      // and id left its scope, screen shape and overflow behind as defaults for
+      // the next profile.
+      startNew();
+      setDeleteRequested(false);
     },
   });
 
+  /** Fills the editor form from a record without touching the layout draft. */
   const selectProfile = (record: WindowManagerLayoutResourceRecord) => {
     setSelectedKey(resourceKey(record));
     setId(record.id);
@@ -96,29 +104,66 @@ export function useWindowManagerLayoutProfiles({
     setAspect(record.spec.aspectVariant);
     setOverflow(record.spec.overflowPolicy);
     setScope(record.scope.kind);
-    onLoad({
-      ...structuredClone(record.spec.document),
-      workspaceId,
-    });
   };
 
-  const startNew = () => {
+  const loadIntoDraft = (record: WindowManagerLayoutResourceRecord) => {
+    selectProfile(record);
+    onLoad({ ...structuredClone(record.spec.document), workspaceId });
+  };
+
+  const requestLoad = (record: WindowManagerLayoutResourceRecord) => {
+    if (draftDirty) {
+      setPendingLoad(record);
+      return;
+    }
+    loadIntoDraft(record);
+  };
+
+  const confirmLoad = () => {
+    if (pendingLoad === null) return;
+    loadIntoDraft(pendingLoad);
+    setPendingLoad(null);
+  };
+
+  const cancelLoad = () => setPendingLoad(null);
+
+  const requestDelete = () => {
+    if (selected === null) return;
+    setDeleteRequested(true);
+  };
+
+  const cancelDelete = () => setDeleteRequested(false);
+
+  const confirmDelete = () => {
+    if (selected === null) return;
+    remove.mutate();
+  };
+
+  function startNew() {
     setSelectedKey(null);
     setId("");
     setDisplayName("");
     setAspect("any");
     setOverflow("stack");
     setScope("workspace");
-  };
+  }
 
   return {
     aspect,
+    cancelDelete,
+    cancelLoad,
+    confirmDelete,
+    confirmLoad,
     displayName,
     error: save.error ?? remove.error,
     id,
     overflow,
+    pendingDelete: deleteRequested && selected !== null ? selected : null,
+    pendingLoad,
     profiles,
     remove,
+    requestDelete,
+    requestLoad,
     save,
     scope,
     selectProfile,

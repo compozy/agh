@@ -66,6 +66,6 @@ export const Listing: Story = {
     description: "The agent CLIs and model providers your sessions run on.",
     meta: [{ key: "ready", content: "1 ready" }],
     slug: "providers",
-    wide: true,
+    width: "wide",
   },
 };

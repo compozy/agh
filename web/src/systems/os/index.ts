@@ -31,5 +31,55 @@ export {
 export type {
   WindowManagerClientView,
   WindowManagerConfig,
+  WindowManagerDragModifier,
   WindowManagerSnapshot,
 } from "./lib/window-manager-types";
+
+// Window geometry. The projector, the seam math and the floating clamp are the
+// runtime's own — Settings renders the same rects the shell renders instead of
+// computing a second, divergent model.
+export { clampFloatingRect, projectLayout, type FloatingRectCommit } from "./lib/layout-projection";
+export { applySeamPreviewToDesktop, seamWeightDelta } from "./lib/seam-preview";
+export { buildWindowManagerMinimums } from "./lib/window-manager-view";
+export type {
+  LayoutAxis,
+  LayoutDesktop,
+  LayoutGroup,
+  LayoutLeafNode,
+  LayoutNode,
+  LayoutProjection,
+  LayoutProjectionDiagnostic,
+  LayoutProjectionInput,
+  LayoutSplitNode,
+  LayoutStackNode,
+  NormalizedRect,
+  PixelRect,
+  PixelSize,
+  ProjectedSeam,
+  ProjectedStack,
+  ProjectedWindow,
+  ProjectionGaps,
+  WindowMinimums,
+} from "./lib/window-manager-types";
+
+// Keyboard grammar. The action registry is the shipped default keymap; Settings
+// edits overrides against it rather than restating the list.
+export {
+  WINDOW_MANAGER_ACTIONS,
+  WINDOW_PLACEMENT_COMMANDS,
+  isWindowManagerActionId,
+  type WindowManagerActionDefinition,
+  type WindowManagerActionId,
+  type WindowPlacementId,
+} from "./lib/window-manager-command-registry";
+export {
+  chordFromKeyboardEvent,
+  findShortcutConflicts,
+  parseShortcutChord,
+  resolveWindowManagerActions,
+  shortcutLabel,
+  type ParsedShortcutChord,
+  type ResolvedWindowManagerAction,
+  type ShortcutConflict,
+  type ShortcutConflictKind,
+} from "./lib/window-manager-shortcuts";

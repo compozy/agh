@@ -313,8 +313,9 @@ export {
   SettingsSourceBadge,
   SettingsTile,
   SettingsTiles,
+  LayoutProfileGrid,
+  LayoutStage,
   WindowManagerConfigEditor,
-  WindowManagerLayoutDocumentEditor,
 } from "./components";
 export type { MCPServerEditorProps, ProvidersViewMode } from "./components";
 export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";

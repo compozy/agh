@@ -109,7 +109,7 @@ export function ProvidersSettingsPage() {
       ]}
       restart={page.restart}
       slug="providers"
-      wide
+      width="wide"
     >
       {page.lastAction ? (
         <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />

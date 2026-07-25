@@ -17,6 +17,7 @@ export type { CardProps, CardSize } from "./components/card";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Separator, type SeparatorProps } from "./components/separator";
+export { Slider } from "./components/slider";
 export { Skeleton, SkeletonRows, type SkeletonRowsProps } from "./components/skeleton";
 export { Spinner } from "./components/spinner";
 export {

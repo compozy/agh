@@ -13,12 +13,23 @@ export interface SettingsPageFrameProps {
   /** Quiet dotsep meta entries after the description (live counts, freshness). */
   meta?: ReadonlyArray<{ key: string; content: ReactNode }>;
   restart?: SettingsRestartViewState;
-  /** Listing pages (Providers) get the wide column. */
-  wide?: boolean;
+  /**
+   * Column width: forms at 768px, listings (Providers) at 960px, and the layout
+   * canvas at 1040px, where a stage plus its inspector needs the extra room.
+   */
+  width?: SettingsPageWidth;
   /** Floating save bar (or null for per-item / immediate pages). */
   saveBar?: ReactNode;
   children: ReactNode;
 }
+
+export type SettingsPageWidth = "form" | "wide" | "canvas";
+
+const WIDTH_CLASS: Record<SettingsPageWidth, string> = {
+  form: "max-w-settings-page-form",
+  wide: "max-w-settings-page-wide",
+  canvas: "max-w-settings-page-canvas",
+};
 
 /**
  * Settings page scaffold (design system §04): centered column (768px forms /
@@ -30,7 +41,7 @@ export function SettingsPageFrame({
   description,
   meta,
   restart,
-  wide = false,
+  width = "form",
   saveBar,
   children,
 }: SettingsPageFrameProps) {
@@ -43,7 +54,7 @@ export function SettingsPageFrame({
         <div
           className={cn(
             "mx-auto flex w-full flex-col gap-6 px-6 pt-5 pb-settings-page-bottom",
-            wide ? "max-w-settings-page-wide" : "max-w-settings-page-form"
+            WIDTH_CLASS[width]
           )}
         >
           <div

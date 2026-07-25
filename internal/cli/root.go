@@ -142,6 +142,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newDesktopCommand(deps))
 	cmd.AddCommand(newWindowCommand(deps))
 	cmd.AddCommand(newLayoutCommand(deps))
+	cmd.AddCommand(newLayoutProfileCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
 	cmd.AddCommand(newRolesCommand(deps))
 	cmd.AddCommand(newExtensionCommand(deps))

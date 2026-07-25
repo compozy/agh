@@ -378,6 +378,9 @@
   --container-setting-description: 52ch;
   --container-settings-page-form: 768px;
   --container-settings-page-wide: 960px;
+  --container-settings-page-canvas: 1040px;
+  --container-layout-stage-split: 720px;
+  --width-layout-inspector: 236px;
   --container-settings-page-description: 72ch;
   --spacing-settings-page-bottom: 96px;
   --spacing-layout-node-indent: 12px;
