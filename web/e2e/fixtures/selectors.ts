@@ -658,10 +658,16 @@ interface SettingsRolesSelectors {
   resetButton: Locator;
   saveMessage: Locator;
   group(role: string): Locator;
-  badgeOff(role: string): Locator;
+  toggle(role: string): Locator;
+  routeSummary(role: string): Locator;
+  runtimeSelect(role: string): Locator;
+  runtimeClear(role: string): Locator;
+  agentSelect(role: string): Locator;
   fieldInput(role: string, field: string): Locator;
   enabledSwitch(role: string): Locator;
   diagnostics(role: string): Locator;
+  fallbackAdd(role: string): Locator;
+  fallbackEntrySelect(role: string, index: number): Locator;
 }
 
 interface SettingsProvidersSelectors {
@@ -1403,12 +1409,21 @@ export function settingsOperatorSelectors(
       resetButton: page.getByTestId(settingsRolesTestIds.resetButton),
       saveMessage: page.getByTestId(settingsRolesTestIds.saveMessage),
       group: (role: string) => page.getByTestId(`settings-page-roles-group-${role}`),
-      badgeOff: (role: string) => page.getByTestId(`settings-page-roles-${role}-badges-off`),
+      toggle: (role: string) => page.getByTestId(`settings-page-roles-${role}-toggle`),
+      routeSummary: (role: string) => page.getByTestId(`settings-page-roles-${role}-route`),
+      runtimeSelect: (role: string) =>
+        page.getByTestId(`settings-page-roles-${role}-runtime-select`),
+      runtimeClear: (role: string) => page.getByTestId(`settings-page-roles-${role}-runtime-clear`),
+      agentSelect: (role: string) => page.getByTestId(`settings-page-roles-${role}-agent-select`),
       fieldInput: (role: string, field: string) =>
         page.getByTestId(`settings-page-roles-${role}-${field}-input`),
       enabledSwitch: (role: string) =>
         page.getByTestId(`settings-page-roles-${role}-enabled-switch`),
       diagnostics: (role: string) => page.getByTestId(`settings-page-roles-${role}-diagnostics`),
+      fallbackAdd: (role: string) =>
+        page.getByTestId(`settings-page-roles-${role}-advanced-fallback-add`),
+      fallbackEntrySelect: (role: string, index: number) =>
+        page.getByTestId(`${role}.fallback.${index}-select`),
     },
     providers: {
       page: page.getByTestId(settingsProvidersTestIds.page),

@@ -1,14 +1,16 @@
 import { AlertCircle } from "lucide-react";
 
+import { ROLE_ORDER } from "@/systems/settings";
+
 import {
-  RoleSettingsGroup,
+  RoleList,
   SettingsPageFrame,
   SettingsSaveBar,
   useSettingsSaveBarState,
   useSettingsRolesPage,
   useSettingsTopbar,
 } from "@/systems/settings";
-import { Button, Spinner } from "@agh/ui";
+import { Button, Skeleton } from "@agh/ui";
 
 const TEST_PREFIX = "settings-page-roles";
 
@@ -48,11 +50,25 @@ export function RolesSettingsPage() {
 
   if (page.isLoading) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid={`${TEST_PREFIX}-loading`}
-      >
-        <Spinner className="size-5 text-subtle" />
+      <div className="mx-auto flex w-full max-w-settings-page-wide flex-col gap-2.5 px-6 pt-5">
+        <Skeleton className="h-4 w-24" />
+        <div
+          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          data-testid={`${TEST_PREFIX}-loading`}
+        >
+          {ROLE_ORDER.map(role => (
+            <div
+              key={role}
+              className="flex items-center justify-between gap-3 px-4 py-3 not-last:border-b not-last:border-line-soft"
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <Skeleton className="h-3.5 w-40" />
+                <Skeleton className="h-3 w-3/5" />
+              </div>
+              <Skeleton className="h-5 w-9 rounded-full" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -93,21 +109,24 @@ export function RolesSettingsPage() {
       }
       width="wide"
     >
-      {page.roles.map(vm => (
-        <RoleSettingsGroup
-          key={vm.role}
-          vm={vm}
-          validationErrors={page.validationErrors}
-          disabled={page.isSaving}
-          setRoleField={page.setRoleField}
-          draftRevision={page.draftRevision}
-          setNumberFieldValidity={page.setNumberFieldValidity}
-          addFallback={page.addFallback}
-          removeFallback={page.removeFallback}
-          updateFallback={page.updateFallback}
-          registerFieldRef={page.registerFieldRef}
-        />
-      ))}
+      <RoleList
+        roles={page.roles}
+        options={page.runtimeOptions}
+        disclosure={page.disclosure}
+        validationErrors={page.validationErrors}
+        disabled={page.isSaving}
+        draftRevision={page.draftRevision}
+        setRoleEnabled={page.setRoleEnabled}
+        setRoleAgent={page.setRoleAgent}
+        setRoleField={page.setRoleField}
+        setRoleRuntime={page.setRoleRuntime}
+        clearRuntime={page.clearRuntime}
+        setNumberFieldValidity={page.setNumberFieldValidity}
+        addFallback={page.addFallback}
+        removeFallback={page.removeFallback}
+        updateFallback={page.updateFallback}
+        registerFieldRef={page.registerFieldRef}
+      />
     </SettingsPageFrame>
   );
 }

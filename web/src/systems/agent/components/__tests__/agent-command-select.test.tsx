@@ -125,6 +125,57 @@ describe("AgentCommandSelect", () => {
     expect(screen.queryByTestId("agent-command-item-coder")).not.toBeInTheDocument();
   });
 
+  it("Should clear the selection through the leading clear item when clearLabel is given", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <UIProvider reducedMotion="always">
+        <AgentCommandSelect
+          agents={[makeAgent({ name: "writer" })]}
+          value="writer"
+          clearLabel="Role default"
+          onChange={onChange}
+          triggerTestId="trigger"
+        />
+      </UIProvider>
+    );
+    await user.click(screen.getByTestId("trigger"));
+    await user.click(screen.getByTestId("agent-command-item-clear"));
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it("Should show the clear label on the trigger when nothing is selected", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <AgentCommandSelect
+          agents={[makeAgent({ name: "writer" })]}
+          value={null}
+          clearLabel="Role default"
+          onChange={() => undefined}
+          triggerTestId="trigger"
+        />
+      </UIProvider>
+    );
+    expect(screen.getByTestId("trigger")).toHaveTextContent("Role default");
+  });
+
+  it("Should keep an out-of-catalog value visible instead of collapsing it into the placeholder", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <AgentCommandSelect
+          agents={[makeAgent({ name: "writer" })]}
+          value="ghost"
+          clearLabel="Role default"
+          onChange={() => undefined}
+          triggerTestId="trigger"
+        />
+      </UIProvider>
+    );
+    const trigger = screen.getByTestId("trigger");
+    expect(trigger).toHaveTextContent("ghost");
+    expect(trigger).toHaveTextContent("Not available");
+  });
+
   it("Should use tokenized metadata classes for provider and category labels in the list", async () => {
     const user = userEvent.setup();
     render(

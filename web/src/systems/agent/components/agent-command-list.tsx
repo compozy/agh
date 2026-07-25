@@ -54,6 +54,8 @@ export interface AgentCommandListProps {
   onSelect: (agent: AgentPayload) => void;
   emptyState?: ReactNode;
   itemTestId?: (agent: AgentPayload) => string;
+  /** Items rendered above the catalog groups, inside the same command list. */
+  leadingItems?: ReactNode;
 }
 
 export function AgentCommandList({
@@ -62,12 +64,14 @@ export function AgentCommandList({
   onSelect,
   emptyState = "No agents match your search.",
   itemTestId,
+  leadingItems,
 }: AgentCommandListProps) {
   const groups = collectGroups(buildAgentCategoryTree(agents));
 
   return (
     <CommandList>
       <CommandEmpty data-testid="agent-command-empty">{emptyState}</CommandEmpty>
+      {leadingItems}
       {groups.map(group => (
         <CommandSelectGroup
           key={group.key}

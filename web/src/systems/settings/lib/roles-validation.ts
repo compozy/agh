@@ -12,36 +12,36 @@ export function roleFieldId(role: RoleName, field: string): string {
   return `${role}.${field}`;
 }
 
-/** Stable id for a fallback-entry field control (`dream.fallback.0.provider`). */
-export function fallbackFieldId(role: RoleName, index: number, field: string): string {
-  return `${role}.fallback.${index}.${field}`;
+/**
+ * Stable id for one fallback route (`dream.fallback.0`). A route is a single
+ * decision made through one runtime selector, so it carries a single id.
+ */
+export function fallbackFieldId(role: RoleName, index: number): string {
+  return `${role}.fallback.${index}`;
+}
+
+/** The role a fallback error belongs to, so a collapsed role can be forced open. */
+export function roleFromFieldId(id: string): string {
+  return id.split(".")[0] ?? "";
 }
 
 /**
- * Validate every fallback entry across all roles in visual order (product role
- * order, entry order, provider → model → reasoning). Order is load-bearing:
- * the first element is the deterministic "first invalid field" the save flow
- * focuses. Provider and model are required; reasoning must be empty or a valid
- * enum value.
+ * Validate every fallback route across all roles in visual order (product role
+ * order, then entry order). Order is load-bearing: the first element is the
+ * deterministic "first invalid field" the save flow focuses. A route needs both
+ * a provider and a model; reasoning must be empty or a valid enum value.
  */
 export function collectRoleValidationErrors(config: SettingsRolesConfig): RoleFieldError[] {
   const errors: RoleFieldError[] = [];
   for (const role of ROLE_ORDER) {
     config[role].fallback_chain.forEach((entry, index) => {
-      if (entry.provider.trim() === "") {
-        errors.push({
-          id: fallbackFieldId(role, index, "provider"),
-          message: "Provider is required.",
-        });
-      }
-      if (entry.model.trim() === "") {
-        errors.push({ id: fallbackFieldId(role, index, "model"), message: "Model is required." });
+      const id = fallbackFieldId(role, index);
+      if (entry.provider.trim() === "" || entry.model.trim() === "") {
+        errors.push({ id, message: "Choose a provider and model." });
+        return;
       }
       if (!isReasoningEffortOptionValue(entry.reasoning_effort)) {
-        errors.push({
-          id: fallbackFieldId(role, index, "reasoning_effort"),
-          message: "Choose a valid reasoning effort.",
-        });
+        errors.push({ id, message: "Choose a valid reasoning effort." });
       }
     });
   }

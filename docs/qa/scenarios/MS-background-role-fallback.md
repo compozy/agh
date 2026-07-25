@@ -32,3 +32,9 @@ QA 2026-07-24: a real auto-title primary failed before acceptance, the configure
 QA impact 2026-07-24 (final review remediation): structured root `[roles]` mutations can now carry
 ordered fallback chains through CLI and native config surfaces. The next QA cycle owns this new
 mutation path; prior runtime fallback evidence remains historical.
+
+QA impact 2026-07-25 (Roles panel redesign): the Web fallback-chain editor now edits each route
+through one `RuntimeSelector` (provider + model + reasoning in a single control) instead of two text
+fields and a select, and reports one "Choose a provider and model." error per incomplete route. The
+daemon fallback contract is unchanged; the next QA cycle owns the new editor's add/remove, ordering,
+and invalid-route focus recovery.

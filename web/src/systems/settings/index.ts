@@ -283,7 +283,7 @@ export {
   NetworkSettingsSections,
   ProviderRow,
   ProvidersToolbar,
-  RoleSettingsGroup,
+  RoleList,
   ModalSettingRow,
   SettingActionRow,
   SettingLinkRow,
@@ -320,6 +320,7 @@ export {
 export type { MCPServerEditorProps, ProvidersViewMode } from "./components";
 export { deriveProviderStateLabel, getProviderStateView } from "./lib/provider-state";
 export type { ProviderStateLabel, ProviderStateView } from "./lib/provider-state";
+export { settingsProviderToOption } from "./lib/provider-runtime-option";
 
 // Stores
 export { useSettingsRestartStore } from "./stores/use-settings-restart-store";
@@ -388,3 +389,6 @@ export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";
 export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-settings-topbar";
 export type { SettingsSaveBarState } from "./lib/save-state";
 export { buildRolesViewModel, type RoleViewModel } from "./lib/roles-view-model";
+export { ROLE_ORDER, type RoleRuntimeValue } from "./lib/roles-config";
+export type { RolesDisclosure } from "./hooks/use-roles-disclosure";
+export type { RolesRuntimeOptions } from "./hooks/use-roles-runtime-options";
