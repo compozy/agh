@@ -171,8 +171,8 @@ func (s *Service) limits(ctx context.Context, workspaceID string) (contract.Agen
 		MaxActiveTaskLeases: defaultMaxActiveTaskLeases,
 		ContextSectionLimit: s.limit(),
 	}
-	if resolver := s.coordinatorConfigValue(); resolver != nil {
-		cfg, err := resolver.ResolveCoordinatorConfig(ctx, strings.TrimSpace(workspaceID))
+	if resolver := s.coordinatorRoleValue(); resolver != nil {
+		cfg, err := resolver.ResolveCoordinatorRole(ctx, strings.TrimSpace(workspaceID))
 		if err != nil && isContextError(err) {
 			return contract.AgentLimitsPayload{}, err
 		}

@@ -130,6 +130,32 @@ func TestRegistryMetadata(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose canonical role invocation metadata", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name    string
+			outcome Outcome
+		}{
+			{name: RoleFallbackUsed, outcome: OutcomeInfo},
+			{name: RoleResolveError, outcome: OutcomeFailure},
+		}
+		for _, tc := range cases {
+			t.Run("Should expose "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				meta, ok := Lookup(tc.name)
+				if !ok {
+					t.Fatalf("Lookup(%q) = false", tc.name)
+				}
+				if meta.Family != "role" || meta.Component != ComponentRole ||
+					meta.Outcome != tc.outcome || !meta.GlobalScope || !meta.EmitsToLogs ||
+					meta.NotificationEligible {
+					t.Fatalf("role metadata for %q = %#v", tc.name, meta)
+				}
+			})
+		}
+	})
+
 	t.Run("Should keep memory operation projections out of direct global writes", func(t *testing.T) {
 		t.Parallel()
 

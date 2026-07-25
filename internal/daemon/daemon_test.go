@@ -3967,24 +3967,35 @@ func TestSkillsRegistryConfigUsesDaemonHomeAndDisabledSkills(t *testing.T) {
 	}
 }
 
-func TestRunSkipsDreamLoopWhenMemoryOrDreamDisabled(t *testing.T) {
+func TestRunConfiguresDreamRuntimeForLiveRoleLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should honor memory availability and live dream role state", func(t *testing.T) {
+		t.Parallel()
+		runDreamRuntimeLifecycleCases(t)
+	})
+}
+
+func runDreamRuntimeLifecycleCases(t *testing.T) {
+	t.Helper()
+
 	testCases := []struct {
-		name  string
-		patch func(*aghconfig.Config)
+		name        string
+		patch       func(*aghconfig.Config)
+		wantRuntime bool
 	}{
 		{
-			name: "memory disabled",
+			name: "Should keep the dream runtime absent when memory is disabled",
 			patch: func(cfg *aghconfig.Config) {
 				cfg.Memory.Enabled = false
 			},
 		},
 		{
-			name: "dream disabled",
+			name: "Should retain the dream runtime for live role enablement",
 			patch: func(cfg *aghconfig.Config) {
-				cfg.Memory.Dream.Enabled = false
+				cfg.Roles.Dream.Enabled = false
 			},
+			wantRuntime: true,
 		},
 	}
 
@@ -4017,11 +4028,17 @@ func TestRunSkipsDreamLoopWhenMemoryOrDreamDisabled(t *testing.T) {
 			}()
 
 			<-d.readyCh
-			waitForCondition(t, "dream loop skipped", func() bool {
+			waitForCondition(t, "dream runtime lifecycle applied", func() bool {
 				d.mu.Lock()
 				defer d.mu.Unlock()
-				return d.dreamRuntime == nil
+				return (d.dreamRuntime != nil) == tc.wantRuntime
 			})
+			d.mu.Lock()
+			dreamRuntime := d.dreamRuntime
+			d.mu.Unlock()
+			if tc.wantRuntime && !dreamRuntime.Enabled() {
+				t.Fatal("dream runtime Enabled() = false, want memory-backed scheduling for workspace role resolution")
+			}
 
 			cancel()
 			if err := <-errCh; err != nil {

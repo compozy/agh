@@ -1,5 +1,6 @@
 import { AlertCircle } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
+import { Link } from "@tanstack/react-router";
 
 import {
   useSettingsSkillsPage,
@@ -386,7 +387,7 @@ function ManageSection() {
         data-testid="settings-page-skills-link-skills"
         description="Install, update, and disable skills from the marketplace view."
         label="Manage installed skills"
-        to="/marketplace/skills"
+        render={<Link to="/marketplace/skills" search={{ tab: "installed" }} />}
       />
     </SettingsGroup>
   );

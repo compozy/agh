@@ -95,6 +95,9 @@ func (m *Manager) newPromptTurnID() string {
 func (m *Manager) lookupPromptSession(ctx context.Context, target string) (*Session, error) {
 	session, err := m.lookup(target)
 	if err == nil {
+		if m.sessionStartRun(target) != nil {
+			return nil, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, StateStarting)
+		}
 		return session, nil
 	}
 	if !errors.Is(err, ErrSessionNotFound) {

@@ -6,6 +6,7 @@ import process from "node:process";
 import { promisify } from "node:util";
 
 import { networkOperatorSelectors } from "../fixtures/selectors";
+import { ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
 import {
   browserNetworkOperatorFlowScenario,
   seedBrowserNetworkOperatorFlow,
@@ -66,28 +67,28 @@ test.describe("network disabled state", () => {
     browserArtifacts,
     runtime,
   }) => {
-    const ui = networkOperatorSelectors(appPage);
     await ensureGlobalWorkspace(runtime);
 
     await appPage.goto(runtime.url("/network"), { waitUntil: "domcontentloaded" });
-    await useGlobalWorkspaceIfPrompted(ui);
+    await useGlobalWorkspaceIfPrompted(appPage);
+    const networkWin = await ensureAppWindow(appPage, "Network", "network");
+    const ui = networkOperatorSelectors(networkWin);
     await expect(ui.disabledState).toBeVisible();
-    await expect(appPage.getByTestId("network-empty")).toContainText("Network is disabled.");
-    await expect(appPage.getByTestId("network-empty")).toContainText(
+    await expect(networkWin.getByTestId("network-empty")).toContainText("Network is disabled.");
+    await expect(networkWin.getByTestId("network-empty")).toContainText(
       "Local work remains available"
     );
-    await expect(appPage.getByTestId("network-empty-open-settings")).toBeVisible();
+    await expect(networkWin.getByTestId("network-empty-open-settings")).toBeVisible();
 
     const status = await runtime.requestJSON<NetworkStatusEnvelope>("/api/network/status");
     expect(status.network.enabled).toBe(false);
     expect(status.network.status).toBe("disabled");
 
     await browserArtifacts.captureScreenshot("network-disabled", appPage);
-    await appPage.getByTestId("network-empty-open-settings").click();
+    await networkWin.getByTestId("network-empty-open-settings").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/network");
-    await expect(appPage.getByTestId("settings-page-network-runtime-status")).toContainText(
-      "disabled"
-    );
+    const settingsWin = appPage.getByTestId("os-window-app:settings");
+    await expect(settingsWin.getByTestId("settings-page-network-hero")).toContainText("disabled");
 
     await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
       http_status: status,
@@ -103,19 +104,18 @@ test("operator verifies thread and direct network surfaces with final conversati
   browserArtifacts,
   runtime,
 }) => {
-  const ui = networkOperatorSelectors(appPage);
-
   const workspace = await prepareNetworkRuntime(runtime, appPage);
-  await ui.navNetwork.click();
+  const networkWin = await openAppWindow(appPage, "Network", "network");
+  const ui = networkOperatorSelectors(networkWin);
   await expect(ui.noChannelsState).toBeVisible();
-  await expect(appPage.getByTestId("network-empty")).toContainText(
+  await expect(networkWin.getByTestId("network-empty")).toContainText(
     "Executions stay Local by default"
   );
-  await expect(appPage.getByTestId("network-empty")).toContainText("Choose Live explicitly");
-  await expect(appPage.getByTestId("network-empty")).toContainText(
+  await expect(networkWin.getByTestId("network-empty")).toContainText("Choose Live explicitly");
+  await expect(networkWin.getByTestId("network-empty")).toContainText(
     "Network availability never enrolls an execution"
   );
-  await expect(appPage.getByTestId("network-empty-open-settings")).toBeVisible();
+  await expect(networkWin.getByTestId("network-empty-open-settings")).toBeVisible();
   await createChannelFromUI(appPage, ui, {
     agents: [initiatorAgentName, responderAgentName],
     channel: channelName,
@@ -134,33 +134,32 @@ test("operator verifies thread and direct network surfaces with final conversati
     waitUntil: "domcontentloaded",
   });
 
-  await expect(ui.navNetwork).toBeVisible();
-  await expect(ui.workspace).toBeVisible();
+  await expect(networkWin).toBeVisible();
+  await expect(networkWin.getByTestId("network-shell")).toBeVisible();
   await expect(ui.channelItem(channelName)).toBeVisible({ timeout: 15_000 });
   await ui.channelItem(channelName).getByTestId(`network-channel-link-${channelName}`).click();
 
   await expect(ui.channelHeader.getByTestId("network-channel-title")).toContainText(channelName);
   const channelMeta = ui.channelHeader.getByTestId("network-channel-meta");
   await expect(channelMeta).toContainText("2 agents");
-  await expect(channelMeta).toContainText(createdChannelPurpose);
+  await expect(ui.channelHeader.getByTestId("network-channel-purpose")).toContainText(
+    createdChannelPurpose
+  );
   await expect(ui.threadTab).toHaveAttribute("aria-selected", "true");
   await expect(ui.threadsTab).toHaveAttribute("aria-label", `Threads in #${channelName}`);
   await expect(ui.threadList).toHaveAttribute("aria-label", `Threads in #${channelName}`);
   await ui.channelInspectorToggle.click();
   await expect(ui.inspector).toBeVisible();
-  await expect(ui.inspectorMembersTab).toHaveAttribute("aria-selected", "true");
+  await expect(ui.inspectorMembersTab).toHaveAttribute("aria-pressed", "true");
   await expect(ui.inspectorPanelMembers).toBeVisible();
   await ui.inspectorWorkTab.click();
-  await expect(ui.inspectorWorkTab).toHaveAttribute("aria-selected", "true");
+  await expect(ui.inspectorWorkTab).toHaveAttribute("aria-pressed", "true");
   await expect(ui.inspectorPanelWork).toBeVisible();
-  await ui.inspectorActivityTab.click();
-  await expect(ui.inspectorActivityTab).toHaveAttribute("aria-selected", "true");
-  await expect(ui.inspectorPanelActivity).toBeVisible();
   await ui.channelInspectorToggle.click();
   await expect(ui.inspector).toHaveCount(0);
   await expect(ui.threadItem(operatorFlow.threadId)).toBeVisible();
   await expect(ui.threadList).toHaveAttribute("aria-label", `Threads in #${channelName}`);
-  await expect(appPage.getByTestId("network-composer-channel-thread")).toBeVisible();
+  await expect(networkWin.getByTestId("network-composer-channel-thread")).toBeVisible();
   await expect(ui.threadItem(operatorFlow.threadId)).toContainText(
     browserNetworkOperatorFlowScenario.texts.say
   );
@@ -180,15 +179,15 @@ test("operator verifies thread and direct network surfaces with final conversati
   await expect(ui.channelMessage(operatorFlow.messageIds.direct)).toHaveCount(0);
   await browserArtifacts.captureScreenshot("network-thread-detail", appPage);
 
-  const threadComposer = appPage.getByTestId("network-composer-textarea-thread");
+  const threadComposer = networkWin.getByTestId("network-composer-textarea-thread");
   await threadComposer.click();
   await expect(threadComposer).toBeFocused();
 
   await appPage.setViewportSize({ width: 375, height: 812 });
   await expect(ui.channelTabs).toBeVisible();
-  await expect(appPage.getByTestId("network-composer-thread")).toBeVisible();
+  await expect(networkWin.getByTestId("network-composer-thread")).toBeVisible();
   await browserArtifacts.captureScreenshot("network-mobile-composer", appPage);
-  await appPage.getByTestId("network-thread-overlay-close").click();
+  await networkWin.getByTestId("network-thread-overlay-close").click();
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe("/network/" + workspace.id + "/" + channelName + "/threads");
@@ -197,13 +196,13 @@ test("operator verifies thread and direct network surfaces with final conversati
   await browserArtifacts.captureScreenshot("network-tablet-thread-list", appPage);
   await appPage.setViewportSize({ width: 1280, height: 900 });
 
-  await appPage.getByTestId("network-tab-activity").click();
+  await networkWin.getByTestId("network-tab-activity").click();
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(`/network/${workspace.id}/${channelName}/activity`);
   await expect(ui.activityFeed).toHaveAttribute("aria-label", `Activity in #${channelName}`);
   await expect(
-    appPage.getByTestId(`network-activity-entry-thread:${operatorFlow.threadId}`)
+    networkWin.getByTestId(`network-activity-entry-thread:${operatorFlow.threadId}`)
   ).toBeVisible();
   await browserArtifacts.captureScreenshot("network-activity", appPage);
 
@@ -232,8 +231,8 @@ test("operator verifies thread and direct network surfaces with final conversati
   await expect(ui.channelMessage(operatorFlow.messageIds.say)).toHaveCount(0);
 
   await ui.inspectorToggle.click();
-  await expect(appPage.getByTestId("network-inspector")).toBeVisible();
-  await appPage.getByTestId("network-inspector-tab-work").click();
+  await expect(networkWin.getByTestId("network-inspector")).toBeVisible();
+  await networkWin.getByTestId("network-inspector-tab-work").click();
   await expect(ui.workInspector).toBeVisible();
   await expect(ui.workInspectorRow(openWorkId)).toContainText("needs input");
   await browserArtifacts.captureScreenshot("network-work-inspector", appPage);
@@ -417,6 +416,10 @@ async function createChannelFromUI(
   for (const agent of input.agents) {
     await ui.agentOption(agent).click();
   }
+  const firstAgent = input.agents[0];
+  if (!firstAgent) throw new Error("channel creation requires at least one agent");
+  await ui.createAgentTrigger.click();
+  await expect(ui.agentOption(firstAgent)).toBeHidden();
   const createResponse = page.waitForResponse(
     response =>
       response.request().method() === "POST" &&

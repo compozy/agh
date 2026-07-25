@@ -155,6 +155,13 @@ func runConfigSetCommand(
 		return writeCommandOutput(cmd, configSetBundle(*liveRecord))
 	}
 	if _, err := aghconfig.EditConfigOverlay(homePaths, workspace, target, func(editor *aghconfig.OverlayEditor) error {
+		if kind == configSetTable {
+			table, ok := value.(map[string]any)
+			if !ok {
+				return fmt.Errorf("cli: config path %q requires an object", strings.Join(path, "."))
+			}
+			return editor.SetTable(path, table)
+		}
 		return editor.SetValue(path, value)
 	}); err != nil {
 		return err

@@ -63,8 +63,11 @@ func (d *Daemon) nativeToolsDeps(
 		ExtensionMarket:  state.cfg.Extensions.Marketplace,
 		ExtensionEvents:  extensionEventSummaryStore(state.registry),
 		AgentSkills:      state.agentSkillResources,
-		ToolMCP:          state.toolMCPResources,
-		ApprovalGrants:   state.deps.ApprovalGrants,
+		AgentSkillsRuntime: func() agentSkillPublisher {
+			return state.agentSkillResources
+		},
+		ToolMCP:        state.toolMCPResources,
+		ApprovalGrants: state.deps.ApprovalGrants,
 		Clarify: func() toolspkg.ClarifyBroker {
 			return state.clarify
 		},

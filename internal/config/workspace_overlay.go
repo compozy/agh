@@ -17,7 +17,10 @@ func applyWorkspaceConfigOverlayFile(path string, dst *Config) error {
 	if err := validateWorkspaceConfigOverlay(path, &overlay); err != nil {
 		return err
 	}
-	return overlay.Apply(dst)
+	if err := applyConfigOverlay(dst, &overlay, RoleFieldSourceWorkspace); err != nil {
+		return err
+	}
+	return nil
 }
 
 func loadWorkspaceOverlayForWrite(
@@ -58,7 +61,7 @@ func applyWorkspaceConfigWrite(
 	if err != nil {
 		return err
 	}
-	if err := overlay.Apply(cfg); err != nil {
+	if err := applyConfigOverlay(cfg, &overlay, RoleFieldSourceWorkspace); err != nil {
 		return fmt.Errorf("apply workspace config overlay: %w", err)
 	}
 	if err := applyConfigMCPSidecarContent(

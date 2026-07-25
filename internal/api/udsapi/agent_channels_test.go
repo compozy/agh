@@ -82,7 +82,7 @@ func TestAgentContextReturnsSituationPayload(t *testing.T) {
 	})
 }
 
-func TestAgentCoordinatorConfigRouteReturnsResolvedPayload(t *testing.T) {
+func TestAgentCoordinatorRoleRouteReturnsResolvedPayload(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should return resolved workspace coordinator payload", func(t *testing.T) {
@@ -90,17 +90,17 @@ func TestAgentCoordinatorConfigRouteReturnsResolvedPayload(t *testing.T) {
 
 		manager := activeAgentSessionManager(t)
 		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
-		handlers.CoordinatorConfig = agentCoordinatorConfigResolverFunc(
-			func(_ context.Context, workspaceID string) (aghconfig.CoordinatorConfig, error) {
+		handlers.CoordinatorRole = agentCoordinatorRoleResolverFunc(
+			func(_ context.Context, workspaceID string) (aghconfig.ResolvedCoordinatorRole, error) {
 				if workspaceID != "ws-1" {
-					t.Fatalf("ResolveCoordinatorConfig() workspaceID = %q, want ws-1", workspaceID)
+					t.Fatalf("ResolveCoordinatorRole() workspaceID = %q, want ws-1", workspaceID)
 				}
-				return aghconfig.CoordinatorConfig{
+				return aghconfig.ResolvedCoordinatorRole{
 					Enabled:                       true,
 					AgentName:                     "coordinator",
 					Provider:                      "codex",
 					Model:                         "gpt-4o",
-					DefaultTTL:                    45 * time.Minute,
+					TTL:                           45 * time.Minute,
 					MaxChildren:                   5,
 					MaxActiveSessionsPerWorkspace: 5,
 				}, nil
@@ -440,12 +440,12 @@ func (f agentContextServiceFunc) ContextForSession(
 	return f(ctx, info)
 }
 
-type agentCoordinatorConfigResolverFunc func(context.Context, string) (aghconfig.CoordinatorConfig, error)
+type agentCoordinatorRoleResolverFunc func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error)
 
-func (f agentCoordinatorConfigResolverFunc) ResolveCoordinatorConfig(
+func (f agentCoordinatorRoleResolverFunc) ResolveCoordinatorRole(
 	ctx context.Context,
 	workspaceID string,
-) (aghconfig.CoordinatorConfig, error) {
+) (aghconfig.ResolvedCoordinatorRole, error) {
 	return f(ctx, workspaceID)
 }
 

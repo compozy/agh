@@ -60,9 +60,11 @@ type TargetIndex interface {
 
 // Controller decides Memory v2 write outcomes with deterministic Slice 1 rules.
 type Controller struct {
-	index         TargetIndex
-	now           func() time.Time
-	promptVersion string
+	index           TargetIndex
+	now             func() time.Time
+	promptVersion   string
+	tiebreaker      Tiebreaker
+	defaultOpOnFail memcontract.Op
 }
 
 // Option customizes a Controller.
@@ -86,10 +88,29 @@ func WithPromptVersion(version string) Option {
 	}
 }
 
+// WithTiebreaker installs the bounded model call used only for genuine ambiguity.
+func WithTiebreaker(tiebreaker Tiebreaker) Option {
+	return func(c *Controller) {
+		c.tiebreaker = tiebreaker
+	}
+}
+
+// WithDefaultOpOnFail selects the deterministic operation used when the
+// configured tiebreaker fails. Only noop and reject are safe failure outcomes.
+func WithDefaultOpOnFail(op memcontract.Op) Option {
+	return func(c *Controller) {
+		switch op.Normalize() {
+		case memcontract.OpNoop, memcontract.OpReject:
+			c.defaultOpOnFail = op.Normalize()
+		}
+	}
+}
+
 // New constructs a rule-first controller over the provided target index.
 func New(index TargetIndex, opts ...Option) *Controller {
 	c := &Controller{
-		index: index,
+		index:           index,
+		defaultOpOnFail: memcontract.OpNoop,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -116,7 +137,7 @@ func (c *Controller) Decide(ctx context.Context, candidate memcontract.Candidate
 		return c.rejectDecision(normalized, scanResult, trace)
 	}
 	if opFromCandidate(normalized) == memcontract.OpDelete {
-		return c.deleteDecision(normalized, targets, trace)
+		return c.deleteDecision(ctx, normalized, targets, trace)
 	}
 	if exact := exactContentTarget(normalized, targets); exact != nil {
 		return c.decision(
@@ -130,7 +151,7 @@ func (c *Controller) Decide(ctx context.Context, candidate memcontract.Candidate
 			nil,
 		)
 	}
-	return c.writeDecision(normalized, targets, trace)
+	return c.writeDecision(ctx, normalized, targets, trace)
 }
 
 func (c *Controller) prepareDecision(
@@ -176,6 +197,7 @@ func (c *Controller) rejectDecision(
 }
 
 func (c *Controller) writeDecision(
+	ctx context.Context,
 	normalized memcontract.Candidate,
 	targets []Target,
 	trace []memcontract.RuleHit,
@@ -202,7 +224,7 @@ func (c *Controller) writeDecision(
 					),
 				))
 			}
-			return c.ambiguousDecision(normalized, surface, trace)
+			return c.ambiguousDecision(ctx, normalized, surface, trace)
 		}
 		return c.addDecision(normalized, trace)
 	case 1:
@@ -238,6 +260,6 @@ func (c *Controller) writeDecision(
 				),
 			))
 		}
-		return c.ambiguousDecision(normalized, slotMatches, trace)
+		return c.ambiguousDecision(ctx, normalized, slotMatches, trace)
 	}
 }

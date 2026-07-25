@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/memory"
@@ -161,6 +162,40 @@ func TestCollectMemoryExtractorOutput(t *testing.T) {
 		if candidate.Metadata["workspace_root"] != "/workspace/test" {
 			t.Fatalf("candidate metadata = %#v, want workspace_root", candidate.Metadata)
 		}
+		if candidate.AgentTier != "" || candidate.Frontmatter.AgentTier != "" {
+			t.Fatalf("candidate agent tiers = %q/%q, want empty outside agent scope",
+				candidate.AgentTier,
+				candidate.Frontmatter.AgentTier,
+			)
+		}
+	})
+
+	t.Run("Should discard agent tier outside agent-scoped candidates", func(t *testing.T) {
+		t.Parallel()
+
+		turn := memcontract.TurnRecord{
+			SessionID:   "sess-parent",
+			AgentID:     "cto",
+			WorkspaceID: "ws-test",
+		}
+		candidates, err := parseMemoryExtractorCandidates(
+			`{"type":"reference","scope":"global","agent_tier":"global","content":"Release artifacts use checksums.","evidence":"seq=7"}`,
+			turn,
+			"/workspace/test",
+			time.Date(2026, 7, 24, 11, 25, 0, 0, time.UTC),
+		)
+		if err != nil {
+			t.Fatalf("parseMemoryExtractorCandidates() error = %v", err)
+		}
+		if len(candidates) != 1 {
+			t.Fatalf("candidates = %#v, want one parsed candidate", candidates)
+		}
+		if candidates[0].AgentTier != "" || candidates[0].Frontmatter.AgentTier != "" {
+			t.Fatalf("candidate agent tiers = %q/%q, want empty outside agent scope",
+				candidates[0].AgentTier,
+				candidates[0].Frontmatter.AgentTier,
+			)
+		}
 	})
 }
 
@@ -189,15 +224,36 @@ func TestDaemonMemoryProviderService(t *testing.T) {
 func TestForkedMemoryExtractor(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should skip the child session when the role is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &recordingMemoryExtractorSessions{}
+		extractor := &forkedMemoryExtractor{
+			sessions: sessions,
+			roles:    resolvedRoleResolver(ResolvedRole{Enabled: false}),
+		}
+		candidates, err := extractor.Extract(testutil.Context(t), memcontract.TurnRecord{WorkspaceID: "ws-test"})
+		if err != nil {
+			t.Fatalf("Extract() error = %v", err)
+		}
+		if candidates != nil || sessions.spawnCalls != 0 {
+			t.Fatalf("Extract() = %#v with %d spawn calls, want skipped", candidates, sessions.spawnCalls)
+		}
+	})
+
 	t.Run("Should pass the configured model to the extractor child spawn", func(t *testing.T) {
 		t.Parallel()
 
 		sessions := &recordingMemoryExtractorSessions{}
 		extractor := &forkedMemoryExtractor{
-			sessions:     sessions,
-			defaultAgent: "memory-agent",
-			model:        "claude-haiku-memory",
-			deadline:     time.Second,
+			sessions: sessions,
+			roles: resolvedRoleResolver(ResolvedRole{
+				Role:    aghconfig.RoleMemoryExtractor,
+				Enabled: true,
+				Inherit: true,
+				Model:   "claude-haiku-memory",
+			}),
+			deadline: time.Second,
 			now: func() time.Time {
 				return time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)
 			},
@@ -205,7 +261,7 @@ func TestForkedMemoryExtractor(t *testing.T) {
 		turn := memcontract.TurnRecord{
 			SessionID:       "sess-parent",
 			RootSessionID:   "sess-parent",
-			AgentID:         "",
+			AgentID:         "memory-agent",
 			ActorKind:       "agent_root",
 			WorkspaceID:     "ws-test",
 			SinceMessageSeq: 1,
@@ -241,14 +297,16 @@ func TestForkedMemoryExtractor(t *testing.T) {
 }
 
 type recordingMemoryExtractorSessions struct {
-	spawnOpts session.SpawnOpts
-	stoppedID string
+	spawnCalls int
+	spawnOpts  session.SpawnOpts
+	stoppedID  string
 }
 
 func (s *recordingMemoryExtractorSessions) Spawn(
 	_ context.Context,
 	opts session.SpawnOpts,
 ) (*session.Session, error) {
+	s.spawnCalls++
 	s.spawnOpts = opts
 	return &session.Session{ID: "sess-memory-child"}, nil
 }

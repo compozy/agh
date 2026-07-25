@@ -53,7 +53,7 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.Age
 			errors.New("agent.name is required"),
 		)
 	}
-	if err := aghconfig.ValidateAgentName(agentName); err != nil {
+	if err := aghconfig.ValidateAuthoredAgentName(agentName); err != nil {
 		return aghconfig.AgentDefinitionDraft{}, errors.Join(
 			errCreateAgentRequestInvalid,
 			aghconfig.ErrInvalidAgentDefinition,

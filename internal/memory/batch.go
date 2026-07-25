@@ -12,7 +12,6 @@ import (
 	"time"
 
 	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/memory/controller"
 )
 
 const (
@@ -203,7 +202,7 @@ func (s *Store) decideBatch(
 	} else {
 		candidate.Content = body
 	}
-	decision, err := controller.New(s).Decide(ctx, candidate)
+	decision, err := s.DecideCandidate(ctx, candidate)
 	if err != nil {
 		return memcontract.Decision{}, err
 	}

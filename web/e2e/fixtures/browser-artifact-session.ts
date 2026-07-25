@@ -180,10 +180,25 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
     const readText = (testId: string) =>
       document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)?.textContent?.trim() ||
       undefined;
-    const readMetricValue = (testId: string) =>
-      document
-        .querySelector<HTMLElement>(`[data-testid="${testId}"] [data-slot="metric-value"]`)
-        ?.textContent?.trim() || undefined;
+    const readHomeMetricValue = (labelPrefix: string) => {
+      const prefix = labelPrefix.toLowerCase();
+      const metrics = document.querySelectorAll<HTMLElement>(
+        '[data-slot="home-kpi-strip"] [data-slot="metric"]'
+      );
+      for (const metric of metrics) {
+        const label = metric
+          .querySelector<HTMLElement>('[data-slot="metric-label"]')
+          ?.textContent?.trim()
+          .toLowerCase();
+        if (label?.startsWith(prefix)) {
+          return (
+            metric.querySelector<HTMLElement>('[data-slot="metric-value"]')?.textContent?.trim() ||
+            undefined
+          );
+        }
+      }
+      return undefined;
+    };
     const countByPrefix = (prefix: string) =>
       document.querySelectorAll(`[data-testid^="${prefix}"]`).length;
     const countSettingsProviderCards = () =>
@@ -229,13 +244,12 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
           : document.querySelector('[data-testid="network-activity-tab"]')
             ? ("activity" as const)
             : undefined);
+    const selectedChannelLink = document.querySelector<HTMLElement>(
+      '[data-testid^="network-channel-link-"][aria-current="page"]'
+    );
+    const selectedChannelTestId = selectedChannelLink?.getAttribute("data-testid") ?? "";
     const networkSelectedChannel =
-      document
-        .querySelector<HTMLElement>(
-          '[data-testid="network-channel-link-"][aria-current="page"], [data-testid^="network-channel-link-"][aria-current="page"]'
-        )
-        ?.textContent?.trim()
-        ?.replace(/^#/, "") ||
+      selectedChannelTestId.replace(/^network-channel-link-/, "") ||
       document
         .querySelector<HTMLElement>('[data-testid="network-channel-header"] h1')
         ?.textContent?.trim()
@@ -297,8 +311,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       document.querySelector('[data-testid="tasks-detail-content"]') !== null ||
       document.querySelector('[data-testid="tasks-run-detail-content"]') !== null ||
       document.querySelector('[data-testid="task-editor-surface"]') !== null;
-    const tasksReviewCount =
-      countByPrefix("tasks-reviews-row-") + countByPrefix("tasks-run-reviews-row-");
+    const tasksReviewCount = countByPrefix("tasks-run-review-");
     const knowledgeScope = document.querySelector('[data-testid="tab-global"][aria-pressed="true"]')
       ? "global"
       : document.querySelector('[data-testid="tab-workspace"][aria-pressed="true"]')
@@ -387,19 +400,23 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       delete_button_visible: document.querySelector('[data-testid="delete-button"]') !== null,
       session_topbar_overflow_visible:
         document.querySelector('[data-testid="session-topbar-overflow"]') !== null,
-      home_active_sessions_value: readMetricValue("home-metric-active-sessions"),
-      home_agents_value: readMetricValue("home-metric-agents"),
+      home_activity_count: document.querySelectorAll('[data-slot="home-activity-row"]').length,
+      home_agent_count: document.querySelectorAll('[data-slot="home-agent-row"]').length,
+      home_completed_today_value: readHomeMetricValue("Completed today"),
       home_connection_status: document.querySelector<HTMLElement>(
         '[data-testid="home-connection-indicator"]'
       )?.dataset.status,
-      home_daemon_status:
-        document.querySelector<HTMLElement>('[data-testid="home-daemon-card"]')?.dataset.status ??
-        document.querySelector<HTMLElement>('[data-testid="home-daemon-disconnected-indicator"]')
-          ?.dataset.status,
-      home_metric_count: countByPrefix("home-metric-"),
-      home_uptime_value: readMetricValue("home-metric-uptime"),
-      home_view_visible: document.querySelector('[data-testid="home-shell"]') !== null,
-      home_workspaces_value: readMetricValue("home-metric-workspaces"),
+      home_metric_count: document.querySelectorAll(
+        '[data-slot="home-kpi-strip"] [data-slot="metric"]'
+      ).length,
+      home_needs_you_value: readHomeMetricValue("Needs you"),
+      home_run_count: document.querySelectorAll('[data-slot="home-run-card"]').length,
+      home_scope_text:
+        document.querySelector<HTMLElement>('[data-slot="home-page-meta"]')?.textContent?.trim() ||
+        undefined,
+      home_usage_value: readHomeMetricValue("Usage"),
+      home_view_visible: document.querySelector('[data-testid="home-body"]') !== null,
+      home_working_now_value: readHomeMetricValue("Working now"),
       knowledge_create_dialog_open:
         document.querySelector('[data-testid="knowledge-create-dialog"]') !== null,
       knowledge_decisions_count: countByPrefix("knowledge-decision-"),
@@ -493,8 +510,8 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       session_name: readText("session-name"),
       stop_button_visible: document.querySelector('[data-testid="stop-button"]') !== null,
       tasks_active_mode: tasksActiveMode,
-      tasks_children_count: countByPrefix("tasks-detail-children-item-"),
-      tasks_dependencies_count: countByPrefix("tasks-detail-dependencies-item-"),
+      tasks_children_count: countByPrefix("tasks-detail-subtask-"),
+      tasks_dependencies_count: countByPrefix("tasks-detail-dependency-"),
       tasks_detail_cancel_visible:
         document.querySelector('[data-testid="tasks-detail-cancel"]') !== null,
       tasks_detail_delete_dialog_open:
@@ -503,8 +520,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       tasks_inbox_count: document.querySelectorAll('[data-testid^="tasks-inbox-item-"][data-lane]')
         .length,
       tasks_review_count: tasksReviewCount,
-      tasks_run_cancel_visible:
-        document.querySelector('[data-testid="task-run-detail-cancel"]') !== null,
+      tasks_run_cancel_visible: document.querySelector('[data-testid="tasks-run-cancel"]') !== null,
       tasks_run_detail_visible:
         document.querySelector('[data-testid="tasks-run-detail-content"]') !== null,
       tasks_selected_run: tasksSelectedRun,

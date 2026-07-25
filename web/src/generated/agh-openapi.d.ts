@@ -2279,6 +2279,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/roles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List effective background role configuration */
+    get: operations["listRoles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/roles/{role}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get effective background role configuration */
+    get: operations["getRole"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/runs/bulk/fail": {
     parameters: {
       query?: never;
@@ -2900,6 +2934,24 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
+    trace?: never;
+  };
+  "/api/settings/roles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the background-role routing settings section */
+    get: operations["getSettingsRoles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the background-role routing settings section */
+    patch: operations["updateSettingsRoles"];
     trace?: never;
   };
   "/api/settings/sandboxes": {
@@ -15355,6 +15407,31 @@ export interface operations {
           };
         };
       };
+      /** @description Agent name is reserved */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -16007,6 +16084,31 @@ export interface operations {
           };
         };
       };
+      /** @description Agent name is reserved */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -16378,6 +16480,31 @@ export interface operations {
       };
       /** @description Workspace root missing */
       410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Agent name is reserved */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -33592,14 +33719,6 @@ export interface operations {
             config: {
               controller: {
                 default_op_on_fail: string;
-                llm: {
-                  enabled: boolean;
-                  max_tokens_out: number;
-                  model: string;
-                  prompt_version: string;
-                  timeout: string;
-                  top_k: number;
-                };
                 max_latency: string;
                 mode: string;
                 policy: {
@@ -33628,10 +33747,8 @@ export interface operations {
                 prune_after_applied_days: number;
               };
               dream: {
-                agent: string;
                 check_interval: string;
                 debounce: string;
-                enabled: boolean;
                 gates: {
                   min_recall_count: number;
                   /** Format: double */
@@ -33660,10 +33777,8 @@ export interface operations {
               extractor: {
                 deadline: string;
                 dlq_path: string;
-                enabled: boolean;
                 inbox_path: string;
                 mode: string;
-                model: string;
                 queue: {
                   capacity: number;
                   coalesce_max: number;
@@ -37371,6 +37486,7 @@ export interface operations {
               section?:
                 | "general"
                 | "memory"
+                | "roles"
                 | "skills"
                 | "automation"
                 | "network"
@@ -41237,6 +41353,305 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listRoles: {
+    parameters: {
+      query?: {
+        /** @description Workspace id, name, or path used to resolve effective role configuration */
+        workspace?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            roles: {
+              agent: string | null;
+              diagnostics: {
+                agent?: string;
+                code: string;
+                message: string;
+              }[];
+              enabled: boolean;
+              fallback_chain: {
+                model: string;
+                provider: string;
+                reasoning_effort?: string;
+              }[];
+              model: string | null;
+              provenance: {
+                [key: string]: string;
+              };
+              provider: string | null;
+              reasoning_effort: string | null;
+              /** @enum {string} */
+              resolution_mode: "builtin" | "catalog" | "inherit";
+              role: string;
+              timeout?: string | null;
+            }[];
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Roles status provider unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getRole: {
+    parameters: {
+      query?: {
+        /** @description Workspace id, name, or path used to resolve effective role configuration */
+        workspace?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Background role name */
+        role: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            role: {
+              agent: string | null;
+              diagnostics: {
+                agent?: string;
+                code: string;
+                message: string;
+              }[];
+              enabled: boolean;
+              fallback_chain: {
+                model: string;
+                provider: string;
+                reasoning_effort?: string;
+              }[];
+              model: string | null;
+              provenance: {
+                [key: string]: string;
+              };
+              provider: string | null;
+              reasoning_effort: string | null;
+              /** @enum {string} */
+              resolution_mode: "builtin" | "catalog" | "inherit";
+              role: string;
+              timeout?: string | null;
+            };
+          };
+        };
+      };
+      /** @description Role or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Roles status provider unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -46683,6 +47098,7 @@ export interface operations {
             section:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -46790,6 +47206,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -47002,6 +47419,7 @@ export interface operations {
             section:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -47131,6 +47549,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -47767,6 +48186,7 @@ export interface operations {
             section:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -47894,6 +48314,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -48244,6 +48665,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -48430,6 +48852,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -48819,6 +49242,7 @@ export interface operations {
               section?:
                 | "general"
                 | "memory"
+                | "roles"
                 | "skills"
                 | "automation"
                 | "network"
@@ -49239,6 +49663,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -49457,6 +49882,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -50160,14 +50586,6 @@ export interface operations {
             config: {
               controller: {
                 default_op_on_fail: string;
-                llm: {
-                  enabled: boolean;
-                  max_tokens_out: number;
-                  model: string;
-                  prompt_version: string;
-                  timeout: string;
-                  top_k: number;
-                };
                 max_latency: string;
                 mode: string;
                 policy: {
@@ -50196,10 +50614,8 @@ export interface operations {
                 prune_after_applied_days: number;
               };
               dream: {
-                agent: string;
                 check_interval: string;
                 debounce: string;
-                enabled: boolean;
                 gates: {
                   min_recall_count: number;
                   /** Format: double */
@@ -50228,10 +50644,8 @@ export interface operations {
               extractor: {
                 deadline: string;
                 dlq_path: string;
-                enabled: boolean;
                 inbox_path: string;
                 mode: string;
-                model: string;
                 queue: {
                   capacity: number;
                   coalesce_max: number;
@@ -50304,6 +50718,7 @@ export interface operations {
             section:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -50354,14 +50769,6 @@ export interface operations {
           config: {
             controller: {
               default_op_on_fail: string;
-              llm: {
-                enabled: boolean;
-                max_tokens_out: number;
-                model: string;
-                prompt_version: string;
-                timeout: string;
-                top_k: number;
-              };
               max_latency: string;
               mode: string;
               policy: {
@@ -50390,10 +50797,8 @@ export interface operations {
               prune_after_applied_days: number;
             };
             dream: {
-              agent: string;
               check_interval: string;
               debounce: string;
-              enabled: boolean;
               gates: {
                 min_recall_count: number;
                 /** Format: double */
@@ -50422,10 +50827,8 @@ export interface operations {
             extractor: {
               deadline: string;
               dlq_path: string;
-              enabled: boolean;
               inbox_path: string;
               mode: string;
-              model: string;
               queue: {
                 capacity: number;
                 coalesce_max: number;
@@ -50536,6 +50939,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -50732,6 +51136,7 @@ export interface operations {
             section:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -50859,6 +51264,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -51039,6 +51445,7 @@ export interface operations {
             section:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -51149,6 +51556,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -52089,6 +52497,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -52275,6 +52684,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -52433,6 +52843,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -52460,6 +52871,416 @@ export interface operations {
       };
       /** @description Invalid settings payload */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSettingsRoles: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: "global"[];
+            config: {
+              auto_title: {
+                agent: string;
+                enabled: boolean;
+                fallback_chain: {
+                  model: string;
+                  provider: string;
+                  reasoning_effort: string;
+                }[];
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+              };
+              checkpoint_summary: {
+                agent: string;
+                enabled: boolean;
+                fallback_chain: {
+                  model: string;
+                  provider: string;
+                  reasoning_effort: string;
+                }[];
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+              };
+              coordinator: {
+                agent: string;
+                enabled: boolean;
+                fallback_chain: {
+                  model: string;
+                  provider: string;
+                  reasoning_effort: string;
+                }[];
+                max_active_sessions_per_workspace: number;
+                max_children: number;
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+                ttl: string;
+              };
+              dream: {
+                agent: string;
+                enabled: boolean;
+                fallback_chain: {
+                  model: string;
+                  provider: string;
+                  reasoning_effort: string;
+                }[];
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+              };
+              memory_controller: {
+                enabled: boolean;
+                fallback_chain: {
+                  model: string;
+                  provider: string;
+                  reasoning_effort: string;
+                }[];
+                max_tokens_out: number;
+                model: string;
+                prompt_version: string;
+                provider: string;
+                reasoning_effort: string;
+                timeout: string;
+                top_k: number;
+              };
+              memory_extractor: {
+                agent: string;
+                enabled: boolean;
+                fallback_chain: {
+                  model: string;
+                  provider: string;
+                  reasoning_effort: string;
+                }[];
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+              };
+            };
+            /** @enum {string} */
+            scope: "global";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateSettingsRoles: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            auto_title: {
+              agent: string;
+              enabled: boolean;
+              fallback_chain: {
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+              }[];
+              model: string;
+              provider: string;
+              reasoning_effort: string;
+            };
+            checkpoint_summary: {
+              agent: string;
+              enabled: boolean;
+              fallback_chain: {
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+              }[];
+              model: string;
+              provider: string;
+              reasoning_effort: string;
+            };
+            coordinator: {
+              agent: string;
+              enabled: boolean;
+              fallback_chain: {
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+              }[];
+              max_active_sessions_per_workspace: number;
+              max_children: number;
+              model: string;
+              provider: string;
+              reasoning_effort: string;
+              ttl: string;
+            };
+            dream: {
+              agent: string;
+              enabled: boolean;
+              fallback_chain: {
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+              }[];
+              model: string;
+              provider: string;
+              reasoning_effort: string;
+            };
+            memory_controller: {
+              enabled: boolean;
+              fallback_chain: {
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+              }[];
+              max_tokens_out: number;
+              model: string;
+              prompt_version: string;
+              provider: string;
+              reasoning_effort: string;
+              timeout: string;
+              top_k: number;
+            };
+            memory_extractor: {
+              agent: string;
+              enabled: boolean;
+              fallback_chain: {
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+              }[];
+              model: string;
+              provider: string;
+              reasoning_effort: string;
+            };
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
+            applied: boolean;
+            apply_record_id: string;
+            /** @enum {string} */
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope?: "global" | "workspace" | "agent";
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
+            skipped?: boolean;
+            skipped_reason?: string;
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -52897,6 +53718,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -53083,6 +53905,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -53270,6 +54093,7 @@ export interface operations {
             section:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -53462,6 +54286,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -53788,6 +54613,7 @@ export interface operations {
             section:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"
@@ -53928,6 +54754,7 @@ export interface operations {
             section?:
               | "general"
               | "memory"
+              | "roles"
               | "skills"
               | "automation"
               | "network"

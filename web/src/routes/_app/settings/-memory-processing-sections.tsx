@@ -88,29 +88,8 @@ export function ExtractorSection({
   validationErrors,
   setValidationError,
 }: ValidatedSectionProps) {
-  const extractorDisabled = !draft.extractor.enabled;
   return (
     <SettingsGroup title="Extractor" description="post-message proposal generation">
-      <SettingsFieldRow
-        data-testid={`${TEST_PREFIX}-extractor-enabled`}
-        label="Extractor"
-        description="Spawn the extractor sub-agent on session.message_persisted"
-        control={
-          <Switch
-            data-testid={`${TEST_PREFIX}-extractor-enabled-switch`}
-            checked={draft.extractor.enabled}
-            onCheckedChange={checked =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return {
-                  ...current,
-                  extractor: { ...current.extractor, enabled: checked },
-                };
-              })
-            }
-          />
-        }
-      />
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-mode`}
         label="Mode"
@@ -118,7 +97,6 @@ export function ExtractorSection({
         control={
           <Input
             className="w-40 font-mono"
-            disabled={extractorDisabled}
             data-testid={`${TEST_PREFIX}-extractor-mode-input`}
             value={draft.extractor.mode}
             placeholder="post_message"
@@ -142,7 +120,6 @@ export function ExtractorSection({
         control={
           <SettingsNumberInput
             min={0}
-            disabled={extractorDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-extractor-throttle-input`}
             value={draft.extractor.throttle_turns}
@@ -166,7 +143,6 @@ export function ExtractorSection({
         control={
           <Input
             className="w-32 font-mono"
-            disabled={extractorDisabled}
             data-testid={`${TEST_PREFIX}-extractor-deadline-input`}
             value={draft.extractor.deadline}
             placeholder="60s"
@@ -188,7 +164,6 @@ export function ExtractorSection({
         description="Restrict the extractor sub-agent to writes under _inbox/"
         control={
           <Switch
-            disabled={extractorDisabled}
             data-testid={`${TEST_PREFIX}-extractor-sandbox-switch`}
             checked={draft.extractor.sandbox_inbox_only}
             onCheckedChange={checked =>
@@ -204,29 +179,6 @@ export function ExtractorSection({
         }
       />
       <SettingsFieldRow
-        data-testid={`${TEST_PREFIX}-extractor-model`}
-        label="Model override"
-        description="Empty inherits the parent session model"
-        control={
-          <Input
-            className="w-72 font-mono"
-            disabled={extractorDisabled}
-            data-testid={`${TEST_PREFIX}-extractor-model-input`}
-            value={draft.extractor.model}
-            placeholder="(inherit)"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return {
-                  ...current,
-                  extractor: { ...current.extractor, model: event.target.value },
-                };
-              })
-            }
-          />
-        }
-      />
-      <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-queue-capacity`}
         label="Queue capacity"
         description="Per-session in-flight extraction slots"
@@ -234,7 +186,6 @@ export function ExtractorSection({
         control={
           <SettingsNumberInput
             min={1}
-            disabled={extractorDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-extractor-queue-capacity-input`}
             value={draft.extractor.queue.capacity}
@@ -262,7 +213,6 @@ export function ExtractorSection({
         control={
           <SettingsNumberInput
             min={1}
-            disabled={extractorDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-extractor-coalesce-max-input`}
             value={draft.extractor.queue.coalesce_max}

@@ -49,7 +49,9 @@ func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspaceRef st
 
 	s.logger.Debug("memory: starting consolidation run", "goal", s.goal, "workspace_id", workspace.id)
 
-	if err := spawn(ctx, s.goal, s.prompt, workspace.id, priorMtime); err != nil {
+	if err := spawn(ctx, s.goal, s.prompt, workspace.id, priorMtime); errors.Is(err, ErrDreamRoleDisabled) {
+		return s.skipDreamRun(ctx, workspace, gate, priorMtime)
+	} else if err != nil {
 		return s.failDreamRun(ctx, workspace, gate, priorMtime, err, "spawn consolidation session")
 	}
 	if !gate.active {
@@ -68,6 +70,30 @@ func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspaceRef st
 	}
 	s.logger.Debug("memory: consolidation run completed; releasing lock", "goal", s.goal, "workspace_id", workspace.id)
 	return s.completeRun(true, priorMtime)
+}
+
+func (s *Service) skipDreamRun(
+	ctx context.Context,
+	workspace dreamRunWorkspace,
+	run dreamSignalGateResult,
+	priorMtime time.Time,
+) error {
+	var cleanupErrs []error
+	if run.active && workspace.store != nil {
+		if err := workspace.store.deleteDreamRun(ctx, run.runID); err != nil {
+			cleanupErrs = append(cleanupErrs, err)
+		}
+	}
+	if err := s.completeRun(false, priorMtime); err != nil {
+		cleanupErrs = append(cleanupErrs, err)
+	}
+	if cleanupErr := errors.Join(cleanupErrs...); cleanupErr != nil {
+		return fmt.Errorf("memory: clean up disabled dream run: %w", cleanupErr)
+	}
+	s.logger.Debug("memory: dream consolidation skipped because the workspace role is disabled",
+		"workspace_id", workspace.id,
+	)
+	return ErrDreamRoleDisabled
 }
 
 func (s *Service) handleDreamGateResult(

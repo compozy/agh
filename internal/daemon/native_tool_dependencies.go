@@ -72,6 +72,7 @@ type daemonNativeToolsDeps struct {
 	ExtensionSources           extensionMarketplaceSourceLoader
 	ExtensionEvents            store.EventSummaryStore
 	AgentSkills                agentSkillPublisher
+	AgentSkillsRuntime         func() agentSkillPublisher
 	ToolMCP                    toolMCPPublisher
 	MCPAuth                    func() toolspkg.MCPAuthStatusProvider
 	ApprovalGrants             toolspkg.ApprovalGrantStore
@@ -82,4 +83,16 @@ type daemonNativeToolsDeps struct {
 	Loops                      func() core.LoopService
 	Resources                  core.ResourceService
 	WindowManager              windowmanager.Service
+}
+
+func (d *daemonNativeToolsDeps) agentSkills() agentSkillPublisher {
+	if d == nil {
+		return nil
+	}
+	if d.AgentSkillsRuntime != nil {
+		if publisher := d.AgentSkillsRuntime(); publisher != nil {
+			return publisher
+		}
+	}
+	return d.AgentSkills
 }

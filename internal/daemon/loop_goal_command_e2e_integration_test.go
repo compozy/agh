@@ -133,7 +133,16 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			"/goal Recover from a refused turn through an explicit approval grant",
 		)
 		if approvalStartStatus != http.StatusAccepted || approvalStart.Snapshot == nil {
-			t.Fatalf("approval Goal start = status:%d result:%#v", approvalStartStatus, approvalStart)
+			current, currentErr := harness.GetSession(ctx, approvalSession.ID)
+			t.Fatalf(
+				"approval Goal start = status:%d outcome:%q reason:%v snapshot:%#v current:%#v current_error:%v",
+				approvalStartStatus,
+				approvalStart.Outcome,
+				goalReasonValue(approvalStart.ReasonCode),
+				approvalStart.Snapshot,
+				current,
+				currentErr,
+			)
 		}
 		waitForGoalSnapshot(ctx, t, harness, approvalSession.ID, func(goal *aghcontract.GoalSnapshot) bool {
 			return goal != nil && goal.RunStatus == aghcontract.LoopRunStatusNeedsApproval
@@ -174,7 +183,16 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			"/goal Keep one prompt active until an explicit clear",
 		)
 		if clearStartStatus != http.StatusAccepted || clearStart.Snapshot == nil {
-			t.Fatalf("clear Goal start = status:%d result:%#v", clearStartStatus, clearStart)
+			current, currentErr := harness.GetSession(ctx, clearSession.ID)
+			t.Fatalf(
+				"clear Goal start = status:%d outcome:%q reason:%v snapshot:%#v current:%#v current_error:%v",
+				clearStartStatus,
+				clearStart.Outcome,
+				goalReasonValue(clearStart.ReasonCode),
+				clearStart.Snapshot,
+				current,
+				currentErr,
+			)
 		}
 		clearRunID := clearStart.Snapshot.RunID
 		waitForGoalTurns(ctx, t, harness, clearRunID, func(page aghcontract.GoalTurnPage) bool {

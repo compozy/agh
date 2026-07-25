@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/session"
@@ -17,6 +18,23 @@ import (
 func TestDaemonCheckpointSummarizer(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should skip the hidden session when the role is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &checkpointSummarySessionManagerStub{}
+		summarizer := newDaemonCheckpointSummarizer(
+			manager,
+			resolvedRoleResolver(ResolvedRole{Enabled: false}),
+		)
+		summary, err := summarizer.Summarize(testutil.Context(t), checkpointSummaryRequestFixture())
+		if !errors.Is(err, memory.ErrCheckpointSummaryDisabled) {
+			t.Fatalf("Summarize() error = %v, want ErrCheckpointSummaryDisabled", err)
+		}
+		if summary != "" || manager.createCalls != 0 {
+			t.Fatalf("Summarize() = %q with %d create calls, want skipped", summary, manager.createCalls)
+		}
+	})
+
 	t.Run("Should collect agent output and stop the internal dream session", func(t *testing.T) {
 		t.Parallel()
 
@@ -24,7 +42,14 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 			{Type: acp.EventTypeAgentMessage, Text: "## Historical Task Snapshot\n- cobalt\n"},
 			{Type: acp.EventTypeAgentMessage, Text: "\n## Goal\n- preserve context"},
 		}}
-		summarizer := newDaemonCheckpointSummarizer(manager, "memory-agent")
+		summarizer := newDaemonCheckpointSummarizer(
+			manager,
+			resolvedRoleResolver(ResolvedRole{
+				Enabled:   true,
+				AgentName: aghconfig.BuiltinDreamingCuratorAgentName,
+				Builtin:   true,
+			}),
+		)
 		request := checkpointSummaryRequestFixture()
 		got, err := summarizer.Summarize(testutil.Context(t), request)
 		if err != nil {
@@ -36,7 +61,7 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 		if manager.createOpts.Name != checkpointSummarySessionName ||
 			manager.createOpts.Type != session.SessionTypeDream ||
 			manager.createOpts.Workspace != request.WorkspaceRoot ||
-			manager.createOpts.AgentName != "memory-agent" {
+			manager.createOpts.AgentName != aghconfig.BuiltinDreamingCuratorAgentName {
 			t.Fatalf("Create() opts = %#v, want checkpoint dream session", manager.createOpts)
 		}
 		if manager.promptID != "checkpoint-session" ||
@@ -57,7 +82,14 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 
 		wantErr := errors.New("prompt rejected")
 		manager := &checkpointSummarySessionManagerStub{promptErr: wantErr}
-		summarizer := newDaemonCheckpointSummarizer(manager, "memory-agent")
+		summarizer := newDaemonCheckpointSummarizer(
+			manager,
+			resolvedRoleResolver(ResolvedRole{
+				Enabled:   true,
+				AgentName: aghconfig.BuiltinDreamingCuratorAgentName,
+				Builtin:   true,
+			}),
+		)
 		_, err := summarizer.Summarize(testutil.Context(t), checkpointSummaryRequestFixture())
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("Summarize() error = %v, want wrapped %v", err, wantErr)
@@ -88,19 +120,21 @@ func checkpointSummaryRequestFixture() memory.CheckpointSummaryRequest {
 }
 
 type checkpointSummarySessionManagerStub struct {
-	createOpts session.CreateOpts
-	promptID   string
-	prompt     string
-	stopID     string
-	stopCause  session.StopCause
-	events     []acp.AgentEvent
-	promptErr  error
+	createCalls int
+	createOpts  session.CreateOpts
+	promptID    string
+	prompt      string
+	stopID      string
+	stopCause   session.StopCause
+	events      []acp.AgentEvent
+	promptErr   error
 }
 
 func (m *checkpointSummarySessionManagerStub) Create(
 	_ context.Context,
 	opts session.CreateOpts,
 ) (*session.Session, error) {
+	m.createCalls++
 	m.createOpts = opts
 	return &session.Session{ID: "checkpoint-session"}, nil
 }

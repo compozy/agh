@@ -102,7 +102,9 @@ const (
 	TaskWakeDelivered                    = "task.wake.delivered"
 	TaskWakeSuppressed                   = "task.wake.suppressed"
 
-	SettingsChanged = "settings.changed"
+	SettingsChanged  = "settings.changed"
+	RoleFallbackUsed = "role.fallback.used"
+	RoleResolveError = "role.resolve.error"
 
 	SkillShadowed   = "skill.shadowed"
 	SkillLoadFailed = "skills.load_failed"
@@ -272,6 +274,8 @@ var baseRegistryEntries = []Metadata{
 	info(TaskWakeDelivered, "task.wake", ComponentTask),
 	warning(TaskWakeSuppressed, "task.wake", ComponentTask),
 	global(info(SettingsChanged, "settings", ComponentConfig)),
+	global(info(RoleFallbackUsed, "role", ComponentRole)),
+	global(failure(RoleResolveError, "role", ComponentRole)),
 	global(warning(SkillShadowed, "skill", ComponentSkill)),
 	global(failure(SkillLoadFailed, "skills", ComponentSkill)),
 	global(info(HookDispatchStart, "hook.dispatch", ComponentHook)),

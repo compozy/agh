@@ -109,7 +109,7 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 			sessions := &fakeSessionManager{
 				infos: []*session.Info{{
 					ID:          "sess-coordinator-wake",
-					AgentName:   aghconfig.DefaultCoordinatorAgentName,
+					AgentName:   aghconfig.BuiltinCoordinatorAgentName,
 					WorkspaceID: "ws-coordinator-wake",
 					Type:        session.SessionTypeCoordinator,
 					State:       session.StateActive,
@@ -137,7 +137,7 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 				},
 				Session: schedulerpkg.SessionSnapshot{
 					ID:          "sess-coordinator-wake",
-					AgentName:   aghconfig.DefaultCoordinatorAgentName,
+					AgentName:   aghconfig.BuiltinCoordinatorAgentName,
 					WorkspaceID: "ws-coordinator-wake",
 					Type:        string(session.SessionTypeCoordinator),
 					State:       string(session.StateActive),

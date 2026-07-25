@@ -226,9 +226,9 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 				},
 			},
 		},
-		CoordinatorConfig: coordinatorResolverFunc(
-			func(context.Context, string) (aghconfig.CoordinatorConfig, error) {
-				return aghconfig.CoordinatorConfig{MaxChildren: 3}, nil
+		CoordinatorRole: coordinatorResolverFunc(
+			func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error) {
+				return aghconfig.ResolvedCoordinatorRole{MaxChildren: 3}, nil
 			},
 		),
 	})
@@ -1617,12 +1617,12 @@ func (fn skillRegistryFunc) ForAgent(
 	return fn(ctx, workspace)
 }
 
-type coordinatorResolverFunc func(context.Context, string) (aghconfig.CoordinatorConfig, error)
+type coordinatorResolverFunc func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error)
 
-func (fn coordinatorResolverFunc) ResolveCoordinatorConfig(
+func (fn coordinatorResolverFunc) ResolveCoordinatorRole(
 	ctx context.Context,
 	workspaceID string,
-) (aghconfig.CoordinatorConfig, error) {
+) (aghconfig.ResolvedCoordinatorRole, error) {
 	return fn(ctx, workspaceID)
 }
 

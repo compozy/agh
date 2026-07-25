@@ -250,7 +250,7 @@ func (m *Manager) List() []*Info {
 
 	infos := make([]*Info, 0, len(sessions))
 	for _, session := range sessions {
-		infos = append(infos, session.Info())
+		infos = append(infos, m.sessionInfoForRead(session))
 	}
 
 	sort.Slice(infos, func(i, j int) bool {

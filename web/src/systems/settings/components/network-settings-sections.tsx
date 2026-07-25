@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import { Link } from "@tanstack/react-router";
 
 import { Switch } from "@agh/ui";
 
@@ -144,7 +145,7 @@ function DeliverySafetySection({
         data-testid="settings-page-network-link-network"
         description="Channels, peers, and live coordination for this workspace."
         label="Open the network view"
-        to="/network"
+        render={<Link to="/network" />}
       />
     </SettingsGroup>
   );

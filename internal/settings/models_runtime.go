@@ -5,7 +5,6 @@ import (
 
 	automationmodel "github.com/compozy/agh/internal/automation/model"
 	aghconfig "github.com/compozy/agh/internal/config"
-
 	skillspkg "github.com/compozy/agh/internal/skills"
 )
 
@@ -30,6 +29,11 @@ type MemorySection struct {
 	Config  aghconfig.MemoryConfig
 	Health  MemoryHealthStatus
 	Actions MemoryActions
+}
+
+// RolesSection is the background-role routing read model.
+type RolesSection struct {
+	Config aghconfig.RolesConfig
 }
 
 // SkillsSection is the skills section read model.

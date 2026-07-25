@@ -59,6 +59,7 @@ const (
 	pathDaemonReloadTimeoutProviders = "daemon.reload_timeouts.providers"
 	pathDaemonReloadTimeoutMCP       = "daemon.reload_timeouts.mcp"
 	pathDaemonReloadTimeoutBridges   = "daemon.reload_timeouts.bridges"
+	pathRoles                        = "roles"
 )
 
 // Rule records the lifecycle for a config path pattern.
@@ -79,6 +80,8 @@ var Matrix = []Rule{
 	{Pattern: "providers.*.models.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "marketplace.catalog.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "extensions.marketplace.allow_unverified", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: pathRoles, Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: pathRoles + ".*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp-servers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "sandboxes.*", Lifecycle: SessionRebind, DiffClass: DiffClassSessionRebind},
@@ -156,7 +159,7 @@ func ClassifyPaths(paths []string) (Lifecycle, DiffClass, error) {
 // DiffClassForRoot maps a settings section or collection name onto a diff class.
 func DiffClassForRoot(root string) DiffClass {
 	switch strings.TrimSpace(root) {
-	case "skills", "window-manager":
+	case "skills", pathRoles, "window-manager":
 		return DiffClassLive
 	case "sandboxes":
 		return DiffClassSessionRebind

@@ -16,6 +16,20 @@ export type SettingsHooksExtensionsHook = NonNullable<
 export type SettingsHooksExtensionsInstalled = NonNullable<
   SettingsHooksExtensionsSection["installed"]
 >[number];
+
+// Roles: editable settings section (getSettingsRoles) + read-only effective
+// projection (listRoles). All derived from generated operations — never hand-rolled.
+export type SettingsRolesSection = OperationResponse<"getSettingsRoles", 200>;
+export type SettingsRolesConfig = SettingsRolesSection["config"];
+export type RoleName = keyof SettingsRolesConfig;
+export type RoleFallbackEntry = SettingsRolesConfig["dream"]["fallback_chain"][number];
+
+export type RolesStatusResponse = OperationResponse<"listRoles", 200>;
+export type RoleStatus = RolesStatusResponse["roles"][number];
+export type RoleResolutionMode = RoleStatus["resolution_mode"];
+export type RoleDiagnostic = RoleStatus["diagnostics"][number];
+export type RoleFallbackStatus = RoleStatus["fallback_chain"][number];
+
 export type SettingsNotificationPresetCollection = OperationResponse<
   "listNotificationPresets",
   200
@@ -94,6 +108,7 @@ export type SettingsMCPAuthStatusResponse = OperationResponse<"exchangeSettingsM
 
 export type SettingsUpdateGeneralRequest = OperationRequestBody<"updateSettingsGeneral">;
 export type SettingsUpdateMemoryRequest = OperationRequestBody<"updateSettingsMemory">;
+export type SettingsUpdateRolesRequest = OperationRequestBody<"updateSettingsRoles">;
 export type SettingsUpdateSkillsRequest = OperationRequestBody<"updateSettingsSkills">;
 export type SettingsSkillsFilter = NonNullable<OperationQuery<"getSettingsSkills">>;
 export type SettingsUpdateSkillsFilter = NonNullable<OperationQuery<"updateSettingsSkills">>;
@@ -126,6 +141,7 @@ export type SettingsMutationResult =
   | OperationResponse<"updateSettingsObservability", 200>
   | OperationResponse<"updateSettingsHooksExtensions", 200>
   | OperationResponse<"updateSettingsWindowManager", 200>
+  | OperationResponse<"updateSettingsRoles", 200>
   | OperationResponse<"putSettingsProvider", 200>
   | OperationResponse<"deleteSettingsProvider", 200>
   | OperationResponse<"putSettingsMCPServer", 200>
@@ -139,6 +155,7 @@ export type SettingsWriteTarget = NonNullable<SettingsMutationResult["write_targ
 export type SettingsSectionName =
   | SettingsGeneralSection["section"]
   | SettingsMemorySection["section"]
+  | SettingsRolesSection["section"]
   | SettingsSkillsSection["section"]
   | SettingsAutomationSection["section"]
   | SettingsNetworkSection["section"]
@@ -171,6 +188,7 @@ export type SettingsSectionSlug =
   | "providers"
   | "sandboxes"
   | "memory"
+  | "roles"
   | "skills"
   | "automation"
   | "network"

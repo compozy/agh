@@ -1,9 +1,6 @@
 package config
 
 func (o memoryExtractorOverlay) Apply(dst *MemoryExtractorConfig) {
-	if o.Enabled != nil {
-		dst.Enabled = *o.Enabled
-	}
 	if o.Mode != nil {
 		dst.Mode = *o.Mode
 	}
@@ -22,9 +19,6 @@ func (o memoryExtractorOverlay) Apply(dst *MemoryExtractorConfig) {
 	if o.DLQPath != nil {
 		dst.DLQPath = *o.DLQPath
 	}
-	if o.Model != nil {
-		dst.Model = *o.Model
-	}
 	o.Queue.Apply(&dst.Queue)
 }
 
@@ -38,12 +32,6 @@ func (o memoryExtractorQueueOverlay) Apply(dst *MemoryExtractorQueueConfig) {
 }
 
 func (o dreamOverlay) Apply(dst *DreamConfig) {
-	if o.Enabled != nil {
-		dst.Enabled = *o.Enabled
-	}
-	if o.Agent != nil {
-		dst.Agent = *o.Agent
-	}
 	if o.MinHours != nil {
 		dst.MinHours = *o.MinHours
 	}

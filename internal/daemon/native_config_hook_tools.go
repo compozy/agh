@@ -32,7 +32,10 @@ const (
 	nativeConfigHookToolsWorkspaceRootKey = "workspace_root"
 )
 
-const hookActionDisabled = "disabled"
+const (
+	hookActionDisabled = "disabled"
+	hookEnabledValue   = "enabled"
+)
 
 func (n *daemonNativeTools) configShow(
 	_ context.Context,

@@ -10,7 +10,8 @@ import {
   type HostedMcpConnection,
 } from "../fixtures/hosted-mcp";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
-import { sessionClarifySelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
+import { sessionWindow } from "../fixtures/os-navigation";
+import { sessionClarifySelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -99,7 +100,6 @@ test("operator answers a running clarification and unblocks the hosted-MCP call"
   runtime,
 }) => {
   assertLaunchRuntime(runtime);
-  const sessionUI = sessionLifecycleSelectors(appPage);
   const clarifyUI = sessionClarifySelectors(appPage);
 
   await useGlobalWorkspaceIfPrompted(appPage);
@@ -129,8 +129,10 @@ test("operator answers a running clarification and unblocks the hosted-MCP call"
     await appPage.goto(runtime.url(`/agents/${MOCK_AGENT}/sessions/${sessionId}`), {
       waitUntil: "domcontentloaded",
     });
+    const sessionWin = sessionWindow(appPage, sessionId);
+    const sessionUI = sessionWindowSelectors(sessionWin, appPage);
     // Keep the session live: the holding turn reports readiness then blocks until cancelled.
-    await expect(sessionUI.chatHeader).toBeVisible({ timeout: 20_000 });
+    await expect(sessionWin).toBeVisible({ timeout: 20_000 });
     await sessionUI.composerTextarea.fill("hold native approval");
     await sessionUI.composerTextarea.press("Enter");
     await expect(appPage.getByText("native approval ready")).toBeVisible({ timeout: 20_000 });

@@ -2,13 +2,17 @@ package contract
 
 import (
 	"encoding/json"
-
 	"fmt"
 	"strings"
 	"time"
 
 	heartbeatpkg "github.com/compozy/agh/internal/heartbeat"
 	soulpkg "github.com/compozy/agh/internal/soul"
+)
+
+const (
+	authoredContextModelField    = "model"
+	authoredContextProviderField = "provider"
 )
 
 func soulDiagnosticsPayload(items []soulpkg.Diagnostic) []AuthoredContextDiagnosticPayload {
@@ -164,7 +168,7 @@ func ownerSurfaceForAuthoredDiagnostic(code string, field string, section string
 	switch key {
 	case "tools", "tool", "capabilities", "capability":
 		return "capabilities.toml"
-	case "provider", "model", "permission", "permissions":
+	case authoredContextProviderField, authoredContextModelField, "permission", "permissions":
 		return "AGENT.md"
 	case "task", "tasks", "lease", "claim", "claim_token", "heartbeat":
 		return "task runtime"

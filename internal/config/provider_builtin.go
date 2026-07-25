@@ -110,7 +110,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Command:         piACPCommand,
 		DisplayName:     "Pi",
 		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: "anthropic",
+		RuntimeProvider: providerAnthropicKey,
 		AuthLoginCmd:    piACPAuthLoginCommand,
 		Models: ProviderModelsConfig{
 			Default: modelClaudeOpus47ID,

@@ -36,7 +36,13 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		return
 	}
 	name := aghconfig.NormalizeAgentName(c.Param("name"))
-	if aghconfig.NormalizeAgentName(req.Agent.Name) != name {
+	requestedName := aghconfig.NormalizeAgentName(req.Agent.Name)
+	if err := aghconfig.ValidateAuthoredAgentName(requestedName); err != nil {
+		wrapped := errors.Join(errAgentDefinitionInvalid, err)
+		h.respondError(c, statusForAgentDefinitionError(wrapped), wrapped)
+		return
+	}
+	if requestedName != name {
 		h.respondError(c, http.StatusBadRequest, errors.Join(
 			errAgentDefinitionInvalid,
 			fmt.Errorf("agent.name must equal route name %q", name),
@@ -178,8 +184,9 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errAgentDefinitionSyncUnavailable)
 		return
 	}
-	if err := aghconfig.ValidateAgentName(aghconfig.NormalizeAgentName(req.Name)); err != nil {
-		h.respondError(c, http.StatusBadRequest, errors.Join(errAgentDefinitionInvalid, err))
+	if err := aghconfig.ValidateAuthoredAgentName(aghconfig.NormalizeAgentName(req.Name)); err != nil {
+		wrapped := errors.Join(errAgentDefinitionInvalid, err)
+		h.respondError(c, statusForAgentDefinitionError(wrapped), wrapped)
 		return
 	}
 	source, err := h.resolveAgentDefinition(c.Request.Context(), req.Workspace, c.Param("name"))
@@ -396,6 +403,8 @@ func (h *BaseHandlers) logAgentMutationFailure(
 
 func statusForAgentDefinitionError(err error) int {
 	switch {
+	case errors.Is(err, aghconfig.ErrAgentNameReserved):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, errAgentDefinitionInvalid),
 		errors.Is(err, errCreateAgentRequestInvalid),
 		errors.Is(err, aghconfig.ErrInvalidAgentDefinition):

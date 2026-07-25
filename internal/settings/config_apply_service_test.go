@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
@@ -84,6 +86,172 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		}
 		if got, want := records[0].Actor, "http"; got != want {
 			t.Fatalf("Actor = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should persist role routing as a live apply with history", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		service := testService(t, homePaths, Dependencies{
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		roles := cfg.Roles
+		roles.MemoryExtractor.Model = "anthropic/claude-sonnet-4"
+
+		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionRoles},
+			Roles:          &roles,
+		})
+		if err != nil {
+			t.Fatalf("ApplySection(roles) error = %v", err)
+		}
+		if !result.Applied || result.Record.Lifecycle != lifecycle.Live ||
+			result.Record.Status != lifecycle.StatusApplied {
+			t.Fatalf("ApplySection(roles) = %#v, want applied live record", result)
+		}
+
+		persisted, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(persisted) error = %v", err)
+		}
+		if got, want := persisted.Roles.MemoryExtractor.Model, "anthropic/claude-sonnet-4"; got != want {
+			t.Fatalf("persisted roles.memory_extractor.model = %q, want %q", got, want)
+		}
+		active, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig() error = %v", err)
+		}
+		if active.Roles.MemoryExtractor.Model != persisted.Roles.MemoryExtractor.Model {
+			t.Fatalf(
+				"active roles.memory_extractor.model = %q, want persisted %q",
+				active.Roles.MemoryExtractor.Model,
+				persisted.Roles.MemoryExtractor.Model,
+			)
+		}
+		active.Roles.MemoryExtractor.FallbackChain = append(
+			active.Roles.MemoryExtractor.FallbackChain,
+			aghconfig.RoleFallback{Provider: "mutated", Model: "mutated"},
+		)
+		active.RoleSources[aghconfig.RoleMemoryExtractor]["model"] = "mutated"
+		isolated, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(after caller mutation) error = %v", err)
+		}
+		if slices.ContainsFunc(isolated.Roles.MemoryExtractor.FallbackChain, func(
+			fallback aghconfig.RoleFallback,
+		) bool {
+			return fallback.Provider == "mutated"
+		}) || isolated.RoleSources[aghconfig.RoleMemoryExtractor]["model"] == "mutated" {
+			t.Fatalf("ActiveConfig() retained caller-owned role state: %#v", isolated)
+		}
+		records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{})
+		if err != nil {
+			t.Fatalf("ListApplyRecords() error = %v", err)
+		}
+		if len(records) != 1 || records[0].Actor != "http" || records[0].Lifecycle != lifecycle.Live {
+			t.Fatalf("role apply records = %#v, want one HTTP live record", records)
+		}
+	})
+
+	t.Run("Should replace workspace role fallbacks through the scoped section contract", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		workspaceID := "ws-roles"
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		service := testService(t, homePaths, Dependencies{
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				workspaceID: {
+					Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot},
+				},
+			}},
+		})
+		cfg, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("LoadForHome(workspace) error = %v", err)
+		}
+		roles := cfg.Roles
+		roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
+			Provider: "codex", Model: "gpt-5-mini", ReasoningEffort: "medium",
+		}}
+
+		result, err := service.ApplySection(WithMutationSource(ctx, "uds"), SectionUpdateRequest{
+			SectionRequest: SectionRequest{
+				Section: SectionRoles, Scope: ScopeWorkspace, WorkspaceID: workspaceID,
+			},
+			Roles: &roles,
+		})
+		if err != nil {
+			t.Fatalf("ApplySection(workspace roles) error = %v", err)
+		}
+		if !result.Applied || result.Scope != ScopeWorkspace || result.WorkspaceID != workspaceID ||
+			result.WriteTarget != WriteTargetWorkspaceConfig {
+			t.Fatalf("ApplySection(workspace roles) = %#v, want applied workspace config", result)
+		}
+
+		persisted, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("LoadForHome(persisted workspace) error = %v", err)
+		}
+		if !reflect.DeepEqual(persisted.Roles.AutoTitle.FallbackChain, roles.AutoTitle.FallbackChain) {
+			t.Fatalf(
+				"workspace fallback chain = %#v, want %#v",
+				persisted.Roles.AutoTitle.FallbackChain,
+				roles.AutoTitle.FallbackChain,
+			)
+		}
+
+		envelope, err := service.GetSection(ctx, SectionRequest{
+			Section: SectionRoles, Scope: ScopeWorkspace, WorkspaceID: workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("GetSection(workspace roles) error = %v", err)
+		}
+		if envelope.Scope != ScopeWorkspace ||
+			!reflect.DeepEqual(envelope.AvailableScopes, []ScopeKind{ScopeGlobal, ScopeWorkspace}) {
+			t.Fatalf("GetSection(workspace roles) envelope = %#v", envelope)
+		}
+	})
+
+	t.Run("Should treat nil and empty role fallback chains as unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		current := aghconfig.DefaultRolesConfig()
+		desired := aghconfig.CloneRolesConfig(&current)
+		desired.Dream.FallbackChain = make([]aghconfig.RoleFallback, 0)
+		desired.MemoryController.FallbackChain = make([]aghconfig.RoleFallback, 0)
+		if changed := diffRolesSettings(&current, &desired); len(changed) != 0 {
+			t.Fatalf("diffRolesSettings() = %#v, want no changes", changed)
 		}
 	})
 
@@ -815,6 +983,22 @@ func TestReloadChangedPaths(t *testing.T) {
 		}
 		if got := reloadChangedPaths(current, &desired); !slices.Equal(got, want) {
 			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should classify role mutations as live", func(t *testing.T) {
+		t.Parallel()
+
+		current := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+		desired := current
+		desired.Roles.AutoTitle.Enabled = false
+
+		want := []string{"roles.auto_title.enabled"}
+		if got := reloadChangedPaths(&current, &desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(&current, &desired); got != lifecycle.Live {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)
 		}
 	})
 

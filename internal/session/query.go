@@ -99,7 +99,7 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	}
 
 	if session, ok := m.Get(target); ok {
-		return normalizeExpiredSessionAttach(session.Info(), m.now()), nil
+		return normalizeExpiredSessionAttach(m.sessionInfoForRead(session), m.now()), nil
 	}
 
 	meta, err := m.readMetaWithContext(ctx, target)

@@ -290,6 +290,39 @@ func TestNativeAgentCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve a publisher wired after native registry construction", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg.Defaults.Provider = "claude"
+		cfg.Providers["claude"] = aghconfig.ProviderConfig{Command: "claude"}
+		var publisher agentSkillPublisher
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			HomePaths:  homePaths,
+			Config:     cfg,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			AgentSkillsRuntime: func() agentSkillPublisher {
+				return publisher
+			},
+		}, nativeApproveAllPolicyInputs())
+		publisher = agentSkillPublisherFunc(func(context.Context) error { return nil })
+
+		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCreate,
+			Input: json.RawMessage(
+				`{"scope":"global","name":"late-publisher","provider":"claude","prompt":"Late publisher."}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(agent_create late publisher) error = %v", err)
+		}
+		path := filepath.Join(homePaths.AgentsDir, "late-publisher", aghconfig.AgentDefinitionFileName)
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("os.Stat(late-publisher agent) error = %v", err)
+		}
+	})
+
 	t.Run("Should roll back a failed sync and allow a clean retry", func(t *testing.T) {
 		t.Parallel()
 
@@ -372,6 +405,27 @@ func TestNativeAgentCreate(t *testing.T) {
 			),
 		})
 		requireToolReason(t, err, toolspkg.ErrToolConflict, toolspkg.ReasonConflictedID)
+	})
+
+	t.Run("Should reject a reserved agent name through the shared authoring path", func(t *testing.T) {
+		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCreate,
+			Input: json.RawMessage(
+				`{"scope":"global","name":"coordinator","provider":"claude","prompt":"Reserved."}`,
+			),
+		})
+		if !errors.Is(err, aghconfig.ErrAgentNameReserved) {
+			t.Fatalf("Registry.Call(agent_create reserved) error = %v, want ErrAgentNameReserved", err)
+		}
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeAgentNameReserved {
+			t.Fatalf("Registry.Call(agent_create reserved) error = %#v, want agent_name_reserved", err)
+		}
+		path := filepath.Join(homePaths.AgentsDir, "coordinator")
+		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(reserved agent directory) error = %v, want os.ErrNotExist", statErr)
+		}
 	})
 
 	t.Run("Should inherit the configured runtime when the request omits overrides", func(t *testing.T) {

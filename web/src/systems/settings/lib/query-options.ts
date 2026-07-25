@@ -12,8 +12,10 @@ import {
   getSettingsObservability,
   getSettingsProvider,
   getSettingsRestartStatus,
+  getSettingsRoles,
   getSettingsSkills,
   getSettingsUpdate,
+  getRolesStatus,
   listSettingsApplyRecords,
   listSettingsSandboxes,
   listSettingsHooks,
@@ -71,6 +73,26 @@ export function settingsMemoryOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("memory"),
     queryFn: ({ signal }) => getSettingsMemory(signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsRolesStatusOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.rolesStatus(),
+    queryFn: ({ signal }) => getRolesStatus(signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsRolesOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.section("roles"),
+    queryFn: ({ signal }) => getSettingsRoles(signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

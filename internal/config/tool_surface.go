@@ -68,7 +68,6 @@ var (
 		toolSurfaceAgentsHeartbeatSessionHealthStaleAfterPath:      ConfigValueDuration,
 		toolSurfaceAgentsHeartbeatSessionHealthHookMinIntervalPath: ConfigValueDuration,
 		"limits.max_concurrent_agents":                             ConfigValueInt,
-		"session.auto_title_enabled":                               ConfigValueBool,
 		"session.limits.timeout":                                   ConfigValueDuration,
 		"session.supervision.activity_heartbeat_interval":          ConfigValueDuration,
 		"session.supervision.progress_notify_interval":             ConfigValueDuration,
@@ -89,12 +88,6 @@ var (
 		"memory.controller.mode":                                   ConfigValueString,
 		"memory.controller.max_latency":                            ConfigValueDuration,
 		"memory.controller.default_op_on_fail":                     ConfigValueString,
-		"memory.controller.llm.enabled":                            ConfigValueBool,
-		"memory.controller.llm.model":                              ConfigValueString,
-		"memory.controller.llm.top_k":                              ConfigValueInt,
-		"memory.controller.llm.prompt_version":                     ConfigValueString,
-		"memory.controller.llm.timeout":                            ConfigValueDuration,
-		"memory.controller.llm.max_tokens_out":                     ConfigValueInt,
 		"memory.controller.policy.max_content_chars":               ConfigValueInt,
 		"memory.controller.policy.max_writes_per_min":              ConfigValueInt,
 		"memory.controller.policy.allow_origins":                   ConfigValueStringSlice,
@@ -114,16 +107,12 @@ var (
 		"memory.decisions.prune_after_applied_days":                ConfigValueInt,
 		"memory.decisions.keep_audit_summary":                      ConfigValueBool,
 		"memory.decisions.max_post_content_bytes":                  ConfigValueInt64,
-		"memory.extractor.enabled":                                 ConfigValueBool,
 		"memory.extractor.mode":                                    ConfigValueString,
 		"memory.extractor.throttle_turns":                          ConfigValueInt,
 		"memory.extractor.deadline":                                ConfigValueDuration,
 		"memory.extractor.sandbox_inbox_only":                      ConfigValueBool,
-		"memory.extractor.model":                                   ConfigValueString,
 		"memory.extractor.queue.capacity":                          ConfigValueInt,
 		configExtractorQueueCoalesceMaxPath:                        ConfigValueInt,
-		"memory.dream.enabled":                                     ConfigValueBool,
-		"memory.dream.agent":                                       ConfigValueString,
 		"memory.dream.min_hours":                                   ConfigValueFloat,
 		"memory.dream.min_sessions":                                ConfigValueInt,
 		"memory.dream.debounce":                                    ConfigValueDuration,
@@ -184,7 +173,7 @@ var (
 		toolSurfaceToolsArtifactsMaxAgePath:                        ConfigValueDuration,
 		toolSurfaceToolsArtifactsMaxBytesPath:                      ConfigValueInt64,
 		toolSurfaceToolsArtifactsMaxCountPath:                      ConfigValueInt,
-	}, automationToolPathKinds(), loopAndGoalToolPathKinds(), taskToolSurfaceMutableConfigKinds())
+	}, roleMutableConfigKinds, automationToolPathKinds(), loopAndGoalToolPathKinds(), taskToolSurfaceMutableConfigKinds())
 )
 
 // RedactedConfigMap converts config to the same redacted map shape used by operator-facing CLI output.
@@ -345,6 +334,12 @@ func NormalizeToolConfigValue(kind ValueKind, value any) (any, error) {
 		return trimmed, nil
 	case ConfigValueStringSlice:
 		return coerceConfigStringSlice(value)
+	case ConfigValueTable:
+		table, ok := value.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("config: expected object value, got %T", value)
+		}
+		return normalizeTreeValue(table)
 	default:
 		return nil, fmt.Errorf("config: unsupported config value kind %d", kind)
 	}

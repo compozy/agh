@@ -1953,6 +1953,80 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject an exactly reserved name without creating a directory", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents",
+			mustJSON(t, contract.CreateAgentRequest{
+				Scope: contract.AgentCreateScopeGlobal,
+				Agent: contract.CreateAgentPayload{
+					Name: "coordinator", Provider: "codex", Prompt: "Do not persist.",
+				},
+			}),
+		)
+		if resp.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("reserved create status = %d, want 422; body=%s", resp.Code, resp.Body.String())
+		}
+		var payload contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Diagnostic == nil || payload.Diagnostic.Code != contract.CodeAgentNameReserved {
+			t.Fatalf("reserved create payload = %#v, want agent_name_reserved", payload)
+		}
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coordinator")
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(reserved agent directory) error = %v, want os.ErrNotExist", err)
+		}
+	})
+
+	t.Run("Should allow a name whose prefix matches a reserved identity", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.AgentDefinitionSync = &recordingAgentDefinitionSync{}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents",
+			mustJSON(t, contract.CreateAgentRequest{
+				Scope: contract.AgentCreateScopeGlobal,
+				Agent: contract.CreateAgentPayload{
+					Name: "coordinator-helper", Provider: "codex", Prompt: "Persist exactly.",
+				},
+			}),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("prefixed create status = %d, want 201; body=%s", resp.Code, resp.Body.String())
+		}
+		path := filepath.Join(
+			fixture.HomePaths.AgentsDir,
+			"coordinator-helper",
+			aghconfig.AgentDefinitionFileName,
+		)
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("os.Stat(prefixed agent) error = %v", err)
+		}
+	})
+
 	t.Run("Should reject an inherited runtime when the target scope has no provider default", func(t *testing.T) {
 		t.Parallel()
 
@@ -2514,6 +2588,87 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 					t.Fatalf("update status = %d, want %d; body=%s", resp.Code, tc.wantStatus, resp.Body.String())
 				}
 			})
+		}
+	})
+
+	t.Run("Should reject reserved update and duplicate targets without touching authored state", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+		current, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Original.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile() error = %v", err)
+		}
+		digest, err := aghconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatalf("AgentDefinitionDigest() error = %v", err)
+		}
+
+		update := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/coder",
+			mustJSON(t, contract.UpdateAgentRequest{
+				Agent: contract.CreateAgentPayload{
+					Name: "dreaming-curator", Provider: "codex", Prompt: "Replacement.",
+				},
+				ExpectedDigest: digest,
+			}),
+		)
+		if update.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("reserved update status = %d, want 422; body=%s", update.Code, update.Body.String())
+		}
+		var updatePayload contract.ErrorPayload
+		decodeJSON(t, update.Body.Bytes(), &updatePayload)
+		if updatePayload.Diagnostic == nil || updatePayload.Diagnostic.Code != contract.CodeAgentNameReserved {
+			t.Fatalf("reserved update payload = %#v, want agent_name_reserved", updatePayload)
+		}
+		unchanged, err := aghconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile(original) error = %v", err)
+		}
+		unchangedDigest, err := aghconfig.AgentDefinitionDigest(unchanged)
+		if err != nil {
+			t.Fatalf("AgentDefinitionDigest(unchanged) error = %v", err)
+		}
+		if unchanged.Prompt != "Original." || unchangedDigest != digest {
+			t.Fatalf(
+				"reserved update changed agent/digest = %#v/%q, want original/%q",
+				unchanged,
+				unchangedDigest,
+				digest,
+			)
+		}
+
+		duplicate := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents/coder/duplicate",
+			mustJSON(t, contract.DuplicateAgentRequest{Name: "coordinator"}),
+		)
+		if duplicate.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("reserved duplicate status = %d, want 422; body=%s", duplicate.Code, duplicate.Body.String())
+		}
+		var duplicatePayload contract.ErrorPayload
+		decodeJSON(t, duplicate.Body.Bytes(), &duplicatePayload)
+		if duplicatePayload.Diagnostic == nil || duplicatePayload.Diagnostic.Code != contract.CodeAgentNameReserved {
+			t.Fatalf("reserved duplicate payload = %#v, want agent_name_reserved", duplicatePayload)
+		}
+		reservedPath := filepath.Join(fixture.HomePaths.AgentsDir, "coordinator")
+		if _, err := os.Stat(reservedPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(reserved duplicate directory) error = %v, want os.ErrNotExist", err)
 		}
 	})
 
@@ -3347,6 +3502,10 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 					},
 					"beta":  {Total: 1},
 					"gamma": {Total: 3, Active: 2},
+					"coordinator": {
+						Total:  99,
+						Active: 99,
+					},
 				}, nil
 			},
 		}

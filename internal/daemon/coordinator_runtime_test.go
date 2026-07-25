@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -129,6 +130,63 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	if got := hooks.spawnedPayload(0).Model; got != "gpt-5" {
 		t.Fatalf("spawned hook model = %q, want gpt-5", got)
 	}
+}
+
+func TestCoordinatorRuntimeEmitsRoleFallbackEvents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit the fallback before creating the coordinator on its next route", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &coordinatorFallbackSessions{
+			coordinatorRuntimeSessions: &coordinatorRuntimeSessions{},
+			primaryErr:                 errors.New("primary coordinator route unavailable"),
+		}
+		events := &roleEventRecorder{}
+		runtime, err := newCoordinatorRuntime(
+			t.Context(),
+			newCoordinatorRuntimeStore(coordinatorRuntimeTask(), coordinatorRuntimeRun()),
+			sessions,
+			&staticCoordinatorRoleResolver{cfg: coordinatorRuntimeConfig()},
+			nil,
+			discardLogger(),
+			func() time.Time { return time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC) },
+			withCoordinatorRoleEvents(events),
+		)
+		if err != nil {
+			t.Fatalf("newCoordinatorRuntime() error = %v", err)
+		}
+		cfg := coordinatorRuntimeConfig()
+		cfg.Fallbacks = []aghconfig.RoleFallback{{Provider: "claude", Model: "sonnet"}}
+		info, err := runtime.startCoordinatorSession(
+			t.Context(),
+			coordinator.Decision{WorkspaceID: "ws-1"},
+			cfg,
+			participation.LocalSpec(),
+		)
+		if err != nil {
+			t.Fatalf("startCoordinatorSession() error = %v", err)
+		}
+		if info == nil || info.Provider != "claude" || info.Model != "sonnet" {
+			t.Fatalf("startCoordinatorSession() = %#v, want fallback route", info)
+		}
+		attempts := sessions.snapshotAttempts()
+		if len(attempts) != 2 || attempts[0].Provider != "codex" || attempts[1].Provider != "claude" {
+			t.Fatalf("coordinator route attempts = %#v, want codex then claude", attempts)
+		}
+		event := events.single(t)
+		if event.Type != "role.fallback.used" || event.WorkspaceID != "ws-1" {
+			t.Fatalf("coordinator fallback event = %#v", event)
+		}
+		var payload roleFallbackEventPayload
+		if err := json.Unmarshal(event.Content, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(fallback event) error = %v", err)
+		}
+		if payload.Role != string(aghconfig.RoleCoordinator) || payload.Attempt != 1 ||
+			payload.Provider != "claude" || payload.Model != "sonnet" {
+			t.Fatalf("coordinator fallback payload = %#v", payload)
+		}
+	})
 }
 
 func TestCoordinatorRuntimeBindsLiveParticipationToCoordinatorLifecycle(t *testing.T) {
@@ -289,14 +347,14 @@ func TestCoordinatorRuntimeSkipsIneligibleRuns(t *testing.T) {
 		name       string
 		task       taskpkg.Task
 		run        taskpkg.Run
-		cfg        aghconfig.CoordinatorConfig
+		cfg        aghconfig.ResolvedCoordinatorRole
 		wantReason string
 	}{
 		{
 			name:       "disabled config",
 			task:       coordinatorRuntimeTask(),
 			run:        coordinatorRuntimeRun(),
-			cfg:        aghconfig.DefaultCoordinatorConfig(),
+			cfg:        aghconfig.DefaultResolvedCoordinatorRole(),
 			wantReason: coordinator.DecisionDisabled,
 		},
 		{
@@ -742,7 +800,7 @@ func newCoordinatorRuntimeForTest(
 	store *coordinatorRuntimeStore,
 	sessions *coordinatorRuntimeSessions,
 	hooks *recordingCoordinatorHooks,
-	cfg aghconfig.CoordinatorConfig,
+	cfg aghconfig.ResolvedCoordinatorRole,
 	now time.Time,
 ) *coordinatorRuntime {
 	t.Helper()
@@ -750,7 +808,7 @@ func newCoordinatorRuntimeForTest(
 		context.Background(),
 		store,
 		sessions,
-		&staticCoordinatorConfigResolver{cfg: cfg},
+		&staticCoordinatorRoleResolver{cfg: cfg},
 		hooks,
 		discardLogger(),
 		func() time.Time { return now },
@@ -761,13 +819,13 @@ func newCoordinatorRuntimeForTest(
 	return runtime
 }
 
-func coordinatorRuntimeConfig() aghconfig.CoordinatorConfig {
-	cfg := aghconfig.DefaultCoordinatorConfig()
+func coordinatorRuntimeConfig() aghconfig.ResolvedCoordinatorRole {
+	cfg := aghconfig.DefaultResolvedCoordinatorRole()
 	cfg.Enabled = true
 	cfg.AgentName = "coordinator"
 	cfg.Provider = "codex"
 	cfg.Model = "gpt-5"
-	cfg.DefaultTTL = 2 * time.Hour
+	cfg.TTL = 2 * time.Hour
 	cfg.MaxChildren = 5
 	cfg.MaxActiveSessionsPerWorkspace = 5
 	return cfg
@@ -794,22 +852,22 @@ func coordinatorRuntimeRun() taskpkg.Run {
 	return run
 }
 
-type staticCoordinatorConfigResolver struct {
-	cfg aghconfig.CoordinatorConfig
+type staticCoordinatorRoleResolver struct {
+	cfg aghconfig.ResolvedCoordinatorRole
 	err error
 	mu  sync.Mutex
 	got []string
 }
 
-func (r *staticCoordinatorConfigResolver) ResolveCoordinatorConfig(
+func (r *staticCoordinatorRoleResolver) ResolveCoordinatorRole(
 	_ context.Context,
 	workspaceID string,
-) (aghconfig.CoordinatorConfig, error) {
+) (aghconfig.ResolvedCoordinatorRole, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.got = append(r.got, workspaceID)
 	if r.err != nil {
-		return aghconfig.CoordinatorConfig{}, r.err
+		return aghconfig.ResolvedCoordinatorRole{}, r.err
 	}
 	return r.cfg, nil
 }
@@ -880,6 +938,33 @@ type coordinatorRuntimeSessions struct {
 	promptRelease <-chan struct{}
 	stopCalls     []coordinatorRuntimeStopCall
 	stopErr       error
+}
+
+type coordinatorFallbackSessions struct {
+	*coordinatorRuntimeSessions
+	mu         sync.Mutex
+	primaryErr error
+	attempts   []session.CreateOpts
+}
+
+func (s *coordinatorFallbackSessions) Create(
+	ctx context.Context,
+	opts session.CreateOpts,
+) (*session.Session, error) {
+	s.mu.Lock()
+	s.attempts = append(s.attempts, opts)
+	attempt := len(s.attempts)
+	s.mu.Unlock()
+	if attempt == 1 {
+		return nil, s.primaryErr
+	}
+	return s.coordinatorRuntimeSessions.Create(ctx, opts)
+}
+
+func (s *coordinatorFallbackSessions) snapshotAttempts() []session.CreateOpts {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]session.CreateOpts(nil), s.attempts...)
 }
 
 type coordinatorRuntimePromptCall struct {

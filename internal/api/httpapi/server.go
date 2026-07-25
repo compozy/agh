@@ -2,12 +2,10 @@ package httpapi
 
 import (
 	"context"
-
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
-
 	"sync"
 	"time"
 
@@ -78,7 +76,8 @@ type Server struct {
 	modelCatalog       core.ModelCatalogService
 	marketplaceCatalog core.MarketplaceCatalogService
 	agentContext       core.AgentContextService
-	coordinatorConfig  core.CoordinatorConfigResolver
+	coordinatorRole    core.CoordinatorRoleResolver
+	roles              core.RolesStatusProvider
 	soulAuthoring      core.SoulAuthoringService
 	soulHistoryPurger  core.SoulHistoryPurger
 	soulRefresher      core.SoulRefresher
@@ -225,10 +224,17 @@ func WithAgentContext(service core.AgentContextService) Option {
 	}
 }
 
-// WithCoordinatorConfig injects the resolved coordinator policy reader.
-func WithCoordinatorConfig(resolver core.CoordinatorConfigResolver) Option {
+// WithCoordinatorRole injects the resolved coordinator policy reader.
+func WithCoordinatorRole(resolver core.CoordinatorRoleResolver) Option {
 	return func(server *Server) {
-		server.coordinatorConfig = resolver
+		server.coordinatorRole = resolver
+	}
+}
+
+// WithRolesStatusProvider injects the effective role configuration reader.
+func WithRolesStatusProvider(provider core.RolesStatusProvider) Option {
+	return func(server *Server) {
+		server.roles = provider
 	}
 }
 

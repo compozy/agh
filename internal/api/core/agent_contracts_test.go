@@ -113,19 +113,19 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 func TestCoordinatorConfigPayloadFromConfig(t *testing.T) {
 	t.Parallel()
 
-	baseConfig := aghconfig.CoordinatorConfig{
+	baseConfig := aghconfig.ResolvedCoordinatorRole{
 		Enabled:                       true,
 		AgentName:                     " coordinator ",
 		Provider:                      " codex ",
 		Model:                         " gpt-5.4 ",
-		DefaultTTL:                    90 * time.Minute,
+		TTL:                           90 * time.Minute,
 		MaxChildren:                   5,
 		MaxActiveSessionsPerWorkspace: 5,
 	}
 
 	tests := []struct {
 		name        string
-		cfg         aghconfig.CoordinatorConfig
+		cfg         aghconfig.ResolvedCoordinatorRole
 		source      contract.CoordinatorConfigSource
 		workspaceID string
 		assert      func(*testing.T, contract.CoordinatorConfigPayload)
@@ -172,7 +172,7 @@ func TestCoordinatorConfigPayloadFromConfig(t *testing.T) {
 		},
 		{
 			name:        "Should preserve disabled configs",
-			cfg:         aghconfig.CoordinatorConfig{Enabled: false},
+			cfg:         aghconfig.ResolvedCoordinatorRole{Enabled: false},
 			source:      contract.CoordinatorConfigSourceDefault,
 			workspaceID: "",
 			assert: func(t *testing.T, payload contract.CoordinatorConfigPayload) {

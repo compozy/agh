@@ -344,7 +344,7 @@ func (n *daemonNativeTools) extensionService() *daemonExtensionService {
 		n.deps.ExtensionRegistry,
 		runtime,
 		n.deps.HookBindings,
-		n.deps.AgentSkills,
+		n.deps.agentSkills(),
 		n.deps.ToolMCP,
 		n.deps.BundleResources,
 		n.deps.LoopResources,

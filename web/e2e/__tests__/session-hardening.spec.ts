@@ -7,7 +7,8 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { sessionLifecycleSelectors } from "../fixtures/selectors";
+import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import {
   cleanupBrowserSettingsFixtures,
   seedBrowserSettingsFixtures,
@@ -148,7 +149,8 @@ test("first document navigation to a canonical session route loads the app shell
     waitUntil: "domcontentloaded",
   });
 
-  const ui = sessionLifecycleSelectors(page);
+  const sessionWin = sessionWindow(page, session.id);
+  const ui = sessionWindowSelectors(sessionWin, page);
   await expect
     .poll(async () => ({
       osDesktopVisible: await page.getByTestId("os-desktop").isVisible(),
@@ -180,25 +182,26 @@ test("E2E-009: operator pages an oversized tool result to its retained tail", as
   await appPage.goto(runtime.url(sessionPath(toolArtifactAgent, session.id)), {
     waitUntil: "domcontentloaded",
   });
-  const ui = sessionLifecycleSelectors(appPage);
-  await expect(ui.chatHeader).toBeVisible();
+  const sessionWin = sessionWindow(appPage, session.id);
+  const ui = sessionWindowSelectors(sessionWin, appPage);
+  await expect(sessionWin).toBeVisible();
   await ui.composerTextarea.fill("exercise tool artifact recovery");
   await ui.composerTextarea.press("Enter");
 
   await expect(ui.chatView).toContainText("Retained result is ready for page-back.");
-  await appPage.getByTestId("turn-fold-row").click();
-  await appPage.getByRole("button", { name: "Toggle tool call (success)" }).click();
+  await sessionWin.getByTestId("turn-fold-row").click();
+  await sessionWin.getByRole("button", { name: "Toggle tool call (success)" }).click();
   await expect(ui.chatView).toContainText("E2E-009 bounded retained-result preview");
-  await appPage.getByRole("button", { name: "Open full result" }).click();
-  const loadMore = appPage.getByRole("button", { name: "Load more" });
+  await sessionWin.getByRole("button", { name: "Open full result" }).click();
+  const loadMore = sessionWin.getByRole("button", { name: "Load more" });
   await expect(loadMore).toBeVisible();
   await loadMore.click();
   await expect(loadMore).toBeEnabled();
   await loadMore.click();
 
   await expect(loadMore).toBeHidden();
-  await expect(appPage.getByTestId("full-tool-result")).toContainText(toolArtifactTail);
-  await expect(appPage.getByText("140,084 of 140,084 bytes")).toBeVisible();
+  await expect(sessionWin.getByTestId("full-tool-result")).toContainText(toolArtifactTail);
+  await expect(sessionWin.getByText("140,084 of 140,084 bytes")).toBeVisible();
   expect(artifactOffsets).toEqual(["0", "65536", "131072"]);
 });
 
@@ -239,8 +242,9 @@ test("operator rejects a permission request, records tool output, and keeps sess
     waitUntil: "domcontentloaded",
   });
 
-  const ui = sessionLifecycleSelectors(appPage);
-  await expect(ui.chatHeader).toBeVisible();
+  const sessionWin = sessionWindow(appPage, session.id);
+  const ui = sessionWindowSelectors(sessionWin, appPage);
+  await expect(sessionWin).toBeVisible();
   sampleDeepLinkLoading = false;
   await deepLinkLoadingSampler;
   await expect
@@ -254,14 +258,14 @@ test("operator rejects a permission request, records tool output, and keeps sess
 
   await expect(ui.chatView).toContainText("Permission hardening started.");
   await expect(ui.permissionPrompt).toBeVisible();
-  await expect(appPage.getByTestId("permission-tool-input")).toContainText("hardening.txt");
+  await expect(sessionWin.getByTestId("permission-tool-input")).toContainText("hardening.txt");
 
   const approvalResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
       response.url().endsWith(sessionAPIPath(workspace.id, session.id, "/approve"))
   );
-  await appPage.getByTestId("permission-reject-always").click();
+  await sessionWin.getByTestId("permission-reject-always").click();
   expect((await approvalResponsePromise).ok()).toBe(true);
 
   await expect(ui.permissionPrompt).toBeHidden();
@@ -308,8 +312,9 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
     waitUntil: "domcontentloaded",
   });
 
-  const ui = sessionLifecycleSelectors(appPage);
-  await expect(ui.chatHeader).toBeVisible();
+  const sessionWin = sessionWindow(appPage, session.id);
+  const ui = sessionWindowSelectors(sessionWin, appPage);
+  await expect(sessionWin).toBeVisible();
   await ui.composerTextarea.fill("block until canceled");
   await ui.composerTextarea.press("Enter");
   await expect(ui.chatView).toContainText("block until canceled");
@@ -343,7 +348,7 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   expect((await clearResponsePromise).ok()).toBe(true);
   await expect(ui.chatView).not.toContainText("block until canceled");
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(ui.chatHeader).toBeVisible();
+  await expect(sessionWin).toBeVisible();
   await expect(ui.chatView).not.toContainText("block until canceled");
 
   const afterClear = await captureSessionSnapshot(runtime, workspace.id, session.id);
@@ -353,9 +358,11 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   await appPage.goto(runtime.url(sessionPath(faultAgent, deletableSession.id)), {
     waitUntil: "domcontentloaded",
   });
-  await expect(ui.chatHeader).toBeVisible();
-  await ui.topbarOverflow.click();
-  await ui.deleteButton.click();
+  const deletableWin = sessionWindow(appPage, deletableSession.id);
+  const deletableUi = sessionWindowSelectors(deletableWin, appPage);
+  await expect(deletableWin).toBeVisible();
+  await deletableUi.topbarOverflow.click();
+  await deletableUi.deleteButton.click();
   await expect(appPage.getByTestId("delete-dialog")).toBeVisible();
   const deleteResponsePromise = appPage.waitForResponse(
     response =>
@@ -406,8 +413,9 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
     waitUntil: "domcontentloaded",
   });
 
-  const ui = sessionLifecycleSelectors(appPage);
-  await expect(ui.chatHeader).toBeVisible();
+  const sessionWin = sessionWindow(appPage, session.id);
+  const ui = sessionWindowSelectors(sessionWin, appPage);
+  await expect(sessionWin).toBeVisible();
   await ui.composerTextarea.fill("trigger crash mid-stream");
   await ui.composerTextarea.press("Enter");
   await expect(ui.chatView).toContainText("partial before crash", { timeout: 15_000 });
@@ -469,20 +477,21 @@ test("operator sees the daemon-generated session title and the file-mutation ver
     waitUntil: "domcontentloaded",
   });
 
-  const ui = sessionLifecycleSelectors(appPage);
-  await expect(ui.chatHeader).toBeVisible();
+  const sessionWin = sessionWindow(appPage, session.id);
+  const ui = sessionWindowSelectors(sessionWin, appPage);
+  await expect(sessionWin).toBeVisible();
   await ui.composerTextarea.fill("Implement checkout retry fencing");
   await ui.composerTextarea.press("Enter");
 
   await expect(ui.chatView).toContainText("Implemented checkout retry fencing.");
 
-  const markerNotice = appPage.getByTestId("transcript-marker-notice");
+  const markerNotice = sessionWin.getByTestId("transcript-marker-notice");
   await expect(markerNotice).toBeVisible();
   await expect(markerNotice).toHaveAttribute("data-tone", "warning");
-  await expect(appPage.getByTestId("transcript-marker-kind")).toContainText(
+  await expect(sessionWin.getByTestId("transcript-marker-kind")).toContainText(
     "transcript_marker.file_mutation_unverified"
   );
-  await expect(appPage.getByTestId("transcript-marker-summary")).toContainText(
+  await expect(sessionWin.getByTestId("transcript-marker-summary")).toContainText(
     "file mutation failed and was not recovered"
   );
   await browserArtifacts.captureScreenshot("session-auto-title-verifier-marker", appPage);
@@ -584,11 +593,7 @@ test.describe("E2E-010 truthful session cost provenance by auth mode", () => {
       await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
       await useGlobalWorkspaceIfPrompted(ui);
       await expect(ui.osDesktop).toBeVisible();
-      await appPage.getByTestId(`workspace-avatar-${workspace.id}`).click();
-      await expect(appPage.getByTestId(`workspace-avatar-${workspace.id}`)).toHaveAttribute(
-        "data-active",
-        "true"
-      );
+      await switchWorkspace(appPage, workspace.id, workspace.name);
       await appPage.setViewportSize({ width: 1440, height: 900 });
 
       const estimated = await openUsageCostForProvider(appPage, runtime, workspace.id, {
@@ -621,17 +626,18 @@ async function openUsageCostForProvider(
   workspaceID: string,
   opts: { provider: string; model: string; status: string }
 ): Promise<import("@playwright/test").Locator> {
-  const ui = sessionLifecycleSelectors(page);
   const session = await createProviderSession(runtime, workspaceID, opts.provider, opts.model);
 
   await page.goto(runtime.url(sessionPath(costProvenanceAgent, session.id)), {
     waitUntil: "domcontentloaded",
   });
-  await expect(ui.chatHeader).toBeVisible();
-  await expect(ui.composerTextarea).toBeEnabled();
-  await ui.composerTextarea.fill(costProvenancePrompt);
-  await ui.composerTextarea.press("Enter");
-  await expect(ui.chatView).toContainText("Cost provenance run recorded.");
+  const sessionWin = sessionWindow(page, session.id);
+  const sessionUi = sessionWindowSelectors(sessionWin, page);
+  await expect(sessionWin).toBeVisible();
+  await expect(sessionUi.composerTextarea).toBeEnabled();
+  await sessionUi.composerTextarea.fill(costProvenancePrompt);
+  await sessionUi.composerTextarea.press("Enter");
+  await expect(sessionUi.chatView).toContainText("Cost provenance run recorded.");
 
   await expect
     .poll(
@@ -648,9 +654,10 @@ async function openUsageCostForProvider(
   // The page-level usage query stops refetching once the session goes idle, so
   // reload to mount the inspector against the now-populated usage summary.
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(ui.chatHeader).toBeVisible();
-  await page.getByTestId("session-inspector-tab-usage").click();
-  return page.getByTestId("session-inspector-usage-cost");
+  await expect(sessionWin).toBeVisible();
+  await sessionWin.getByTestId("session-inspector-toggle").click();
+  await sessionWin.getByTestId("session-inspector-tab-usage").click();
+  return sessionWin.getByTestId("session-inspector-usage-cost");
 }
 
 async function createProviderSession(

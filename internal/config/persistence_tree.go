@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-
 	"strings"
 
 	tomltree "github.com/pelletier/go-toml"
@@ -27,7 +26,7 @@ func validateEffectiveConfigWrite(
 	if err != nil {
 		return Config{}, err
 	}
-	if err := globalOverlay.Apply(&cfg); err != nil {
+	if err := applyConfigOverlay(&cfg, &globalOverlay, RoleFieldSourceGlobal); err != nil {
 		return Config{}, fmt.Errorf("apply global config overlay: %w", err)
 	}
 	if err := applyConfigMCPSidecarContent(globalMCPJSONFile(homePaths), target, rendered, &cfg); err != nil {
@@ -151,6 +150,8 @@ func normalizeTreeEntry(key string, value any) (any, error) {
 			items = append(items, stringMapToAny(item))
 		}
 		return normalizeTreeEntry(key, items)
+	case []any:
+		return normalizeUntypedTreeSlice(key, typed)
 	default:
 		normalized, err := normalizeTOMLValue(typed)
 		if err != nil {
@@ -158,6 +159,29 @@ func normalizeTreeEntry(key string, value any) (any, error) {
 		}
 		return normalized, nil
 	}
+}
+
+func normalizeUntypedTreeSlice(key string, values []any) (any, error) {
+	if len(values) == 0 {
+		return []any{}, nil
+	}
+
+	tables := make([]map[string]any, 0, len(values))
+	for index, value := range values {
+		table, ok := value.(map[string]any)
+		if !ok {
+			if len(tables) > 0 {
+				return nil, fmt.Errorf("key %q contains mixed scalar and table array values", key)
+			}
+			return normalizeTOMLValue(values)
+		}
+		normalized, err := normalizeTreeValue(table)
+		if err != nil {
+			return nil, fmt.Errorf("key %q array-table item %d: %w", key, index, err)
+		}
+		tables = append(tables, normalized)
+	}
+	return tables, nil
 }
 
 func normalizeMutationPath(path []string) ([]string, error) {

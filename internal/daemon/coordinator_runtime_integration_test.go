@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -15,6 +16,14 @@ import (
 )
 
 func TestCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
+	t.Run("Should start one builtin coordinator with configured limits", func(t *testing.T) {
+		runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t)
+	})
+}
+
+func runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
+	t.Helper()
+
 	ctx := testutil.Context(t)
 	manager, sessions := newCoordinatorTaskManagerIntegration(t, ctx)
 	actor := coordinatorTaskActor()
@@ -40,6 +49,18 @@ func TestCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) 
 	}
 	if got := sessions.createCount(); got != 1 {
 		t.Fatalf("Create count after first start = %d, want 1", got)
+	}
+	createdCoordinator := sessions.createCall(0)
+	if createdCoordinator.AgentName != aghconfig.BuiltinCoordinatorAgentName ||
+		createdCoordinator.Type != session.SessionTypeCoordinator {
+		t.Fatalf("coordinator Create() opts = %#v, want bundled coordinator identity and type", createdCoordinator)
+	}
+	if createdCoordinator.Lineage == nil ||
+		createdCoordinator.Lineage.SpawnBudget.MaxChildren != 5 ||
+		createdCoordinator.Lineage.SpawnBudget.MaxActivePerWorkspace != 5 ||
+		createdCoordinator.Lineage.TTLExpiresAt == nil ||
+		!createdCoordinator.Lineage.TTLExpiresAt.Equal(time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)) {
+		t.Fatalf("coordinator Create() lineage = %#v, want configured caps and TTL", createdCoordinator.Lineage)
 	}
 
 	second, err := manager.CreateTask(ctx, taskpkg.CreateTask{
@@ -118,7 +139,7 @@ func newCoordinatorTaskManagerIntegration(
 		ctx,
 		db,
 		sessions,
-		&staticCoordinatorConfigResolver{cfg: coordinatorRuntimeConfig()},
+		&staticCoordinatorRoleResolver{cfg: coordinatorRuntimeConfig()},
 		notifier,
 		discardLogger(),
 		func() time.Time { return now },

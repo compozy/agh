@@ -38,7 +38,6 @@ const (
 	defaultDreamRecencyWeight   = 0.20
 	defaultDreamFreshnessWeight = 0.15
 	dreamPromptVersion          = "dream.v1"
-	dreamingCuratorSlug         = "dreaming-curator"
 )
 
 var (

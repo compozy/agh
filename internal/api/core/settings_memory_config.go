@@ -77,22 +77,10 @@ func memoryControllerConfigFromPayload(
 	if err != nil {
 		return aghconfig.MemoryControllerConfig{}, err
 	}
-	timeout, err := parseSettingsDuration("memory.config.controller.llm.timeout", payload.LLM.Timeout)
-	if err != nil {
-		return aghconfig.MemoryControllerConfig{}, err
-	}
 	return aghconfig.MemoryControllerConfig{
 		Mode:            strings.TrimSpace(payload.Mode),
 		MaxLatency:      maxLatency,
 		DefaultOpOnFail: strings.TrimSpace(payload.DefaultOpOnFail),
-		LLM: aghconfig.MemoryControllerLLMConfig{
-			Enabled:       payload.LLM.Enabled,
-			Model:         strings.TrimSpace(payload.LLM.Model),
-			TopK:          payload.LLM.TopK,
-			PromptVersion: strings.TrimSpace(payload.LLM.PromptVersion),
-			Timeout:       timeout,
-			MaxTokensOut:  payload.LLM.MaxTokensOut,
-		},
 		Policy: aghconfig.MemoryControllerPolicyConfig{
 			MaxContentChars: payload.Policy.MaxContentChars,
 			MaxWritesPerMin: payload.Policy.MaxWritesPerMin,
@@ -141,14 +129,12 @@ func memoryExtractorConfigFromPayload(
 		return aghconfig.MemoryExtractorConfig{}, err
 	}
 	return aghconfig.MemoryExtractorConfig{
-		Enabled:          payload.Enabled,
 		Mode:             strings.TrimSpace(payload.Mode),
 		ThrottleTurns:    payload.ThrottleTurns,
 		Deadline:         deadline,
 		SandboxInboxOnly: payload.SandboxInboxOnly,
 		InboxPath:        strings.TrimSpace(payload.InboxPath),
 		DLQPath:          strings.TrimSpace(payload.DLQPath),
-		Model:            strings.TrimSpace(payload.Model),
 		Queue: aghconfig.MemoryExtractorQueueConfig{
 			Capacity:    payload.Queue.Capacity,
 			CoalesceMax: payload.Queue.CoalesceMax,
@@ -166,8 +152,6 @@ func memoryDreamConfigFromPayload(payload contract.SettingsMemoryDreamPayload) (
 		return aghconfig.DreamConfig{}, err
 	}
 	return aghconfig.DreamConfig{
-		Enabled:       payload.Enabled,
-		Agent:         strings.TrimSpace(payload.Agent),
 		MinHours:      payload.MinHours,
 		MinSessions:   payload.MinSessions,
 		Debounce:      debounce,

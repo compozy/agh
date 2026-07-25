@@ -17,6 +17,7 @@ func registryAgentOperations() []OperationSpec {
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Agent definition already exists", Body: contract.ErrorPayload{}},
 			{Status: 410, Description: specWorkspaceRootMissingDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: agentNameReservedDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Workspace resolver unavailable", Body: contract.ErrorPayload{}},
 		},

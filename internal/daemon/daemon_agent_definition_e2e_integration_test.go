@@ -10,7 +10,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -19,10 +21,13 @@ import (
 	"github.com/compozy/agh/internal/agentidentity"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
+	acpmock.RequireDriver(t)
 	t.Parallel()
 
 	t.Run("Should preserve lifecycle parity across CLI HTTP and restart", func(t *testing.T) {
@@ -32,7 +37,7 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 
 	t.Run("Should categorize and update a bundled extension agent through the effective catalog", func(t *testing.T) {
 		// not parallel: lifecycle steps share one ordered runtime state.
-		configSeed := agentDefinitionE2EConfigSeed()
+		configSeed := agentDefinitionE2EConfigSeed(t)
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			ConfigSeed: configSeed,
 		})
@@ -140,12 +145,151 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	})
 }
 
+func TestDaemonE2EReservedAgentNameSweep(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	t.Run("Should reject every reserved authoring entry without changing the agent catalog", func(t *testing.T) {
+		t.Parallel()
+		runDaemonE2EReservedAgentNameSweep(t)
+	})
+}
+
+func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
+	t.Helper()
+
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{
+			AgentDefs: []e2etest.AgentSeed{{
+				Name: "reserved-sweep-source", Provider: acpmock.ProviderName,
+				Prompt: "Source for duplicate rejection.",
+			}},
+		},
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "multi_agent_fixture.json"),
+			FixtureAgent: "alpha",
+			AgentName:    "reserved-sweep-provider",
+		}},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var before []aghcontract.AgentPayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx,
+		harness.WorkspaceRoot,
+		&before,
+		"agent",
+		"list",
+		"--workspace",
+		harness.WorkspaceRoot,
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("CLI agent list before reserved sweep error = %v", err)
+	}
+
+	_, cliStderr, cliErr := harness.CLI.RunInDir(
+		ctx,
+		harness.WorkspaceRoot,
+		"agent",
+		"create",
+		"coordinator",
+		"--provider",
+		acpmock.ProviderName,
+		"--prompt",
+		"Reserved CLI create.",
+		"-o",
+		"json",
+	)
+	assertReservedAgentCLIError(t, cliErr, cliStderr)
+
+	httpCreate := agentDefinitionE2ERequestError(
+		t,
+		ctx,
+		harness.HTTPClient,
+		harness.HTTPURL("/api/agents"),
+		http.MethodPost,
+		aghcontract.CreateAgentRequest{
+			Scope: aghcontract.AgentCreateScopeGlobal,
+			Agent: aghcontract.CreateAgentPayload{
+				Name: "dreaming-curator", Provider: acpmock.ProviderName, Prompt: "Reserved HTTP create.",
+			},
+		},
+	)
+	assertReservedAgentHTTPError(t, httpCreate)
+
+	duplicate := agentDefinitionE2ERequestError(
+		t,
+		ctx,
+		harness.UDSClient,
+		harness.UDSURL("/api/agents/reserved-sweep-source/duplicate"),
+		http.MethodPost,
+		aghcontract.DuplicateAgentRequest{Name: "coordinator"},
+	)
+	assertReservedAgentHTTPError(t, duplicate)
+	native := agentDefinitionE2EToolRequestError(
+		t,
+		ctx,
+		harness.HTTPClient,
+		harness.HTTPURL("/api/tools/agh__agent_create/invoke"),
+		aghcontract.ToolInvokeRequest{
+			WorkspaceID: harness.WorkspaceID,
+			Input: json.RawMessage(
+				`{"scope":"workspace","workspace":"` + harness.WorkspaceRoot + `","name":"coordinator","prompt":"Reserved native create."}`,
+			),
+		},
+	)
+	if native.Status != http.StatusUnprocessableEntity ||
+		native.Payload.Error.Code != toolspkg.ErrorCodeAgentNameReserved {
+		t.Fatalf("native reserved create = %#v, want 422 agent_name_reserved", native)
+	}
+
+	for _, name := range []string{"coordinator", "dreaming-curator"} {
+		path := filepath.Join(harness.HomePaths.AgentsDir, name)
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(%q) error = %v, want os.ErrNotExist", path, err)
+		}
+	}
+	workspaceReservedPath := filepath.Join(
+		harness.WorkspaceRoot,
+		aghconfig.DirName,
+		aghconfig.AgentsDirName,
+		"coordinator",
+	)
+	if _, err := os.Stat(workspaceReservedPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("os.Stat(%q) error = %v, want os.ErrNotExist", workspaceReservedPath, err)
+	}
+	var after []aghcontract.AgentPayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx,
+		harness.WorkspaceRoot,
+		&after,
+		"agent",
+		"list",
+		"--workspace",
+		harness.WorkspaceRoot,
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("CLI agent list after reserved sweep error = %v", err)
+	}
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("agent catalog after reserved sweep = %#v, want unchanged %#v", after, before)
+	}
+}
+
 func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	t.Helper()
 
-	configSeed := agentDefinitionE2EConfigSeed()
+	configSeed := agentDefinitionE2EConfigSeed(t)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: configSeed,
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "multi_agent_fixture.json"),
+			FixtureAgent: "alpha",
+			AgentName:    "parity-provider-fixture",
+		}},
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -162,7 +306,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		"--workspace",
 		harness.WorkspaceRoot,
 		"--provider",
-		"fake",
+		acpmock.ProviderName,
 		"--model",
 		"model-v1",
 		"--tool",
@@ -195,7 +339,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	updateRequest := aghcontract.UpdateAgentRequest{
 		Workspace: harness.WorkspaceRoot,
 		Agent: aghcontract.CreateAgentPayload{
-			Name: sourceName, Provider: "fake", Model: "model-v2",
+			Name: sourceName, Provider: acpmock.ProviderName, Model: "model-v2",
 			Tools: []string{"builtin__shell"}, Prompt: "Review code.",
 		},
 		ExpectedDigest: cliCreated.DefinitionDigest,
@@ -415,16 +559,18 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	)
 }
 
-func agentDefinitionE2EConfigSeed() e2etest.ConfigSeedOptions {
+func agentDefinitionE2EConfigSeed(t *testing.T) e2etest.ConfigSeedOptions {
+	t.Helper()
+
+	driverPath, err := acpmock.DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("resolve ACP mock driver path: %v", err)
+	}
+
 	return e2etest.ConfigSeedOptions{
-		DefaultProvider: "fake",
+		DefaultProvider: acpmock.ProviderName,
 		Providers: map[string]aghconfig.ProviderConfig{
-			"fake": {
-				Command: "fake-agent --stdio",
-				Models: aghconfig.ProviderModelsConfig{
-					Default: "fake-model",
-				},
-			},
+			acpmock.ProviderName: acpmock.ProviderConfig(driverPath),
 		},
 	}
 }
@@ -459,6 +605,11 @@ func agentDefinitionE2EPath(name string, workspace string) string {
 type agentDefinitionE2EError struct {
 	Status  int
 	Payload aghcontract.ErrorPayload
+}
+
+type agentDefinitionE2EToolError struct {
+	Status  int
+	Payload aghcontract.ToolErrorResponse
 }
 
 func agentDefinitionE2ERequestError(
@@ -503,6 +654,68 @@ func agentDefinitionE2ERequestError(
 		t.Fatalf("json.Unmarshal(%s %s error) = %v; body=%s", method, target, err, payload)
 	}
 	return agentDefinitionE2EError{Status: response.StatusCode, Payload: errorPayload}
+}
+
+func agentDefinitionE2EToolRequestError(
+	t *testing.T,
+	ctx context.Context,
+	client *http.Client,
+	target string,
+	body aghcontract.ToolInvokeRequest,
+) agentDefinitionE2EToolError {
+	t.Helper()
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("json.Marshal(native tool request) error = %v", err)
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext(native tool request) error = %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatalf("HTTP native tool request error = %v", err)
+	}
+	responsePayload, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		t.Fatalf("read/close native tool response error = %v", err)
+	}
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		t.Fatalf("native tool status = %d, want error; body=%s", response.StatusCode, responsePayload)
+	}
+	var errorPayload aghcontract.ToolErrorResponse
+	if err := json.Unmarshal(responsePayload, &errorPayload); err != nil {
+		t.Fatalf("json.Unmarshal(native tool error) = %v; body=%s", err, responsePayload)
+	}
+	return agentDefinitionE2EToolError{Status: response.StatusCode, Payload: errorPayload}
+}
+
+func assertReservedAgentHTTPError(t *testing.T, got agentDefinitionE2EError) {
+	t.Helper()
+
+	if got.Status != http.StatusUnprocessableEntity || got.Payload.Diagnostic == nil ||
+		got.Payload.Diagnostic.Code != aghcontract.CodeAgentNameReserved {
+		t.Fatalf("reserved agent mutation = %#v, want 422 agent_name_reserved", got)
+	}
+}
+
+func assertReservedAgentCLIError(t *testing.T, err error, stderr string) {
+	t.Helper()
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("reserved CLI error = %T %[1]v, want *exec.ExitError", err)
+	}
+	var payload aghcontract.ErrorPayload
+	if err := json.Unmarshal([]byte(strings.TrimSpace(stderr)), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(reserved CLI stderr) = %v; stderr=%s", err, stderr)
+	}
+	if payload.Diagnostic == nil || payload.Diagnostic.Code != aghcontract.CodeAgentNameReserved {
+		t.Fatalf("reserved CLI payload = %#v, want agent_name_reserved", payload)
+	}
 }
 
 func assertAgentDefinitionE2ECLIError(

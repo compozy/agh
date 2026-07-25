@@ -52,6 +52,7 @@ const (
 )
 
 const (
+	CodeAgentNameReserved             = "agent_name_reserved"
 	CodeBinaryVersionMismatch         = "binary_version_mismatch"
 	CodeBridgeHealthUnavailable       = "bridge_health_unavailable"
 	CodeBridgeNotFound                = "bridge_not_found"
@@ -131,6 +132,8 @@ const (
 	CodeProviderTransientFailure      = "provider_transient_failure"
 	CodeReasoningEffortUnsupported    = "reasoning_effort_unsupported"
 	CodeReasoningOptionMissing        = "reasoning_option_missing"
+	CodeRoleAgentNotFound             = "role_agent_not_found"
+	CodeRoleUnknown                   = "role_unknown"
 	CodeRetryChainTooDeep             = "retry_chain_too_deep"
 	CodeSchedulerReady                = "scheduler_ready"
 	CodeSchedulerPaused               = "scheduler_paused"
@@ -173,6 +176,7 @@ type DiagnosticCodeSpec struct {
 }
 
 var diagnosticCodeSpecs = []DiagnosticCodeSpec{
+	{Code: CodeAgentNameReserved, Category: CategoryConfig},
 	{Code: CodeBinaryVersionMismatch, Category: CategoryHome},
 	{Code: CodeBridgeHealthUnavailable, Category: CategoryBridge},
 	{Code: CodeBridgeNotFound, Category: CategoryBridge},
@@ -255,6 +259,8 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeProviderTransientFailure, Category: CategoryProvider},
 	{Code: CodeReasoningEffortUnsupported, Category: CategoryProvider},
 	{Code: CodeReasoningOptionMissing, Category: CategoryProvider},
+	{Code: CodeRoleAgentNotFound, Category: CategoryConfig},
+	{Code: CodeRoleUnknown, Category: CategoryConfig},
 	{Code: CodeRetryChainTooDeep, Category: CategoryTask},
 	{Code: CodeSchedulerReady, Category: CategoryTask},
 	{Code: CodeSchedulerPaused, Category: CategoryTask},

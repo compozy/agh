@@ -46,6 +46,15 @@ func (s *service) classifyGeneralRequest(ctx context.Context, req SectionUpdateR
 	return lifecycleForChangedPaths(changed, lifecycle.RestartRequired)
 }
 
+func (s *service) classifyRolesRequest(ctx context.Context, req SectionUpdateRequest) lifecycle.Lifecycle {
+	loaded, err := s.loadRolesSectionUpdate(ctx, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return lifecycle.Live
+	}
+	changed := diffRolesSettings(&loaded.config.Roles, req.Roles)
+	return lifecycleForChangedPaths(changed, lifecycle.Live)
+}
+
 func (s *service) classifyNetworkRequest(ctx context.Context, req SectionUpdateRequest) lifecycle.Lifecycle {
 	cfg, _, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
 	if err != nil {

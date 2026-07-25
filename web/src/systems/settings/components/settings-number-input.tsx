@@ -8,6 +8,7 @@ interface SettingsNumberInputProps extends Omit<
 > {
   value: number;
   min?: number;
+  resetRevision?: number;
   onValueChange: (value: number) => void;
   onValidityChange?: (message: string | null) => void;
 }
@@ -41,14 +42,15 @@ function SettingsNumberInput({ value, ...props }: SettingsNumberInputProps) {
 function SettingsNumberInputControl({
   value,
   min = 0,
+  resetRevision = 0,
   onValueChange,
   onValidityChange,
   ...props
 }: SettingsNumberInputProps) {
   const [rawValue, setRawValue] = useState(() => String(value));
-  const [prevValue, setPrevValue] = useState(value);
-  if (value !== prevValue) {
-    setPrevValue(value);
+  const [previous, setPrevious] = useState({ value, resetRevision });
+  if (value !== previous.value || resetRevision !== previous.resetRevision) {
+    setPrevious({ value, resetRevision });
     setRawValue(String(value));
   }
 

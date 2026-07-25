@@ -46,7 +46,7 @@ func (r *coordinatorRuntime) dispatchSpawned(
 	ctx context.Context,
 	decision coordinator.Decision,
 	info *session.Info,
-	cfg aghconfig.CoordinatorConfig,
+	cfg aghconfig.ResolvedCoordinatorRole,
 	reason string,
 ) {
 	if r.hooks == nil || info == nil {
@@ -158,7 +158,7 @@ func (r *coordinatorRuntime) dispatchDecision(
 
 func (r *coordinatorRuntime) preSpawnPayload(
 	decision coordinator.Decision,
-	cfg aghconfig.CoordinatorConfig,
+	cfg aghconfig.ResolvedCoordinatorRole,
 	coordinatorParticipation participation.Spec,
 	reason string,
 ) hookspkg.CoordinatorPreSpawnPayload {

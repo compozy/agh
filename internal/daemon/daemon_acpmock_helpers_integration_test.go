@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
-	"time"
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
@@ -45,11 +44,11 @@ func createFixtureBackedSession(
 	if err != nil {
 		t.Fatalf("CreateSession(%q) error = %v", agentName, err)
 	}
-	waitForRuntimeCondition(t, "fixture-backed session visible", 5*time.Second, func() bool {
-		current, err := harness.GetSession(ctx, session.ID)
-		return err == nil && current.ID == session.ID
-	})
-	return session
+	active, err := harness.WaitForSessionActive(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("WaitForSessionActive(%q) error = %v", session.ID, err)
+	}
+	return active
 }
 
 func createSessionHTTPFailure(
@@ -60,6 +59,47 @@ func createSessionHTTPFailure(
 ) (int, aghcontract.ErrorPayload) {
 	t.Helper()
 
+	response := postSessionHTTP(t, ctx, harness, request)
+	var payload aghcontract.ErrorPayload
+	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
+	closeErr := response.Body.Close()
+	if decodeErr != nil {
+		t.Fatalf("decode HTTP create session failure error = %v", decodeErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("close HTTP create session failure body error = %v", closeErr)
+	}
+	return response.StatusCode, payload
+}
+
+func createSessionHTTPAccepted(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	request aghcontract.CreateSessionRequest,
+) (int, aghcontract.SessionPayload) {
+	t.Helper()
+
+	response := postSessionHTTP(t, ctx, harness, request)
+	var payload aghcontract.SessionResponse
+	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
+	closeErr := response.Body.Close()
+	if decodeErr != nil {
+		t.Fatalf("decode HTTP accepted session error = %v", decodeErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("close HTTP accepted session body error = %v", closeErr)
+	}
+	return response.StatusCode, payload.Session
+}
+
+func postSessionHTTP(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	request aghcontract.CreateSessionRequest,
+) *http.Response {
+	t.Helper()
 	body, err := json.Marshal(request)
 	if err != nil {
 		t.Fatalf("json.Marshal(create session request) error = %v", err)
@@ -78,16 +118,7 @@ func createSessionHTTPFailure(
 	if err != nil {
 		t.Fatalf("HTTP create session error = %v", err)
 	}
-	var payload aghcontract.ErrorPayload
-	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
-	closeErr := response.Body.Close()
-	if decodeErr != nil {
-		t.Fatalf("decode HTTP create session failure error = %v", decodeErr)
-	}
-	if closeErr != nil {
-		t.Fatalf("close HTTP create session failure body error = %v", closeErr)
-	}
-	return response.StatusCode, payload
+	return response
 }
 
 func providerModelListHTTP(

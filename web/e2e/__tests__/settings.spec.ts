@@ -4,6 +4,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
+import { openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { settingsOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
 import {
   browserSettingsOperatorFlowScenario,
@@ -29,11 +30,13 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   runtime,
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
-  const settingsUI = settingsOperatorSelectors(appPage);
 
   await ensureGlobalWorkspace(runtime);
   await useGlobalWorkspaceIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
+  const settingsWin = appPage.getByTestId("os-window-app:settings");
+  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+  const settingsUI = settingsOperatorSelectors(settingsWin);
   await expect(settingsUI.shell.shell).toBeVisible({ timeout: 20_000 });
   await expect(settingsUI.shell.sectionNav).toBeVisible({ timeout: 20_000 });
 
@@ -42,8 +45,10 @@ test("operator can navigate the settings shell and complete a restart-aware gene
     .toEqual([
       "General",
       "Appearance",
+      "Layouts",
       "Providers",
       "Memory",
+      "Roles",
       "Skills",
       "Automation",
       "Network",
@@ -136,7 +141,6 @@ test("operator can distinguish skills actions that apply now from policy changes
   runtime,
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
-  const settingsUI = settingsOperatorSelectors(appPage);
   const seeded = await seedBrowserSettingsFixtures(runtime, {
     disabledSkills: [browserSettingsOperatorFlowScenario.skills.disabledSkill],
   });
@@ -145,6 +149,9 @@ test("operator can distinguish skills actions that apply now from policy changes
     await ensureGlobalWorkspace(runtime);
     await useGlobalWorkspaceIfPrompted(sessionUI);
     await appPage.goto(runtime.url("/settings/skills"), { waitUntil: "domcontentloaded" });
+    const settingsWin = appPage.getByTestId("os-window-app:settings");
+    await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+    const settingsUI = settingsOperatorSelectors(settingsWin);
 
     await expect(settingsUI.skills.page).toBeVisible();
     await expect(settingsUI.skills.disabledList).toBeVisible();
@@ -164,15 +171,18 @@ test("operator can distinguish skills actions that apply now from policy changes
     await settingsUI.skills.operationalLink.click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
     await expect.poll(() => new URL(appPage.url()).search).toBe("?tab=installed");
-    await appPage.goBack({ waitUntil: "domcontentloaded" });
+    await openAppWindow(appPage, "Settings", "settings");
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/skills");
 
+    await settingsWin
+      .getByTestId("settings-page-skills-advanced")
+      .getByTestId("settings-advanced-toggle")
+      .click();
     await settingsUI.skills.policyRegistryInput.fill("clawhub");
     await settingsUI.skills.policyBaseURLInput.fill("https://skills.example/browser-updated");
-    await expect(settingsUI.skills.policySave).toBeEnabled();
-    await settingsUI.skills.policySave.click();
+    await expect(settingsUI.skills.save).toBeEnabled();
+    await settingsUI.skills.save.click();
 
-    await expect(settingsUI.skills.policyMessage).toContainText("restart required");
     await expect(settingsUI.skills.restartNotice).toBeVisible();
     await expect(settingsUI.skills.restartNotice).toContainText("Restart needed");
     await browserArtifacts.captureScreenshot("tc-func-005-skills-applied-now-vs-restart", appPage);
@@ -187,19 +197,21 @@ test("operator can replace a builtin provider with a config overlay and delete i
   runtime,
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
-  const settingsUI = settingsOperatorSelectors(appPage);
   const builtinProviderName = await pickBuiltinProviderName(runtime);
 
   await ensureGlobalWorkspace(runtime);
   await useGlobalWorkspaceIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/settings/providers"), { waitUntil: "domcontentloaded" });
+  const settingsWin = appPage.getByTestId("os-window-app:settings");
+  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+  const settingsUI = settingsOperatorSelectors(settingsWin);
 
   await expect(settingsUI.providers.page).toBeVisible();
   await expect(settingsUI.providers.list).toBeVisible();
   await expect(settingsUI.providers.card(builtinProviderName)).toBeVisible();
 
   await settingsUI.providers.card(builtinProviderName).click();
-  await appPage.getByTestId("provider-inspector-edit").click();
+  await settingsUI.providers.editorEdit.click();
   await expect(settingsUI.providers.editor).toBeVisible();
   await settingsUI.providers.editorCommandInput.fill(
     browserSettingsOperatorFlowScenario.providers.overlayCommand
@@ -219,7 +231,7 @@ test("operator can replace a builtin provider with a config overlay and delete i
   );
   await settingsUI.providers.card(builtinProviderName).click();
   await expect(settingsUI.providers.inspectorSource).toContainText(/config/i);
-  await appPage.getByTestId("provider-inspector-delete").click();
+  await settingsUI.providers.editorDelete.click();
   await expect(settingsUI.providers.deleteDialog).toBeVisible();
   await settingsUI.providers.deleteConfirm.click();
 
@@ -256,9 +268,11 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   await expect(settingsUI.mcpServers.scopeWorkspace).toBeVisible();
   await expect(settingsUI.mcpServers.scopeGlobal).toBeVisible();
 
-  await appPage.getByTestId("workspace-switcher").click();
-  await appPage.getByTestId(`workspace-command-item-${workspace.id}`).click();
-  await expect(appPage.getByTestId("workspace-switcher")).toHaveAttribute("aria-expanded", "false");
+  await switchWorkspace(appPage, workspace.id, workspace.name);
+  await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(settingsUI.mcpServers.page).toBeVisible();
   await settingsUI.mcpServers.scopeWorkspace.click();
   await expect(settingsUI.mcpServers.scopeWorkspace).toHaveAttribute("aria-pressed", "true");
 
@@ -329,7 +343,6 @@ test("operator can manage restart-aware hooks and extension policy on split sett
   runtime,
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
-  const settingsUI = settingsOperatorSelectors(appPage);
   const seeded = await seedBrowserSettingsFixtures(runtime, {
     hooks: [
       {
@@ -354,6 +367,9 @@ test("operator can manage restart-aware hooks and extension policy on split sett
     await appPage.goto(runtime.url("/settings/hooks"), {
       waitUntil: "domcontentloaded",
     });
+    const settingsWin = appPage.getByTestId("os-window-app:settings");
+    await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+    const settingsUI = settingsOperatorSelectors(settingsWin);
 
     await expect(settingsUI.hooks.page).toBeVisible();
     await expect(
@@ -388,14 +404,65 @@ test("operator can manage restart-aware hooks and extension policy on split sett
     await settingsUI.extensions.policyBaseURLInput.fill(
       "https://extensions.example/browser-updated"
     );
-    await expect(settingsUI.extensions.policySave).toBeEnabled();
-    await settingsUI.extensions.policySave.click();
+    await expect(settingsUI.extensions.save).toBeEnabled();
+    await settingsUI.extensions.save.click();
 
     await expect(settingsUI.extensions.restartNotice).toBeVisible();
     await browserArtifacts.captureScreenshot("tc-func-012-extensions-policy", appPage);
   } finally {
     await cleanupBrowserSettingsFixtures(runtime, seeded);
   }
+});
+
+test("operator routes a background role, persists it across reload, and keeps builtins out of the Agents fleet", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const sessionUI = sessionLifecycleSelectors(appPage);
+  const settingsUI = settingsOperatorSelectors(appPage);
+  const nextModel = "claude-haiku-4-5";
+
+  await ensureGlobalWorkspace(runtime);
+  await useGlobalWorkspaceIfPrompted(sessionUI);
+  await appPage.goto(runtime.url("/settings/roles"), { waitUntil: "domcontentloaded" });
+
+  await expect(settingsUI.roles.page).toBeVisible({ timeout: 20_000 });
+  // Coordinator ships disabled — its OFF state is projected truthfully.
+  await expect(settingsUI.roles.badgeOff("coordinator")).toBeVisible();
+
+  const modelInput = settingsUI.roles.fieldInput("auto_title", "model");
+  await expect(modelInput).toHaveValue("");
+  await modelInput.fill(nextModel);
+  await expect(settingsUI.roles.saveButton).toBeEnabled();
+
+  const applyResponse = appPage.waitForResponse(
+    response =>
+      new URL(response.url()).pathname === "/api/settings/roles" &&
+      response.request().method() === "PATCH"
+  );
+  await settingsUI.roles.saveButton.click();
+  await applyResponse;
+  await expect(settingsUI.roles.saveMessage).toContainText("applied immediately");
+  await browserArtifacts.captureScreenshot("e2e-006-roles-auto-title-saved", appPage);
+
+  // The routed model survives a reload — panel and daemon config agree.
+  await reloadDaemonServedPage(appPage, runtime, "/settings/roles", {
+    readyTestId: "settings-page-roles",
+  });
+  await expect(settingsUI.roles.fieldInput("auto_title", "model")).toHaveValue(nextModel);
+
+  const section = await runtime.requestJSON<{ config: { auto_title: { model: string } } }>(
+    "/api/settings/roles"
+  );
+  expect(section.config.auto_title.model).toBe(nextModel);
+
+  // Virtual builtins never enter the Agents fleet.
+  await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
+  await expect(sessionUI.agentRow("general")).toBeVisible();
+  await expect(sessionUI.agentRow("coordinator")).toHaveCount(0);
+  await expect(sessionUI.agentRow("dreaming-curator")).toHaveCount(0);
+  await browserArtifacts.captureScreenshot("e2e-006-agents-fleet-no-builtins", appPage);
 });
 
 function normalizeTexts(values: string[]): string[] {

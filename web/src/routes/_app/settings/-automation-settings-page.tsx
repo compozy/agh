@@ -1,5 +1,6 @@
 import { AlertCircle } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
+import { Link } from "@tanstack/react-router";
 
 import { useSettingsAutomationPage } from "@/systems/settings/hooks/use-settings-automation-page";
 import {
@@ -208,13 +209,13 @@ function ManageSection({ runtime }: { runtime: AutomationRuntime }) {
         data-testid="settings-page-automation-link-jobs"
         description={`${runtime.job_total} defined, ${runtime.job_enabled} enabled`}
         label="Jobs"
-        to="/jobs"
+        render={<Link to="/jobs" />}
       />
       <SettingLinkRow
         data-testid="settings-page-automation-link-triggers"
         description={`${runtime.trigger_total} defined, ${runtime.trigger_enabled} enabled`}
         label="Triggers"
-        to="/triggers"
+        render={<Link to="/triggers" />}
       />
     </SettingsGroup>
   );

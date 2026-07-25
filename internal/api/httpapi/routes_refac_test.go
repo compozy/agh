@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var _ core.CoordinatorConfigResolver = httpapiCoordinatorConfigResolverFunc(nil)
+var _ core.CoordinatorRoleResolver = httpapiCoordinatorRoleResolverFunc(nil)
 
 func TestHTTPAgentKernelRoutesMatchDocumentedSpecOperations(t *testing.T) {
 	t.Run("Should register every HTTP agent operation in the spec", func(t *testing.T) {
@@ -29,32 +29,32 @@ func TestHTTPAgentKernelRoutesMatchDocumentedSpecOperations(t *testing.T) {
 	})
 }
 
-func TestServerHandlerConfigIncludesCoordinatorConfig(t *testing.T) {
+func TestServerHandlerConfigIncludesCoordinatorRole(t *testing.T) {
 	t.Run("Should carry coordinator resolver into handlers", func(t *testing.T) {
 		t.Parallel()
 
-		resolver := httpapiCoordinatorConfigResolverFunc(
-			func(_ context.Context, workspaceID string) (aghconfig.CoordinatorConfig, error) {
+		resolver := httpapiCoordinatorRoleResolverFunc(
+			func(_ context.Context, workspaceID string) (aghconfig.ResolvedCoordinatorRole, error) {
 				if workspaceID != "ws-1" {
-					t.Fatalf("ResolveCoordinatorConfig() workspaceID = %q, want ws-1", workspaceID)
+					t.Fatalf("ResolveCoordinatorRole() workspaceID = %q, want ws-1", workspaceID)
 				}
-				return aghconfig.CoordinatorConfig{AgentName: "coordinator"}, nil
+				return aghconfig.ResolvedCoordinatorRole{AgentName: "coordinator"}, nil
 			},
 		)
 
 		server := &Server{}
-		WithCoordinatorConfig(resolver)(server)
+		WithCoordinatorRole(resolver)(server)
 		handlers := newHandlers(server.handlerConfig(nil))
-		if handlers.CoordinatorConfig == nil {
-			t.Fatal("handlers.CoordinatorConfig is nil, want configured resolver")
+		if handlers.CoordinatorRole == nil {
+			t.Fatal("handlers.CoordinatorRole is nil, want configured resolver")
 		}
 
-		cfg, err := handlers.CoordinatorConfig.ResolveCoordinatorConfig(context.Background(), "ws-1")
+		cfg, err := handlers.CoordinatorRole.ResolveCoordinatorRole(context.Background(), "ws-1")
 		if err != nil {
-			t.Fatalf("ResolveCoordinatorConfig() error = %v", err)
+			t.Fatalf("ResolveCoordinatorRole() error = %v", err)
 		}
 		if got, want := cfg.AgentName, "coordinator"; got != want {
-			t.Fatalf("CoordinatorConfig.AgentName = %q, want %q", got, want)
+			t.Fatalf("CoordinatorRole.AgentName = %q, want %q", got, want)
 		}
 	})
 }
@@ -99,11 +99,11 @@ func normalizeHTTPAgentSpecRoutePath(routePath string) string {
 	return strings.Join(parts, "/")
 }
 
-type httpapiCoordinatorConfigResolverFunc func(context.Context, string) (aghconfig.CoordinatorConfig, error)
+type httpapiCoordinatorRoleResolverFunc func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error)
 
-func (f httpapiCoordinatorConfigResolverFunc) ResolveCoordinatorConfig(
+func (f httpapiCoordinatorRoleResolverFunc) ResolveCoordinatorRole(
 	ctx context.Context,
 	workspaceID string,
-) (aghconfig.CoordinatorConfig, error) {
+) (aghconfig.ResolvedCoordinatorRole, error) {
 	return f(ctx, workspaceID)
 }

@@ -6,7 +6,7 @@ import {
   SettingsGroup,
   SettingsNumberInput,
 } from "@/systems/settings";
-import { Button, Input, Spinner, Switch } from "@agh/ui";
+import { Button, Input, Spinner } from "@agh/ui";
 import { type ValidatedSectionProps, TEST_PREFIX } from "./-memory-settings-types";
 
 interface DreamSectionProps extends ValidatedSectionProps {
@@ -30,7 +30,6 @@ function renderDreamSection({
   onTriggerDream,
   actionMessage,
 }: DreamSectionProps) {
-  const dreamDisabled = !draft.dream.enabled;
   return (
     <SettingsGroup
       title="Memory dreaming"
@@ -50,43 +49,6 @@ function renderDreamSection({
       }
     >
       <SettingsFieldRow
-        data-testid={`${TEST_PREFIX}-dream-enabled`}
-        label="Automatic dreaming"
-        description="Run dreaming on idle when the recall-signal gate is satisfied"
-        control={
-          <Switch
-            data-testid={`${TEST_PREFIX}-dream-enabled-switch`}
-            checked={draft.dream.enabled}
-            onCheckedChange={checked =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return { ...current, dream: { ...current.dream, enabled: checked } };
-              })
-            }
-          />
-        }
-      />
-      <SettingsFieldRow
-        data-testid={`${TEST_PREFIX}-dream-agent`}
-        label="Dream agent"
-        description="Dedicated curator agent (defaults to dreaming-curator)"
-        control={
-          <Input
-            className="w-56 font-mono"
-            disabled={dreamDisabled}
-            data-testid={`${TEST_PREFIX}-dream-agent-input`}
-            value={draft.dream.agent}
-            placeholder="dreaming-curator"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return { ...current, dream: { ...current.dream, agent: event.target.value } };
-              })
-            }
-          />
-        }
-      />
-      <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-min-hours`}
         label="Min idle hours"
         description="Wait at least this many hours since the last dream run"
@@ -95,7 +57,6 @@ function renderDreamSection({
           <SettingsDecimalInput
             min={0}
             precision={1}
-            disabled={dreamDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-dream-min-hours-input`}
             value={draft.dream.min_hours}
@@ -120,7 +81,6 @@ function renderDreamSection({
         control={
           <SettingsNumberInput
             min={0}
-            disabled={dreamDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-dream-min-sessions-input`}
             value={draft.dream.min_sessions}
@@ -144,7 +104,6 @@ function renderDreamSection({
         control={
           <Input
             className="w-32 font-mono"
-            disabled={dreamDisabled}
             data-testid={`${TEST_PREFIX}-dream-debounce-input`}
             value={draft.dream.debounce}
             placeholder="10m"
@@ -164,7 +123,6 @@ function renderDreamSection({
         control={
           <Input
             className="w-32 font-mono"
-            disabled={dreamDisabled}
             data-testid={`${TEST_PREFIX}-dream-check-interval-input`}
             value={draft.dream.check_interval}
             placeholder="30m"
@@ -187,7 +145,6 @@ function renderDreamSection({
         control={
           <Input
             className="w-32 font-mono"
-            disabled={dreamDisabled}
             data-testid={`${TEST_PREFIX}-dream-prompt-version-input`}
             value={draft.dream.prompt_version}
             placeholder="v1"
@@ -211,7 +168,6 @@ function renderDreamSection({
         control={
           <SettingsNumberInput
             min={0}
-            disabled={dreamDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-dream-gate-min-unpromoted-input`}
             value={draft.dream.gates.min_unpromoted}
@@ -239,7 +195,6 @@ function renderDreamSection({
         control={
           <SettingsNumberInput
             min={0}
-            disabled={dreamDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-dream-gate-min-recall-count-input`}
             value={draft.dream.gates.min_recall_count}
@@ -269,7 +224,6 @@ function renderDreamSection({
             min={0}
             max={1}
             precision={2}
-            disabled={dreamDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-dream-gate-min-score-input`}
             value={draft.dream.gates.min_score}
@@ -294,7 +248,6 @@ function renderDreamSection({
         control={
           <SettingsNumberInput
             min={1}
-            disabled={dreamDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-dream-scoring-recency-half-life-input`}
             value={draft.dream.scoring.recency_half_life_days}
@@ -323,7 +276,6 @@ function renderDreamSection({
             min={0}
             max={1}
             precision={2}
-            disabled={dreamDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-dream-scoring-weight-frequency-input`}
             value={draft.dream.scoring.weights.frequency}
@@ -355,7 +307,6 @@ function renderDreamSection({
             min={0}
             max={1}
             precision={2}
-            disabled={dreamDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-dream-scoring-weight-relevance-input`}
             value={draft.dream.scoring.weights.relevance}
@@ -387,7 +338,6 @@ function renderDreamSection({
             min={0}
             max={1}
             precision={2}
-            disabled={dreamDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-dream-scoring-weight-recency-input`}
             value={draft.dream.scoring.weights.recency}
@@ -419,7 +369,6 @@ function renderDreamSection({
             min={0}
             max={1}
             precision={2}
-            disabled={dreamDisabled}
             className="w-24"
             data-testid={`${TEST_PREFIX}-dream-scoring-weight-freshness-input`}
             value={draft.dream.scoring.weights.freshness}

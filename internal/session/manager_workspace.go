@@ -179,7 +179,7 @@ func (m *Manager) resolveWorkspaceAgentArtifactsForSession(
 		return AgentArtifacts{}, err
 	}
 
-	fallback, ok := fallbackSessionAgentDef(agentName, sessionType)
+	fallback, ok := builtinSessionAgentDef(agentName, sessionType)
 	if !ok {
 		return AgentArtifacts{}, err
 	}
@@ -210,7 +210,7 @@ func resolveWorkspaceSessionAgentForType(
 		if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
 			return aghconfig.ResolvedAgent{}, err
 		}
-		fallback, ok := fallbackSessionAgentDef(agentName, sessionType)
+		fallback, ok := builtinSessionAgentDef(agentName, sessionType)
 		if !ok {
 			return aghconfig.ResolvedAgent{}, err
 		}
@@ -224,12 +224,18 @@ func resolveWorkspaceSessionAgentForType(
 	return resolved, nil
 }
 
-func fallbackSessionAgentDef(agentName string, sessionType Type) (aghconfig.AgentDef, bool) {
-	if normalizeSessionType(sessionType) != SessionTypeCoordinator {
+func builtinSessionAgentDef(agentName string, sessionType Type) (aghconfig.AgentDef, bool) {
+	expectedName := ""
+	switch normalizeSessionType(sessionType) {
+	case SessionTypeCoordinator:
+		expectedName = aghconfig.BuiltinCoordinatorAgentName
+	case SessionTypeDream:
+		expectedName = aghconfig.BuiltinDreamingCuratorAgentName
+	default:
 		return aghconfig.AgentDef{}, false
 	}
-	if strings.TrimSpace(agentName) != aghconfig.DefaultCoordinatorAgentName {
+	if strings.TrimSpace(agentName) != expectedName {
 		return aghconfig.AgentDef{}, false
 	}
-	return aghconfig.DefaultCoordinatorAgentDef(), true
+	return aghconfig.BuiltinAgentDef(agentName)
 }

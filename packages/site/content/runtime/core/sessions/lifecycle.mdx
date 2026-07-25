@@ -60,10 +60,11 @@ curl -X POST http://localhost:2123/api/sessions \
   }'
 ```
 
-`name` is optional for user sessions. With `session.auto_title_enabled = true`, AGH starts one
-bounded title pass after the first assistant response is persisted, then stores a successful title
-in session metadata and the catalog. An explicit name always wins any race. If generation is
-disabled or fails, the session remains unnamed; daemon-managed session types are never eligible.
+`name` is optional for user sessions. With `roles.auto_title.enabled = true`, AGH starts one bounded
+title pass after the first assistant response is persisted, then stores a successful title in
+session metadata and the catalog. An explicit name always wins any race. If generation is disabled
+or fails, the session remains unnamed; daemon-managed session types are never eligible. Configure
+the title pass agent, provider, model, reasoning, and fallback routes under `[roles.auto_title]`.
 
 The request must include exactly one of:
 

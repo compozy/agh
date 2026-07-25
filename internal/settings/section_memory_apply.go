@@ -49,30 +49,6 @@ func memoryControllerSettingsUpdates(settings *aghconfig.MemoryConfig) []struct 
 			value: settings.Controller.DefaultOpOnFail,
 		},
 		{
-			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, sectionsEnabledKey},
-			value: settings.Controller.LLM.Enabled,
-		},
-		{
-			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, "model"},
-			value: settings.Controller.LLM.Model,
-		},
-		{
-			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, "top_k"},
-			value: settings.Controller.LLM.TopK,
-		},
-		{
-			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, "prompt_version"},
-			value: settings.Controller.LLM.PromptVersion,
-		},
-		{
-			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, sectionsTimeoutKey},
-			value: settings.Controller.LLM.Timeout.String(),
-		},
-		{
-			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, "max_tokens_out"},
-			value: settings.Controller.LLM.MaxTokensOut,
-		},
-		{
 			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsPolicyKey, "max_content_chars"},
 			value: settings.Controller.Policy.MaxContentChars,
 		},
@@ -164,10 +140,6 @@ func memoryExtractorSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 		path  []string
 		value any
 	}{
-		{
-			path:  []string{string(SectionMemory), sectionsExtractorKey, sectionsEnabledKey},
-			value: settings.Extractor.Enabled,
-		},
 		{path: []string{string(SectionMemory), sectionsExtractorKey, sectionsModeKey}, value: settings.Extractor.Mode},
 		{
 			path:  []string{string(SectionMemory), sectionsExtractorKey, "throttle_turns"},
@@ -186,7 +158,6 @@ func memoryExtractorSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 			value: settings.Extractor.InboxPath,
 		},
 		{path: []string{string(SectionMemory), sectionsExtractorKey, "dlq_path"}, value: settings.Extractor.DLQPath},
-		{path: []string{string(SectionMemory), sectionsExtractorKey, "model"}, value: settings.Extractor.Model},
 		{
 			path:  []string{string(SectionMemory), sectionsExtractorKey, sectionsQueueKey, "capacity"},
 			value: settings.Extractor.Queue.Capacity,
@@ -206,8 +177,6 @@ func memoryDreamSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 		path  []string
 		value any
 	}{
-		{path: []string{string(SectionMemory), sectionsDreamKey, sectionsEnabledKey}, value: settings.Dream.Enabled},
-		{path: []string{string(SectionMemory), sectionsDreamKey, "agent"}, value: settings.Dream.Agent},
 		{path: []string{string(SectionMemory), sectionsDreamKey, "min_hours"}, value: settings.Dream.MinHours},
 		{path: []string{string(SectionMemory), sectionsDreamKey, "min_sessions"}, value: settings.Dream.MinSessions},
 		{path: []string{string(SectionMemory), sectionsDreamKey, "debounce"}, value: settings.Dream.Debounce.String()},

@@ -4,13 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"strings"
 
 	automationpkg "github.com/compozy/agh/internal/automation"
-
 	aghconfig "github.com/compozy/agh/internal/config"
-
 	"github.com/compozy/agh/internal/resources"
 )
 
@@ -27,6 +24,14 @@ func (s *Service) validateActivationAgentBindings(
 		name := strings.TrimSpace(agent.Spec.Name)
 		if name == "" {
 			continue
+		}
+		if err := aghconfig.ValidateAuthoredAgentName(name); err != nil {
+			return fmt.Errorf(
+				"bundles: validate activation agent %q at %q: %w",
+				name,
+				agent.Spec.SourcePath,
+				err,
+			)
 		}
 		if _, exists := available[name]; exists {
 			return fmt.Errorf("%w: %s", ErrAgentConflict, name)

@@ -30,18 +30,7 @@ type MemoryControllerConfig struct {
 	Mode            string                       `toml:"mode"`
 	MaxLatency      time.Duration                `toml:"max_latency"`
 	DefaultOpOnFail string                       `toml:"default_op_on_fail"`
-	LLM             MemoryControllerLLMConfig    `toml:"llm"`
 	Policy          MemoryControllerPolicyConfig `toml:"policy"`
-}
-
-// MemoryControllerLLMConfig controls the controller LLM tie-breaker.
-type MemoryControllerLLMConfig struct {
-	Enabled       bool          `toml:"enabled"`
-	Model         string        `toml:"model"`
-	TopK          int           `toml:"top_k"`
-	PromptVersion string        `toml:"prompt_version"`
-	Timeout       time.Duration `toml:"timeout"`
-	MaxTokensOut  int           `toml:"max_tokens_out"`
 }
 
 // MemoryControllerPolicyConfig controls controller safety limits.
@@ -92,14 +81,12 @@ type MemoryDecisionsConfig struct {
 
 // MemoryExtractorConfig controls the post-message extractor queue.
 type MemoryExtractorConfig struct {
-	Enabled          bool                       `toml:"enabled"`
 	Mode             string                     `toml:"mode"`
 	ThrottleTurns    int                        `toml:"throttle_turns"`
 	Deadline         time.Duration              `toml:"deadline"`
 	SandboxInboxOnly bool                       `toml:"sandbox_inbox_only"`
 	InboxPath        string                     `toml:"inbox_path"`
 	DLQPath          string                     `toml:"dlq_path"`
-	Model            string                     `toml:"model"`
 	Queue            MemoryExtractorQueueConfig `toml:"queue"`
 }
 
@@ -111,8 +98,6 @@ type MemoryExtractorQueueConfig struct {
 
 // DreamConfig controls background dream consolidation.
 type DreamConfig struct {
-	Enabled       bool                     `toml:"enabled"`
-	Agent         string                   `toml:"agent"`
 	MinHours      float64                  `toml:"min_hours"`
 	MinSessions   int                      `toml:"min_sessions"`
 	Debounce      time.Duration            `toml:"debounce"`

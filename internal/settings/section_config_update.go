@@ -18,6 +18,8 @@ func (s *service) updateConfigBackedSection(
 		return s.updateGeneralSection(ctx, req)
 	case SectionMemory:
 		return s.updateMemorySection(ctx, req)
+	case SectionRoles:
+		return s.updateRolesSection(ctx, req)
 	case SectionAutomation:
 		return s.updateAutomationSection(ctx, req)
 	case SectionNetwork:
@@ -31,6 +33,39 @@ func (s *service) updateConfigBackedSection(
 	default:
 		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown section %q", req.Section))
 	}
+}
+
+func (s *service) updateRolesSection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	loaded, err := s.loadRolesSectionUpdate(
+		ctx,
+		req.Scope,
+		req.WorkspaceID,
+	)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if req.Roles == nil {
+		return MutationResult{}, validationError(errors.New("settings: roles section payload is required"))
+	}
+	desired := cloneRolesConfig(req.Roles)
+	if err := desired.Validate("roles", &loaded.config); err != nil {
+		return MutationResult{}, validationError(err)
+	}
+	changed := diffRolesSettings(&loaded.config.Roles, &desired)
+	return s.updateScopedConfigSection(
+		req.Section,
+		changed,
+		loaded.target,
+		loaded.scope,
+		loaded.workspaceID,
+		loaded.workspaceRoot,
+		func(editor *aghconfig.OverlayEditor) error {
+			return applyRolesSettings(editor, &desired)
+		},
+	)
 }
 
 func (s *service) updateGeneralSection(
@@ -201,21 +236,92 @@ func (s *service) loadGlobalSectionUpdate(
 	return cfg, target, nil
 }
 
+type rolesSectionUpdate struct {
+	config        aghconfig.Config
+	target        aghconfig.WriteTarget
+	scope         ScopeKind
+	workspaceID   string
+	workspaceRoot string
+}
+
+func (s *service) loadRolesSectionUpdate(
+	ctx context.Context,
+	scope ScopeKind,
+	workspaceID string,
+) (rolesSectionUpdate, error) {
+	normalizedScope, normalizedWorkspaceID, err := s.normalizeReadScope(scope, workspaceID)
+	if err != nil {
+		return rolesSectionUpdate{}, err
+	}
+	if normalizedScope != ScopeGlobal && normalizedScope != ScopeWorkspace {
+		return rolesSectionUpdate{}, conflictError(
+			fmt.Errorf("settings: section %q does not support %s scope", SectionRoles, normalizedScope),
+		)
+	}
+	cfg, resolved, err := s.loadConfig(ctx, normalizedScope, normalizedWorkspaceID)
+	if err != nil {
+		return rolesSectionUpdate{}, fmt.Errorf(
+			"settings: load section %q config: %w",
+			SectionRoles,
+			err,
+		)
+	}
+	writeScope := aghconfig.WriteScopeGlobal
+	workspaceRoot := ""
+	if normalizedScope == ScopeWorkspace {
+		if resolved == nil {
+			return rolesSectionUpdate{}, errors.New(
+				"settings: resolved workspace is required for roles update",
+			)
+		}
+		writeScope = aghconfig.WriteScopeWorkspace
+		workspaceRoot = resolved.RootDir
+	}
+	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, writeScope)
+	if err != nil {
+		return rolesSectionUpdate{}, fmt.Errorf(
+			"settings: resolve section %q write target: %w",
+			SectionRoles,
+			err,
+		)
+	}
+	return rolesSectionUpdate{
+		config:        cfg,
+		target:        target,
+		scope:         normalizedScope,
+		workspaceID:   normalizedWorkspaceID,
+		workspaceRoot: workspaceRoot,
+	}, nil
+}
+
 func (s *service) updateConfigSection(
 	section SectionName,
 	changed []string,
 	target aghconfig.WriteTarget,
 	mutate func(*aghconfig.OverlayEditor) error,
 ) (MutationResult, error) {
+	return s.updateScopedConfigSection(section, changed, target, ScopeGlobal, "", "", mutate)
+}
+
+func (s *service) updateScopedConfigSection(
+	section SectionName,
+	changed []string,
+	target aghconfig.WriteTarget,
+	scope ScopeKind,
+	workspaceID string,
+	workspaceRoot string,
+	mutate func(*aghconfig.OverlayEditor) error,
+) (MutationResult, error) {
 	if len(changed) == 0 {
 		return MutationResult{
-			Section:   section,
-			Scope:     ScopeGlobal,
-			Behavior:  MutationBehaviorAppliedNow,
-			Applied:   true,
-			Warnings:  []string{sectionsNoChangesValue},
-			Lifecycle: lifecycle.Live,
-			DiffClass: lifecycle.DiffClassForRoot(string(section)),
+			Section:     section,
+			Scope:       scope,
+			WorkspaceID: workspaceID,
+			Behavior:    MutationBehaviorAppliedNow,
+			Applied:     true,
+			Warnings:    []string{sectionsNoChangesValue},
+			Lifecycle:   lifecycle.Live,
+			DiffClass:   lifecycle.DiffClassForRoot(string(section)),
 		}, nil
 	}
 
@@ -224,14 +330,15 @@ func (s *service) updateConfigSection(
 		return MutationResult{}, err
 	}
 
-	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, mutate); err != nil {
+	if _, err := aghconfig.EditConfigOverlay(s.homePaths, workspaceRoot, target, mutate); err != nil {
 		return MutationResult{}, fmt.Errorf("settings: write section %q: %w", section, err)
 	}
 
 	return MutationResult{
 		Section:         section,
-		Scope:           ScopeGlobal,
+		Scope:           scope,
 		WriteTarget:     target.Kind(),
+		WorkspaceID:     workspaceID,
 		Behavior:        classification.Behavior,
 		Applied:         classification.Applied,
 		RestartRequired: classification.RestartRequired,

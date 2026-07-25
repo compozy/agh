@@ -89,10 +89,14 @@ caption="Dream output is not injected directly into curated memory. Promotions a
 The dream agent runs as an ordinary AGH session of type `dream`. It is special in two ways:
 
 - AGH starts it with `approve-all` permissions for the dreaming workspace context.
-- The session prompt is the embedded dreaming-curator prompt at version `memory.dream.prompt_version = "v1"`.
+- AGH layers the dream role overlay and the versioned output-contract frame selected by
+  `memory.dream.prompt_version` on top of the selected agent's prompt.
 
-The agent that runs the dream session is configured by `memory.dream.agent` and defaults to the
-bundled **`dreaming-curator`** agent. It does not inherit `[defaults].agent`.
+Dream-session routing lives under `[roles.dream]`. An empty `agent` selects the virtual builtin
+**`dreaming-curator`** identity; a non-empty value routes the session to that authored agent. The
+builtin contributes AGH's embedded curator prompt. A routed catalog agent contributes its own
+`AGENT.md` body instead; AGH still applies the role overlay and contract frame. The builtin name is
+reserved from authoring and does not appear in public agent catalogs.
 
 ## What Lands Where
 
@@ -111,9 +115,13 @@ and from default recall. Operators browse them with `agh memory dream show <date
 ## Configuration
 
 ```toml
-[memory.dream]
+[roles.dream]
 enabled = true
-agent = "dreaming-curator"
+# Empty selects the builtin dreaming-curator. Set a name to route to an authored curator.
+agent = ""
+# Optional provider, model, reasoning_effort, and fallback_chain routing overrides also live here.
+
+[memory.dream]
 min_hours = 24
 min_sessions = 3
 debounce = "10m"
@@ -135,20 +143,19 @@ recency = 0.20
 freshness = 0.15
 ```
 
-| Field            | Meaning                                                                             |
-| ---------------- | ----------------------------------------------------------------------------------- |
-| `enabled`        | Turns dreaming on or off. Memory writes still flow through the controller when off. |
-| `agent`          | Dedicated curator agent. Defaults to `dreaming-curator`.                            |
-| `min_hours`      | Minimum hours between successful runs (Time gate).                                  |
-| `min_sessions`   | Minimum completed sessions since the last run (Sessions gate).                      |
-| `debounce`       | Debounce window for triggers from the session stop hook.                            |
-| `prompt_version` | Pinned prompt template version for the dreaming session.                            |
-| `check_interval` | Background ticker interval.                                                         |
-| `gates.*`        | Signal-gate thresholds.                                                             |
-| `scoring.*`      | Score weights and the recency half-life used by the signal gate.                    |
+| Field            | Meaning                                                          |
+| ---------------- | ---------------------------------------------------------------- |
+| `min_hours`      | Minimum hours between successful runs (Time gate).               |
+| `min_sessions`   | Minimum completed sessions since the last run (Sessions gate).   |
+| `debounce`       | Debounce window for triggers from the session stop hook.         |
+| `prompt_version` | Pinned prompt template version for the dreaming session.         |
+| `check_interval` | Background ticker interval.                                      |
+| `gates.*`        | Signal-gate thresholds.                                          |
+| `scoring.*`      | Score weights and the recency half-life used by the signal gate. |
 
-Set `[memory.dream] enabled = false` to keep memory writes/recall active while disabling background
-and manual dream runs.
+Set `roles.dream.enabled = false` to keep memory writes and recall active while disabling
+background and manual dream runs. Routing changes are Live for later dream invocations; accepted
+sessions keep their bound route.
 
 ## Manual Trigger
 

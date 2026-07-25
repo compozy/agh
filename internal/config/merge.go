@@ -71,11 +71,10 @@ type limitsOverlay struct {
 }
 
 type sessionOverlay struct {
-	AutoTitleEnabled *bool                     `toml:"auto_title_enabled"`
-	Limits           sessionLimitsOverlay      `toml:"limits"`
-	Supervision      sessionSupervisionOverlay `toml:"supervision"`
-	BusyInput        sessionBusyInputOverlay   `toml:"busy_input"`
-	Compaction       sessionCompactionOverlay  `toml:"compaction"`
+	Limits      sessionLimitsOverlay      `toml:"limits"`
+	Supervision sessionSupervisionOverlay `toml:"supervision"`
+	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
+	Compaction  sessionCompactionOverlay  `toml:"compaction"`
 }
 
 type sessionLimitsOverlay struct {
@@ -219,17 +218,7 @@ type memoryControllerOverlay struct {
 	Mode            *string                       `toml:"mode"`
 	MaxLatency      *time.Duration                `toml:"max_latency"`
 	DefaultOpOnFail *string                       `toml:"default_op_on_fail"`
-	LLM             memoryControllerLLMOverlay    `toml:"llm"`
 	Policy          memoryControllerPolicyOverlay `toml:"policy"`
-}
-
-type memoryControllerLLMOverlay struct {
-	Enabled       *bool          `toml:"enabled"`
-	Model         *string        `toml:"model"`
-	TopK          *int           `toml:"top_k"`
-	PromptVersion *string        `toml:"prompt_version"`
-	Timeout       *time.Duration `toml:"timeout"`
-	MaxTokensOut  *int           `toml:"max_tokens_out"`
 }
 
 type memoryControllerPolicyOverlay struct {
@@ -273,14 +262,12 @@ type memoryDecisionsOverlay struct {
 }
 
 type memoryExtractorOverlay struct {
-	Enabled          *bool                       `toml:"enabled"`
 	Mode             *string                     `toml:"mode"`
 	ThrottleTurns    *int                        `toml:"throttle_turns"`
 	Deadline         *time.Duration              `toml:"deadline"`
 	SandboxInboxOnly *bool                       `toml:"sandbox_inbox_only"`
 	InboxPath        *string                     `toml:"inbox_path"`
 	DLQPath          *string                     `toml:"dlq_path"`
-	Model            *string                     `toml:"model"`
 	Queue            memoryExtractorQueueOverlay `toml:"queue"`
 }
 
@@ -290,8 +277,6 @@ type memoryExtractorQueueOverlay struct {
 }
 
 type dreamOverlay struct {
-	Enabled       *bool                     `toml:"enabled"`
-	Agent         *string                   `toml:"agent"`
 	MinHours      *float64                  `toml:"min_hours"`
 	MinSessions   *int                      `toml:"min_sessions"`
 	Debounce      *time.Duration            `toml:"debounce"`
@@ -386,9 +371,8 @@ type extensionsRateLimitOverlay struct {
 }
 
 type autonomyOverlay struct {
-	BlockRecurrenceLimit *int               `toml:"block_recurrence_limit"`
-	Coordinator          coordinatorOverlay `toml:"coordinator"`
-	Scheduler            schedulerOverlay   `toml:"scheduler"`
+	BlockRecurrenceLimit *int             `toml:"block_recurrence_limit"`
+	Scheduler            schedulerOverlay `toml:"scheduler"`
 }
 
 type schedulerOverlay struct {
@@ -397,16 +381,6 @@ type schedulerOverlay struct {
 	EventAfter          *int           `toml:"event_after"`
 	NeedsAttentionAfter *int           `toml:"needs_attention_after"`
 	MinQueuedAge        *time.Duration `toml:"min_queued_age"`
-}
-
-type coordinatorOverlay struct {
-	Enabled                       *bool          `toml:"enabled"`
-	AgentName                     *string        `toml:"agent_name"`
-	Provider                      *string        `toml:"provider"`
-	Model                         *string        `toml:"model"`
-	DefaultTTL                    *time.Duration `toml:"default_ttl"`
-	MaxChildren                   *int           `toml:"max_children"`
-	MaxActiveSessionsPerWorkspace *int           `toml:"max_active_sessions_per_workspace"`
 }
 
 type marketplaceOverlay struct {

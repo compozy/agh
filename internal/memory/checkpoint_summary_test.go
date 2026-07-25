@@ -19,6 +19,27 @@ import (
 func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should normalize a resolved registration id to the stable workspace identity", func(t *testing.T) {
+		t.Parallel()
+
+		env := newCheckpointSummaryTestEnv(t)
+		const registrationID = "ws_runtime_registration"
+		env.resolver.resolved.ID = registrationID
+		record := env.sessionEndRecord("sess-registration", "selected SQLite")
+		record.WorkspaceID = registrationID
+		summarizer := &checkpointSummarizerStub{outputs: []string{
+			checkpointSummaryFixture("The session selected SQLite."),
+		}}
+		service := NewCheckpointSummaryService(env.store, env.resolver, summarizer)
+
+		if _, err := service.Update(testutil.Context(t), record); err != nil {
+			t.Fatalf("Update(registration id) error = %v", err)
+		}
+		if got := summarizer.requests[0].WorkspaceID; got != env.workspaceID {
+			t.Fatalf("summarizer workspace id = %q, want stable identity %q", got, env.workspaceID)
+		}
+	})
+
 	t.Run("Should update one workspace record and consume the prior summary", func(t *testing.T) {
 		t.Parallel()
 
@@ -83,6 +104,38 @@ func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 			header.Provenance.SourceSessionIDs[0] != "sess-1" ||
 			header.Provenance.SourceSessionIDs[1] != "sess-2" {
 			t.Fatalf("checkpoint provenance = %#v, want ordered source sessions", header)
+		}
+	})
+
+	t.Run("Should leave the checkpoint unchanged when the workspace role is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		env := newCheckpointSummaryTestEnv(t)
+		service := NewCheckpointSummaryService(
+			env.store,
+			env.resolver,
+			&checkpointSummarizerStub{errAt: map[int]error{0: ErrCheckpointSummaryDisabled}},
+		)
+
+		result, err := service.Update(
+			testutil.Context(t),
+			env.sessionEndRecord("sess-disabled", "must not persist"),
+		)
+		if err != nil {
+			t.Fatalf("Update(disabled role) error = %v", err)
+		}
+		if result.Applied || result.Decision.ID != "" {
+			t.Fatalf("Update(disabled role) = %#v, want no-op", result)
+		}
+		exists, err := env.store.ForWorkspace(env.workspaceRoot).Exists(
+			memcontract.ScopeWorkspace,
+			CheckpointSummaryFilename,
+		)
+		if err != nil {
+			t.Fatalf("Exists(checkpoint) error = %v", err)
+		}
+		if exists {
+			t.Fatal("checkpoint exists after disabled-role update")
 		}
 	})
 
@@ -232,6 +285,53 @@ func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 
 func TestCheckpointSummaryServiceCompactionCoverage(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve the existing hint when the workspace role is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		env := newCheckpointSummaryTestEnv(t)
+		seedService := NewCheckpointSummaryService(
+			env.store,
+			env.resolver,
+			&checkpointSummarizerStub{outputs: []string{
+				checkpointSummaryFixture("Stable checkpoint fact."),
+			}},
+		)
+		if _, err := seedService.Update(
+			testutil.Context(t),
+			env.sessionEndRecord("sess-prior", "stable"),
+		); err != nil {
+			t.Fatalf("Update(prior) error = %v", err)
+		}
+		workspaceStore := env.store.ForWorkspace(env.workspaceRoot)
+		before, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+		if err != nil {
+			t.Fatalf("Read(before disabled compaction) error = %v", err)
+		}
+
+		service := NewCheckpointSummaryService(
+			env.store,
+			env.resolver,
+			&checkpointSummarizerStub{errAt: map[int]error{0: ErrCheckpointSummaryDisabled}},
+		)
+		result, err := service.Compact(
+			testutil.Context(t),
+			env.preCompressRequest("sess-disabled", 1, 4, "must not persist"),
+		)
+		if err != nil {
+			t.Fatalf("Compact(disabled role) error = %v", err)
+		}
+		if result.Decision.Applied || !strings.Contains(result.Hint.Markdown, "Stable checkpoint fact.") {
+			t.Fatalf("Compact(disabled role) = %#v, want prior hint and no decision", result)
+		}
+		after, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+		if err != nil {
+			t.Fatalf("Read(after disabled compaction) error = %v", err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatalf("disabled compaction changed checkpoint\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
 
 	t.Run("Should record one idempotent covered range before archive", func(t *testing.T) {
 		t.Parallel()

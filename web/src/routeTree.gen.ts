@@ -47,6 +47,7 @@ import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/me
 import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
+import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
 import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
@@ -257,6 +258,11 @@ const AppSettingsProvidersRoute = AppSettingsProvidersRouteImport.update({
   path: '/providers',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsRolesRoute = AppSettingsRolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsSkillsRoute = AppSettingsSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
@@ -391,6 +397,7 @@ export interface FileRoutesByFullPath {
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
+  '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
@@ -446,6 +453,7 @@ export interface FileRoutesByTo {
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
+  '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
@@ -505,6 +513,7 @@ export interface FileRoutesById {
   '/_app/settings/network': typeof AppSettingsNetworkRoute
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
   '/_app/settings/providers': typeof AppSettingsProvidersRoute
+  '/_app/settings/roles': typeof AppSettingsRolesRoute
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
   '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/_app/tasks/new': typeof AppTasksNewRoute
@@ -564,6 +573,7 @@ export interface FileRouteTypes {
     | '/settings/network'
     | '/settings/observability'
     | '/settings/providers'
+    | '/settings/roles'
     | '/settings/skills'
     | '/tasks/$id'
     | '/tasks/new'
@@ -619,6 +629,7 @@ export interface FileRouteTypes {
     | '/settings/network'
     | '/settings/observability'
     | '/settings/providers'
+    | '/settings/roles'
     | '/settings/skills'
     | '/tasks/$id'
     | '/tasks/new'
@@ -677,6 +688,7 @@ export interface FileRouteTypes {
     | '/_app/settings/network'
     | '/_app/settings/observability'
     | '/_app/settings/providers'
+    | '/_app/settings/roles'
     | '/_app/settings/skills'
     | '/_app/tasks/$id'
     | '/_app/tasks/new'
@@ -970,6 +982,13 @@ declare module '@tanstack/react-router' {
       path: '/providers'
       fullPath: '/settings/providers'
       preLoaderRoute: typeof AppSettingsProvidersRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/roles': {
+      id: '/_app/settings/roles'
+      path: '/roles'
+      fullPath: '/settings/roles'
+      preLoaderRoute: typeof AppSettingsRolesRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/skills': {
@@ -1286,6 +1305,7 @@ interface AppSettingsRouteChildren {
   AppSettingsNetworkRoute: typeof AppSettingsNetworkRoute
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
   AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
+  AppSettingsRolesRoute: typeof AppSettingsRolesRoute
   AppSettingsSkillsRoute: typeof AppSettingsSkillsRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
 }
@@ -1301,6 +1321,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsNetworkRoute: AppSettingsNetworkRoute,
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
   AppSettingsProvidersRoute: AppSettingsProvidersRoute,
+  AppSettingsRolesRoute: AppSettingsRolesRoute,
   AppSettingsSkillsRoute: AppSettingsSkillsRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,
 }

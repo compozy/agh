@@ -12,7 +12,9 @@ describe("captureRouteState", () => {
       <div data-testid="network-shell">
         <aside data-testid="network-channel-rail">
           <div data-testid="network-channel-row-builders">
-            <a data-testid="network-channel-link-builders" aria-current="page">builders</a>
+            <a data-testid="network-channel-link-builders" aria-current="page">
+              <span>builders</span><span>just now</span>
+            </a>
           </div>
           <div data-testid="network-channel-row-design">
             <a data-testid="network-channel-link-design">design</a>
@@ -221,17 +223,17 @@ describe("captureRouteState", () => {
       </div>
       <section data-testid="tasks-detail-content">
         <button data-testid="tasks-detail-cancel"></button>
-        <table data-testid="tasks-detail-children-panel">
-          <tr data-testid="tasks-detail-children-item-task_child"></tr>
+        <table data-testid="tasks-detail-subtasks">
+          <tr data-testid="tasks-detail-subtask-task_child"></tr>
         </table>
-        <table data-testid="tasks-detail-dependencies-panel">
-          <tr data-testid="tasks-detail-dependencies-item-task_dependency"></tr>
+        <table data-testid="tasks-detail-dependencies">
+          <tr data-testid="tasks-detail-dependency-task_dependency"></tr>
         </table>
       </section>
       <section data-testid="tasks-run-detail-content">
-        <button data-testid="task-run-detail-cancel"></button>
-        <table data-testid="tasks-run-reviews-card">
-          <tr data-testid="tasks-run-reviews-row-review_001"></tr>
+        <button data-testid="tasks-run-cancel"></button>
+        <table data-testid="tasks-run-reviews">
+          <tr data-testid="tasks-run-review-review_001"></tr>
         </table>
       </section>
       <article data-testid="tasks-inbox-item-task_launch" data-lane="failed_runs"></article>
@@ -482,25 +484,35 @@ describe("captureRouteState", () => {
     expect(routeState.settings_action_result_visible).toBe(false);
   });
 
-  it("captures dashboard health and metric route context", async () => {
+  it("captures the current Home overview route context", async () => {
     window.history.replaceState({}, "", "/");
     document.title = "AGH";
     document.body.innerHTML = `
-      <main data-testid="home-shell">
+      <main data-testid="home-body">
         <div data-testid="home-connection-indicator" data-status="connected"></div>
-        <section data-testid="home-daemon-card" data-status="healthy"></section>
-        <article data-testid="home-metric-active-sessions">
-          <span data-slot="metric-value">1</span>
-        </article>
-        <article data-testid="home-metric-workspaces">
-          <span data-slot="metric-value">2</span>
-        </article>
-        <article data-testid="home-metric-agents">
-          <span data-slot="metric-value">3</span>
-        </article>
-        <article data-testid="home-metric-uptime">
-          <span data-slot="metric-value">4m</span>
-        </article>
+        <p data-slot="home-page-meta">Thursday, Jul 24 · workspace launch-hq</p>
+        <section data-slot="home-kpi-strip">
+          <article data-slot="metric">
+            <span data-slot="metric-label">Working now</span>
+            <span data-slot="metric-value">1</span>
+          </article>
+          <article data-slot="metric">
+            <span data-slot="metric-label">Needs you</span>
+            <span data-slot="metric-value">2</span>
+          </article>
+          <article data-slot="metric">
+            <span data-slot="metric-label">Completed today</span>
+            <span data-slot="metric-value">3</span>
+          </article>
+          <article data-slot="metric">
+            <span data-slot="metric-label">Usage · 30d</span>
+            <span data-slot="metric-value">4K</span>
+          </article>
+        </section>
+        <article data-slot="home-run-card"></article>
+        <article data-slot="home-agent-row"></article>
+        <article data-slot="home-agent-row"></article>
+        <article data-slot="home-activity-row"></article>
       </main>
     `;
 
@@ -512,12 +524,15 @@ describe("captureRouteState", () => {
       pathname: "/",
       home_view_visible: true,
       home_connection_status: "connected",
-      home_daemon_status: "healthy",
       home_metric_count: 4,
-      home_active_sessions_value: "1",
-      home_workspaces_value: "2",
-      home_agents_value: "3",
-      home_uptime_value: "4m",
+      home_working_now_value: "1",
+      home_needs_you_value: "2",
+      home_completed_today_value: "3",
+      home_usage_value: "4K",
+      home_run_count: 1,
+      home_agent_count: 2,
+      home_activity_count: 1,
+      home_scope_text: "Thursday, Jul 24 · workspace launch-hq",
     });
   });
 });

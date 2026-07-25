@@ -6,6 +6,8 @@ func registrySettingsFeatureOperations() []OperationSpec {
 	return []OperationSpec{
 		getSettingsMemoryOperationSpec(),
 		updateSettingsMemoryOperationSpec(),
+		getSettingsRolesOperationSpec(),
+		updateSettingsRolesOperationSpec(),
 		getSettingsNetworkOperationSpec(),
 		updateSettingsNetworkOperationSpec(),
 		getSettingsWindowManagerOperationSpec(),
@@ -19,6 +21,40 @@ func registrySettingsFeatureOperations() []OperationSpec {
 		deleteSettingsProviderOperationSpec(),
 		getSettingsSkillsOperationSpec(),
 		updateSettingsSkillsOperationSpec(),
+	}
+}
+
+func getSettingsRolesOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specAPISettingsRolesPath,
+		OperationID: "getSettingsRoles",
+		Summary:     "Read the background-role routing settings section",
+		Tags:        []string{specSettingsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsRolesResponse{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func updateSettingsRolesOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPatch,
+		Path:        specAPISettingsRolesPath,
+		OperationID: "updateSettingsRoles",
+		Summary:     "Update the background-role routing settings section",
+		Tags:        []string{specSettingsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.UpdateSettingsRolesRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
+			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
 	}
 }
 func getSettingsMemoryOperationSpec() OperationSpec {

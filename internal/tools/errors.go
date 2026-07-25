@@ -64,6 +64,8 @@ const (
 	ErrorCodeModelNotFound ErrorCode = "model_not_found"
 	// ErrorCodeReasoningEffortUnsupported reports an unavailable model effort.
 	ErrorCodeReasoningEffortUnsupported ErrorCode = "reasoning_effort_unsupported"
+	// ErrorCodeAgentNameReserved reports an authored agent identity reserved for daemon roles.
+	ErrorCodeAgentNameReserved ErrorCode = "agent_name_reserved"
 )
 
 // ToolError carries stable reason codes with a wrapped cause.

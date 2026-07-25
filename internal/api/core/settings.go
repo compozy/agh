@@ -2,11 +2,8 @@ package core
 
 import (
 	"bufio"
-
 	"errors"
-
 	"net/http"
-
 	"strings"
 	"time"
 
@@ -62,6 +59,21 @@ func (h *BaseHandlers) UpdateSettingsMemory(c *gin.Context) {
 		return
 	}
 	if err := h.validateSettingsMemoryProvider(c.Request.Context(), req); err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	h.updateSettingsSection(c, req)
+}
+
+// GetSettingsRoles returns the background-role routing settings section.
+func (h *BaseHandlers) GetSettingsRoles(c *gin.Context) {
+	h.getSettingsSection(c, settingspkg.SectionRoles)
+}
+
+// UpdateSettingsRoles persists the background-role routing settings section.
+func (h *BaseHandlers) UpdateSettingsRoles(c *gin.Context) {
+	req, err := parseUpdateSettingsRolesRequest(c)
+	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}

@@ -1,7 +1,9 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { sessionLifecycleSelectors } from "../fixtures/selectors";
+import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
+import { waitForSeedSessionActive } from "../fixtures/runtime";
+import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -46,19 +48,21 @@ test.use({
 test("operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls", async ({
   appPage,
   browserArtifacts,
+  runtime,
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.osDesktop).toBeVisible();
-  await appPage.getByTestId("nav-agents").click();
+  const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+  const fleet = sessionLifecycleSelectors(agentsWin);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
-  await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
+  await expect(fleet.agentRow(browserLifecycleAgent)).toBeVisible();
 
-  await ui.agentRow(browserLifecycleAgent).click();
+  await fleet.agentRow(browserLifecycleAgent).click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${browserLifecycleAgent}`);
-  await expect(ui.agentPageNewSession).toBeVisible();
-  await ui.agentPageNewSession.click();
+  await expect(fleet.agentPageNewSession).toBeVisible();
+  await fleet.agentPageNewSession.click();
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
   await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
@@ -79,7 +83,7 @@ test("operator can onboard, create a session, submit work, approve a permission 
   // The mock adapter fails loud on an unadvertised model (task_01 §7.4), so use a
   // model it actually accepts — the selector emits the exact canonical id.
   const runtimeTrigger = appPage.getByTestId("session-create-runtime-select");
-  await runtimeTrigger.locator('button[data-focus="model"]').first().click();
+  await runtimeTrigger.click();
   await expect(appPage.getByTestId("runtime-selector-search")).toBeVisible();
   await appPage.getByTestId("runtime-selector-search").fill("qa-browser-model");
   await appPage.getByTestId("runtime-selector-custom").click();
@@ -101,20 +105,22 @@ test("operator can onboard, create a session, submit work, approve a permission 
   const workspaceId = createPayload.session?.workspace_id ?? "";
   expect(sessionId).not.toBe("");
   expect(workspaceId).not.toBe("");
+  await waitForSeedSessionActive(runtime, sessionId);
 
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(browserLifecycleSessionPath(browserLifecycleAgent, sessionId));
-  await expect(ui.chatHeader).toBeVisible();
-  await expect(ui.composerTextarea).toBeVisible();
-  await expect(ui.stopButton).toBeVisible();
+  const sessionWin = sessionWindow(appPage, sessionId);
+  const sessionUi = sessionWindowSelectors(sessionWin, appPage);
+  await expect(sessionWin).toBeVisible();
+  await expect(sessionUi.composerTextarea).toBeVisible();
 
-  await ui.composerTextarea.fill(browserLifecyclePrompt);
-  await ui.composerTextarea.press("Enter");
+  await sessionUi.composerTextarea.fill(browserLifecyclePrompt);
+  await sessionUi.composerTextarea.press("Enter");
 
-  await expect(ui.permissionPrompt).toBeVisible();
-  await expect(appPage.getByTestId("permission-reject-once")).toBeVisible();
-  await expect(ui.chatView).toContainText("Streaming response started.");
+  await expect(sessionUi.permissionPrompt).toBeVisible();
+  await expect(sessionWin.getByTestId("permission-reject-once")).toBeVisible();
+  await expect(sessionUi.chatView).toContainText("Streaming response started.");
 
   const approvalResponsePromise = appPage.waitForResponse(response => {
     return (
@@ -122,38 +128,40 @@ test("operator can onboard, create a session, submit work, approve a permission 
       response.url().endsWith(sessionAPIPath(workspaceId, sessionId, "/approve"))
     );
   });
-  await ui.permissionAllowOnce.click();
+  await sessionUi.permissionAllowOnce.click();
   const approvalResponse = await approvalResponsePromise;
   expect(approvalResponse.ok()).toBeTruthy();
 
-  await expect(ui.chatView).toContainText("Streaming response started.");
+  await expect(sessionUi.chatView).toContainText("Streaming response started.");
 
   const sessionPath = new URL(appPage.url()).pathname;
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(sessionPath);
-  await expect(ui.chatHeader).toBeVisible();
-  await expect(ui.chatView).toContainText(browserLifecyclePrompt);
+  await expect(sessionWin).toBeVisible();
+  await expect(sessionUi.chatView).toContainText(browserLifecyclePrompt);
   // Rehydration is correct: the settled turn's TERMINAL assistant output stays visible…
-  await expect(ui.chatView).toContainText("Approval granted.Session continued after approval.");
+  await expect(sessionUi.chatView).toContainText(
+    "Approval granted.Session continued after approval."
+  );
   // …while its earlier "Streaming response started." preamble is intentionally folded
   // behind the collapsed "Worked" disclosure. Reach it by expanding that disclosure —
   // do not assert the folded text directly (persistence/fold behavior is unchanged).
-  const workedFold = appPage.getByRole("button", { name: /^Worked/ });
+  const workedFold = sessionWin.getByRole("button", { name: /^Worked/ });
   await expect(workedFold).toHaveAttribute("data-testid", "turn-fold-row");
   await expect(workedFold).toHaveAttribute("aria-expanded", "false");
   await workedFold.click();
   await expect(workedFold).toHaveAttribute("aria-expanded", "true");
-  await expect(ui.chatView).toContainText("Streaming response started.");
-  await expect(ui.stopButton).toBeVisible();
-  await expect(ui.resumeButton).toBeVisible();
+  await expect(sessionUi.chatView).toContainText("Streaming response started.");
+  await expect(sessionUi.stopButton).toBeVisible();
+  await expect(sessionUi.resumeButton).toBeVisible();
 
-  await ui.resumeButton.click();
-  await expect(ui.stopButton).toBeVisible();
+  await sessionUi.resumeButton.click();
+  await expect(sessionUi.stopButton).toBeVisible();
 
-  await ui.stopButton.click();
-  await expect(ui.resumeButton).not.toBeVisible();
+  await sessionUi.stopButton.click();
+  await expect(sessionUi.resumeButton).not.toBeVisible();
 
   await browserArtifacts.captureScreenshot("session-onboarding-hydrated", appPage);
 });

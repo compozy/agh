@@ -37,9 +37,9 @@ func TestContextForSessionDependencyContextErrorsContract(t *testing.T) {
 				name: "coordinator config deadline",
 				deps: Deps{
 					Now: fixedNow,
-					CoordinatorConfig: coordinatorResolverFunc(
-						func(context.Context, string) (aghconfig.CoordinatorConfig, error) {
-							return aghconfig.CoordinatorConfig{}, context.DeadlineExceeded
+					CoordinatorRole: coordinatorResolverFunc(
+						func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error) {
+							return aghconfig.ResolvedCoordinatorRole{}, context.DeadlineExceeded
 						},
 					),
 				},
@@ -81,9 +81,9 @@ func TestContextForSessionDependencyContextErrorsContract(t *testing.T) {
 		service := NewService(Deps{
 			Now:           fixedNow,
 			SkillRegistry: contextErrorSkillRegistry{err: errors.New("skill registry unavailable")},
-			CoordinatorConfig: coordinatorResolverFunc(
-				func(context.Context, string) (aghconfig.CoordinatorConfig, error) {
-					return aghconfig.CoordinatorConfig{}, errors.New("coordinator unavailable")
+			CoordinatorRole: coordinatorResolverFunc(
+				func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error) {
+					return aghconfig.ResolvedCoordinatorRole{}, errors.New("coordinator unavailable")
 				},
 			),
 			SoulSnapshots: contextErrorSoulSnapshotStore{err: soul.ErrSnapshotNotFound},
@@ -122,9 +122,9 @@ func TestContextForStartupDependencyContextErrorsContract(t *testing.T) {
 			name: "coordinator config deadline",
 			deps: Deps{
 				Now: fixedNow,
-				CoordinatorConfig: coordinatorResolverFunc(
-					func(context.Context, string) (aghconfig.CoordinatorConfig, error) {
-						return aghconfig.CoordinatorConfig{}, context.DeadlineExceeded
+				CoordinatorRole: coordinatorResolverFunc(
+					func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error) {
+						return aghconfig.ResolvedCoordinatorRole{}, context.DeadlineExceeded
 					},
 				),
 			},

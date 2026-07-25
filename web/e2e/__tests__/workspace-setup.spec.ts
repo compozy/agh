@@ -28,7 +28,8 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.osDesktop).toBeVisible();
 
-  await appPage.getByTestId("add-workspace-btn").click();
+  await appPage.locator('[data-slot="os-menubar-workspace"]').click();
+  await appPage.getByTestId("os-workspace-add").click();
 
   const dialog = appPage.getByTestId("workspace-setup-dialog");
   await expect(dialog).toBeVisible();
@@ -80,7 +81,8 @@ test.describe("first-run default model", () => {
 
     const runtimeTrigger = appPage.getByTestId("onboarding-runtime-select");
     await expect(runtimeTrigger).toBeVisible();
-    await runtimeTrigger.locator('button[data-focus="model"]').first().click();
+    // The closed selector is one button that opens the popup (no per-segment zones).
+    await runtimeTrigger.click();
     await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
     await appPage
       .locator(`[data-provider="${mockAgentProvider}"][data-model="${reasoningCatalogModel}"]`)
@@ -91,7 +93,8 @@ test.describe("first-run default model", () => {
     await reasoningStrip.locator('button[data-rz="high"]').click();
     await appPage.keyboard.press("Escape");
     await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
-    await expect(runtimeTrigger.locator('button[data-focus="reasoning"]')).toContainText("High");
+    // Reasoning is projected into the trigger's accessible summary, not a sub-button.
+    await expect(runtimeTrigger).toHaveAccessibleName(/reasoning High/);
 
     const providerRequestPromise = appPage.waitForRequest(
       request =>

@@ -31,6 +31,7 @@ func (d *Daemon) bootMemorySessionRuntime(
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 	state.sessions = sessions
+	d.configureMemoryController(state, sessions)
 	if err := d.bootClarifyBridge(state, cleanup); err != nil {
 		return err
 	}
@@ -86,7 +87,7 @@ func (d *Daemon) bootAutoTitleRuntime(
 	sessions SessionManager,
 	cleanup *bootCleanup,
 ) error {
-	if state == nil || !state.cfg.Session.AutoTitleEnabled {
+	if state == nil {
 		return nil
 	}
 	titleSessions, ok := sessions.(autoTitleSessionManager)
@@ -94,7 +95,7 @@ func (d *Daemon) bootAutoTitleRuntime(
 		return errors.New("daemon: session manager does not implement automatic title lifecycle")
 	}
 	deadline := state.cfg.Memory.Extractor.Deadline
-	generator := newForkedAutoTitleGenerator(titleSessions, deadline, state.logger)
+	generator := newForkedAutoTitleGenerator(titleSessions, roleResolverForState(state), deadline, state.logger)
 	runtime := newAutoTitleRuntime(titleSessions, generator, deadline, state.logger)
 	if err := runtime.Start(ctx); err != nil {
 		return fmt.Errorf("daemon: start automatic title runtime: %w", err)
@@ -115,7 +116,7 @@ func (d *Daemon) bootCheckpointSummaryRuntime(
 	}
 	summarizer := newDaemonCheckpointSummarizer(
 		sessions,
-		firstNonEmptyString(state.cfg.Memory.Dream.Agent, state.cfg.Defaults.Agent),
+		roleResolverForState(state),
 	)
 	service := memory.NewCheckpointSummaryService(
 		state.memoryStore,

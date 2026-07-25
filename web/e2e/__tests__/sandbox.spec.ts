@@ -6,9 +6,14 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
-import { sandboxOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
+import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import {
+  sandboxOperatorSelectors,
+  sessionLifecycleSelectors,
+  sessionWindowSelectors,
+} from "../fixtures/selectors";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { seedBrowserSandboxProfiles } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -119,19 +124,21 @@ test("operator manages a local sandbox profile and binds it to real session exec
   test.setTimeout(180_000);
 
   await assertLaunchRuntime(runtime);
-  const sandboxUI = sandboxOperatorSelectors(appPage);
   await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
 
   await appPage.goto(runtime.url("/sandbox"), { waitUntil: "domcontentloaded" });
+  const sandboxWin = appPage.getByTestId("os-window-app:sandbox");
+  await expect(sandboxWin).toBeVisible({ timeout: 20_000 });
+  const sandboxUI = sandboxOperatorSelectors(sandboxWin);
   await expect(sandboxUI.shell).toBeVisible({ timeout: 20_000 });
-  await createSandboxProfileThroughUI(appPage, sandboxProfileName);
+  await createSandboxProfileThroughUI(sandboxWin, sandboxProfileName);
   await expect(sandboxUI.profile(sandboxProfileName)).toBeVisible();
   await expect(sandboxUI.profile(sandboxProfileName)).toContainText("local");
   await expect(sandboxUI.profileMetadata(sandboxProfileName)).toContainText("reuse");
   await expect(sandboxUI.profileSource(sandboxProfileName)).toContainText("CONFIG");
   await expect(sandboxUI.actionResult).toContainText(`Saved sandbox "${sandboxProfileName}"`);
 
-  await assertDuplicateNameValidation(appPage, sandboxProfileName);
+  await assertDuplicateNameValidation(sandboxWin, sandboxProfileName);
   await expect(
     runtime.requestJSON<unknown>(
       `/api/settings/sandboxes/${encodeURIComponent("browser-invalid-sandbox")}`,
@@ -174,21 +181,20 @@ test("operator manages a local sandbox profile and binds it to real session exec
   await sandboxUI.deleteProfile(sandboxProfileName).click();
   await expect(sandboxUI.deleteDialog).toBeVisible();
   await expect(sandboxUI.deleteUsage).toContainText("1 workspace currently reference this profile");
-  await appPage.getByTestId("settings-sandboxes-delete-cancel").click();
+  await sandboxWin.getByTestId("settings-sandboxes-delete-cancel").click();
 
   const session = await createSession(runtime, allowedAgent, workspace.id);
   // The session lives in this freshly resolved workspace, while the active
   // workspace is still the global one. The session route redirects away when
   // the active workspace does not own the session, so activate the session's
   // workspace first, exactly as an operator would before opening it.
-  await appPage.getByTestId("workspace-switcher").click();
-  await appPage.getByTestId(`workspace-command-item-${workspace.id}`).click();
-  await expect(appPage.getByTestId("workspace-switcher")).toHaveAttribute("aria-expanded", "false");
+  await switchWorkspace(appPage, workspace.id, workspace.name);
   await appPage.goto(runtime.url(sessionPath(allowedAgent, session.id)), {
     waitUntil: "domcontentloaded",
   });
-  const sessionUI = sessionLifecycleSelectors(appPage);
-  await expect(sessionUI.chatHeader).toBeVisible();
+  const allowedSessionWin = sessionWindow(appPage, session.id);
+  const sessionUI = sessionWindowSelectors(allowedSessionWin);
+  await expect(allowedSessionWin).toBeVisible();
   await sessionUI.composerTextarea.fill("exercise sandbox allowed path");
   await sessionUI.composerTextarea.press("Enter");
 
@@ -234,7 +240,7 @@ test("operator manages a local sandbox profile and binds it to real session exec
   expect(sandboxByName(udsSandboxes.sandboxes, sandboxProfileName)?.profile.backend).toBe("local");
 
   await appPage.goto(runtime.url("/sandbox"), { waitUntil: "domcontentloaded" });
-  await assertSandboxViewports(appPage, browserArtifacts);
+  await assertSandboxViewports(sandboxWin, browserArtifacts);
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
     cli_session: cliSession,
     cli_workspace: cliWorkspace,
@@ -284,8 +290,9 @@ test("operator sees blocked sandbox diagnostics without leaking secrets or writi
     waitUntil: "domcontentloaded",
   });
   await useGlobalWorkspaceIfPrompted(appPage);
-  const sessionUI = sessionLifecycleSelectors(appPage);
-  await expect(sessionUI.chatHeader).toBeVisible();
+  const blockedSessionWin = sessionWindow(appPage, session.id);
+  const sessionUI = sessionWindowSelectors(blockedSessionWin);
+  await expect(blockedSessionWin).toBeVisible();
   await sessionUI.composerTextarea.fill("exercise sandbox blocked path");
   await sessionUI.composerTextarea.press("Enter");
   await expect(sessionUI.chatView).toContainText("terminal/create denied", {
@@ -318,8 +325,9 @@ test("operator sees blocked sandbox diagnostics without leaking secrets or writi
   await assertNoSensitiveLeak(appPage, runtime);
 });
 
-async function createSandboxProfileThroughUI(page: Page, name: string): Promise<void> {
-  const ui = sandboxOperatorSelectors(page);
+async function createSandboxProfileThroughUI(win: Locator, name: string): Promise<void> {
+  const ui = sandboxOperatorSelectors(win);
+  const page = win.page();
   await ui.createButton.click();
   await expect(ui.editor).toBeVisible();
   await ui.editorNameInput.fill(name);
@@ -338,14 +346,14 @@ async function createSandboxProfileThroughUI(page: Page, name: string): Promise<
   await expect(ui.editor).toBeHidden();
 }
 
-async function assertDuplicateNameValidation(page: Page, name: string): Promise<void> {
-  const ui = sandboxOperatorSelectors(page);
+async function assertDuplicateNameValidation(win: Locator, name: string): Promise<void> {
+  const ui = sandboxOperatorSelectors(win);
   await ui.createButton.click();
   await expect(ui.editor).toBeVisible();
   await ui.editorNameInput.fill(name);
   await expect(ui.editorError).toContainText(`A sandbox named "${name}" already exists.`);
   await expect(ui.editorSave).toBeDisabled();
-  await page.getByTestId("settings-sandbox-editor-cancel").click();
+  await win.getByTestId("settings-sandbox-editor-cancel").click();
 }
 
 async function createSession(
@@ -477,16 +485,17 @@ async function pollRestartStatus(runtime: BrowserRuntime, statusURL: string): Pr
 }
 
 async function assertSandboxViewports(
-  page: Page,
+  win: Locator,
   browserArtifacts: { captureScreenshot(name?: string, page?: Page): Promise<string | null> }
 ): Promise<void> {
+  const page = win.page();
   for (const viewport of [
     { width: 1280, height: 900, name: "desktop" },
     { width: 768, height: 900, name: "tablet" },
     { width: 375, height: 812, name: "mobile" },
   ]) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await expect(page.getByTestId("sandbox-shell")).toBeVisible();
+    await expect(win.getByTestId("sandbox-shell")).toBeVisible();
     await expect(page.locator("body")).not.toContainText(sensitivePattern);
     await browserArtifacts.captureScreenshot(`sandbox-${viewport.name}`, page);
   }

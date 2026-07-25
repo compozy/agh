@@ -52,6 +52,15 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 		return parseStringSliceValue(trimmed)
 	case configSetFloatSlice:
 		return parseFloatSliceValue(trimmed)
+	case configSetTable:
+		var value map[string]any
+		if err := json.Unmarshal([]byte(trimmed), &value); err != nil {
+			return nil, fmt.Errorf("cli: parse object %q: %w", raw, err)
+		}
+		if value == nil {
+			return nil, errors.New("cli: config object must not be null")
+		}
+		return value, nil
 	default:
 		return nil, fmt.Errorf("cli: unsupported config value kind %d", kind)
 	}

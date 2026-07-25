@@ -1,9 +1,6 @@
 package config
 
 func (o sessionOverlay) Apply(dst *SessionConfig) {
-	if o.AutoTitleEnabled != nil {
-		dst.AutoTitleEnabled = *o.AutoTitleEnabled
-	}
 	o.Limits.Apply(&dst.Limits)
 	o.Supervision.Apply(&dst.Supervision)
 	o.BusyInput.Apply(&dst.BusyInput)

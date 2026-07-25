@@ -64,6 +64,8 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		Agents:        src.Agents,
 		Limits:        src.Limits,
 		Session:       src.Session,
+		Roles:         aghconfig.CloneRolesConfig(&src.Roles),
+		RoleSources:   aghconfig.CloneRoleFieldSources(src.RoleSources),
 		Permissions:   src.Permissions,
 		MCPServers:    cloneMCPServers(src.MCPServers),
 		Providers:     cloneProviders(src.Providers),

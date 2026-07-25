@@ -21,6 +21,7 @@ import {
   updateSettingsMemory,
   updateSettingsNetwork,
   updateSettingsObservability,
+  updateSettingsRoles,
   updateSettingsSkills,
 } from "../adapters/settings-api";
 import {
@@ -50,6 +51,8 @@ import type {
   SettingsUpdateMemoryRequest,
   SettingsUpdateNetworkRequest,
   SettingsUpdateObservabilityRequest,
+  SettingsRolesSection,
+  SettingsUpdateRolesRequest,
   SettingsSectionName,
   SettingsUpdateSkillsFilter,
   SettingsUpdateSkillsRequest,
@@ -79,6 +82,14 @@ function invalidateSection(
 ) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: settingsKeys.section(section) }),
+    invalidateApplyRecords(queryClient),
+  ]);
+}
+
+function invalidateRoles(queryClient: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: settingsKeys.section("roles") }),
+    queryClient.invalidateQueries({ queryKey: settingsKeys.rolesStatus() }),
     invalidateApplyRecords(queryClient),
   ]);
 }
@@ -151,6 +162,23 @@ export function useUpdateSettingsMemory() {
     mutationFn: (body: SettingsUpdateMemoryRequest) => updateSettingsMemory(body),
     onSuccess: recordMutation,
     onSettled: () => invalidateSection(queryClient, "memory"),
+  });
+}
+
+export function useUpdateSettingsRoles() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: SettingsUpdateRolesRequest) => updateSettingsRoles(body),
+    onSuccess: (result, variables) => {
+      recordMutation(result);
+      // Reflect the applied section immediately so the saved confirmation shows
+      // without a dirty flicker; onSettled refetches both reads to confirm.
+      queryClient.setQueryData<SettingsRolesSection>(settingsKeys.section("roles"), previous =>
+        previous ? { ...previous, config: variables.config } : previous
+      );
+    },
+    onSettled: () => invalidateRoles(queryClient),
   });
 }
 

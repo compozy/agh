@@ -36,31 +36,38 @@ This keeps orchestration useful without paying the Network tool/context/wake cos
 
 ## Configuration
 
-Coordinator settings live under `[autonomy.coordinator]` in global or workspace `config.toml`:
+Coordinator routing and coordinator-owned session limits live under `[roles.coordinator]` in global
+or workspace `config.toml`:
 
 ```toml
-[autonomy.coordinator]
+[roles.coordinator]
 enabled = true
-agent_name = "coordinator"
+agent = ""
 provider = "codex"
 model = "gpt-5.6-sol"
-default_ttl = "2h"
+reasoning_effort = "high"
+ttl = "2h"
 max_children = 5
 max_active_sessions_per_workspace = 5
 ```
 
-| Field                               | Default       | Meaning                                                |
-| ----------------------------------- | ------------- | ------------------------------------------------------ |
-| `enabled`                           | `false`       | Allows coordinator bootstrap after run enqueue.        |
-| `agent_name`                        | `coordinator` | Agent definition used for the coordinator.             |
-| `provider`                          | unset         | Optional provider override.                            |
-| `model`                             | unset         | Optional model override.                               |
-| `default_ttl`                       | `2h`          | Coordinator lifetime, from `1m` through `24h`.         |
-| `max_children`                      | `5`           | Maximum child sessions the coordinator may spawn.      |
-| `max_active_sessions_per_workspace` | `5`           | Active autonomy-managed sessions allowed in workspace. |
+| Field                               | Default | Meaning                                                                              |
+| ----------------------------------- | ------- | ------------------------------------------------------------------------------------ |
+| `enabled`                           | `false` | Allows coordinator bootstrap after run enqueue.                                      |
+| `agent`                             | empty   | Empty selects the virtual builtin `coordinator`; a name routes to an authored agent. |
+| `provider`                          | empty   | Optional provider override.                                                          |
+| `model`                             | empty   | Optional exact model override.                                                       |
+| `reasoning_effort`                  | empty   | Optional reasoning override.                                                         |
+| `fallback_chain`                    | empty   | Ordered provider/model routes tried only before ACP accepts the session.             |
+| `ttl`                               | `2h`    | Coordinator lifetime, from `1m` through `24h`.                                       |
+| `max_children`                      | `5`     | Maximum child sessions the coordinator may spawn.                                    |
+| `max_active_sessions_per_workspace` | `5`     | Active autonomy-managed sessions allowed in one workspace.                           |
 
-Workspace config wins over global config, then bundled agent/provider defaults apply. The
-coordinator remains idempotent per workspace and cannot spawn another coordinator.
+Workspace config wins over global config, then builtin or authored-agent/provider defaults apply.
+Changes are Live for later coordinator starts; an active coordinator keeps its accepted routing.
+The builtin identity is virtual, reserved from authoring, and absent from the public agent catalog.
+The coordinator remains idempotent per workspace and cannot spawn another coordinator. Inspect the
+effective projection with `agh roles show coordinator --workspace <workspace> -o json`.
 
 ## Operator control
 

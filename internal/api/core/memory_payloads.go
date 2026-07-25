@@ -224,10 +224,7 @@ func (h *BaseHandlers) memoryMutableConfigPaths() []string {
 	return []string{
 		"memory.enabled",
 		"memory.controller.mode",
-		"memory.controller.llm.enabled",
 		"memory.recall.top_k",
-		"memory.extractor.enabled",
-		"memory.dream.enabled",
 		"memory.provider.name",
 	}
 }

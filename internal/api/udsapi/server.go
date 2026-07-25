@@ -7,12 +7,10 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-
 	"sync"
 	"time"
 
 	core "github.com/compozy/agh/internal/api/core"
-
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/doctor"
 	mcppkg "github.com/compozy/agh/internal/mcp"
@@ -103,7 +101,8 @@ type Server struct {
 	heartbeatWake      core.HeartbeatWakeService
 	sessionHealth      core.SessionHealthReader
 	wakeEvents         core.HeartbeatWakeEventReader
-	coordinatorConfig  core.CoordinatorConfigResolver
+	coordinatorRole    core.CoordinatorRoleResolver
+	roles              core.RolesStatusProvider
 	skillsRegistry     core.SkillsRegistry
 	skillResources     core.SkillResourceSyncer
 	memoryStore        *memory.Store
@@ -295,10 +294,17 @@ func WithHeartbeatWakeEventReader(reader core.HeartbeatWakeEventReader) Option {
 	}
 }
 
-// WithCoordinatorConfig injects the resolved coordinator policy reader.
-func WithCoordinatorConfig(resolver core.CoordinatorConfigResolver) Option {
+// WithCoordinatorRole injects the resolved coordinator policy reader.
+func WithCoordinatorRole(resolver core.CoordinatorRoleResolver) Option {
 	return func(server *Server) {
-		server.coordinatorConfig = resolver
+		server.coordinatorRole = resolver
+	}
+}
+
+// WithRolesStatusProvider injects the effective role configuration reader.
+func WithRolesStatusProvider(provider core.RolesStatusProvider) Option {
+	return func(server *Server) {
+		server.roles = provider
 	}
 }
 

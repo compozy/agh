@@ -234,9 +234,15 @@ type HeartbeatWakeEventReader interface {
 	ListHeartbeatWakeEvents(ctx context.Context, query heartbeat.WakeEventListQuery) ([]heartbeat.WakeEvent, error)
 }
 
-// CoordinatorConfigResolver resolves safe coordinator policy for agent-facing reads.
-type CoordinatorConfigResolver interface {
-	ResolveCoordinatorConfig(ctx context.Context, workspaceID string) (aghconfig.CoordinatorConfig, error)
+// CoordinatorRoleResolver resolves safe coordinator policy for agent-facing reads.
+type CoordinatorRoleResolver interface {
+	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (aghconfig.ResolvedCoordinatorRole, error)
+}
+
+// RolesStatusProvider projects effective role configuration without simulating an invocation.
+type RolesStatusProvider interface {
+	RoleStatuses(ctx context.Context, workspaceID string) ([]contract.RoleStatus, error)
+	RoleStatus(ctx context.Context, workspaceID, role string) (contract.RoleStatus, error)
 }
 
 // NetworkStore exposes persisted network audit, channel metadata CRUD, and timeline queries to the API layer.

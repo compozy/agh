@@ -8,7 +8,7 @@ func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
 	agent.GET("/context", handlers.AgentContext)
 	agent.GET("/soul", handlers.AgentSoul)
 	agent.POST("/soul/validate", handlers.ValidateAgentSoul)
-	agent.GET("/coordinator/config", handlers.AgentCoordinatorConfig)
+	agent.GET("/coordinator/config", handlers.AgentCoordinatorRole)
 	agent.POST("/spawn", handlers.AgentSpawn)
 	agent.GET("/channels", handlers.AgentChannels)
 	agent.GET("/channels/:channel/recv", handlers.AgentChannelRecv)

@@ -7,7 +7,9 @@ import {
   deleteSettingsProvider,
   getSettingsGeneral,
   getSettingsObservability,
+  getRolesStatus,
   getSettingsRestartStatus,
+  getSettingsRoles,
   getSettingsSkills,
   listSettingsSandboxes,
   listSettingsApplyRecords,
@@ -23,8 +25,14 @@ import {
   triggerSettingsRestart,
   updateSettingsAutomation,
   updateSettingsGeneral,
+  updateSettingsRoles,
   updateSettingsSkills,
 } from "../settings-api";
+import {
+  rolesStatusFixture,
+  settingsRolesConfigWithFallbackFixture,
+  settingsRolesSectionFixture,
+} from "../../mocks/roles-fixtures";
 
 const generalSectionFixture = {
   section: "general" as const,
@@ -266,6 +274,37 @@ describe("section reads and updates", () => {
 
     await expect(getSettingsGeneral()).rejects.toBeInstanceOf(SettingsApiError);
     await expect(getSettingsGeneral()).rejects.toThrow("Failed to load general settings: 500");
+  });
+});
+
+describe("roles section", () => {
+  it("loads the effective roles projection", async () => {
+    mockJsonResponse(rolesStatusFixture);
+
+    const result = await getRolesStatus();
+
+    expect(result.roles).toHaveLength(6);
+    await expectFetchRequest({ path: "/api/roles" });
+  });
+
+  it("loads the editable roles settings section", async () => {
+    mockJsonResponse(settingsRolesSectionFixture);
+
+    const result = await getSettingsRoles();
+
+    expect(result.section).toBe("roles");
+    expect(result.config.memory_controller.timeout).toBe("250ms");
+    await expectFetchRequest({ path: "/api/settings/roles" });
+  });
+
+  it("submits the full roles section through the config-apply plane", async () => {
+    mockJsonResponse({ ...mutationFixture, section: "roles" as const });
+
+    const body = { config: settingsRolesConfigWithFallbackFixture };
+    const result = await updateSettingsRoles(body);
+
+    expect(result.section).toBe("roles");
+    await expectFetchRequest({ body, method: "PATCH", path: "/api/settings/roles" });
   });
 });
 

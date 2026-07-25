@@ -4,24 +4,127 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	sdkmcp "github.com/mark3labs/mcp-go/mcp"
-
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-
+	acpsdk "github.com/coder/acp-go-sdk"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	sessionpkg "github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 	toolspkg "github.com/compozy/agh/internal/tools"
+	sdkmcp "github.com/mark3labs/mcp-go/mcp"
+	_ "modernc.org/sqlite"
 )
+
+const (
+	roleDreamProviderName = "role-dream"
+	roleDreamModel        = "routed-dream-model"
+)
+
+func TestDaemonE2ERolesLiveApplyChangesNextMemoryExtractorModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should record the HTTP apply and route the next extractor through the applied model", func(t *testing.T) {
+		t.Parallel()
+		acpmock.RequireDriver(t)
+
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
+				cfg.Roles.AutoTitle.Enabled = false
+				cfg.Roles.MemoryExtractor.Provider = acpmock.ProviderName
+				cfg.Roles.MemoryExtractor.Model = "extractor-model-v1"
+			}},
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  mockFixturePath(t, "agent_roles_fixture.json"),
+				FixtureAgent: "role-agent",
+				AgentName:    "memory-extractor-live-apply",
+			}},
+		})
+		registration, ok := harness.MockAgentRegistration("memory-extractor-live-apply")
+		if !ok {
+			t.Fatal("MockAgentRegistration(memory-extractor-live-apply) = missing, want present")
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		var roles aghcontract.SettingsRolesResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/settings/roles", nil, &roles); err != nil {
+			t.Fatalf("HTTP GET settings roles error = %v", err)
+		}
+		roles.Config.MemoryExtractor.Model = "extractor-model-v2"
+		var apply aghcontract.SettingsApplyResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPatch,
+			"/api/settings/roles",
+			aghcontract.UpdateSettingsRolesRequest{Config: roles.Config},
+			&apply,
+		); err != nil {
+			t.Fatalf("HTTP PATCH settings roles error = %v", err)
+		}
+		if !apply.Applied || apply.Lifecycle != aghcontract.SettingsApplyLifecycleLive || apply.ApplyRecordID == "" {
+			t.Fatalf("roles live apply = %#v, want applied live record", apply)
+		}
+
+		var history aghcontract.ConfigApplyRecordsResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/settings/apply", nil, &history); err != nil {
+			t.Fatalf("HTTP GET settings apply history error = %v", err)
+		}
+		foundApply := false
+		for _, entry := range history.Entries {
+			if entry.ID == apply.ApplyRecordID && entry.Actor == "httpapi" &&
+				entry.Lifecycle == aghcontract.SettingsApplyLifecycleLive &&
+				entry.Status == aghcontract.ConfigApplyStatusApplied {
+				foundApply = true
+				break
+			}
+		}
+		if !foundApply {
+			t.Fatalf("settings apply history = %#v, want live HTTP record %q", history.Entries, apply.ApplyRecordID)
+		}
+
+		root := createFixtureBackedSession(t, ctx, harness, "memory-extractor-live-apply", "")
+		if _, err := harness.PromptSession(ctx, root.ID, "Record the extractor routing decision"); err != nil {
+			t.Fatalf("PromptSession(memory extractor live apply) error = %v", err)
+		}
+
+		var childID string
+		waitForRuntimeCondition(t, "memory extractor uses live-applied model", 10*time.Second, func() bool {
+			for _, candidate := range readAutoTitleRoleSessions(t, ctx, harness) {
+				if candidate.Lineage != nil && candidate.Lineage.SpawnRole == sessionpkg.SpawnRoleMemoryExtractor {
+					childID = candidate.ID
+				}
+			}
+			if childID == "" {
+				return false
+			}
+			records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+			if err != nil {
+				return false
+			}
+			for _, record := range acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForAGHSession(records, childID)) {
+				if record.ProtocolMethod == acpsdk.AgentMethodSessionSetConfigOption &&
+					record.ConfigOptionID == "model" && record.ConfigOptionValue == "extractor-model-v2" {
+					return true
+				}
+			}
+			return false
+		})
+	})
+}
 
 func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T) {
 	t.Parallel()
@@ -477,6 +580,366 @@ func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessa
 			t.Fatalf("workspace MEMORY.md = %q, want unchanged stale index", got)
 		}
 	})
+}
+
+func TestDaemonE2EDreamRoleRoutesBuiltinIdentityAndModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should route dream sessions through the configured builtin model", func(t *testing.T) {
+		t.Parallel()
+		runDaemonE2EDreamRoleRoutesBuiltinIdentityAndModel(t)
+	})
+}
+
+func runDaemonE2EDreamRoleRoutesBuiltinIdentityAndModel(t *testing.T) {
+	t.Helper()
+
+	acpmock.RequireDriver(t)
+
+	diagnosticsPath := filepath.Join(t.TempDir(), "builtin-dream.jsonl")
+	command := roleDreamMockCommand(t, diagnosticsPath)
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{
+			AgentDefs: []e2etest.AgentSeed{{
+				Name:     "session-driver",
+				Provider: roleDreamProviderName,
+				Command:  command,
+				Model:    roleDreamModel,
+				Prompt:   "Generate one completed session for dream eligibility.",
+			}},
+			Mutate: func(cfg *aghconfig.Config) {
+				configureRoleDreamE2E(cfg, command)
+				cfg.Roles.Dream.Provider = roleDreamProviderName
+				cfg.Roles.Dream.Model = roleDreamModel
+				cfg.Roles.AutoTitle.Enabled = false
+			},
+		},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	seedDreamEligibility(t, ctx, harness, "session-driver", diagnosticsPath)
+	triggerDreamEventually(t, ctx, harness, diagnosticsPath)
+
+	dreamRecord := requireDreamPromptDiagnostic(t, diagnosticsPath)
+	dreamSession, err := harness.GetSession(ctx, dreamRecord.AGHSessionID)
+	if err != nil {
+		t.Fatalf("GetSession(dream) error = %v", err)
+	}
+	if dreamSession.AgentName != aghconfig.BuiltinDreamingCuratorAgentName ||
+		dreamSession.Model != roleDreamModel || dreamSession.Type != "dream" {
+		t.Fatalf("dream session = %#v, want builtin dreaming-curator routed to %s", dreamSession, roleDreamModel)
+	}
+	assertDreamHiddenFromFleet(t, ctx, harness, dreamSession.ID)
+}
+
+func TestDaemonE2EDreamRoleUsesWorkspaceAgentWithoutAutoTitle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should isolate workspace dream routing and keep auto-title disabled", func(t *testing.T) {
+		t.Parallel()
+		runDaemonE2EDreamRoleUsesWorkspaceAgentWithoutAutoTitle(t)
+	})
+}
+
+func runDaemonE2EDreamRoleUsesWorkspaceAgentWithoutAutoTitle(t *testing.T) {
+	t.Helper()
+
+	acpmock.RequireDriver(t)
+
+	diagnosticsPath := filepath.Join(t.TempDir(), "workspace-dream.jsonl")
+	command := roleDreamMockCommand(t, diagnosticsPath)
+	agentDocument := fmt.Sprintf(`---
+name: workspace-curator
+provider: %s
+command: %s
+model: %s
+permissions: approve-all
+---
+
+Curate durable workspace knowledge.
+`, roleDreamProviderName, quotedYAMLString(command), roleDreamModel)
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
+			configureRoleDreamE2E(cfg, command)
+			cfg.Roles.MemoryExtractor.Enabled = false
+		}},
+		Workspace: e2etest.WorkspaceSeedOptions{Files: map[string]string{
+			".agh/agents/workspace-curator/AGENT.md": agentDocument,
+			".agh/config.toml": `[roles.dream]
+agent = "workspace-curator"
+provider = "role-dream"
+model = "routed-dream-model"
+
+[roles.auto_title]
+enabled = false
+`,
+		}},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	seedDreamEligibility(t, ctx, harness, "workspace-curator", diagnosticsPath)
+	triggerDreamEventually(t, ctx, harness, diagnosticsPath)
+
+	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(workspace dream) error = %v", err)
+	}
+	dreamRecord := requireDreamPromptRecord(t, records)
+	dreamSession, err := harness.GetSession(ctx, dreamRecord.AGHSessionID)
+	if err != nil {
+		t.Fatalf("GetSession(workspace dream) error = %v", err)
+	}
+	if dreamSession.AgentName != "workspace-curator" || dreamSession.Model != roleDreamModel {
+		t.Fatalf("workspace dream session = %#v, want workspace-curator routed to %s", dreamSession, roleDreamModel)
+	}
+	if got := len(acpmock.PromptDiagnostics(records)); got != 2 {
+		t.Fatalf("prompt diagnostics = %#v, want one user turn plus one dream and no auto-title", records)
+	}
+	assertDreamHiddenFromFleet(t, ctx, harness, dreamSession.ID)
+}
+
+func configureRoleDreamE2E(cfg *aghconfig.Config, command string) {
+	cfg.Providers[roleDreamProviderName] = acpmock.ProviderConfig(command)
+	cfg.Memory.Dream.MinHours = 0.000001
+	cfg.Memory.Dream.MinSessions = 1
+	cfg.Memory.Dream.Gates.MinUnpromoted = 1
+	cfg.Memory.Dream.Gates.MinRecallCount = 1
+	cfg.Memory.Dream.Gates.MinScore = 0.000001
+}
+func roleDreamMockCommand(t testing.TB, diagnosticsPath string) string {
+	t.Helper()
+	driverPath, err := acpmock.DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("acpmock.DefaultDriverPath() error = %v", err)
+	}
+	return acpmock.BuildCommand(
+		driverPath,
+		mockFixturePath(t, "agent_roles_fixture.json"),
+		"role-agent",
+		diagnosticsPath,
+	)
+}
+
+func quotedYAMLString(value string) string {
+	return strconv.Quote(value)
+}
+
+func seedDreamEligibility(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	agentName string,
+	diagnosticsPath string,
+) {
+	t.Helper()
+	writeMemoryViaUDS(
+		t,
+		ctx,
+		harness,
+		"dream-routing.md",
+		harness.WorkspaceRoot,
+		"Remember the configurable background dream routing signal.",
+	)
+	session := createFixtureBackedSession(t, ctx, harness, agentName, "")
+	waitForRuntimeCondition(t, "dream eligibility session active", 10*time.Second, func() bool {
+		current, err := harness.GetSession(ctx, session.ID)
+		return err == nil && current.State == sessionpkg.StateActive
+	})
+	if _, err := harness.PromptSession(ctx, session.ID, "remember the background dream routing signal"); err != nil {
+		t.Fatalf("PromptSession(dream eligibility) error = %v", err)
+	}
+	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(dream eligibility) error = %v", err)
+	}
+	ownedPrompts := acpmock.PromptDiagnostics(acpmock.DiagnosticsForAGHSession(records, session.ID))
+	if len(ownedPrompts) != 1 || !strings.Contains(ownedPrompts[0].Prompt, "Relevant durable memory for this turn:") {
+		t.Fatalf("dream eligibility prompts = %#v, want recalled durable memory", ownedPrompts)
+	}
+	if err := harness.StopSession(ctx, session.ID); err != nil {
+		t.Fatalf("StopSession(dream eligibility) error = %v", err)
+	}
+	waitForRuntimeCondition(t, "dream eligibility session stopped", 10*time.Second, func() bool {
+		current, err := harness.GetSession(ctx, session.ID)
+		return err == nil && current.State == sessionpkg.StateStopped
+	})
+}
+
+func triggerDreamEventually(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	diagnosticsPath string,
+) {
+	t.Helper()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	deadline := time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+
+	for {
+		recorded, err := dreamPromptRecorded(diagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(dream poll) error = %v", err)
+		}
+		if recorded {
+			return
+		}
+		var response aghcontract.MemoryDreamTriggerResponse
+		if err := harness.UDSJSON(
+			ctx,
+			http.MethodPost,
+			"/api/memory/dreams/trigger",
+			aghcontract.MemoryDreamTriggerRequest{WorkspaceID: harness.WorkspaceID},
+			&response,
+		); err != nil {
+			t.Fatalf("trigger memory dream error = %v", err)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf(
+				"memory dream never triggered: %v (last reason %q; %s)",
+				ctx.Err(),
+				response.Reason,
+				dreamGateDiagnostics(
+					t,
+					harness.HomePaths.DatabaseFile,
+					harness.HomePaths.SessionsDir,
+					harness.WorkspaceRoot,
+				),
+			)
+		case <-deadline.C:
+			t.Fatalf(
+				"memory dream never triggered before deadline (last reason %q; %s)",
+				response.Reason,
+				dreamGateDiagnostics(
+					t,
+					harness.HomePaths.DatabaseFile,
+					harness.HomePaths.SessionsDir,
+					harness.WorkspaceRoot,
+				),
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
+func dreamPromptRecorded(diagnosticsPath string) (bool, error) {
+	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		return false, err
+	}
+	for _, record := range acpmock.PromptDiagnostics(records) {
+		if strings.Contains(record.Prompt, "# Dream Consolidation") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func dreamGateDiagnostics(t testing.TB, databasePath string, sessionsDir string, workspaceRoot string) string {
+	t.Helper()
+	db, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		return fmt.Sprintf("open catalog: %v", err)
+	}
+	var (
+		count          int
+		minRecallCount int
+		maxRecallCount int
+		minRecallScore float64
+		maxRecallScore float64
+		workspaceIDs   string
+	)
+	queryErr := db.QueryRow(`
+SELECT
+  COUNT(*),
+  COALESCE(MIN(sig.recall_count), 0),
+  COALESCE(MAX(sig.recall_count), 0),
+  COALESCE(MIN(sig.recall_score), 0),
+  COALESCE(MAX(sig.recall_score), 0),
+  COALESCE(GROUP_CONCAT(DISTINCT e.workspace_id), '')
+FROM memory_recall_signals sig
+JOIN memory_chunks c ON c.id = sig.chunk_id
+JOIN memory_catalog_entries e ON e.id = c.file_id
+WHERE sig.promoted_at IS NULL AND e.injection = 1
+`).Scan(&count, &minRecallCount, &maxRecallCount, &minRecallScore, &maxRecallScore, &workspaceIDs)
+	closeErr := db.Close()
+	if queryErr != nil {
+		return fmt.Sprintf("query catalog: %v", queryErr)
+	}
+	if closeErr != nil {
+		return fmt.Sprintf("close catalog: %v", closeErr)
+	}
+	completedSessions := 0
+	entries, entriesErr := os.ReadDir(sessionsDir)
+	if entriesErr == nil {
+		for _, entry := range entries {
+			metadata, readErr := os.ReadFile(filepath.Join(sessionsDir, entry.Name(), "meta.json"))
+			if readErr == nil && (strings.Contains(string(metadata), `"state":"stopped"`) ||
+				strings.Contains(string(metadata), `"state": "stopped"`)) {
+				completedSessions++
+			}
+		}
+	}
+	identity, identityErr := os.ReadFile(filepath.Join(workspaceRoot, ".agh", "workspace.toml"))
+	return fmt.Sprintf(
+		"eligible rows=%d recall_count=%d..%d recall_score=%g..%g workspaces=%q completed_session_files=%d session_scan_error=%v identity=%q identity_error=%v",
+		count,
+		minRecallCount,
+		maxRecallCount,
+		minRecallScore,
+		maxRecallScore,
+		workspaceIDs,
+		completedSessions,
+		entriesErr,
+		strings.TrimSpace(string(identity)),
+		identityErr,
+	)
+}
+
+func requireDreamPromptDiagnostic(t testing.TB, diagnosticsPath string) acpmock.DiagnosticsRecord {
+	t.Helper()
+	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(dream) error = %v", err)
+	}
+	return requireDreamPromptRecord(t, records)
+}
+
+func requireDreamPromptRecord(
+	t testing.TB,
+	records []acpmock.DiagnosticsRecord,
+) acpmock.DiagnosticsRecord {
+	t.Helper()
+	for _, record := range acpmock.PromptDiagnostics(records) {
+		if strings.Contains(record.Prompt, "# Dream Consolidation") {
+			return record
+		}
+	}
+	t.Fatalf("prompt diagnostics = %#v, want dream consolidation prompt", records)
+	return acpmock.DiagnosticsRecord{}
+}
+
+func assertDreamHiddenFromFleet(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	dreamSessionID string,
+) {
+	t.Helper()
+	var response aghcontract.SessionCatalogResponse
+	path := "/api/sessions?workspace=" + url.QueryEscape(harness.WorkspaceID) + "&limit=100"
+	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("list fleet sessions error = %v", err)
+	}
+	for _, candidate := range response.Sessions {
+		if candidate.ID == dreamSessionID {
+			t.Fatalf("fleet sessions = %#v, want dream session %q hidden", response.Sessions, dreamSessionID)
+		}
+	}
 }
 
 func writeMemoryViaCLI(

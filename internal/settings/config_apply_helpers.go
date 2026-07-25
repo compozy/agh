@@ -2,14 +2,11 @@ package settings
 
 import (
 	"context"
-
 	"maps"
-
 	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/config/lifecycle"
-
 	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
@@ -28,6 +25,11 @@ func (s *service) classifySectionApplyRequest(
 			return lifecycle.RestartRequired
 		}
 		return s.classifyGeneralRequest(ctx, req)
+	case SectionRoles:
+		if req.Roles == nil {
+			return lifecycle.Live
+		}
+		return s.classifyRolesRequest(ctx, req)
 	case SectionHooksExtensions:
 		if req.HooksExtensions == nil {
 			return lifecycle.RestartRequired
@@ -118,6 +120,8 @@ func cloneActiveConfig(cfg *aghconfig.Config) aghconfig.Config {
 	cloned.Sandboxes = mapsClone(cfg.Sandboxes)
 	cloned.MCPServers = append([]aghconfig.MCPServer(nil), cfg.MCPServers...)
 	cloned.Hooks.Declarations = append([]hookspkg.HookDecl(nil), cfg.Hooks.Declarations...)
+	cloned.Roles = aghconfig.CloneRolesConfig(&cfg.Roles)
+	cloned.RoleSources = aghconfig.CloneRoleFieldSources(cfg.RoleSources)
 	cloned.WindowManager = cloneWindowManagerConfig(cfg.WindowManager)
 	return cloned
 }

@@ -2,12 +2,14 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/resources"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
@@ -461,6 +463,15 @@ func resourceSourceFromInput(rawKind string, rawID string, path string) (resourc
 }
 
 func nativeBundleToolError(id toolspkg.ToolID, err error) error {
+	if errors.Is(err, aghconfig.ErrAgentNameReserved) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeAgentNameReserved,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
 	return nativeHTTPStatusToolError(id, err, core.StatusForBundleError(err))
 }
 

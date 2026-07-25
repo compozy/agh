@@ -10,144 +10,157 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
-func TestCoordinatorConfigResolverReturnsBundledDefaultIdentity(t *testing.T) {
+func TestCoordinatorRoleResolverReturnsBundledDefaultIdentity(t *testing.T) {
 	t.Parallel()
+	t.Run("Should return the bundled default identity", func(t *testing.T) {
+		t.Parallel()
 
-	cfg := defaultCoordinatorResolverConfig(t)
-	resolver := newCoordinatorConfigResolver(&cfg, nil, nil)
+		cfg := defaultCoordinatorResolverConfig(t)
+		resolver := newCoordinatorRoleResolver(&cfg, nil, nil)
 
-	resolved, err := resolver.ResolveCoordinatorConfig(context.Background(), "")
-	if err != nil {
-		t.Fatalf("ResolveCoordinatorConfig() error = %v", err)
-	}
-	if got, want := resolved.AgentName, aghconfig.DefaultCoordinatorAgentName; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() AgentName = %q, want %q", got, want)
-	}
-	if resolved.Enabled {
-		t.Fatal("ResolveCoordinatorConfig() Enabled = true, want bundled default false")
-	}
-	if got, want := resolved.DefaultTTL, aghconfig.DefaultCoordinatorTTL; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() DefaultTTL = %s, want %s", got, want)
-	}
+		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "")
+		if err != nil {
+			t.Fatalf("ResolveCoordinatorRole() error = %v", err)
+		}
+		if got, want := resolved.AgentName, aghconfig.BuiltinCoordinatorAgentName; got != want {
+			t.Fatalf("ResolveCoordinatorRole() AgentName = %q, want %q", got, want)
+		}
+		if resolved.Enabled {
+			t.Fatal("ResolveCoordinatorRole() Enabled = true, want bundled default false")
+		}
+		if got, want := resolved.TTL, aghconfig.DefaultCoordinatorTTL; got != want {
+			t.Fatalf("ResolveCoordinatorRole() TTL = %s, want %s", got, want)
+		}
+	})
 }
 
-func TestCoordinatorConfigResolverPrefersGlobalConfigOverBundledDefault(t *testing.T) {
+func TestCoordinatorRoleResolverPrefersGlobalConfigOverBundledDefault(t *testing.T) {
 	t.Parallel()
+	t.Run("Should prefer global config over the bundled default", func(t *testing.T) {
+		t.Parallel()
 
-	cfg := defaultCoordinatorResolverConfig(t)
-	cfg.Autonomy.Coordinator.Enabled = true
-	cfg.Autonomy.Coordinator.AgentName = "global-coordinator"
-	cfg.Autonomy.Coordinator.Provider = "codex"
-	cfg.Autonomy.Coordinator.Model = "global-model"
-	cfg.Autonomy.Coordinator.DefaultTTL = 4 * time.Hour
-	cfg.Autonomy.Coordinator.MaxChildren = 4
-	resolver := newCoordinatorConfigResolver(&cfg, nil, nil)
+		cfg := defaultCoordinatorResolverConfig(t)
+		cfg.Roles.Coordinator.Enabled = true
+		cfg.Roles.Coordinator.Agent = aghconfig.BuiltinCoordinatorAgentName
+		cfg.Roles.Coordinator.Provider = "codex"
+		cfg.Roles.Coordinator.Model = "global-model"
+		cfg.Roles.Coordinator.TTL = 4 * time.Hour
+		cfg.Roles.Coordinator.MaxChildren = 4
+		resolver := newCoordinatorRoleResolver(&cfg, nil, nil)
 
-	resolved, err := resolver.ResolveCoordinatorConfig(context.Background(), "")
-	if err != nil {
-		t.Fatalf("ResolveCoordinatorConfig() error = %v", err)
-	}
-	if !resolved.Enabled {
-		t.Fatal("ResolveCoordinatorConfig() Enabled = false, want global true")
-	}
-	if got, want := resolved.AgentName, "global-coordinator"; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() AgentName = %q, want %q", got, want)
-	}
-	if got, want := resolved.Provider, "codex"; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() Provider = %q, want %q", got, want)
-	}
-	if got, want := resolved.Model, "global-model"; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() Model = %q, want %q", got, want)
-	}
-	if got, want := resolved.DefaultTTL, 4*time.Hour; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() DefaultTTL = %s, want %s", got, want)
-	}
-	if got, want := resolved.MaxChildren, 4; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() MaxChildren = %d, want %d", got, want)
-	}
+		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "")
+		if err != nil {
+			t.Fatalf("ResolveCoordinatorRole() error = %v", err)
+		}
+		if !resolved.Enabled {
+			t.Fatal("ResolveCoordinatorRole() Enabled = false, want global true")
+		}
+		if got, want := resolved.AgentName, aghconfig.BuiltinCoordinatorAgentName; got != want {
+			t.Fatalf("ResolveCoordinatorRole() AgentName = %q, want %q", got, want)
+		}
+		if got, want := resolved.Provider, "codex"; got != want {
+			t.Fatalf("ResolveCoordinatorRole() Provider = %q, want %q", got, want)
+		}
+		if got, want := resolved.Model, "global-model"; got != want {
+			t.Fatalf("ResolveCoordinatorRole() Model = %q, want %q", got, want)
+		}
+		if got, want := resolved.TTL, 4*time.Hour; got != want {
+			t.Fatalf("ResolveCoordinatorRole() TTL = %s, want %s", got, want)
+		}
+		if got, want := resolved.MaxChildren, 4; got != want {
+			t.Fatalf("ResolveCoordinatorRole() MaxChildren = %d, want %d", got, want)
+		}
+	})
 }
 
-func TestCoordinatorConfigResolverPrefersWorkspaceConfig(t *testing.T) {
+func TestCoordinatorRoleResolverPrefersWorkspaceConfig(t *testing.T) {
 	t.Parallel()
+	t.Run("Should prefer workspace config", func(t *testing.T) {
+		t.Parallel()
 
-	global := defaultCoordinatorResolverConfig(t)
-	global.Autonomy.Coordinator.Enabled = true
-	global.Autonomy.Coordinator.Provider = "claude"
-	global.Autonomy.Coordinator.Model = "global-model"
-	global.Autonomy.Coordinator.DefaultTTL = 2 * time.Hour
-	global.Autonomy.Coordinator.MaxChildren = 5
+		global := defaultCoordinatorResolverConfig(t)
+		global.Roles.Coordinator.Enabled = true
+		global.Roles.Coordinator.Provider = "claude"
+		global.Roles.Coordinator.Model = "global-model"
+		global.Roles.Coordinator.TTL = 2 * time.Hour
+		global.Roles.Coordinator.MaxChildren = 5
 
-	workspaceCfg := defaultCoordinatorResolverConfig(t)
-	workspaceCfg.Autonomy.Coordinator.Enabled = false
-	workspaceCfg.Autonomy.Coordinator.AgentName = "workspace-coordinator"
-	workspaceCfg.Autonomy.Coordinator.Provider = "codex"
-	workspaceCfg.Autonomy.Coordinator.Model = "workspace-model"
-	workspaceCfg.Autonomy.Coordinator.DefaultTTL = 3 * time.Hour
-	workspaceCfg.Autonomy.Coordinator.MaxChildren = 2
+		workspaceCfg := defaultCoordinatorResolverConfig(t)
+		workspaceCfg.Roles.Coordinator.Enabled = false
+		workspaceCfg.Roles.Coordinator.Agent = aghconfig.BuiltinCoordinatorAgentName
+		workspaceCfg.Roles.Coordinator.Provider = "codex"
+		workspaceCfg.Roles.Coordinator.Model = "workspace-model"
+		workspaceCfg.Roles.Coordinator.TTL = 3 * time.Hour
+		workspaceCfg.Roles.Coordinator.MaxChildren = 2
 
-	resolver := newCoordinatorConfigResolver(
-		&global,
-		&coordinatorWorkspaceResolverStub{
-			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{ID: "ws-1"},
-				Config:    workspaceCfg,
+		resolver := newCoordinatorRoleResolver(
+			&global,
+			&coordinatorWorkspaceResolverStub{
+				resolved: workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: "ws-1"},
+					Config:    workspaceCfg,
+				},
 			},
-		},
-		nil,
-	)
+			nil,
+		)
 
-	resolved, err := resolver.ResolveCoordinatorConfig(context.Background(), "ws-1")
-	if err != nil {
-		t.Fatalf("ResolveCoordinatorConfig(workspace) error = %v", err)
-	}
-	if resolved.Enabled {
-		t.Fatal("ResolveCoordinatorConfig() Enabled = true, want workspace false")
-	}
-	if got, want := resolved.AgentName, "workspace-coordinator"; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() AgentName = %q, want %q", got, want)
-	}
-	if got, want := resolved.Provider, "codex"; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() Provider = %q, want %q", got, want)
-	}
-	if got, want := resolved.Model, "workspace-model"; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() Model = %q, want %q", got, want)
-	}
-	if got, want := resolved.DefaultTTL, 3*time.Hour; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() DefaultTTL = %s, want %s", got, want)
-	}
-	if got, want := resolved.MaxChildren, 2; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() MaxChildren = %d, want %d", got, want)
-	}
+		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "ws-1")
+		if err != nil {
+			t.Fatalf("ResolveCoordinatorRole(workspace) error = %v", err)
+		}
+		if resolved.Enabled {
+			t.Fatal("ResolveCoordinatorRole() Enabled = true, want workspace false")
+		}
+		if got, want := resolved.AgentName, aghconfig.BuiltinCoordinatorAgentName; got != want {
+			t.Fatalf("ResolveCoordinatorRole() AgentName = %q, want %q", got, want)
+		}
+		if got, want := resolved.Provider, "codex"; got != want {
+			t.Fatalf("ResolveCoordinatorRole() Provider = %q, want %q", got, want)
+		}
+		if got, want := resolved.Model, "workspace-model"; got != want {
+			t.Fatalf("ResolveCoordinatorRole() Model = %q, want %q", got, want)
+		}
+		if got, want := resolved.TTL, 3*time.Hour; got != want {
+			t.Fatalf("ResolveCoordinatorRole() TTL = %s, want %s", got, want)
+		}
+		if got, want := resolved.MaxChildren, 2; got != want {
+			t.Fatalf("ResolveCoordinatorRole() MaxChildren = %d, want %d", got, want)
+		}
+	})
 }
 
-func TestCoordinatorConfigResolverUsesAgentFallbackForProviderModel(t *testing.T) {
+func TestCoordinatorRoleResolverUsesAgentFallbackForProviderModel(t *testing.T) {
 	t.Parallel()
+	t.Run("Should use the catalog agent for provider and model fallback", func(t *testing.T) {
+		t.Parallel()
 
-	cfg := defaultCoordinatorResolverConfig(t)
-	cfg.Defaults.Provider = "codex"
-	resolver := newCoordinatorConfigResolver(
-		&cfg,
-		nil,
-		coordinatorAgentResolverStub{
-			agent: aghconfig.AgentDef{
-				Name:     aghconfig.DefaultCoordinatorAgentName,
-				Provider: "claude",
-				Model:    "agent-model",
-				Prompt:   "agent fallback",
+		cfg := defaultCoordinatorResolverConfig(t)
+		cfg.Defaults.Provider = "codex"
+		cfg.Roles.Coordinator.Agent = "custom-coordinator"
+		resolver := newCoordinatorRoleResolver(
+			&cfg,
+			nil,
+			coordinatorAgentResolverStub{
+				agent: aghconfig.AgentDef{
+					Name:     "custom-coordinator",
+					Provider: "claude",
+					Model:    "agent-model",
+					Prompt:   "agent fallback",
+				},
 			},
-		},
-	)
+		)
 
-	resolved, err := resolver.ResolveCoordinatorConfig(context.Background(), "")
-	if err != nil {
-		t.Fatalf("ResolveCoordinatorConfig() error = %v", err)
-	}
-	if got, want := resolved.Provider, "claude"; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() Provider = %q, want agent fallback %q", got, want)
-	}
-	if got, want := resolved.Model, "agent-model"; got != want {
-		t.Fatalf("ResolveCoordinatorConfig() Model = %q, want agent fallback %q", got, want)
-	}
+		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "")
+		if err != nil {
+			t.Fatalf("ResolveCoordinatorRole() error = %v", err)
+		}
+		if got, want := resolved.Provider, "claude"; got != want {
+			t.Fatalf("ResolveCoordinatorRole() Provider = %q, want agent fallback %q", got, want)
+		}
+		if got, want := resolved.Model, "agent-model"; got != want {
+			t.Fatalf("ResolveCoordinatorRole() Model = %q, want agent fallback %q", got, want)
+		}
+	})
 }
 
 type coordinatorWorkspaceResolverStub struct {

@@ -247,6 +247,13 @@ export const routeStoryRegistry = [
   },
   {
     system: "settings",
+    routePath: "/settings/roles",
+    storybookPath: "/settings/roles",
+    title: "systems/settings/routes/SettingsRoles",
+    storyName: "Populated",
+  },
+  {
+    system: "settings",
     routePath: "/settings/hooks",
     storybookPath: "/settings/hooks",
     title: "systems/settings/routes/SettingsHooks",

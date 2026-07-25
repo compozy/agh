@@ -44,6 +44,19 @@
                             "text": "Checkout Retry Fencing"
                         }
                     ]
+                },
+                {
+                    "name": "post-acceptance-parent-response",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Implement post-acceptance fencing"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Implemented post-acceptance fencing."
+                        }
+                    ]
                 }
             ]
         }

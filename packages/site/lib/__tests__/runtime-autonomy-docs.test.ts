@@ -47,13 +47,14 @@ describe("runtime autonomy docs", () => {
       "changing workspace coordination affects future coordinated runs only",
     ]);
     expectIncludesAll(config, [
-      "[autonomy.coordinator]",
-      "Task creation is not executable work",
-      "Coordinator bootstrap is independent from Network participation",
-      "Workspace `.agh/config.toml` override",
-      "Global `$AGH_HOME/config.toml`",
-      "bundled/default coordinator agent definition",
+      "[roles.coordinator]",
+      "Task creation alone does not start a coordinator",
+      "Role changes are classified `live`",
+      "Global `$AGH_HOME/config.toml` values",
+      "workspace's `.agh/config.toml` overlays them",
+      "builtin `coordinator`",
     ]);
+    expectExcludesAll(config, ["[autonomy.coordinator]", "default_ttl ="]);
   });
 
   it("documents task leases and channel authority without exposing raw tokens in read paths", () => {

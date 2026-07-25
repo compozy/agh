@@ -52,6 +52,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.AgentCreateScope]():                 agentCreateScopeValues(),
 		reflect.TypeFor[contract.AgentOrigin]():                      agentOriginValues(),
 		reflect.TypeFor[contract.CoordinatorConfigSource]():          coordinatorConfigSourceValues(),
+		reflect.TypeFor[contract.RoleResolutionMode]():               roleResolutionModeValues(),
 		reflect.TypeFor[contract.LoopSource]():                       loopSourceValues(),
 		reflect.TypeFor[contract.LoopRunStatus]():                    loopRunStatusValues(),
 		reflect.TypeFor[contract.LoopRunEventKind]():                 loopRunEventKindValues(),
@@ -195,6 +196,14 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[participation.OwnerKind]():            participationOwnerKindValues(),
 	}),
 )
+
+func roleResolutionModeValues() []string {
+	return []string{
+		string(contract.RoleResolutionModeBuiltin),
+		string(contract.RoleResolutionModeCatalog),
+		string(contract.RoleResolutionModeInherit),
+	}
+}
 
 func drainStateValues() []string {
 	return []string{string(contract.DrainStateActive), string(contract.DrainStateDraining)}

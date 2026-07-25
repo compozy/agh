@@ -40,14 +40,6 @@ func defaultMemoryControllerConfig() MemoryControllerConfig {
 		Mode:            configHybridKey,
 		MaxLatency:      300 * time.Millisecond,
 		DefaultOpOnFail: "noop",
-		LLM: MemoryControllerLLMConfig{
-			Enabled:       true,
-			Model:         "anthropic/claude-haiku-4",
-			TopK:          5,
-			PromptVersion: "v1",
-			Timeout:       250 * time.Millisecond,
-			MaxTokensOut:  256,
-		},
 		Policy: MemoryControllerPolicyConfig{
 			MaxContentChars: 4096,
 			MaxWritesPerMin: 60,
@@ -87,7 +79,6 @@ func defaultMemoryRecallConfig() MemoryRecallConfig {
 
 func defaultMemoryExtractorConfig(homePaths HomePaths) MemoryExtractorConfig {
 	return MemoryExtractorConfig{
-		Enabled:          true,
 		Mode:             configExtractorModePostMessage,
 		ThrottleTurns:    1,
 		Deadline:         60 * time.Second,
@@ -100,8 +91,6 @@ func defaultMemoryExtractorConfig(homePaths HomePaths) MemoryExtractorConfig {
 
 func defaultMemoryDreamConfig() DreamConfig {
 	return DreamConfig{
-		Enabled:       true,
-		Agent:         DefaultMemoryDreamAgentName,
 		MinHours:      24,
 		MinSessions:   3,
 		Debounce:      10 * time.Minute,

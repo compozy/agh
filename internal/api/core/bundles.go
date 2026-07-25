@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
+	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/resources"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -357,7 +358,8 @@ func StatusForBundleError(err error) int {
 		errors.Is(err, bundlepkg.ErrNetworkRequirementConfirmationRequired),
 		errors.Is(err, resources.ErrConflict):
 		return http.StatusConflict
-	case errors.Is(err, bundlepkg.ErrAgentReferenceNotFound):
+	case errors.Is(err, bundlepkg.ErrAgentReferenceNotFound),
+		errors.Is(err, aghconfig.ErrAgentNameReserved):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, bundlepkg.ErrWebhookUnsupported),
 		errors.Is(err, resources.ErrValidation),

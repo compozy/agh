@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+import { openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
@@ -43,24 +44,24 @@ test.use({
 
 test("categorized agents surface on the fleet page and group inside the session-create command picker", async ({
   appPage,
+  runtime,
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.osDesktop).toBeVisible();
-  await appPage.getByTestId("nav-agents").click();
+  const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+  const fleet = sessionLifecycleSelectors(agentsWin);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
 
-  await expect(ui.agentRow(categorizedAgent)).toBeVisible();
-  await expect(ui.agentRow(flatAgent)).toBeVisible();
-  await expect(appPage.getByTestId("agent-fleet-row-link-categorized-agent")).toContainText(
-    "Marketing / Sales"
-  );
+  await expect(fleet.agentRow(categorizedAgent)).toBeVisible();
+  await expect(fleet.agentRow(flatAgent)).toBeVisible();
+  await expect(fleet.agentRow(categorizedAgent)).toContainText("Marketing / Sales");
 
-  await ui.agentRow(flatAgent).click();
+  await fleet.agentRow(flatAgent).click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${flatAgent}`);
-  await expect(ui.agentPageNewSession).toBeVisible();
-  await ui.agentPageNewSession.click();
+  await expect(fleet.agentPageNewSession).toBeVisible();
+  await fleet.agentPageNewSession.click();
 
   const trigger = appPage.getByTestId("session-create-agent-select");
   await expect(trigger).toBeVisible();
@@ -75,8 +76,9 @@ test("categorized agents surface on the fleet page and group inside the session-
   await expect(trigger).toContainText(categorizedAgent);
 
   await appPage.getByTestId("session-create-dialog-cancel").click();
-  await appPage.getByTestId("nav-agents").click();
+  await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
-  await ui.agentRow(categorizedAgent).click();
+  await expect(agentsWin).toBeVisible();
+  await fleet.agentRow(categorizedAgent).click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${categorizedAgent}`);
 });

@@ -10,7 +10,8 @@ import {
   type HostedMcpConnection,
 } from "../fixtures/hosted-mcp";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
-import { sessionLifecycleSelectors, toolApprovalGrantsSelectors } from "../fixtures/selectors";
+import { sessionWindow } from "../fixtures/os-navigation";
+import { sessionWindowSelectors, toolApprovalGrantsSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -77,7 +78,6 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
   runtime,
 }) => {
   assertLaunchRuntime(runtime);
-  const sessionUI = sessionLifecycleSelectors(appPage);
   const grantsUI = toolApprovalGrantsSelectors(appPage);
 
   // The session's workspace is the global workspace, which is also the browser's active
@@ -109,10 +109,12 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     await appPage.goto(runtime.url(`/agents/${MOCK_AGENT}/sessions/${sessionId}`), {
       waitUntil: "domcontentloaded",
     });
+    const sessionWin = sessionWindow(appPage, sessionId);
+    const sessionUI = sessionWindowSelectors(sessionWin, appPage);
     // The native-tool permission event only renders while a prompt stream is active
     // (emitPromptEvent needs a non-nil active prompt). Submit a prompt that reports readiness
     // then blocks until cancelled, so the hosted-tool permission surfaces in that live stream.
-    await expect(sessionUI.chatHeader).toBeVisible({ timeout: 20_000 });
+    await expect(sessionWin).toBeVisible({ timeout: 20_000 });
     await sessionUI.composerTextarea.fill("hold native approval");
     await sessionUI.composerTextarea.press("Enter");
     await expect(appPage.getByText("native approval ready")).toBeVisible({ timeout: 20_000 });

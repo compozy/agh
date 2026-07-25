@@ -64,7 +64,7 @@ func newDaemonMemoryExtractor(
 	sessions SessionManager,
 	now func() time.Time,
 ) (*daemonMemoryExtractor, error) {
-	if state == nil || state.memoryStore == nil || !state.cfg.Memory.Enabled || !state.cfg.Memory.Extractor.Enabled {
+	if state == nil || state.memoryStore == nil || !state.cfg.Memory.Enabled {
 		return nil, nil
 	}
 	forkSessions, ok := sessions.(memoryExtractorSessionManager)
@@ -79,8 +79,7 @@ func newDaemonMemoryExtractor(
 	workspaceRoots := &sync.Map{}
 	forked := &forkedMemoryExtractor{
 		sessions:       forkSessions,
-		defaultAgent:   firstNonEmptyString(state.cfg.Defaults.Agent, state.cfg.Memory.Dream.Agent),
-		model:          state.cfg.Memory.Extractor.Model,
+		roles:          roleResolverForState(state),
 		deadline:       state.cfg.Memory.Extractor.Deadline,
 		logger:         state.logger,
 		now:            now,

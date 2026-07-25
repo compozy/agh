@@ -75,7 +75,8 @@ type BaseHandlerConfig struct {
 	HeartbeatWake                HeartbeatWakeService
 	SessionHealth                SessionHealthReader
 	HeartbeatWakeEvents          HeartbeatWakeEventReader
-	CoordinatorConfig            CoordinatorConfigResolver
+	CoordinatorRole              CoordinatorRoleResolver
+	Roles                        RolesStatusProvider
 	SkillsRegistry               SkillsRegistry
 	SkillResources               SkillResourceSyncer
 	SkillMarketplace             SkillMarketplaceService
@@ -152,7 +153,8 @@ type BaseHandlers struct {
 	HeartbeatWake                HeartbeatWakeService
 	SessionHealth                SessionHealthReader
 	HeartbeatWakeEvents          HeartbeatWakeEventReader
-	CoordinatorConfig            CoordinatorConfigResolver
+	CoordinatorRole              CoordinatorRoleResolver
+	Roles                        RolesStatusProvider
 	SkillsRegistry               SkillsRegistry
 	SkillResources               SkillResourceSyncer
 	SkillMarketplace             SkillMarketplaceService
@@ -232,7 +234,8 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		AgentContextService:          cfg.AgentContextService,
 		SoulHistoryPurger:            cfg.SoulHistoryPurger,
 		HeartbeatHistoryPurger:       cfg.HeartbeatHistoryPurger,
-		CoordinatorConfig:            cfg.CoordinatorConfig,
+		CoordinatorRole:              cfg.CoordinatorRole,
+		Roles:                        cfg.Roles,
 		SkillsRegistry:               cfg.SkillsRegistry,
 		SkillResources:               cfg.SkillResources,
 		SkillMarketplace:             cfg.SkillMarketplace,

@@ -3,7 +3,17 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { sessionLifecycleSelectors, tasksOperatorSelectors } from "../fixtures/selectors";
+import {
+  sessionLifecycleSelectors,
+  sessionWindowSelectors,
+  tasksOperatorSelectors,
+} from "../fixtures/selectors";
+import {
+  ensureAppWindow,
+  openAppWindow,
+  sessionWindow,
+  switchWorkspace,
+} from "../fixtures/os-navigation";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
@@ -12,11 +22,10 @@ import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures
  * (manual operator control) and (task-run coordination
  * channels) bookends for the Tasks UI. These cases verify:
  *
- *   1. Creating a task is saved intent only, no run is queued, the lifecycle
- *      pill reads "Saved intent", the runs panel reads as saved intent, and the
- *      Publish CTA tooltip names coordinator handoff.
- *   2. Publishing/starting moves the task into "Coordinator handoff" with a
- *      bound coordination channel chip on the active run.
+ *   1. Creating a task is saved intent only, no run is queued, the runs panel
+ *      explains that boundary, and the Publish CTA names coordinator handoff.
+ *   2. Publishing/starting exposes the authoritative active run with its bound
+ *      coordination channel.
  *   3. Approving an agent-created approval-pending task enqueues a
  *      coordinator-handoff run, never auto-starting on creation.
  *   4. Manual session start UI is unaffected by task autonomy labels.
@@ -69,13 +78,13 @@ test("creating a task is saved intent, no run is enqueued and labels never imply
   appPage,
   runtime,
 }) => {
-  const tasksUI = tasksOperatorSelectors(appPage);
-
   await ensureGlobalWorkspace(runtime);
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(tasksUI);
+  await useGlobalWorkspaceIfPrompted(appPage);
 
-  await expect(tasksUI.navTasks).toBeVisible();
+  const tasksWin = appPage.getByTestId("os-window-app:tasks");
+  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
+  await expect(tasksWin).toBeVisible();
   await expect(appPage).toHaveURL(/\/tasks$/);
 
   await tasksUI.openCreate.click();
@@ -104,11 +113,8 @@ test("creating a task is saved intent, no run is enqueued and labels never imply
     throw new Error(`Expected a created draft task for "${draftTitle}".`);
   }
 
-  await expect(tasksUI.detailContent).toContainText(draftTitle);
-
-  await expect(tasksUI.detailLifecycle).toHaveText(/saved intent/i);
-  await expect(tasksUI.detailLifecycleHint).toContainText(/saved intent/i);
-  await expect(tasksUI.detailLifecycleHint).toContainText(/coordinator/i);
+  await expect(tasksUI.detailTitle).toHaveText(draftTitle);
+  await expect(tasksUI.detailStatus).toHaveText(/draft/i);
 
   const publishButton = tasksUI.detailPublish;
   await expect(publishButton).toBeVisible();
@@ -130,18 +136,17 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
   appPage,
   runtime,
 }) => {
-  const tasksUI = tasksOperatorSelectors(appPage);
+  const tasksWin = appPage.getByTestId("os-window-app:tasks");
+  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-tasks-handoff-workspace-"));
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
   await ensureGlobalWorkspace(runtime);
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(tasksUI);
+  await useGlobalWorkspaceIfPrompted(appPage);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks");
-  await appPage.getByTestId("workspace-switcher").click();
-  await appPage.getByTestId(`workspace-command-item-${workspace.id}`).click();
-  await expect(appPage.getByTestId("workspace-switcher")).toHaveAttribute("aria-expanded", "false");
-  await expect(appPage.getByTestId("workspace-switcher-name")).toContainText(workspace.name);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
+  await ensureAppWindow(appPage, "Tasks", "tasks");
 
   await tasksUI.openCreate.click();
   await selectRecurringTaskTemplate(tasksUI);
@@ -214,7 +219,7 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
     })
     .not.toBe("");
 
-  await expect(tasksUI.detailLifecycle).toHaveText(/coordinator handoff|running/i);
+  await expect(tasksUI.detailNowRun).toBeVisible();
   await expect(tasksUI.detailCoordination).toBeVisible();
   await expect(tasksUI.detailCoordination).toContainText(/channel/i);
   await expect(tasksUI.detailCoordination).toHaveAttribute(
@@ -231,14 +236,14 @@ test("approving an agent-created approval task is the coordinator-handoff bounda
   browserArtifacts,
   runtime,
 }) => {
-  const tasksUI = tasksOperatorSelectors(appPage);
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
     sessionAgentName: handoffAgentName,
   });
 
-  await useGlobalWorkspaceIfPrompted(tasksUI);
+  await useGlobalWorkspaceIfPrompted(appPage);
 
-  await tasksUI.navTasks.click();
+  const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
+  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
   await expect(appPage).toHaveURL(/\/tasks$/);
   await tasksUI.modeList.click();
   await expect(tasksUI.modeList).toHaveAttribute("aria-current", "page");
@@ -249,9 +254,11 @@ test("approving an agent-created approval task is the coordinator-handoff bounda
   expect(approvalTaskRunsBefore.runs).toHaveLength(0);
 
   await tasksUI.taskCard(seeded.approvalTask.id).click();
-  await expect(tasksUI.detailLifecycle).toHaveText(/awaiting approval/i);
-  await expect(tasksUI.detailLifecycleHint).toContainText(/approving enqueues/i);
-  await expect(tasksUI.detailRunsLink(seeded.approvalTask.id)).toHaveCount(0);
+  await expect(tasksUI.detailApprovalPill).toContainText(/approval pending/i);
+  await expect(tasksUI.detailNowApproval).toContainText(/waiting for your approval/i);
+  await expect(tasksUI.detailNowApproval).toContainText(/manual check is required/i);
+  await tasksUI.detailTabRuns.click();
+  await expect(tasksUI.detailRunsEmpty).toBeVisible();
 
   await tasksUI.detailBreadcrumbTasks.click();
   await tasksUI.modeInbox.click();
@@ -284,22 +291,22 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   appPage,
   runtime,
 }) => {
-  const tasksUI = tasksOperatorSelectors(appPage);
   const sessionUI = sessionLifecycleSelectors(appPage);
 
   await ensureGlobalWorkspace(runtime);
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(tasksUI);
+  await useGlobalWorkspaceIfPrompted(appPage);
 
   await expect(sessionUI.osDesktop).toBeVisible();
 
-  await appPage.getByTestId("nav-agents").click();
+  const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+  const agentsUI = sessionLifecycleSelectors(agentsWin);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
-  await expect(sessionUI.agentRow(handoffAgentName)).toBeVisible();
-  await sessionUI.agentRow(handoffAgentName).click();
+  await expect(agentsUI.agentRow(handoffAgentName)).toBeVisible();
+  await agentsUI.agentRow(handoffAgentName).click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${handoffAgentName}`);
-  await expect(sessionUI.agentPageNewSession).toBeVisible();
-  await sessionUI.agentPageNewSession.click();
+  await expect(agentsUI.agentPageNewSession).toBeVisible();
+  await agentsUI.agentPageNewSession.click();
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
   await expect(appPage.getByTestId("session-create-agent-select")).toContainText(handoffAgentName);
@@ -322,7 +329,8 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
     .not.toBe("");
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(handoffAgentSessionPath(sessionId));
 
-  await expect(sessionUI.chatHeader).toBeVisible();
+  const sessionWin = sessionWindowSelectors(sessionWindow(appPage, sessionId));
+  await expect(sessionWin.chatView).toBeVisible();
 
   const sessions = await runtime.requestJSON<{
     sessions: Array<{ id: string; agent_name: string; state?: string }>;

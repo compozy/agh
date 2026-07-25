@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	aghconfig "github.com/compozy/agh/internal/config"
-
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -29,11 +28,14 @@ const (
 	sectionsLlmKey                    = "llm"
 	sectionsMarketplaceKey            = "marketplace"
 	sectionsMaxKey                    = "max"
+	sectionsModelKey                  = "model"
 	sectionsModeKey                   = "mode"
 	sectionsNoChangesValue            = "no changes"
 	sectionsOperatorWriteRateLimitKey = "operator_write_rate_limit"
 	sectionsPolicyKey                 = "policy"
 	sectionsProviderKey               = "provider"
+	sectionsReasoningEffortKey        = "reasoning_effort"
+	sectionsFallbackChainKey          = "fallback_chain"
 	sectionsQueueKey                  = "queue"
 	sectionsRecallKey                 = "recall"
 	sectionsResourcesKey              = "resources"
@@ -100,6 +102,14 @@ func (s *service) resolveSectionScope(
 }
 
 func validateSectionScope(section SectionName, scope ScopeKind, agentName string) error {
+	if section == SectionRoles {
+		if scope == ScopeAgent {
+			return conflictError(
+				fmt.Errorf("settings: section %q does not support %s scope", section, scope),
+			)
+		}
+		return nil
+	}
 	if section != SectionSkills && scope != ScopeGlobal {
 		return conflictError(
 			fmt.Errorf("settings: section %q does not support %s scope", section, scope),
@@ -155,6 +165,10 @@ func (s *service) populateSectionEnvelope(
 			return err
 		}
 		envelope.Memory = &section
+	case SectionRoles:
+		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
+		section := RolesSection{Config: cloneRolesConfig(&cfg.Roles)}
+		envelope.Roles = &section
 	case SectionSkills:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeAgent}
 		section, err := s.buildSkillsSection(
@@ -213,6 +227,11 @@ func (s *service) finalizeSectionUpdate(
 ) (MutationResult, error) {
 	if err != nil {
 		return MutationResult{}, err
+	}
+	if result.Scope == ScopeWorkspace {
+		if invalidator, ok := s.workspaceResolver.(interface{ Invalidate(string) }); ok {
+			invalidator.Invalidate(result.WorkspaceID)
+		}
 	}
 	if emitErr := s.emitSettingsChanged(ctx, result, "patch"); emitErr != nil {
 		return MutationResult{}, emitErr

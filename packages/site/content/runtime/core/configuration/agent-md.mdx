@@ -67,6 +67,17 @@ AGH loads visible agents from the workspace snapshot attached to a session.
 Discovery is first-wins. If two files define the same `name`, AGH keeps the first one found and
 does not merge lower-precedence definitions.
 
+## Reserved Builtin Names
+
+`coordinator` and `dreaming-curator` are virtual, AGH-owned role identities. They have embedded
+prompts, resolve without authored directories, and never appear in public agent catalogs. Creating,
+updating, renaming, duplicating, or bundle-materializing either name fails with
+`agent_name_reserved`; AGH does not create or modify an authored directory.
+
+`general` is different: it is the normal managed public agent created by installation and remains
+editable. Other authored agents may be selected through `[roles.<role>].agent`; doing so changes the
+route to that agent and does not modify a builtin prompt.
+
 ## Parser Rules
 
 | Rule                  | Behavior                                                                                              |

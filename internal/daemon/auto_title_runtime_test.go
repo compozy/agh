@@ -21,21 +21,31 @@ import (
 func TestBootAutoTitleRuntime(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should leave the runtime and cleanup unconfigured when automatic titles are disabled", func(t *testing.T) {
+	t.Run("Should keep the runtime configured when automatic titles are disabled", func(t *testing.T) {
 		t.Parallel()
 
-		state := &bootState{cfg: aghconfig.Config{Session: aghconfig.SessionConfig{AutoTitleEnabled: false}}}
+		cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+		cfg.Roles.AutoTitle.Enabled = false
+		state := &bootState{cfg: cfg}
 		cleanup := &bootCleanup{}
-		if err := (&Daemon{}).bootAutoTitleRuntime(testutil.Context(t), state, nil, cleanup); err != nil {
+		err := (&Daemon{}).bootAutoTitleRuntime(
+			testutil.Context(t), state, &fakeSessionManager{}, cleanup,
+		)
+		if err != nil {
 			t.Fatalf("bootAutoTitleRuntime() error = %v", err)
 		}
-		if state.runtimeWorkers.autoTitle != nil || len(cleanup.fns) != 0 {
+		if state.runtimeWorkers.autoTitle == nil || len(cleanup.fns) != 1 {
 			t.Fatalf(
-				"bootAutoTitleRuntime() state = runtime:%#v cleanup:%d, want disabled",
+				"bootAutoTitleRuntime() state = runtime:%#v cleanup:%d, want live-config runtime",
 				state.runtimeWorkers.autoTitle,
 				len(cleanup.fns),
 			)
 		}
+		t.Cleanup(func() {
+			if err := state.runtimeWorkers.autoTitle.Shutdown(context.Background()); err != nil {
+				t.Errorf("autoTitleRuntime.Shutdown() error = %v", err)
+			}
+		})
 	})
 }
 
@@ -188,14 +198,43 @@ func TestAutoTitleRuntime(t *testing.T) {
 func TestForkedAutoTitleGenerator(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should skip spawning when the role is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &autoTitleSpawnSessionsStub{}
+		generator := newForkedAutoTitleGenerator(
+			sessions,
+			resolvedRoleResolver(ResolvedRole{Enabled: false}),
+			time.Second,
+			slog.Default(),
+		)
+		_, err := generator.Generate(testutil.Context(t), autoTitleRequest{
+			SessionID:   "sess-parent",
+			AgentName:   "coder",
+			WorkspaceID: "ws-title",
+		})
+		if !errors.Is(err, errAutoTitleRoleDisabled) {
+			t.Fatalf("Generate() error = %v, want %v", err, errAutoTitleRoleDisabled)
+		}
+		if sessions.spawnCalls != 0 {
+			t.Fatalf("Spawn() calls = %d, want 0", sessions.spawnCalls)
+		}
+	})
+
 	t.Run("Should use one bounded hidden spawn and stop it after collecting the title", func(t *testing.T) {
 		t.Parallel()
 
 		sessions := &autoTitleSpawnSessionsStub{}
-		generator := newForkedAutoTitleGenerator(sessions, time.Second, slog.Default())
+		generator := newForkedAutoTitleGenerator(
+			sessions,
+			resolvedRoleResolver(ResolvedRole{Enabled: true, Inherit: true, Model: "title-model"}),
+			time.Second,
+			slog.Default(),
+		)
 		title, err := generator.Generate(testutil.Context(t), autoTitleRequest{
 			SessionID:      "sess-parent",
 			AgentName:      "coder",
+			WorkspaceID:    "ws-title",
 			UserMessage:    "Investigate flaky checkout retries",
 			AssistantReply: "I found the retry race.",
 		})
@@ -206,6 +245,8 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 			t.Fatalf("Generate() title = %q, want %q", title, "Checkout retry race")
 		}
 		if sessions.spawn.ParentSessionID != "sess-parent" ||
+			sessions.spawn.AgentName != "coder" ||
+			sessions.spawn.Model != "title-model" ||
 			sessions.spawn.SpawnRole != session.SpawnRoleAutoTitle ||
 			!sessions.spawn.AutoStopOnParent || sessions.spawn.TTL <= time.Second {
 			t.Fatalf("Spawn() opts = %#v", sessions.spawn)
@@ -222,7 +263,12 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 		t.Parallel()
 
 		sessions := newCancelAwareAutoTitleSpawnSessionsStub()
-		generator := newForkedAutoTitleGenerator(sessions, 5*time.Second, slog.Default())
+		generator := newForkedAutoTitleGenerator(
+			sessions,
+			resolvedRoleResolver(ResolvedRole{Enabled: true, Inherit: true}),
+			5*time.Second,
+			slog.Default(),
+		)
 		ctx, cancel := context.WithCancel(context.Background())
 		result := make(chan error, 1)
 		go func() {
@@ -353,9 +399,10 @@ type autoTitleStopCall struct {
 }
 
 type autoTitleSpawnSessionsStub struct {
-	spawn  session.SpawnOpts
-	prompt session.SyntheticPromptOpts
-	stops  []autoTitleStopCall
+	spawnCalls int
+	spawn      session.SpawnOpts
+	prompt     session.SyntheticPromptOpts
+	stops      []autoTitleStopCall
 }
 
 type cancelAwareAutoTitleSpawnSessionsStub struct {
@@ -402,6 +449,7 @@ func (s *autoTitleSpawnSessionsStub) Spawn(
 	_ context.Context,
 	opts session.SpawnOpts,
 ) (*session.Session, error) {
+	s.spawnCalls++
 	s.spawn = opts
 	return &session.Session{ID: "sess-title-child"}, nil
 }

@@ -151,6 +151,7 @@ const (
 	configSetDuration
 	configSetStringSlice
 	configSetFloatSlice
+	configSetTable
 )
 
 var (
@@ -191,12 +192,6 @@ var (
 		"memory.controller.mode":                            configSetString,
 		"memory.controller.max_latency":                     configSetDuration,
 		"memory.controller.default_op_on_fail":              configSetString,
-		"memory.controller.llm.enabled":                     configSetBool,
-		"memory.controller.llm.model":                       configSetString,
-		"memory.controller.llm.top_k":                       configSetInt,
-		"memory.controller.llm.prompt_version":              configSetString,
-		"memory.controller.llm.timeout":                     configSetDuration,
-		"memory.controller.llm.max_tokens_out":              configSetInt,
 		"memory.controller.policy.max_content_chars":        configSetInt,
 		"memory.controller.policy.max_writes_per_min":       configSetInt,
 		"memory.controller.policy.allow_origins":            configSetStringSlice,
@@ -216,18 +211,14 @@ var (
 		"memory.decisions.prune_after_applied_days":         configSetInt,
 		"memory.decisions.keep_audit_summary":               configSetBool,
 		"memory.decisions.max_post_content_bytes":           configSetInt64,
-		"memory.extractor.enabled":                          configSetBool,
 		"memory.extractor.mode":                             configSetString,
 		"memory.extractor.throttle_turns":                   configSetInt,
 		"memory.extractor.deadline":                         configSetDuration,
 		"memory.extractor.sandbox_inbox_only":               configSetBool,
 		"memory.extractor.inbox_path":                       configSetString,
 		"memory.extractor.dlq_path":                         configSetString,
-		"memory.extractor.model":                            configSetString,
 		"memory.extractor.queue.capacity":                   configSetInt,
 		"memory.extractor.queue.coalesce_max":               configSetInt,
-		"memory.dream.enabled":                              configSetBool,
-		"memory.dream.agent":                                configSetString,
 		"memory.dream.min_hours":                            configSetFloat,
 		"memory.dream.min_sessions":                         configSetInt,
 		"memory.dream.debounce":                             configSetDuration,
@@ -294,6 +285,7 @@ var (
 		"agents.heartbeat.session_health_stale_after":       configSetDuration,
 		"agents.heartbeat.session_health_hook_min_interval": configSetDuration,
 	},
+		roleConfigSetPathKinds(),
 		networkConfigSetPathKinds(),
 		loopAndGoalConfigSetPathKinds(),
 		extensionConfigSetPathKinds(),

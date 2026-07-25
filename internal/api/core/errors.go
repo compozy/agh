@@ -110,15 +110,6 @@ func errorPayloadForNormalizedStatus(
 	return errorPayloadForMessage(message, err)
 }
 
-func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
-	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
-	payload := contract.ErrorPayload{Error: message}
-	if item, ok := diagnosticspkg.ItemFromError(err); ok {
-		payload.Diagnostic = &item
-	}
-	return payload
-}
-
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func StatusForSessionError(err error) int {
 	return statusForSessionError(err)

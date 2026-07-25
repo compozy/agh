@@ -61,6 +61,8 @@ type configSeedFile struct {
 	Defaults    *configSeedDefaultsSection          `toml:"defaults,omitempty"`
 	Permissions *configSeedPermissionsSection       `toml:"permissions,omitempty"`
 	Session     *aghconfig.SessionConfig            `toml:"session,omitempty"`
+	Roles       *aghconfig.RolesConfig              `toml:"roles,omitempty"`
+	Memory      *aghconfig.MemoryConfig             `toml:"memory,omitempty"`
 	Network     *aghconfig.NetworkConfig            `toml:"network,omitempty"`
 	Marketplace *aghconfig.MarketplaceRuntimeConfig `toml:"marketplace,omitempty"`
 	Extensions  *configSeedExtensionsSection        `toml:"extensions,omitempty"`
@@ -171,6 +173,8 @@ func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) e
 			Sandbox:  cfg.Defaults.Sandbox,
 		},
 		Session: cloneSessionConfig(cfg.Session),
+		Roles:   cloneRolesConfig(&cfg.Roles),
+		Memory:  cloneMemoryConfig(&cfg.Memory),
 		Network: &cfg.Network,
 		Marketplace: &aghconfig.MarketplaceRuntimeConfig{
 			Catalog: cfg.Marketplace.Catalog,
@@ -208,6 +212,17 @@ func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) e
 
 func cloneSessionConfig(cfg aghconfig.SessionConfig) *aghconfig.SessionConfig {
 	cloned := cfg
+	return &cloned
+}
+
+func cloneRolesConfig(cfg *aghconfig.RolesConfig) *aghconfig.RolesConfig {
+	cloned := aghconfig.CloneRolesConfig(cfg)
+	return &cloned
+}
+
+func cloneMemoryConfig(cfg *aghconfig.MemoryConfig) *aghconfig.MemoryConfig {
+	cloned := *cfg
+	cloned.Controller.Policy.AllowOrigins = append([]string(nil), cfg.Controller.Policy.AllowOrigins...)
 	return &cloned
 }
 

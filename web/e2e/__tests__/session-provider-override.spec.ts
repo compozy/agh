@@ -6,7 +6,9 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { sessionLifecycleSelectors } from "../fixtures/selectors";
+import { openAppWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { waitForSeedSessionActive } from "../fixtures/runtime";
+import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -101,19 +103,16 @@ test("operator can create a provider/model override session and attach without l
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.osDesktop).toBeVisible();
-  await appPage.getByTestId(`workspace-avatar-${workspace.id}`).click();
-  await expect(appPage.getByTestId(`workspace-avatar-${workspace.id}`)).toHaveAttribute(
-    "data-active",
-    "true"
-  );
-  await appPage.getByTestId("nav-agents").click();
+  await switchWorkspace(appPage, workspace.id, workspace.name);
+  const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+  const fleet = sessionLifecycleSelectors(agentsWin);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
-  await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
+  await expect(fleet.agentRow(browserLifecycleAgent)).toBeVisible();
 
-  await ui.agentRow(browserLifecycleAgent).click();
+  await fleet.agentRow(browserLifecycleAgent).click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${browserLifecycleAgent}`);
-  await expect(ui.agentPageNewSession).toBeVisible();
-  await ui.agentPageNewSession.click();
+  await expect(fleet.agentPageNewSession).toBeVisible();
+  await fleet.agentPageNewSession.click();
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
   await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
@@ -124,7 +123,7 @@ test("operator can create a provider/model override session and attach without l
   await expect(runtimeTrigger).toContainText("ACP Mock");
 
   // Open the popup; the provider rail is a LOCAL filter listing every workspace provider.
-  await runtimeTrigger.locator('button[data-focus="provider"]').first().click();
+  await runtimeTrigger.click();
   await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
   const railProviders = await appPage
     .locator('[role="radiogroup"] [data-rail]')
@@ -164,7 +163,7 @@ test("operator can create a provider/model override session and attach without l
   await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
   await expect(runtimeTrigger).toContainText("qa-browser-model");
   // The custom id is unknown to the catalog, so no reasoning segment is offered.
-  await expect(runtimeTrigger.locator('button[data-focus="reasoning"]')).toHaveCount(0);
+  await expect(runtimeTrigger).not.toContainText(/Low|Medium|High/);
 
   const createRequestPromise = appPage.waitForRequest(
     request => request.method() === "POST" && request.url().endsWith("/api/sessions")
@@ -195,12 +194,15 @@ test("operator can create a provider/model override session and attach without l
 
   const createdSession = (await createResponse.json()) as SessionEnvelope;
   expect(createdSession.session.provider).toBe(overrideProvider);
+  await waitForSeedSessionActive(runtime, createdSession.session.id);
 
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(browserLifecycleSessionPath(createdSession.session.id));
-  await expect(ui.chatHeader).toBeVisible();
-  await expect(appPage.getByTestId("session-status-provider")).toHaveText(overrideProvider);
+  const sessionWin = sessionWindow(appPage, createdSession.session.id);
+  const sessionUi = sessionWindowSelectors(sessionWin, appPage);
+  await expect(sessionWin).toBeVisible();
+  await expect(sessionWin.getByTestId("session-status-provider")).toHaveText(overrideProvider);
   await browserArtifacts.captureScreenshot("session-provider-created", appPage);
 
   await assertSessionParity(
@@ -227,11 +229,11 @@ test("operator can create a provider/model override session and attach without l
         )
   );
 
-  await expect(ui.resumeButton).toBeVisible();
-  await ui.resumeButton.click();
+  await expect(sessionUi.resumeButton).toBeVisible();
+  await sessionUi.resumeButton.click();
   expect((await attachResponsePromise).ok()).toBe(true);
-  await expect(ui.stopButton).toBeVisible();
-  await expect(appPage.getByTestId("session-status-provider")).toHaveText(overrideProvider);
+  await expect(sessionUi.stopButton).toBeVisible();
+  await expect(sessionWin.getByTestId("session-status-provider")).toHaveText(overrideProvider);
   await assertSessionParity(
     runtime,
     createdSession.session.workspace_id,
@@ -239,8 +241,8 @@ test("operator can create a provider/model override session and attach without l
     overrideProvider
   );
 
-  await ui.stopButton.click();
-  await expect(ui.resumeButton).not.toBeVisible();
+  await sessionUi.stopButton.click();
+  await expect(sessionUi.resumeButton).not.toBeVisible();
 });
 
 test("operator persists an advertised model and non-empty reasoning effort on the created session", async ({
@@ -251,17 +253,18 @@ test("operator persists an advertised model and non-empty reasoning effort on th
 
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.osDesktop).toBeVisible();
-  await appPage.getByTestId("nav-agents").click();
+  const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+  const fleet = sessionLifecycleSelectors(agentsWin);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
-  await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
+  await expect(fleet.agentRow(browserLifecycleAgent)).toBeVisible();
 
-  await ui.agentRow(browserLifecycleAgent).click();
+  await fleet.agentRow(browserLifecycleAgent).click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${browserLifecycleAgent}`);
-  await ui.agentPageNewSession.click();
+  await fleet.agentPageNewSession.click();
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
 
   const runtimeTrigger = appPage.getByTestId("session-create-runtime-select");
-  await runtimeTrigger.locator('button[data-focus="model"]').first().click();
+  await runtimeTrigger.click();
   await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
 
   const catalogRow = appPage.locator(
@@ -278,7 +281,7 @@ test("operator persists an advertised model and non-empty reasoning effort on th
   await appPage.keyboard.press("Escape");
   await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
   await expect(runtimeTrigger).toContainText(catalogModelLabel);
-  await expect(runtimeTrigger.locator('button[data-focus="reasoning"]')).toContainText("High");
+  await expect(runtimeTrigger).toContainText("High");
 
   const createRequestPromise = appPage.waitForRequest(
     request => request.method() === "POST" && request.url().endsWith("/api/sessions")
@@ -307,7 +310,8 @@ test("operator persists an advertised model and non-empty reasoning effort on th
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(browserLifecycleSessionPath(created.session.id));
-  await expect(ui.chatHeader).toBeVisible();
+  const sessionWin = sessionWindow(appPage, created.session.id);
+  await expect(sessionWin).toBeVisible();
 
   const rehydrated = await runtime.requestJSON<SessionEnvelope>(
     sessionAPIPath(created.session.workspace_id, created.session.id)
@@ -406,6 +410,8 @@ async function writeWorkspaceConfig(input: {
       `none_security = "local_transport"`,
       `[providers.${overrideProvider}.models]`,
       `default = "qa-browser-model"`,
+      `[providers.${overrideProvider}.models.reasoning]`,
+      `apply = "acp_option"`,
       `[[providers.${overrideProvider}.models.curated]]`,
       `id = "qa-browser-model"`,
       `display_name = "QA Browser Model"`,

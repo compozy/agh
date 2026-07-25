@@ -190,9 +190,11 @@ For consolidation scenarios that need a fast cycle:
 [memory]
 enabled = true
 
-[memory.dream]
+[roles.dream]
 enabled        = true
 agent          = "claude-code"
+
+[memory.dream]
 min_hours      = 0.001       # ≈ 3.6s; only acceptable in QA scenarios
 min_sessions   = 1           # MEM-04 raises to 5 to cover the sessions gate
 check_interval = "2s"
@@ -1365,7 +1367,7 @@ risk: low
 live: true
 provider: real-openclaw
 preconditions:
-  - `[memory.dream]` config with `agent="openclaw"`.
+  - `[roles.dream]` config with `agent="openclaw"`.
   - Same seeds as MEM-16.
 code_refs:
   - /Users/pedronauck/Dev/compozy/agh/internal/memory/consolidation/runtime.go:250

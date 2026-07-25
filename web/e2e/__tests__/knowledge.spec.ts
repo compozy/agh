@@ -8,7 +8,12 @@ import { promisify } from "node:util";
 
 import type { Page } from "@playwright/test";
 
-import { knowledgeOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
+import { sessionWindow } from "../fixtures/os-navigation";
+import {
+  knowledgeOperatorSelectors,
+  sessionLifecycleSelectors,
+  sessionWindowSelectors,
+} from "../fixtures/selectors";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
@@ -120,14 +125,15 @@ test("operator creates edits reverts searches recalls and deletes workspace know
     throw new Error("Knowledge browser E2E requires launch-mode runtime paths.");
   }
 
-  const knowledgeUI = knowledgeOperatorSelectors(appPage);
-  const sessionUI = sessionLifecycleSelectors(appPage);
   await ensureGlobalWorkspace(runtime);
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(knowledgeUI);
+  await useGlobalWorkspaceIfPrompted(appPage);
 
   await appPage.goto(runtime.url("/knowledge"), { waitUntil: "domcontentloaded" });
+  const kWin = appPage.getByTestId("os-window-app:knowledge");
+  await expect(kWin).toBeVisible();
+  const knowledgeUI = knowledgeOperatorSelectors(kWin);
   await expect(knowledgeUI.shell).toBeVisible();
   await expect(knowledgeUI.tabGlobal).toHaveAttribute("aria-pressed", "true");
   await knowledgeUI.tabWorkspace.click();
@@ -167,7 +173,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await expect(knowledgeUI.createDialog).toBeHidden();
   await expect(knowledgeUI.item(`workspace:${filename}`)).toBeVisible({ timeout: 20_000 });
   await knowledgeUI.item(`workspace:${filename}`).click();
-  await expect(knowledgeUI.detailPanel).toContainText(memoryName);
+  await expect(kWin.getByTestId("knowledge-detail-title")).toContainText(memoryName);
   await expect(knowledgeUI.contentPreview).toContainText(originalContent);
 
   await knowledgeUI.searchInput.fill("auth migration sessions");
@@ -247,14 +253,15 @@ test("operator creates edits reverts searches recalls and deletes workspace know
     knowledge_view_visible: true,
   });
 
-  const recalledSession = await createSessionThroughBrowser(
-    appPage,
-    sessionUI,
-    memoryRecallAgentName
+  const recalledSession = await createSessionThroughBrowser(appPage, memoryRecallAgentName);
+  const recalledSessionUI = sessionWindowSelectors(
+    sessionWindow(appPage, recalledSession.session.id)
   );
-  await sessionUI.composerTextarea.fill("remember me");
-  await sessionUI.composerTextarea.press("Enter");
-  await expect(sessionUI.chatView).toContainText("qa-memory acknowledged", { timeout: 30_000 });
+  await recalledSessionUI.composerTextarea.fill("remember me");
+  await recalledSessionUI.composerTextarea.press("Enter");
+  await expect(recalledSessionUI.chatView).toContainText("qa-memory acknowledged", {
+    timeout: 30_000,
+  });
   const recalledACPSessionID = await acpSessionIDForSession(
     runtime,
     recalledSession.session.workspace_id,
@@ -312,14 +319,15 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   const searchAfterDelete = await searchMemory(runtime, workspace.id, marker);
   expect(searchAfterDelete.results.some(result => result.memory.filename === filename)).toBe(false);
 
-  const postDeleteSession = await createSessionThroughBrowser(
-    appPage,
-    sessionUI,
-    memoryRecallAgentName
+  const postDeleteSession = await createSessionThroughBrowser(appPage, memoryRecallAgentName);
+  const postDeleteSessionUI = sessionWindowSelectors(
+    sessionWindow(appPage, postDeleteSession.session.id)
   );
-  await sessionUI.composerTextarea.fill("remember me");
-  await sessionUI.composerTextarea.press("Enter");
-  await expect(sessionUI.chatView).toContainText("qa-memory acknowledged", { timeout: 30_000 });
+  await postDeleteSessionUI.composerTextarea.fill("remember me");
+  await postDeleteSessionUI.composerTextarea.press("Enter");
+  await expect(postDeleteSessionUI.chatView).toContainText("qa-memory acknowledged", {
+    timeout: 30_000,
+  });
   const postDeleteACPSessionID = await acpSessionIDForSession(
     runtime,
     postDeleteSession.session.workspace_id,
@@ -343,14 +351,16 @@ test("operator creates edits reverts searches recalls and deletes workspace know
 
 async function createSessionThroughBrowser(
   page: Page,
-  ui: ReturnType<typeof sessionLifecycleSelectors>,
   agentName: string
 ): Promise<SessionEnvelope> {
   await page.goto(new URL(`/agents/${agentName}`, page.url()).toString(), {
     waitUntil: "domcontentloaded",
   });
-  await expect(ui.agentPageNewSession).toBeVisible();
-  await ui.agentPageNewSession.click();
+  const agentsWin = page.getByTestId("os-window-app:agents");
+  await expect(agentsWin).toBeVisible();
+  const agentsUI = sessionLifecycleSelectors(agentsWin);
+  await expect(agentsUI.agentPageNewSession).toBeVisible();
+  await agentsUI.agentPageNewSession.click();
   await expect(page.getByTestId("session-create-dialog")).toBeVisible();
   const createResponsePromise = page.waitForResponse(
     response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
@@ -362,8 +372,9 @@ async function createSessionThroughBrowser(
   await expect
     .poll(() => new URL(page.url()).pathname)
     .toBe(`/agents/${agentName}/sessions/${session.session.id}`);
-  await expect(ui.chatHeader).toBeVisible();
-  await expect(ui.composerTextarea).toBeVisible();
+  const sessionWin = sessionWindow(page, session.session.id);
+  await expect(sessionWin).toBeVisible();
+  await expect(sessionWindowSelectors(sessionWin).composerTextarea).toBeVisible();
   return session;
 }
 
@@ -381,6 +392,7 @@ async function assertKnowledgeViewportAndDialogMatrix(
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await expect(ui.shell).toBeVisible();
     await expect(ui.listPanel).toBeVisible();
+    await expect(ui.tabWorkspace).toHaveAttribute("aria-pressed", "true");
     await expect(ui.detailPanel).toBeVisible();
     await browserArtifacts.captureScreenshot(`knowledge-${viewport.name}-detail`, page);
   }

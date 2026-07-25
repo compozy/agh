@@ -45,3 +45,49 @@ func TestLoadWorkspaceAgentDefsRejectsMismatchedDirectoryNameContract(t *testing
 		}
 	})
 }
+
+func TestLoadWorkspaceAgentDefsSkipsReservedNames(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should exclude reserved workspace and global agent directories", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		root := t.TempDir()
+		writeAgentDefinition(
+			t,
+			filepath.Join(root, DirName, AgentsDirName, BuiltinCoordinatorAgentName, agentDefName),
+			BuiltinCoordinatorAgentName,
+			"claude",
+			"shadowed-coordinator",
+		)
+		writeAgentDefinition(
+			t,
+			filepath.Join(homePaths.AgentsDir, BuiltinDreamingCuratorAgentName, agentDefName),
+			BuiltinDreamingCuratorAgentName,
+			"claude",
+			"shadowed-curator",
+		)
+		writeAgentDefinition(
+			t,
+			filepath.Join(root, DirName, AgentsDirName, "worker", agentDefName),
+			"worker",
+			"claude",
+			"worker-model",
+		)
+
+		agents, err := LoadWorkspaceAgentDefs(root, nil, homePaths)
+		if err != nil {
+			t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
+		}
+		if len(agents) != 1 || agents[0].Name != "worker" {
+			t.Fatalf("LoadWorkspaceAgentDefs() = %#v, want only worker", agents)
+		}
+	})
+}

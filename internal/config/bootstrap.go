@@ -66,14 +66,6 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 		return Config{}, err
 	}
 
-	dreamAgent := ""
-	currentDreamAgent := strings.TrimSpace(current.Memory.Dream.Agent)
-	if currentDreamAgent == "" ||
-		currentDreamAgent == providerClaudeKey ||
-		currentDreamAgent == DefaultAgentName {
-		dreamAgent = DefaultMemoryDreamAgentName
-	}
-
 	return EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
 		if err := editor.SetValue(
 			[]string{bootstrapDefaultsKey, string(AgentResourceKind)},
@@ -89,14 +81,6 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 			string(PermissionModeApproveAll),
 		); err != nil {
 			return err
-		}
-		if dreamAgent != "" {
-			if err := editor.SetValue(
-				[]string{MemoryDirName, "dream", string(AgentResourceKind)},
-				dreamAgent,
-			); err != nil {
-				return err
-			}
 		}
 		if selectedModel == "" {
 			return nil

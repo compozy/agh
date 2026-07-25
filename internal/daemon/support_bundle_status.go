@@ -23,7 +23,7 @@ func (d *Daemon) supportBundleSnapshotHandlers(state *bootState) *core.BaseHandl
 		AgentCatalog:        state.deps.AgentCatalog,
 		ModelCatalog:        state.deps.ModelCatalog,
 		AgentContextService: state.deps.AgentContext,
-		CoordinatorConfig:   state.deps.CoordinatorConfig,
+		CoordinatorRole:     state.deps.CoordinatorRole,
 		SoulAuthoring:       state.deps.SoulAuthoring,
 		SoulRefresher:       state.deps.SoulRefresher,
 		HeartbeatAuthoring:  state.deps.HeartbeatAuthor,

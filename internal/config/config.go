@@ -33,11 +33,7 @@ const (
 	skillsMarketplaceRegistryClawhub = "clawhub"
 )
 
-const (
-	// DefaultMemoryDreamAgentName is the bundled curator used for Memory v2 dreaming.
-	DefaultMemoryDreamAgentName    = "dreaming-curator"
-	defaultMemoryWorkspaceTOMLPath = "<workspace>/.agh/workspace.toml"
-)
+const defaultMemoryWorkspaceTOMLPath = "<workspace>/.agh/workspace.toml"
 
 // ErrSandboxProfileNotFound reports a sandbox profile reference that is not configured.
 var ErrSandboxProfileNotFound = errors.New("sandbox profile not found")

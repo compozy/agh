@@ -380,6 +380,10 @@ func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
+	created, err = harness.WaitForSessionActive(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("WaitForSessionActive(%q) error = %v", created.ID, err)
+	}
 
 	stream, err := harness.PromptSession(ctx, created.ID, "hello harness")
 	if err != nil {

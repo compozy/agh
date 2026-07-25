@@ -19,6 +19,7 @@ vi.mock("../../adapters/settings-api", () => ({
   updateSettingsMemory: vi.fn(),
   updateSettingsNetwork: vi.fn(),
   updateSettingsObservability: vi.fn(),
+  updateSettingsRoles: vi.fn(),
   updateSettingsSkills: vi.fn(),
 }));
 
@@ -36,6 +37,7 @@ import {
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
   updateSettingsMemory,
+  updateSettingsRoles,
 } from "../../adapters/settings-api";
 import {
   exchangeSettingsMCPAuth,
@@ -46,6 +48,7 @@ import {
   settingsHooksExtensionsSectionFixture,
   settingsMemoryConfigFixture,
 } from "../../mocks/fixtures";
+import { settingsRolesSectionFixture } from "../../mocks/roles-fixtures";
 import { initialSettingsRestartState } from "../../stores/settings-restart-store";
 import { useSettingsRestartStore } from "../../stores/use-settings-restart-store";
 import {
@@ -58,6 +61,7 @@ import {
   useUpdateSettingsGeneral,
   useUpdateSettingsHooksExtensions,
   useUpdateSettingsMemory,
+  useUpdateSettingsRoles,
 } from "../use-settings-mutations";
 
 function createWrapper() {
@@ -165,13 +169,44 @@ describe("useUpdateSettingsMemory", () => {
       await result.current.mutateAsync({
         config: {
           ...settingsMemoryConfigFixture,
-          dream: { ...settingsMemoryConfigFixture.dream, agent: "dreamer", min_hours: 1 },
+          dream: { ...settingsMemoryConfigFixture.dream, min_hours: 1 },
         },
       });
     });
 
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.section("memory") });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.applyRoot() });
+    });
+  });
+});
+
+describe("useUpdateSettingsRoles", () => {
+  it("Should reconcile the section cache and invalidate role consumers", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const updatedConfig = structuredClone(settingsRolesSectionFixture.config);
+    updatedConfig.dream.model = "updated-dream-model";
+    queryClient.setQueryData(settingsKeys.section("roles"), settingsRolesSectionFixture);
+    vi.mocked(updateSettingsRoles).mockResolvedValue({
+      ...generalMutation,
+      section: "roles" as const,
+      lifecycle: "live" as const,
+      next_action: "none" as const,
+      restart_required: false,
+    });
+
+    const { result } = renderHook(() => useUpdateSettingsRoles(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ config: updatedConfig });
+    });
+
+    expect(queryClient.getQueryData(settingsKeys.section("roles"))).toMatchObject({
+      config: { dream: { model: "updated-dream-model" } },
+    });
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.section("roles") });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.rolesStatus() });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.applyRoot() });
     });
   });

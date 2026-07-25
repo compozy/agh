@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	providerClaudeKey = "claude"
+	providerAnthropicKey = "anthropic"
+	providerClaudeKey    = "claude"
 )
 
 const (

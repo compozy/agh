@@ -99,6 +99,7 @@ export {
   seedBrowserSandboxProfiles,
   triggerBrowserBridgeIngress,
   seedBrowserNetworkOperatorFlow,
+  waitForSeedSessionActive,
   type BrowserAutomationOperatorFlowResult,
   type BrowserAutomationOperatorFlowSeed,
   type BrowserBridgeIngressResult,

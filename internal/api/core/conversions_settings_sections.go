@@ -3,11 +3,9 @@ package core
 import (
 	"errors"
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
-
 	settingspkg "github.com/compozy/agh/internal/settings"
 )
 
@@ -18,6 +16,8 @@ func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (
 		return settingsGeneralSectionResponse(envelope)
 	case settingspkg.SectionMemory:
 		return settingsMemorySectionResponse(envelope)
+	case settingspkg.SectionRoles:
+		return settingsRolesSectionResponse(envelope)
 	case settingspkg.SectionSkills:
 		return settingsSkillsSectionResponse(envelope)
 	case settingspkg.SectionAutomation:
@@ -33,6 +33,16 @@ func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (
 	default:
 		return nil, fmt.Errorf("unknown settings section %q", envelope.Section)
 	}
+}
+
+func settingsRolesSectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
+	if envelope.Roles == nil {
+		return nil, errors.New("settings roles section is required")
+	}
+	return contract.SettingsRolesResponse{
+		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                   settingsRolesConfigPayload(&envelope.Roles.Config),
+	}, nil
 }
 
 func settingsGeneralSectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
@@ -169,6 +179,7 @@ func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationR
 	switch result.Section {
 	case settingspkg.SectionGeneral,
 		settingspkg.SectionMemory,
+		settingspkg.SectionRoles,
 		settingspkg.SectionAutomation,
 		settingspkg.SectionNetwork,
 		settingspkg.SectionWindowManager,

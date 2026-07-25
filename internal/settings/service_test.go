@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -143,11 +144,36 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if envelope.Memory == nil {
 					t.Fatal("Memory section = nil")
 				}
-				if got, want := envelope.Memory.Config.Dream.Agent, "writer"; got != want {
-					t.Fatalf("Memory dream agent = %q, want %q", got, want)
+				if got, want := envelope.Memory.Config.Dream.MinHours, 12.0; got != want {
+					t.Fatalf("Memory dream minimum hours = %v, want %v", got, want)
 				}
 				if got, want := envelope.Memory.Health.FileCount, 5; got != want {
 					t.Fatalf("Memory file count = %d, want %d", got, want)
+				}
+			},
+		},
+		{
+			name:  SectionRoles,
+			label: "Should build an ownership-safe roles section",
+			assert: func(t *testing.T, envelope SectionEnvelope) {
+				t.Helper()
+				if envelope.Roles == nil || !envelope.Roles.Config.Dream.Enabled {
+					t.Fatalf("Roles section = %#v, want enabled Dream role", envelope.Roles)
+				}
+				envelope.Roles.Config.AutoTitle.FallbackChain = append(
+					envelope.Roles.Config.AutoTitle.FallbackChain,
+					aghconfig.RoleFallback{Provider: "mutated", Model: "mutated"},
+				)
+				reloaded, err := service.GetSection(ctx, SectionRequest{Section: SectionRoles})
+				if err != nil {
+					t.Fatalf("GetSection(roles after mutation) error = %v", err)
+				}
+				if slices.ContainsFunc(reloaded.Roles.Config.AutoTitle.FallbackChain, func(
+					fallback aghconfig.RoleFallback,
+				) bool {
+					return fallback.Provider == "mutated"
+				}) {
+					t.Fatal("Roles section retained a caller-owned fallback mutation")
 				}
 			},
 		},
@@ -4117,7 +4143,6 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 	}
 	memoryConfig := aghconfig.DefaultWithHome(memoryHomePaths).Memory
 	memoryConfig.GlobalDir = "/tmp/updated-memory"
-	memoryConfig.Dream.Agent = "writer"
 	memoryConfig.Dream.MinHours = 12
 	memoryConfig.Dream.MinSessions = 3
 	memoryConfig.Dream.CheckInterval = 15 * time.Minute
@@ -5214,8 +5239,6 @@ enabled = true
 global_dir = "/tmp/memory"
 
 [memory.dream]
-enabled = true
-agent = "writer"
 min_hours = 12
 min_sessions = 2
 check_interval = "15m"

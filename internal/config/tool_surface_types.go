@@ -11,6 +11,7 @@ const (
 	ConfigValueFloat
 	ConfigValueDuration
 	ConfigValueStringSlice
+	ConfigValueTable
 )
 
 // PathDenial is the config package's path-policy decision.

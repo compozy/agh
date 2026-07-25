@@ -3,7 +3,9 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
 )
 
@@ -12,12 +14,13 @@ func (d *Daemon) bootRuntimeServices(
 	state *bootState,
 	cleanup *bootCleanup,
 ) error {
-	if state.cfg.Memory.Enabled && state.cfg.Memory.Dream.Enabled {
+	if state.cfg.Memory.Enabled {
 		state.dreamSvc = d.newDreamService(
 			memory.WithMemoryStore(state.memoryStore),
 			memory.WithSessionsDir(d.homePaths.SessionsDir),
 			memory.WithMinHours(state.cfg.Memory.Dream.MinHours),
 			memory.WithMinSessions(state.cfg.Memory.Dream.MinSessions),
+			memory.WithDreamGateConfig(dreamGateConfigFromConfig(state.cfg.Memory.Dream)),
 			memory.WithLogger(state.logger),
 			memory.WithWorkspaceResolver(state.workspaceResolver),
 		)
@@ -61,6 +64,19 @@ func (d *Daemon) bootRuntimeServices(
 		return err
 	}
 	return d.bootMemorySessionRuntime(ctx, state, cleanup)
+}
+
+func dreamGateConfigFromConfig(cfg aghconfig.DreamConfig) memory.DreamGateConfig {
+	return memory.DreamGateConfig{
+		MinCandidates:   cfg.Gates.MinUnpromoted,
+		MinRecallCount:  cfg.Gates.MinRecallCount,
+		MinScore:        cfg.Gates.MinScore,
+		HalfLife:        time.Duration(cfg.Scoring.RecencyHalfLifeDays) * 24 * time.Hour,
+		FrequencyWeight: cfg.Scoring.Weights.Frequency,
+		RelevanceWeight: cfg.Scoring.Weights.Relevance,
+		RecencyWeight:   cfg.Scoring.Weights.Recency,
+		FreshnessWeight: cfg.Scoring.Weights.Freshness,
+	}
 }
 
 func (d *Daemon) bootRuntimeMemoryMonitor(

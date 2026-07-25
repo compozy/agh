@@ -64,9 +64,9 @@ type NetworkReader interface {
 	Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error)
 }
 
-// CoordinatorConfigResolver reads the safe coordinator limits for a workspace.
-type CoordinatorConfigResolver interface {
-	ResolveCoordinatorConfig(ctx context.Context, workspaceID string) (aghconfig.CoordinatorConfig, error)
+// CoordinatorRoleResolver reads the safe coordinator limits for a workspace.
+type CoordinatorRoleResolver interface {
+	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (aghconfig.ResolvedCoordinatorRole, error)
 }
 
 // SoulSnapshotStore loads immutable Soul snapshots for compact context projection.
@@ -92,8 +92,8 @@ type Deps struct {
 	TaskStoreFunc         func() TaskStore
 	Network               NetworkReader
 	NetworkFunc           func() NetworkReader
-	CoordinatorConfig     CoordinatorConfigResolver
-	CoordinatorConfigFunc func() CoordinatorConfigResolver
+	CoordinatorRole       CoordinatorRoleResolver
+	CoordinatorRoleFunc   func() CoordinatorRoleResolver
 	SoulSnapshots         SoulSnapshotStore
 	SoulSnapshotsFunc     func() SoulSnapshotStore
 }
@@ -113,8 +113,8 @@ type Service struct {
 	taskStoreFunc         func() TaskStore
 	network               NetworkReader
 	networkFunc           func() NetworkReader
-	coordinatorConfig     CoordinatorConfigResolver
-	coordinatorConfigFunc func() CoordinatorConfigResolver
+	coordinatorRole       CoordinatorRoleResolver
+	coordinatorRoleFunc   func() CoordinatorRoleResolver
 	soulSnapshots         SoulSnapshotStore
 	soulSnapshotsFunc     func() SoulSnapshotStore
 	promptSections        *promptSectionCache
@@ -144,8 +144,8 @@ func NewService(deps Deps) *Service {
 		taskStoreFunc:         deps.TaskStoreFunc,
 		network:               deps.Network,
 		networkFunc:           deps.NetworkFunc,
-		coordinatorConfig:     deps.CoordinatorConfig,
-		coordinatorConfigFunc: deps.CoordinatorConfigFunc,
+		coordinatorRole:       deps.CoordinatorRole,
+		coordinatorRoleFunc:   deps.CoordinatorRoleFunc,
 		soulSnapshots:         deps.SoulSnapshots,
 		soulSnapshotsFunc:     deps.SoulSnapshotsFunc,
 		promptSections:        newPromptSectionCache(),

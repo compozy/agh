@@ -7,13 +7,15 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { closeMCPAuthServer, startMCPAuthServer } from "../fixtures/mcp-auth-server";
+import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import {
   marketplaceOperatorSelectors,
   sessionLifecycleSelectors,
+  sessionWindowSelectors,
   settingsOperatorSelectors,
 } from "../fixtures/selectors";
 import {
@@ -179,8 +181,10 @@ test.describe("Marketplace acquisition", () => {
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await useGlobalWorkspaceIfPrompted(appPage);
 
-    const marketplace = marketplaceOperatorSelectors(appPage);
     await appPage.goto(runtime.url("/marketplace"), { waitUntil: "domcontentloaded" });
+    const marketplaceWin = appPage.getByTestId("os-window-app:marketplace");
+    await expect(marketplaceWin).toBeVisible();
+    const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
     await expect(marketplace.kind("skill")).toBeVisible({ timeout: 20_000 });
     await expect(marketplace.card(skillEntryID)).toBeVisible();
@@ -304,7 +308,7 @@ test.describe("Marketplace acquisition", () => {
     await expect(appPage.getByText("Blocked by extensions policy", { exact: true })).toBeVisible();
     await extensionDetailLink.click();
     await expect(marketplace.detail).toBeVisible();
-    await expect(marketplace.detailAction).toHaveAttribute("aria-disabled", "true");
+    await expect(marketplace.action(extensionEntryID)).toHaveAttribute("aria-disabled", "true");
     await expect(
       marketplace.detail.getByRole("link", { name: "Settings › Extensions" })
     ).toHaveAttribute("href", "/settings/extensions");
@@ -451,7 +455,7 @@ test.describe("Marketplace acquisition", () => {
       "PATCH",
       "/api/settings/hooks-extensions"
     );
-    await appPage.getByTestId("settings-page-extensions-policy-save").click();
+    await appPage.getByTestId("settings-page-extensions-save").click();
     const policyResponse = await policyResponsePromise;
     expect(policyResponse.status(), await policyResponse.text()).toBe(200);
 
@@ -459,8 +463,8 @@ test.describe("Marketplace acquisition", () => {
       waitUntil: "domcontentloaded",
     });
     await expect(marketplace.detail).toBeVisible();
-    await expect(marketplace.detailAction).not.toHaveAttribute("aria-disabled", "true");
-    await expect(marketplace.detailAction).toBeEnabled();
+    await expect(marketplace.action(extensionEntryID)).not.toHaveAttribute("aria-disabled", "true");
+    await expect(marketplace.action(extensionEntryID)).toBeEnabled();
 
     await appPage.goto(runtime.url("/settings/hooks"), { waitUntil: "domcontentloaded" });
     await expect(appPage.getByTestId("settings-page-hooks")).toBeVisible({ timeout: 20_000 });
@@ -740,9 +744,7 @@ test.describe("Skills marketplace management", () => {
       throw new Error("Skills browser E2E requires launch-mode runtime paths.");
     }
 
-    const sessionUI = sessionLifecycleSelectors(appPage);
     const settingsUI = settingsOperatorSelectors(appPage);
-    const marketplace = marketplaceOperatorSelectors(appPage);
     const installedSkillCard = (name: string) =>
       appPage
         .getByTestId(/^marketplace-installed-card-/)
@@ -758,6 +760,9 @@ test.describe("Skills marketplace management", () => {
     await appPage.goto(runtime.url("/marketplace/skills?tab=installed"), {
       waitUntil: "domcontentloaded",
     });
+    const marketplaceWin = appPage.getByTestId("os-window-app:marketplace");
+    await expect(marketplaceWin).toBeVisible();
+    const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect(marketplace.kind("skill")).toBeVisible();
 
     await appPage.getByTestId("marketplace-kind-search-skill").fill("browser-context");
@@ -782,7 +787,7 @@ test.describe("Skills marketplace management", () => {
     expect(initialParity.cliInfo.enabled).toBe(true);
     expect(initialParity.httpContent.content).toContain("Use browser context skill evidence");
 
-    await assertSkillsViewportMatrix(appPage, browserArtifacts);
+    await assertSkillsViewportMatrix(marketplaceWin, browserArtifacts);
     await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
       initialParity,
       scenario_contract: {
@@ -818,14 +823,13 @@ test.describe("Skills marketplace management", () => {
       skills_selected_item: contextSkillName,
       skills_view_visible: true,
     });
-    const baselineSession = await createSessionThroughBrowser(
-      appPage,
-      sessionUI,
-      skillsContextAgentName
+    const baselineSession = await createSessionThroughBrowser(appPage, skillsContextAgentName);
+    const baselineSessionUI = sessionWindowSelectors(
+      sessionWindow(appPage, baselineSession.session.id)
     );
-    await sessionUI.composerTextarea.fill("skill context before disable");
-    await sessionUI.composerTextarea.press("Enter");
-    await expect(sessionUI.chatView).toContainText("qa-skills-context acknowledged", {
+    await baselineSessionUI.composerTextarea.fill("skill context before disable");
+    await baselineSessionUI.composerTextarea.press("Enter");
+    await expect(baselineSessionUI.chatView).toContainText("qa-skills-context acknowledged", {
       timeout: 30_000,
     });
     const baselinePrompt = await promptForSession(
@@ -865,14 +869,13 @@ test.describe("Skills marketplace management", () => {
     expect(disabledParity.udsDetail.skill.enabled).toBe(false);
     expect(disabledParity.cliInfo.enabled).toBe(false);
 
-    const disabledSession = await createSessionThroughBrowser(
-      appPage,
-      sessionUI,
-      skillsContextAgentName
+    const disabledSession = await createSessionThroughBrowser(appPage, skillsContextAgentName);
+    const disabledSessionUI = sessionWindowSelectors(
+      sessionWindow(appPage, disabledSession.session.id)
     );
-    await sessionUI.composerTextarea.fill("skill context after disable");
-    await sessionUI.composerTextarea.press("Enter");
-    await expect(sessionUI.chatView).toContainText("qa-skills-context acknowledged", {
+    await disabledSessionUI.composerTextarea.fill("skill context after disable");
+    await disabledSessionUI.composerTextarea.press("Enter");
+    await expect(disabledSessionUI.chatView).toContainText("qa-skills-context acknowledged", {
       timeout: 30_000,
     });
     const disabledPrompt = await promptForSession(
@@ -905,14 +908,13 @@ test.describe("Skills marketplace management", () => {
     expect((await enableResponsePromise).ok()).toBe(true);
     await expect(enabledLabel).toHaveText("Enabled");
 
-    const restoredSession = await createSessionThroughBrowser(
-      appPage,
-      sessionUI,
-      skillsContextAgentName
+    const restoredSession = await createSessionThroughBrowser(appPage, skillsContextAgentName);
+    const restoredSessionUI = sessionWindowSelectors(
+      sessionWindow(appPage, restoredSession.session.id)
     );
-    await sessionUI.composerTextarea.fill("skill context after enable");
-    await sessionUI.composerTextarea.press("Enter");
-    await expect(sessionUI.chatView).toContainText("qa-skills-context acknowledged", {
+    await restoredSessionUI.composerTextarea.fill("skill context after enable");
+    await restoredSessionUI.composerTextarea.press("Enter");
+    await expect(restoredSessionUI.chatView).toContainText("qa-skills-context acknowledged", {
       timeout: 30_000,
     });
     const restoredPrompt = await promptForSession(
@@ -976,9 +978,10 @@ test.describe("Skills marketplace management", () => {
   });
 
   async function assertSkillsViewportMatrix(
-    page: Page,
+    win: Locator,
     browserArtifacts: { captureScreenshot: (name: string, page?: Page) => Promise<unknown> }
   ): Promise<void> {
+    const page = win.page();
     const viewports = [
       { name: "desktop", width: 1280, height: 900 },
       { name: "tablet", width: 768, height: 900 },
@@ -986,8 +989,8 @@ test.describe("Skills marketplace management", () => {
     ];
     for (const viewport of viewports) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
-      await expect(page.getByTestId("marketplace-detail")).toBeVisible();
-      await expect(page.getByTestId("content-body")).toBeVisible();
+      await expect(win.getByTestId("marketplace-detail")).toBeVisible();
+      await expect(win.getByTestId("content-body")).toBeVisible();
       await browserArtifacts.captureScreenshot(`skills-${viewport.name}-detail`, page);
     }
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -1080,14 +1083,16 @@ test.describe("Skills marketplace management", () => {
 
   async function createSessionThroughBrowser(
     page: Page,
-    ui: ReturnType<typeof sessionLifecycleSelectors>,
     agentName: string
   ): Promise<SessionEnvelope> {
     await page.goto(new URL(`/agents/${agentName}`, page.url()).toString(), {
       waitUntil: "domcontentloaded",
     });
-    await expect(ui.agentPageNewSession).toBeVisible();
-    await ui.agentPageNewSession.click();
+    const agentsWin = page.getByTestId("os-window-app:agents");
+    await expect(agentsWin).toBeVisible();
+    const agentsUI = sessionLifecycleSelectors(agentsWin);
+    await expect(agentsUI.agentPageNewSession).toBeVisible();
+    await agentsUI.agentPageNewSession.click();
     await expect(page.getByTestId("session-create-dialog")).toBeVisible();
     const createResponsePromise = page.waitForResponse(
       response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
@@ -1099,8 +1104,9 @@ test.describe("Skills marketplace management", () => {
     await expect
       .poll(() => new URL(page.url()).pathname)
       .toBe(`/agents/${agentName}/sessions/${session.session.id}`);
-    await expect(ui.chatHeader).toBeVisible();
-    await expect(ui.composerTextarea).toBeVisible();
+    const sessionWin = sessionWindow(page, session.session.id);
+    await expect(sessionWin).toBeVisible();
+    await expect(sessionWindowSelectors(sessionWin).composerTextarea).toBeVisible();
     return session;
   }
 
@@ -1297,8 +1303,7 @@ test.describe("MCP marketplace authorization", () => {
       await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
         waitUntil: "domcontentloaded",
       });
-      await appPage.getByTestId("workspace-switcher").click();
-      await appPage.getByTestId(`workspace-command-item-${workspace.id}`).click();
+      await switchWorkspace(appPage, workspace.id, workspace.name);
 
       const installedCard = appPage
         .getByTestId(/^marketplace-installed-card-/)
@@ -1306,7 +1311,9 @@ test.describe("MCP marketplace authorization", () => {
         .first();
       await expect(installedCard).toBeVisible();
       await installedCard.getByRole("link", { name: `View ${SERVER_NAME} details` }).click();
-      const detail = appPage.getByTestId("marketplace-detail");
+      const detail = appPage
+        .getByTestId("os-window-app:marketplace")
+        .getByTestId("marketplace-detail");
       await expect(detail).toBeVisible();
       await expect(detail.getByText("Needs login", { exact: true })).toBeVisible();
 
@@ -1380,8 +1387,7 @@ test.describe("MCP marketplace authorization", () => {
       await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
         waitUntil: "domcontentloaded",
       });
-      await appPage.getByTestId("workspace-switcher").click();
-      await appPage.getByTestId(`workspace-command-item-${workspace.id}`).click();
+      await switchWorkspace(appPage, workspace.id, workspace.name);
       const installedCard = appPage
         .getByTestId(/^marketplace-installed-card-/)
         .filter({ hasText: SERVER_NAME })
@@ -1610,7 +1616,6 @@ test.describe("Extension and bundle marketplace runtime", () => {
     const extensionDir = await createBrowserToolProviderExtension();
     const checksumFailureDir = await createChecksumFailureExtension();
     const badManifestDir = await createInvalidExtensionManifest();
-    const marketplace = marketplaceOperatorSelectors(appPage);
     const installedExtensionCard = appPage
       .getByTestId(/^marketplace-installed-card-/)
       .filter({ hasText: extensionName })
@@ -1643,6 +1648,9 @@ test.describe("Extension and bundle marketplace runtime", () => {
     await appPage.goto(runtime.url("/marketplace/extensions?tab=installed"), {
       waitUntil: "domcontentloaded",
     });
+    const marketplaceWin = appPage.getByTestId("os-window-app:marketplace");
+    await expect(marketplaceWin).toBeVisible();
+    const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });
     await expect(installedExtensionCard).toBeVisible();
     await expect(installedExtensionCard.getByRole("switch")).toBeChecked();
@@ -1979,25 +1987,26 @@ test.describe("Extension and bundle marketplace runtime", () => {
     await appPage.goto(runtime.url(sessionPath(toolPermissionAgent, approved.session.id)), {
       waitUntil: "domcontentloaded",
     });
-    const ui = sessionLifecycleSelectors(appPage);
-    await expect(ui.chatHeader).toBeVisible();
-    await ui.composerTextarea.fill("exercise golden");
-    await ui.composerTextarea.press("Enter");
-    await expect(ui.chatView).toContainText("hello from golden");
-    await expect(ui.permissionPrompt).toBeVisible();
-    await expect(appPage.getByText("Permission Required")).toBeVisible();
-    await expect(appPage.getByRole("button", { name: /allow always/i })).toBeVisible();
-    await expect(appPage.getByRole("button", { name: /reject always/i })).toBeVisible();
-    await assertPermissionKeyboardPath(appPage);
+    const approvedWin = sessionWindow(appPage, approved.session.id);
+    const approvedUI = sessionWindowSelectors(approvedWin);
+    await expect(approvedWin).toBeVisible();
+    await approvedUI.composerTextarea.fill("exercise golden");
+    await approvedUI.composerTextarea.press("Enter");
+    await expect(approvedUI.chatView).toContainText("hello from golden");
+    await expect(approvedUI.permissionPrompt).toBeVisible();
+    await expect(approvedWin.getByText("Permission Required")).toBeVisible();
+    await expect(approvedWin.getByRole("button", { name: /allow always/i })).toBeVisible();
+    await expect(approvedWin.getByRole("button", { name: /reject always/i })).toBeVisible();
+    await assertPermissionKeyboardPath(approvedWin);
 
     const approveResponsePromise = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&
         response.url().endsWith(sessionAPIPath(workspace.id, approved.session.id, "/approve"))
     );
-    await appPage.getByTestId("permission-allow-always").click();
+    await approvedWin.getByTestId("permission-allow-always").click();
     expect((await approveResponsePromise).ok()).toBe(true);
-    await expect(ui.permissionPrompt).toBeHidden();
+    await expect(approvedUI.permissionPrompt).toBeHidden();
     const approvedSnapshot = await captureSessionSnapshot(
       runtime,
       workspace.id,
@@ -2009,22 +2018,24 @@ test.describe("Extension and bundle marketplace runtime", () => {
     await appPage.goto(runtime.url(sessionPath(denyPermissionAgent, denied.session.id)), {
       waitUntil: "domcontentloaded",
     });
-    await expect(ui.chatHeader).toBeVisible();
-    await ui.composerTextarea.fill("exercise permission hardening");
-    await ui.composerTextarea.press("Enter");
-    await expect(ui.chatView).toContainText("Permission hardening started.");
-    await expect(ui.permissionPrompt).toBeVisible();
-    await expect(appPage.getByTestId("permission-tool-input")).toContainText("hardening.txt");
+    const deniedWin = sessionWindow(appPage, denied.session.id);
+    const deniedUI = sessionWindowSelectors(deniedWin);
+    await expect(deniedWin).toBeVisible();
+    await deniedUI.composerTextarea.fill("exercise permission hardening");
+    await deniedUI.composerTextarea.press("Enter");
+    await expect(deniedUI.chatView).toContainText("Permission hardening started.");
+    await expect(deniedUI.permissionPrompt).toBeVisible();
+    await expect(deniedWin.getByTestId("permission-tool-input")).toContainText("hardening.txt");
 
     const rejectResponsePromise = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&
         response.url().endsWith(sessionAPIPath(workspace.id, denied.session.id, "/approve"))
     );
-    await appPage.getByTestId("permission-reject-always").click();
+    await deniedWin.getByTestId("permission-reject-always").click();
     expect((await rejectResponsePromise).ok()).toBe(true);
-    await expect(ui.permissionPrompt).toBeHidden();
-    await expect(appPage.getByTestId("permission-rejected-notice")).toContainText(
+    await expect(deniedUI.permissionPrompt).toBeHidden();
+    await expect(deniedWin.getByTestId("permission-rejected-notice")).toContainText(
       "Permission Rejected"
     );
     const deniedSnapshot = await captureSessionSnapshot(runtime, workspace.id, denied.session.id);
@@ -2457,16 +2468,17 @@ test.describe("Extension and bundle marketplace runtime", () => {
     )}${suffix}`;
   }
 
-  async function assertPermissionKeyboardPath(page: Page): Promise<void> {
+  async function assertPermissionKeyboardPath(win: Locator): Promise<void> {
+    const page = win.page();
     const focusOrder = [
       "permission-allow-once",
       "permission-allow-always",
       "permission-reject-once",
       "permission-reject-always",
     ];
-    await page.getByTestId(focusOrder[0]).focus();
+    await win.getByTestId(focusOrder[0]).focus();
     for (const testID of focusOrder) {
-      await expect(page.locator(`[data-testid="${testID}"]`)).toBeFocused();
+      await expect(win.locator(`[data-testid="${testID}"]`)).toBeFocused();
       if (testID !== focusOrder.at(-1)) {
         await page.keyboard.press("Tab");
       }

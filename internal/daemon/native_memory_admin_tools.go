@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
+	aghconfig "github.com/compozy/agh/internal/config"
 
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 
@@ -211,12 +212,16 @@ func (n *daemonNativeTools) memoryAdminHealth(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	dreamAgent := strings.TrimSpace(n.deps.Config.Roles.Dream.Agent)
+	if dreamAgent == "" {
+		dreamAgent = aghconfig.BuiltinDreamingCuratorAgentName
+	}
 	payload := contract.MemoryHealthPayload{
 		Status:             "ok",
 		Enabled:            n.deps.Config.Memory.Enabled,
 		Configured:         strings.TrimSpace(n.deps.Config.Memory.GlobalDir) != "",
 		GlobalDir:          strings.TrimSpace(n.deps.Config.Memory.GlobalDir),
-		DreamAgent:         strings.TrimSpace(n.deps.Config.Memory.Dream.Agent),
+		DreamAgent:         dreamAgent,
 		DreamMinHours:      n.deps.Config.Memory.Dream.MinHours,
 		DreamMinSessions:   n.deps.Config.Memory.Dream.MinSessions,
 		DreamCheckInterval: n.deps.Config.Memory.Dream.CheckInterval.String(),

@@ -11,12 +11,13 @@ func (d *Daemon) runtimeDeps(
 	state *bootState,
 	sessions SessionManager,
 ) RuntimeDeps {
-	initializeDreamRuntime(state, sessions)
+	d.initializeDreamRuntime(state, sessions)
 	authoredContext := authoredContextRuntimeDeps(ctx, state, sessions)
 	var memoryProviders core.MemoryProviderService
 	if state.memoryProviderRegistry != nil {
 		memoryProviders = daemonMemoryProviderService{registry: state.memoryProviderRegistry}
 	}
+	roles := roleResolverForState(state)
 	return RuntimeDeps{
 		Config:              state.cfg,
 		HomePaths:           d.homePaths,
@@ -53,24 +54,18 @@ func (d *Daemon) runtimeDeps(
 		HeartbeatWake:       authoredContext.HeartbeatWake,
 		SessionHealth:       authoredContext.SessionHealth,
 		WakeEvents:          authoredContext.WakeEvents,
-		CoordinatorConfig: newCoordinatorConfigResolver(
-			&state.cfg,
-			state.workspaceResolver,
-			agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
-				soul:      state.soulCatalog,
-				heartbeat: state.heartbeatCatalog,
-			}),
-		),
-		SkillsRegistry: skillsRegistryAPI(state.skillsRegistry),
-		ToolRegistry:   state.toolRegistry,
-		Toolsets:       state.toolsets,
-		ToolApprovals:  state.toolApprovals,
-		ApprovalGrants: state.deps.ApprovalGrants,
-		Clarify:        state.clarify,
-		HostedMCP:      state.hostedMCP,
-		MCPHostAPI:     newMCPHostAPIRuntimeInvoker(state.currentExtensionRuntime),
-		DreamTrigger:   dreamTriggerFromRuntime(state.dreamRuntime),
-		Vault:          state.providerVault,
-		StartedAt:      state.startedAt,
+		CoordinatorRole:     coordinatorRoleResolverFor(roles),
+		Roles:               roles,
+		SkillsRegistry:      skillsRegistryAPI(state.skillsRegistry),
+		ToolRegistry:        state.toolRegistry,
+		Toolsets:            state.toolsets,
+		ToolApprovals:       state.toolApprovals,
+		ApprovalGrants:      state.deps.ApprovalGrants,
+		Clarify:             state.clarify,
+		HostedMCP:           state.hostedMCP,
+		MCPHostAPI:          newMCPHostAPIRuntimeInvoker(state.currentExtensionRuntime),
+		DreamTrigger:        dreamTriggerFromRuntime(state.dreamRuntime),
+		Vault:               state.providerVault,
+		StartedAt:           state.startedAt,
 	}
 }

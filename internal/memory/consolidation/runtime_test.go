@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,48 +23,64 @@ import (
 
 func TestRuntimeTriggerReturnsAlreadyRunningWhenLockUnavailable(t *testing.T) {
 	t.Parallel()
+	t.Run("Should report an already-running lock conflict as a clean skip", func(t *testing.T) {
+		t.Parallel()
 
-	service := &fakeDreamService{
-		shouldRun: true,
-		runErr:    memory.ErrLockUnavailable,
-	}
-	runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
-		return nil
-	}, time.Minute, discardLogger(), nil)
+		service := &fakeDreamService{
+			shouldRun: true,
+			runErr:    memory.ErrLockUnavailable,
+		}
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Minute,
+			discardLogger(),
+			nil,
+		)
 
-	triggered, reason, err := runtime.Trigger(context.Background(), "ws-1")
-	if err != nil {
-		t.Fatalf("Trigger() error = %v", err)
-	}
-	if triggered {
-		t.Fatal("Trigger() triggered = true, want false")
-	}
-	if reason != "dream consolidation is already running" {
-		t.Fatalf("Trigger() reason = %q, want already-running message", reason)
-	}
+		triggered, reason, err := runtime.Trigger(context.Background(), "ws-1")
+		if err != nil {
+			t.Fatalf("Trigger() error = %v", err)
+		}
+		if triggered {
+			t.Fatal("Trigger() triggered = true, want false")
+		}
+		if reason != "dream consolidation is already running" {
+			t.Fatalf("Trigger() reason = %q, want already-running message", reason)
+		}
+	})
 }
 
 func TestRuntimeTriggerReturnsGateMissWhenRunSignalGateMisses(t *testing.T) {
 	t.Parallel()
+	t.Run("Should report a signal-gate miss as a clean skip", func(t *testing.T) {
+		t.Parallel()
 
-	service := &fakeDreamService{
-		shouldRun: true,
-		runErr:    memory.ErrDreamGateNotSatisfied,
-	}
-	runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
-		return nil
-	}, time.Minute, discardLogger(), nil)
+		service := &fakeDreamService{
+			shouldRun: true,
+			runErr:    memory.ErrDreamGateNotSatisfied,
+		}
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Minute,
+			discardLogger(),
+			nil,
+		)
 
-	triggered, reason, err := runtime.Trigger(context.Background(), "ws-1")
-	if err != nil {
-		t.Fatalf("Trigger() error = %v", err)
-	}
-	if triggered {
-		t.Fatal("Trigger() triggered = true, want false")
-	}
-	if reason != "dream consolidation gates are not satisfied" {
-		t.Fatalf("Trigger() reason = %q, want gates-not-satisfied message", reason)
-	}
+		triggered, reason, err := runtime.Trigger(context.Background(), "ws-1")
+		if err != nil {
+			t.Fatalf("Trigger() error = %v", err)
+		}
+		if triggered {
+			t.Fatal("Trigger() triggered = true, want false")
+		}
+		if reason != "dream consolidation gates are not satisfied" {
+			t.Fatalf("Trigger() reason = %q, want gates-not-satisfied message", reason)
+		}
+	})
 }
 
 func TestRuntimeTriggerStates(t *testing.T) {
@@ -71,7 +88,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 
 	t.Run("Should disabled returns disabled message", func(t *testing.T) {
 		runtime := NewRuntime(
-			false,
+			staticEnabled(false),
 			&fakeDreamService{shouldRun: true},
 			func(context.Context, string, string, string, time.Time) error {
 				return nil
@@ -95,7 +112,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 
 	t.Run("Should gate miss returns not satisfied message", func(t *testing.T) {
 		runtime := NewRuntime(
-			true,
+			staticEnabled(true),
 			&fakeDreamService{shouldRun: false},
 			func(context.Context, string, string, string, time.Time) error {
 				return nil
@@ -120,7 +137,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 	t.Run("Should service error is returned", func(t *testing.T) {
 		expectedErr := errors.New("gate failed")
 		runtime := NewRuntime(
-			true,
+			staticEnabled(true),
 			&fakeDreamService{shouldRunErr: expectedErr},
 			func(context.Context, string, string, string, time.Time) error {
 				return nil
@@ -138,9 +155,14 @@ func TestRuntimeTriggerStates(t *testing.T) {
 
 	t.Run("Should successful run trims workspace", func(t *testing.T) {
 		service := &fakeDreamService{shouldRun: true}
-		runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
-			return nil
-		}, time.Minute, discardLogger(), nil)
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Minute,
+			discardLogger(),
+			nil,
+		)
 
 		triggered, reason, err := runtime.Trigger(context.Background(), "  ws-1  ")
 		if err != nil {
@@ -162,7 +184,7 @@ func TestRuntimeLastConsolidatedAt(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should nil callback returns zero time", func(t *testing.T) {
-		runtime := NewRuntime(true, nil, nil, time.Minute, discardLogger(), nil)
+		runtime := NewRuntime(staticEnabled(true), nil, nil, time.Minute, discardLogger(), nil)
 		got, err := runtime.LastConsolidatedAt()
 		if err != nil {
 			t.Fatalf("LastConsolidatedAt() error = %v", err)
@@ -174,7 +196,7 @@ func TestRuntimeLastConsolidatedAt(t *testing.T) {
 
 	t.Run("Should callback result is returned", func(t *testing.T) {
 		expected := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
-		runtime := NewRuntime(true, nil, nil, time.Minute, discardLogger(), func() (time.Time, error) {
+		runtime := NewRuntime(staticEnabled(true), nil, nil, time.Minute, discardLogger(), func() (time.Time, error) {
 			return expected, nil
 		})
 
@@ -190,67 +212,153 @@ func TestRuntimeLastConsolidatedAt(t *testing.T) {
 
 func TestRuntimeTickerRunsAndStopsOnCancellation(t *testing.T) {
 	t.Parallel()
+	t.Run("Should run scheduled checks and stop after cancellation", func(t *testing.T) {
+		t.Parallel()
 
-	service := &fakeDreamService{shouldRun: true}
-	runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
-		return nil
-	}, 10*time.Millisecond, discardLogger(), nil)
+		service := &fakeDreamService{shouldRun: true}
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			10*time.Millisecond,
+			discardLogger(),
+			nil,
+		)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	runtime.Start(ctx)
-	t.Cleanup(runtime.Shutdown)
+		ctx, cancel := context.WithCancel(context.Background())
+		runtime.Start(ctx)
+		t.Cleanup(runtime.Shutdown)
 
-	waitForCondition(t, "dream ticker run", func() bool {
-		return service.runCount() > 0
+		waitForCondition(t, "dream ticker run", func() bool {
+			return service.runCount() > 0
+		})
+
+		cancel()
+		runtime.Shutdown()
+
+		runCount := service.runCount()
+		time.Sleep(30 * time.Millisecond)
+		if got := service.runCount(); got != runCount {
+			t.Fatalf("run count after shutdown = %d, want %d", got, runCount)
+		}
 	})
-
-	cancel()
-	runtime.Shutdown()
-
-	runCount := service.runCount()
-	time.Sleep(30 * time.Millisecond)
-	if got := service.runCount(); got != runCount {
-		t.Fatalf("run count after shutdown = %d, want %d", got, runCount)
-	}
 }
 
 func TestRuntimeEnqueueCheckRunsQueuedRequest(t *testing.T) {
 	t.Parallel()
+	t.Run("Should execute a queued workspace check", func(t *testing.T) {
+		t.Parallel()
 
-	service := &fakeDreamService{shouldRun: true}
-	runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
-		return nil
-	}, time.Hour, discardLogger(), nil)
+		service := &fakeDreamService{shouldRun: true}
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Hour,
+			discardLogger(),
+			nil,
+		)
 
-	ctx := t.Context()
-	runtime.Start(ctx)
-	t.Cleanup(runtime.Shutdown)
+		ctx := t.Context()
+		runtime.Start(ctx)
+		t.Cleanup(runtime.Shutdown)
 
-	runtime.EnqueueCheck("session_stop", "  ws-queued  ")
-	waitForCondition(t, "queued dream check", func() bool {
-		return service.runCount() == 1
+		runtime.EnqueueCheck("session_stop", "  ws-queued  ")
+		waitForCondition(t, "queued dream check", func() bool {
+			return service.runCount() == 1
+		})
+
+		if got := service.lastWorkspace(); got != "ws-queued" {
+			t.Fatalf("queued workspace = %q, want trimmed queued workspace", got)
+		}
 	})
-
-	if got := service.lastWorkspace(); got != "ws-queued" {
-		t.Fatalf("queued workspace = %q, want trimmed queued workspace", got)
-	}
 }
 
-func TestRuntimeStartDoesNothingWhenDisabled(t *testing.T) {
+func TestRuntimeSkipsChecksWhileDisabled(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep the scheduler idle while disabled", func(t *testing.T) {
+		t.Parallel()
 
-	service := &fakeDreamService{shouldRun: true}
-	runtime := NewRuntime(false, service, func(context.Context, string, string, string, time.Time) error {
-		return nil
-	}, 10*time.Millisecond, discardLogger(), nil)
+		service := &fakeDreamService{shouldRun: true}
+		runtime := NewRuntime(
+			staticEnabled(false),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			10*time.Millisecond,
+			discardLogger(),
+			nil,
+		)
 
-	ctx := t.Context()
-	runtime.Start(ctx)
-	runtime.EnqueueCheck("manual", "ws-disabled")
+		ctx := t.Context()
+		runtime.Start(ctx)
+		runtime.EnqueueCheck("manual", "ws-disabled")
 
-	if got := service.runCount(); got != 0 {
-		t.Fatalf("run count = %d, want 0", got)
-	}
+		if got := service.runCount(); got != 0 {
+			t.Fatalf("run count = %d, want 0", got)
+		}
+	})
+}
+
+func TestRuntimeReadsLiveEnabledState(t *testing.T) {
+	t.Parallel()
+	t.Run("Should read enabled state for each trigger", func(t *testing.T) {
+		t.Parallel()
+
+		enabled := false
+		service := &fakeDreamService{shouldRun: true}
+		runtime := NewRuntime(func() bool { return enabled }, service, func(
+			context.Context,
+			string,
+			string,
+			string,
+			time.Time,
+		) error {
+			return nil
+		}, time.Minute, discardLogger(), nil)
+
+		triggered, _, err := runtime.Trigger(context.Background(), "ws-live")
+		if err != nil {
+			t.Fatalf("Trigger(disabled) error = %v", err)
+		}
+		if triggered || service.runCount() != 0 {
+			t.Fatalf("Trigger(disabled) = %t with %d runs, want skipped", triggered, service.runCount())
+		}
+
+		enabled = true
+		triggered, _, err = runtime.Trigger(context.Background(), "ws-live")
+		if err != nil {
+			t.Fatalf("Trigger(enabled) error = %v", err)
+		}
+		if !triggered || service.runCount() != 1 {
+			t.Fatalf("Trigger(enabled) = %t with %d runs, want one run", triggered, service.runCount())
+		}
+	})
+
+	t.Run("Should run a queued check after live enablement", func(t *testing.T) {
+		t.Parallel()
+
+		var enabled atomic.Bool
+		service := &fakeDreamService{shouldRun: true}
+		runtime := NewRuntime(
+			enabled.Load,
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Hour,
+			discardLogger(),
+			nil,
+		)
+		runtime.Start(t.Context())
+		t.Cleanup(runtime.Shutdown)
+
+		enabled.Store(true)
+		runtime.EnqueueCheck("live-enable", "ws-live")
+		waitForCondition(t, "live-enabled queued dream check", func() bool {
+			return service.runCount() == 1
+		})
+		if got := service.lastWorkspace(); got != "ws-live" {
+			t.Fatalf("queued workspace = %q, want ws-live", got)
+		}
+	})
 }
 
 func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
@@ -258,9 +366,14 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 
 	t.Run("Should lock unavailable is swallowed", func(t *testing.T) {
 		service := &fakeDreamService{shouldRun: true, runErr: memory.ErrLockUnavailable}
-		runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
-			return nil
-		}, time.Minute, discardLogger(), nil)
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Minute,
+			discardLogger(),
+			nil,
+		)
 
 		runtime.runCheck(
 			context.Background(),
@@ -279,9 +392,14 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 
 	t.Run("Should signal gate miss is swallowed", func(t *testing.T) {
 		service := &fakeDreamService{shouldRun: true, runErr: memory.ErrDreamGateNotSatisfied}
-		runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
-			return nil
-		}, time.Minute, discardLogger(), nil)
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Minute,
+			discardLogger(),
+			nil,
+		)
 
 		runtime.runCheck(
 			context.Background(),
@@ -301,10 +419,17 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 	t.Run("Should skip spawn on should-run error", func(t *testing.T) {
 		service := &fakeDreamService{shouldRunErr: errors.New("gate failed")}
 		spawnCalls := 0
-		runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
-			spawnCalls++
-			return nil
-		}, time.Minute, discardLogger(), nil)
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error {
+				spawnCalls++
+				return nil
+			},
+			time.Minute,
+			discardLogger(),
+			nil,
+		)
 
 		runtime.runCheck(
 			context.Background(),
@@ -335,7 +460,7 @@ func TestNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 		},
 	}
 
-	spawner := NewSessionSpawner(sessions, resolver, &cfg)
+	spawner := newTestSessionSpawner(sessions, resolver, &cfg)
 	if spawner == nil {
 		t.Fatal("NewSessionSpawner() = nil, want non-nil")
 	}
@@ -379,11 +504,11 @@ func TestNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 	}
 }
 
-func TestNewSessionSpawnerUsesDedicatedDreamingCuratorForDefaultAgent(t *testing.T) {
+func TestNewSessionSpawnerUsesResolvedBuiltInDreamingCurator(t *testing.T) {
 	t.Parallel()
 
 	cfg := dreamConfig()
-	cfg.Memory.Dream.Agent = aghconfig.DefaultAgentName
+	cfg.Roles.Dream.Agent = aghconfig.BuiltinDreamingCuratorAgentName
 	sessions := &fakeSessionManager{}
 	resolver := &fakeWorkspaceResolver{
 		resolveResolved: workspacepkg.ResolvedWorkspace{
@@ -391,13 +516,13 @@ func TestNewSessionSpawnerUsesDedicatedDreamingCuratorForDefaultAgent(t *testing
 		},
 	}
 
-	spawner := NewSessionSpawner(sessions, resolver, &cfg)
+	spawner := newTestSessionSpawner(sessions, resolver, &cfg)
 	if err := spawner(context.Background(), "memory-consolidation", "prompt", "ws-default", time.Time{}); err != nil {
 		t.Fatalf("spawner() error = %v", err)
 	}
 
-	if got := sessions.createCall(0).AgentName; got != DreamingCuratorAgentName {
-		t.Fatalf("Create() agent = %q, want %q", got, DreamingCuratorAgentName)
+	if got := sessions.createCall(0).AgentName; got != aghconfig.BuiltinDreamingCuratorAgentName {
+		t.Fatalf("Create() agent = %q, want %q", got, aghconfig.BuiltinDreamingCuratorAgentName)
 	}
 }
 
@@ -412,7 +537,7 @@ func TestNewSessionSpawnerResolvesExplicitAliasWorkspace(t *testing.T) {
 		},
 	}
 
-	spawner := NewSessionSpawner(sessions, resolver, &cfg)
+	spawner := newTestSessionSpawner(sessions, resolver, &cfg)
 	if err := spawner(
 		context.Background(),
 		"memory-consolidation",
@@ -445,12 +570,30 @@ func TestNewSessionSpawnerPropagatesWorkspaceResolveErrors(t *testing.T) {
 	spawner := NewSessionSpawner(
 		&fakeSessionManager{},
 		&fakeWorkspaceResolver{resolveErr: expectedErr},
-		&cfg,
+		cfg.Memory.Enabled,
+		testDreamRouteResolver(&cfg),
 	)
 
 	err := spawner(context.Background(), "memory-consolidation", "prompt", "workspace-alias", time.Time{})
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("spawner() error = %v, want %v", err, expectedErr)
+	}
+}
+
+func TestNewSessionSpawnerRejectsAWorkspaceDisabledDreamRole(t *testing.T) {
+	t.Parallel()
+
+	cfg := dreamConfig()
+	cfg.Roles.Dream.Enabled = false
+	resolver := &fakeWorkspaceResolver{
+		resolveResolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-disabled", RootDir: t.TempDir()},
+		},
+	}
+	spawner := newTestSessionSpawner(&fakeSessionManager{}, resolver, &cfg)
+	err := spawner(context.Background(), "memory-consolidation", "prompt", "ws-disabled", time.Time{})
+	if !errors.Is(err, memory.ErrDreamRoleDisabled) {
+		t.Fatalf("spawner() error = %v, want ErrDreamRoleDisabled", err)
 	}
 }
 
@@ -499,7 +642,7 @@ func TestNewSessionSpawnerDerivesRecentWorkspacesFromSessions(t *testing.T) {
 	}
 	prior := time.Date(2026, 4, 4, 8, 0, 0, 0, time.UTC)
 
-	spawner := NewSessionSpawner(sessions, &fakeWorkspaceResolver{}, &cfg)
+	spawner := newTestSessionSpawner(sessions, &fakeWorkspaceResolver{}, &cfg)
 	if err := spawner(context.Background(), "memory-consolidation", "prompt", "", prior); err != nil {
 		t.Fatalf("spawner() error = %v", err)
 	}
@@ -574,7 +717,7 @@ func TestNewSessionSpawnerReturnsNoRecentWorkspacesWhenSessionsAreOld(t *testing
 		t.Fatalf("os.Chtimes(lock) error = %v", err)
 	}
 
-	spawner := NewSessionSpawner(sessions, &fakeWorkspaceResolver{}, &cfg)
+	spawner := newTestSessionSpawner(sessions, &fakeWorkspaceResolver{}, &cfg)
 	err := spawner(context.Background(), "memory-consolidation", "prompt", "", prior)
 	if err == nil {
 		t.Fatal("spawner() error = nil, want non-nil")
@@ -589,7 +732,15 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 
 	t.Run("Should prompt error is wrapped", func(t *testing.T) {
 		sessions := &fakeSessionManager{promptErr: errors.New("prompt failed")}
-		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1", 0)
+		err := spawnSession(
+			context.Background(),
+			sessions,
+			SessionRoute{AgentName: "memory-agent"},
+			"goal",
+			"prompt",
+			"ws-1",
+			0,
+		)
 		if err == nil {
 			t.Fatal("spawnSession() error = nil, want non-nil")
 		}
@@ -601,7 +752,15 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 	t.Run("Should stop error is joined", func(t *testing.T) {
 		stopErr := errors.New("stop failed")
 		sessions := &fakeSessionManager{stopErr: stopErr}
-		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1", 0)
+		err := spawnSession(
+			context.Background(),
+			sessions,
+			SessionRoute{AgentName: "memory-agent"},
+			"goal",
+			"prompt",
+			"ws-1",
+			0,
+		)
 		if !errors.Is(err, stopErr) {
 			t.Fatalf("spawnSession() error = %v, want stop failure", err)
 		}
@@ -611,7 +770,15 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 		sessions := &fakeSessionManager{
 			promptEvents: []acp.AgentEvent{{Type: acp.EventTypeError, Error: "tool failed"}},
 		}
-		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1", 0)
+		err := spawnSession(
+			context.Background(),
+			sessions,
+			SessionRoute{AgentName: "memory-agent"},
+			"goal",
+			"prompt",
+			"ws-1",
+			0,
+		)
 		if err == nil || !strings.Contains(err.Error(), "tool failed") {
 			t.Fatalf("spawnSession() error = %v, want prompt event failure", err)
 		}
@@ -621,11 +788,102 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 		sessions := &fakeSessionManager{}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if err := spawnSession(ctx, sessions, "memory-agent", "goal", "prompt", "ws-1", 0); err != nil {
+		if err := spawnSession(
+			ctx,
+			sessions,
+			SessionRoute{AgentName: "memory-agent"},
+			"goal",
+			"prompt",
+			"ws-1",
+			0,
+		); err != nil {
 			t.Fatalf("spawnSession() error = %v", err)
 		}
 		if got, want := sessions.lastStopContextErr(), error(nil); got != want {
 			t.Fatalf("Stop() context err = %v, want nil", got)
+		}
+	})
+
+	t.Run("Should use the first accepted fallback route", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{createResults: []fakeCreateResult{
+			{err: errors.New("primary rejected")},
+			{accepted: true},
+		}}
+		events := 0
+		err := spawnSession(
+			t.Context(),
+			sessions,
+			SessionRoute{
+				AgentName:       "memory-agent",
+				Provider:        "primary",
+				Model:           "m1",
+				ReasoningEffort: "low",
+				Fallbacks: []aghconfig.RoleFallback{
+					{Provider: "secondary", Model: "m2", ReasoningEffort: "high"},
+					{Provider: "tertiary", Model: "m3"},
+				},
+				BeforeFallback: func(_ context.Context, attempt int, fallback aghconfig.RoleFallback) error {
+					events++
+					if attempt != 1 || fallback.Provider != "secondary" {
+						t.Fatalf("fallback event = %d/%#v, want first secondary route", attempt, fallback)
+					}
+					return nil
+				},
+			},
+			"goal",
+			"prompt",
+			"ws-1",
+			0,
+		)
+		if err != nil {
+			t.Fatalf("spawnSession() error = %v", err)
+		}
+		calls := sessions.createdOptions()
+		if len(calls) != 2 || calls[0].Provider != "primary" || calls[0].Model != "m1" ||
+			calls[0].ReasoningEffort != "low" || calls[1].Provider != "secondary" ||
+			calls[1].Model != "m2" || calls[1].ReasoningEffort != "high" {
+			t.Fatalf("Create() calls = %#v", calls)
+		}
+		if events != 1 || sessions.stopCount() != 1 {
+			t.Fatalf("fallback events/stops = %d/%d, want 1/1", events, sessions.stopCount())
+		}
+	})
+
+	t.Run("Should not use fallback after session acceptance", func(t *testing.T) {
+		t.Parallel()
+
+		acceptedErr := errors.New("accepted startup failed")
+		sessions := &fakeSessionManager{createResults: []fakeCreateResult{{accepted: true, err: acceptedErr}}}
+		events := 0
+		err := spawnSession(
+			t.Context(),
+			sessions,
+			SessionRoute{
+				AgentName: "memory-agent",
+				Provider:  "primary",
+				Fallbacks: []aghconfig.RoleFallback{{Provider: "secondary", Model: "m2"}},
+				BeforeFallback: func(context.Context, int, aghconfig.RoleFallback) error {
+					events++
+					return nil
+				},
+			},
+			"goal",
+			"prompt",
+			"ws-1",
+			0,
+		)
+		if !errors.Is(err, acceptedErr) {
+			t.Fatalf("spawnSession() error = %v, want accepted startup failure", err)
+		}
+		if sessions.createCount() != 1 || events != 0 || sessions.stopCount() != 1 {
+			t.Fatalf(
+				"creates/events/stops = %d/%d/%d, want 1/0/1",
+				sessions.createCount(),
+				events,
+				sessions.stopCount(),
+			)
 		}
 	})
 }
@@ -633,10 +891,36 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 func dreamConfig() aghconfig.Config {
 	cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
 	cfg.Memory.Enabled = true
-	cfg.Memory.Dream.Enabled = true
-	cfg.Memory.Dream.Agent = "memory-agent"
+	cfg.Roles.Dream.Enabled = true
+	cfg.Roles.Dream.Agent = "memory-agent"
 	cfg.Memory.Dream.CheckInterval = time.Minute
 	return cfg
+}
+
+func newTestSessionSpawner(
+	sessions SessionManager,
+	resolver workspacepkg.RuntimeResolver,
+	cfg *aghconfig.Config,
+) memory.SessionSpawner {
+	return NewSessionSpawner(sessions, resolver, cfg.Memory.Enabled, testDreamRouteResolver(cfg))
+}
+
+func testDreamRouteResolver(cfg *aghconfig.Config) SessionRouteResolver {
+	return func(context.Context, string) (SessionRoute, error) {
+		role := cfg.Roles.Dream
+		return SessionRoute{
+			Enabled:         role.Enabled,
+			AgentName:       role.Agent,
+			Provider:        role.Provider,
+			Model:           role.Model,
+			ReasoningEffort: role.ReasoningEffort,
+			Fallbacks:       append([]aghconfig.RoleFallback(nil), role.FallbackChain...),
+		}, nil
+	}
+}
+
+func staticEnabled(enabled bool) func() bool {
+	return func() bool { return enabled }
 }
 
 func discardLogger() *slog.Logger {
@@ -708,8 +992,9 @@ type fakeSessionManager struct {
 		id  string
 		msg string
 	}
-	stopCalls  []string
-	stopCtxErr []error
+	stopCalls     []string
+	stopCtxErr    []error
+	createResults []fakeCreateResult
 }
 
 func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -717,6 +1002,13 @@ func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) 
 	defer f.mu.Unlock()
 	f.createCalls = append(f.createCalls, opts)
 	sessionID := fmt.Sprintf("dream-%d", len(f.createCalls))
+	result := fakeCreateResult{accepted: true}
+	if index := len(f.createCalls) - 1; index < len(f.createResults) {
+		result = f.createResults[index]
+	}
+	if !result.accepted {
+		return nil, result.err
+	}
 	return &session.Session{
 		ID:          sessionID,
 		AgentName:   opts.AgentName,
@@ -724,7 +1016,12 @@ func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) 
 		Workspace:   strings.TrimSpace(opts.Workspace),
 		Type:        opts.Type,
 		State:       session.StateActive,
-	}, nil
+	}, result.err
+}
+
+type fakeCreateResult struct {
+	accepted bool
+	err      error
 }
 
 func (f *fakeSessionManager) ListAll(context.Context) ([]*session.Info, error) {
@@ -769,6 +1066,12 @@ func (f *fakeSessionManager) createCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.createCalls)
+}
+
+func (f *fakeSessionManager) createdOptions() []session.CreateOpts {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]session.CreateOpts(nil), f.createCalls...)
 }
 
 func (f *fakeSessionManager) createCall(index int) session.CreateOpts {

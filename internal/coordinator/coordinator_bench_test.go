@@ -44,7 +44,7 @@ func BenchmarkPermissionPolicy(b *testing.B) {
 }
 
 func BenchmarkLineage(b *testing.B) {
-	cfg := aghconfig.DefaultCoordinatorConfig()
+	cfg := aghconfig.DefaultResolvedCoordinatorRole()
 	cfg.Enabled = true
 	policy := PermissionPolicy(participation.LocalSpec())
 

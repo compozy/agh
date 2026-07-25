@@ -29,6 +29,7 @@ func NewStore(globalDir string, opts ...StoreOption) *Store {
 			metricsEnabled: true,
 		},
 		recallRecorders: &recallRecorderRegistry{recorders: make(map[string]*memoryrecall.SignalRecorder)},
+		decisionFactory: &decisionControllerFactoryState{},
 	}
 	for _, opt := range opts {
 		if opt != nil {

@@ -86,6 +86,9 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	a.state.cfg = next
 	a.daemon.config = next
 	a.daemon.mu.Unlock()
+	if a.state.workspaceResolver != nil {
+		a.state.workspaceResolver.InvalidateAll()
+	}
 
 	providers.InvalidatePreStartCache()
 	return nil

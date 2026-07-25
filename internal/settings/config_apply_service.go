@@ -31,7 +31,7 @@ func (s *service) ApplySection(ctx context.Context, req SectionUpdateRequest) (A
 	configLifecycle := s.classifySectionApplyRequest(ctx, req)
 	result, err := s.UpdateSection(ctx, req)
 	if err != nil {
-		return s.recordFailedApply(ctx, req.Section, req.Scope, "", configLifecycle, err)
+		return s.recordFailedApply(ctx, req.Section, req.Scope, req.WorkspaceID, configLifecycle, err)
 	}
 	if result.Section == SectionNetwork {
 		return s.recordNetworkSectionApply(ctx, result)

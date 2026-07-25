@@ -28,6 +28,8 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			{path: "/api/settings/general", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/memory", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/memory", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/roles", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/roles", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/skills", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/skills", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/automation", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
@@ -245,6 +247,21 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"approve-all",
 			"approve-reads",
 			"deny-all",
+		)
+
+		updateRoles := operationFor(t, doc, "/api/settings/roles", "PATCH")
+		rolesRequest := jsonRequestSchema(t, updateRoles)
+		assertRequired(t, rolesRequest, "config")
+		rolesConfig := propertySchema(t, rolesRequest, "config")
+		assertRequired(
+			t,
+			rolesConfig,
+			"coordinator",
+			"dream",
+			"checkpoint_summary",
+			"memory_extractor",
+			"auto_title",
+			"memory_controller",
 		)
 
 		mutationSchema := jsonResponseSchema(t, updateGeneral, 200)

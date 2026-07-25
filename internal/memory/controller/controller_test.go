@@ -438,6 +438,85 @@ func TestControllerDecide(t *testing.T) {
 	})
 }
 
+func TestControllerTiebreaker(t *testing.T) {
+	t.Parallel()
+
+	targets := []Target{
+		controllerTestTarget("target-a", "project_auth_a.md", "Auth uses device login.\n"),
+		controllerTestTarget("target-b", "project_auth_b.md", "Auth uses browser login.\n"),
+	}
+	candidate := controllerTestCandidate("Project Auth", "Auth uses browser login with PKCE.\n")
+	candidate.Origin = memcontract.OriginExtractor
+
+	t.Run("Should apply a validated model update with replay metadata", func(t *testing.T) {
+		t.Parallel()
+
+		call := &memcontract.LLMCall{Model: "controller-model", PromptVersion: "v2", Latency: time.Millisecond}
+		tiebreaker := &fakeTiebreaker{result: TiebreakerResult{
+			Op:         memcontract.OpUpdate,
+			TargetID:   "target-b",
+			Confidence: 0.9,
+			Reason:     "same durable slot",
+			Call:       call,
+		}}
+		decision, err := New(fakeIndex{targets: targets}, WithTiebreaker(tiebreaker)).Decide(
+			testutil.Context(t),
+			candidate,
+		)
+		if err != nil {
+			t.Fatalf("Decide() error = %v", err)
+		}
+		if decision.Op != memcontract.OpUpdate || !slices.Equal(decision.Targets, []string{"target-b"}) {
+			t.Fatalf("Decision route = %s/%v, want update target-b", decision.Op.String(), decision.Targets)
+		}
+		if decision.Source != memcontract.SourceLLM || decision.LLMTrace == nil ||
+			decision.LLMTrace.Model != "controller-model" || decision.PromptVersion != "v2" {
+			t.Fatalf("Decision model evidence = %#v, want LLM v2 trace", decision)
+		}
+		if tiebreaker.calls != 1 || len(tiebreaker.request.Targets) != 2 {
+			t.Fatalf("Tiebreaker calls/targets = %d/%d, want 1/2", tiebreaker.calls, len(tiebreaker.request.Targets))
+		}
+	})
+
+	t.Run("Should use the configured deterministic fallback after a model failure", func(t *testing.T) {
+		t.Parallel()
+
+		call := &memcontract.LLMCall{Model: "controller-model", PromptVersion: "v1"}
+		decision, err := New(
+			fakeIndex{targets: targets},
+			WithTiebreaker(&fakeTiebreaker{
+				result: TiebreakerResult{Call: call},
+				err:    context.DeadlineExceeded,
+			}),
+			WithDefaultOpOnFail(memcontract.OpReject),
+		).Decide(testutil.Context(t), candidate)
+		if err != nil {
+			t.Fatalf("Decide() error = %v", err)
+		}
+		if decision.Op != memcontract.OpReject || decision.Source != memcontract.SourceLLM {
+			t.Fatalf("Decision = %s/%s, want reject/llm", decision.Op.String(), decision.Source)
+		}
+		if decision.LLMTrace == nil || !strings.Contains(decision.LLMTrace.Error, "deadline exceeded") {
+			t.Fatalf("Decision.LLMTrace = %#v, want bounded failure evidence", decision.LLMTrace)
+		}
+	})
+
+	t.Run("Should preserve the rules-only fallback when the live role is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		decision, err := New(
+			fakeIndex{targets: targets},
+			WithTiebreaker(&fakeTiebreaker{err: ErrTiebreakerDisabled}),
+		).Decide(testutil.Context(t), candidate)
+		if err != nil {
+			t.Fatalf("Decide() error = %v", err)
+		}
+		if decision.Op != memcontract.OpNoop || decision.Source != memcontract.SourceRule || decision.LLMTrace != nil {
+			t.Fatalf("Decision = %#v, want rules-only noop without LLM trace", decision)
+		}
+	})
+}
+
 func TestDecisionIdempotencyKey(t *testing.T) {
 	t.Run("Should distinguish op post content prompt and frontmatter changes", func(t *testing.T) {
 		t.Parallel()
@@ -475,6 +554,22 @@ func TestDecisionIdempotencyKey(t *testing.T) {
 
 type fakeIndex struct {
 	targets []Target
+}
+
+type fakeTiebreaker struct {
+	result  TiebreakerResult
+	err     error
+	calls   int
+	request TiebreakerRequest
+}
+
+func (f *fakeTiebreaker) BreakTie(
+	_ context.Context,
+	request TiebreakerRequest,
+) (TiebreakerResult, error) {
+	f.calls++
+	f.request = request
+	return f.result, f.err
 }
 
 func (f fakeIndex) ListTargets(context.Context, memcontract.Candidate) ([]Target, error) {

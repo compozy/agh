@@ -9,7 +9,7 @@ import (
 
 // CoordinatorConfigPayloadFromConfig converts resolved coordinator config into a safe read model.
 func CoordinatorConfigPayloadFromConfig(
-	cfg aghconfig.CoordinatorConfig,
+	cfg aghconfig.ResolvedCoordinatorRole,
 	source contract.CoordinatorConfigSource,
 	workspaceID string,
 ) contract.CoordinatorConfigPayload {
@@ -18,7 +18,7 @@ func CoordinatorConfigPayloadFromConfig(
 		AgentName:                     strings.TrimSpace(cfg.AgentName),
 		Provider:                      strings.TrimSpace(cfg.Provider),
 		Model:                         strings.TrimSpace(cfg.Model),
-		DefaultTTLSeconds:             int64(cfg.DefaultTTL.Seconds()),
+		DefaultTTLSeconds:             int64(cfg.TTL.Seconds()),
 		MaxChildren:                   cfg.MaxChildren,
 		MaxActiveSessionsPerWorkspace: cfg.MaxActiveSessionsPerWorkspace,
 		Source:                        source,

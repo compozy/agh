@@ -98,17 +98,7 @@ type SettingsMemoryControllerPayload struct {
 	Mode            string                                `json:"mode"`
 	MaxLatency      string                                `json:"max_latency"`
 	DefaultOpOnFail string                                `json:"default_op_on_fail"`
-	LLM             SettingsMemoryControllerLLMPayload    `json:"llm"`
 	Policy          SettingsMemoryControllerPolicyPayload `json:"policy"`
-}
-
-type SettingsMemoryControllerLLMPayload struct {
-	Enabled       bool   `json:"enabled"`
-	Model         string `json:"model"`
-	TopK          int    `json:"top_k"`
-	PromptVersion string `json:"prompt_version"`
-	Timeout       string `json:"timeout"`
-	MaxTokensOut  int    `json:"max_tokens_out"`
 }
 
 type SettingsMemoryControllerPolicyPayload struct {
@@ -152,14 +142,12 @@ type SettingsMemoryDecisionsPayload struct {
 }
 
 type SettingsMemoryExtractorPayload struct {
-	Enabled          bool                                `json:"enabled"`
 	Mode             string                              `json:"mode"`
 	ThrottleTurns    int                                 `json:"throttle_turns"`
 	Deadline         string                              `json:"deadline"`
 	SandboxInboxOnly bool                                `json:"sandbox_inbox_only"`
 	InboxPath        string                              `json:"inbox_path"`
 	DLQPath          string                              `json:"dlq_path"`
-	Model            string                              `json:"model"`
 	Queue            SettingsMemoryExtractorQueuePayload `json:"queue"`
 }
 
@@ -169,8 +157,6 @@ type SettingsMemoryExtractorQueuePayload struct {
 }
 
 type SettingsMemoryDreamPayload struct {
-	Enabled       bool                              `json:"enabled"`
-	Agent         string                            `json:"agent"`
 	MinHours      float64                           `json:"min_hours"`
 	MinSessions   int                               `json:"min_sessions"`
 	Debounce      string                            `json:"debounce"`
@@ -178,6 +164,49 @@ type SettingsMemoryDreamPayload struct {
 	CheckInterval string                            `json:"check_interval"`
 	Gates         SettingsMemoryDreamGatesPayload   `json:"gates"`
 	Scoring       SettingsMemoryDreamScoringPayload `json:"scoring"`
+}
+
+type SettingsRolesConfigPayload struct {
+	Coordinator       SettingsCoordinatorRoleConfigPayload      `json:"coordinator"`
+	Dream             SettingsRoleConfigPayload                 `json:"dream"`
+	CheckpointSummary SettingsRoleConfigPayload                 `json:"checkpoint_summary"`
+	MemoryExtractor   SettingsRoleConfigPayload                 `json:"memory_extractor"`
+	AutoTitle         SettingsRoleConfigPayload                 `json:"auto_title"`
+	MemoryController  SettingsMemoryControllerRoleConfigPayload `json:"memory_controller"`
+}
+
+type SettingsRoleConfigPayload struct {
+	Enabled         bool                          `json:"enabled"`
+	Agent           string                        `json:"agent"`
+	Provider        string                        `json:"provider"`
+	Model           string                        `json:"model"`
+	ReasoningEffort string                        `json:"reasoning_effort"`
+	FallbackChain   []SettingsRoleFallbackPayload `json:"fallback_chain"`
+}
+
+type SettingsCoordinatorRoleConfigPayload struct {
+	SettingsRoleConfigPayload
+	TTL                           string `json:"ttl"`
+	MaxChildren                   int    `json:"max_children"`
+	MaxActiveSessionsPerWorkspace int    `json:"max_active_sessions_per_workspace"`
+}
+
+type SettingsMemoryControllerRoleConfigPayload struct {
+	Enabled         bool                          `json:"enabled"`
+	Provider        string                        `json:"provider"`
+	Model           string                        `json:"model"`
+	ReasoningEffort string                        `json:"reasoning_effort"`
+	Timeout         string                        `json:"timeout"`
+	TopK            int                           `json:"top_k"`
+	PromptVersion   string                        `json:"prompt_version"`
+	MaxTokensOut    int                           `json:"max_tokens_out"`
+	FallbackChain   []SettingsRoleFallbackPayload `json:"fallback_chain"`
+}
+
+type SettingsRoleFallbackPayload struct {
+	Provider        string `json:"provider"`
+	Model           string `json:"model"`
+	ReasoningEffort string `json:"reasoning_effort"`
 }
 
 type SettingsMemoryDreamGatesPayload struct {
