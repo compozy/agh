@@ -26,6 +26,7 @@ const {
   mockToastError,
   mockUseCreateSessionPending,
   mockWorkspaceQuery,
+  mockWorkspaceListRef,
   mockListAllModels,
   mockRefreshAllModels,
 } = vi.hoisted(() => ({
@@ -34,6 +35,7 @@ const {
   mockToastError: vi.fn(),
   mockUseCreateSessionPending: { current: false as boolean },
   mockWorkspaceQuery: vi.fn(),
+  mockWorkspaceListRef: { current: [] as unknown[] },
   mockListAllModels: vi.fn<(input: unknown) => Promise<AllModelsListResponse>>(),
   mockRefreshAllModels: vi.fn<(input: unknown) => Promise<AllModelsRefreshResponse>>(),
 }));
@@ -55,6 +57,11 @@ vi.mock("@/systems/workspace", async () => {
     ...actual,
     useWorkspace: (workspaceId: string, options?: { enabled?: boolean }) =>
       mockWorkspaceQuery(workspaceId, options),
+    useWorkspaces: () => ({
+      data: mockWorkspaceListRef.current,
+      error: null,
+      isLoading: false,
+    }),
   };
 });
 
@@ -269,6 +276,7 @@ describe("useSessionCreateDialog", () => {
     mockMutateAsync.mockResolvedValue(createdSession);
     mockToastError.mockReset();
     mockWorkspaceQuery.mockReset();
+    mockWorkspaceListRef.current = [activeWorkspace];
     mockUseCreateSessionPending.current = false;
 
     workspaceQueryResult = {
@@ -347,6 +355,96 @@ describe("useSessionCreateDialog", () => {
       to: "/agents/$name/sessions/$id",
       params: { name: "codex-agent", id: "sess-new" },
     });
+  });
+
+  it("Should send a trimmed session name and working path when they are provided", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openForAgent("claude-agent"));
+    act(() => {
+      result.current.onSessionNameChange("  Investigate checkout latency  ");
+      result.current.onWorkspacePathChange("  services/checkout  ");
+    });
+
+    await submitWithPrompt(result);
+
+    expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Investigate checkout latency",
+        workspace_path: "services/checkout",
+      })
+    );
+  });
+
+  it("Should omit name, working path, and runtime overrides while they are untouched", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openForAgent("claude-agent"));
+    await submitWithPrompt(result);
+
+    const payload = mockMutateAsync.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(payload).not.toHaveProperty("name");
+    expect(payload).not.toHaveProperty("workspace_path");
+    expect(payload).not.toHaveProperty("provider");
+    expect(payload).not.toHaveProperty("model");
+    expect(payload).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("Should snap advanced-only selections back to a Simple-valid default when leaving Advanced", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openForAgent("claude-agent"));
+    act(() => result.current.onModeChange("advanced"));
+    act(() => {
+      result.current.onWorkspacePathChange("services/checkout");
+      result.current.onNetworkParticipationChange({
+        mode: "live",
+        channelId: "",
+        channelStrategy: "named",
+      });
+    });
+
+    // A live participation draft with no channel is invalid — leaving Advanced
+    // must not strand the operator with a blocking value they can no longer see.
+    expect(result.current.networkParticipation.mode).toBe("live");
+
+    act(() => result.current.onModeChange("simple"));
+
+    expect(result.current.mode).toBe("simple");
+    expect(result.current.workspacePath).toBe("");
+    expect(result.current.networkParticipation).toEqual({
+      mode: "local",
+      channelId: "",
+      channelStrategy: "",
+    });
+  });
+
+  it("Should retarget the launch when a different workspace is selected", () => {
+    const otherWorkspace = { ...activeWorkspace, id: "ws_beta", name: "beta" };
+    mockWorkspaceListRef.current = [activeWorkspace, otherWorkspace];
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openForAgent("claude-agent"));
+    expect(result.current.workspaceId).toBe("ws_alpha");
+
+    act(() => result.current.onWorkspaceChange("ws_beta"));
+
+    expect(result.current.workspaceId).toBe("ws_beta");
+    expect(result.current.workspace?.id).toBe("ws_beta");
+    // Agents and providers are workspace-scoped, so the agent pick cannot carry over.
+    expect(result.current.selectedAgentName).toBe("");
   });
 
   it("Should keep an unavailable inherited provider unresolved instead of displaying an unsent fallback", async () => {

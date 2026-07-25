@@ -26,6 +26,11 @@ export interface VaultDraft {
   ref: string;
   kind: string;
   secretValue: string;
+  /**
+   * `PUT /api/vault/secrets` is an upsert, so writing an existing ref rotates it.
+   * The operator must affirm that before the write is allowed.
+   */
+  overwriteConfirmed: boolean;
 }
 
 export type VaultEditorState = { mode: "closed" } | { mode: "create"; draft: VaultDraft };
@@ -39,7 +44,13 @@ function emptyDraft(): VaultDraft {
     ref: "vault:sessions/",
     kind: "",
     secretValue: "",
+    overwriteConfirmed: false,
   };
+}
+
+/** Mirrors `vault.NormalizeRef` — the daemon compares refs after trimming only. */
+export function normalizeVaultRef(ref: string): string {
+  return ref.trim();
 }
 
 function errorMessage(error: unknown): string | null {
@@ -123,6 +134,9 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
 
   const filter = filterFor(namespace, prefix);
   const query = useVaultSecrets(filter);
+  // Collision detection must see every ref, not just the filtered listing — an
+  // active namespace/prefix filter would otherwise hide the ref being overwritten.
+  const allSecretsQuery = useVaultSecrets({});
   const putMutation = usePutVaultSecret();
   const deleteMutation = useDeleteVaultSecret();
 
@@ -176,14 +190,29 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   const updateDraft = (updater: (draft: VaultDraft) => VaultDraft) => {
     setEditor(current => {
       if (current.mode === "closed") return current;
-      return { ...current, draft: updater(current.draft) };
+      const nextDraft = updater(current.draft);
+      // Pointing at a different ref retracts the overwrite affirmation — the
+      // operator confirmed replacing one specific secret, not any secret.
+      const refChanged = normalizeVaultRef(nextDraft.ref) !== normalizeVaultRef(current.draft.ref);
+      return {
+        ...current,
+        draft: refChanged ? { ...nextDraft, overwriteConfirmed: false } : nextDraft,
+      };
     });
   };
+
+  const knownRefs = allSecretsQuery.data ?? [];
+  const editorRef = editor.mode === "closed" ? "" : normalizeVaultRef(editor.draft.ref);
+  const editorRefExists =
+    editorRef !== "" && knownRefs.some(secret => normalizeVaultRef(secret.ref) === editorRef);
+  const overwriteBlocked =
+    editor.mode !== "closed" && editorRefExists && !editor.draft.overwriteConfirmed;
 
   const editorIsValid =
     editor.mode !== "closed" &&
     editor.draft.ref.trim().startsWith("vault:") &&
-    editor.draft.secretValue.trim() !== "";
+    editor.draft.secretValue.trim() !== "" &&
+    !overwriteBlocked;
 
   const saveEditor = () => {
     if (editor.mode === "closed" || !editorIsValid) return;
@@ -286,6 +315,7 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
     editorError: editor.mode === "create" ? putError : null,
     editorIsSaving: editor.mode === "create" && putMutation.isPending,
     editorIsValid,
+    editorRefExists,
     filter,
     isLoading: query.isLoading,
     isRefetching: query.isFetching && !query.isLoading,

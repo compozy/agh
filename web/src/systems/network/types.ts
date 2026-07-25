@@ -102,6 +102,7 @@ export interface NetworkCreateChannelDraft {
   channelName: string;
   purpose: string;
   selectedAgentNames: string[];
+  fanoutPolicy: NetworkFanoutPolicy;
 }
 
 export type NetworkConversationMessagesQuery = OperationQuery<"listNetworkThreadMessages">;

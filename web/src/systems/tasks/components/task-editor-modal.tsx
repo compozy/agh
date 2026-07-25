@@ -1,9 +1,12 @@
 "use client";
 
-import { Dialog, DialogContent } from "@agh/ui";
+import { ClipboardCheck } from "lucide-react";
+
+import { Dialog, DialogContent, EntityDialogHeader, dialogShellClass } from "@agh/ui";
 
 import type { TaskRecord } from "../types";
 import {
+  TASK_DESCRIPTION,
   TaskEditorSurface,
   type TaskEditorSurfaceMode,
   type TaskEditorSurfaceProps,
@@ -11,15 +14,17 @@ import {
 
 export type TaskEditorModalMode = TaskEditorSurfaceMode;
 
-export interface TaskEditorModalProps extends Omit<TaskEditorSurfaceProps, "onCancel"> {
+export interface TaskEditorModalProps extends Omit<TaskEditorSurfaceProps, "onCancel" | "header"> {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Retained for modal callers that bind the persisted edit record. */
   task?: TaskRecord | null;
 }
 
-const MODAL_CONTENT_CLASS =
-  "text-fg w-(--width-modal-md) max-w-[calc(100vw-2rem)] sm:max-w-(--width-modal-md) grid-rows-[minmax(0,1fr)] h-(--height-modal-md) max-h-[min(var(--height-modal-md),calc(100vh-2rem))]";
+/** The surface is the single grid child and owns its own header/body/footer rows. */
+const MODAL_CONTENT_CLASS = `text-fg grid-rows-[minmax(0,1fr)] ${dialogShellClass("md", {
+  fill: true,
+})}`;
 
 export function TaskEditorModal({
   open,
@@ -36,7 +41,19 @@ export function TaskEditorModal({
         data-testid="task-editor-modal"
         showCloseButton={false}
       >
-        <TaskEditorSurface {...surfaceProps} onCancel={() => onOpenChange(false)} />
+        <TaskEditorSurface
+          {...surfaceProps}
+          header={
+            <EntityDialogHeader
+              description={TASK_DESCRIPTION}
+              eyebrow="Autonomy · Task"
+              icon={ClipboardCheck}
+              onClose={() => onOpenChange(false)}
+              title={surfaceProps.mode === "new" ? "Create task" : "Edit task"}
+            />
+          }
+          onCancel={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   );

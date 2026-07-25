@@ -143,6 +143,10 @@ describe("AutomationEditorDialog", () => {
     const header = dialog.querySelector('[data-slot="dialog-header"]');
     expect(header).not.toBeNull();
     expect(header).toHaveAttribute("data-variant", "ruled");
+    // The header is the shared entity primitive, not a local definition:
+    // its accent icon well only exists in `EntityDialogHeader`.
+    expect(header?.querySelector('[data-slot="entity-dialog-header"]')).not.toBeNull();
+    expect(header?.querySelector('[data-slot="entity-dialog-header-icon"]')).not.toBeNull();
 
     expect(within(header as HTMLElement).getByText("Automation · Job")).toBeInTheDocument();
     expect(within(header as HTMLElement).getByText("Create job")).toBeInTheDocument();

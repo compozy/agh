@@ -61,6 +61,12 @@ export interface BridgeCreateDraft {
   deliveryDefaults: BridgeDeliveryDefaults;
   dmPolicy: BridgeDmPolicy | "";
   displayName: string;
+  /** `CreateBridgeRequest.enabled` — whether the daemon starts it on acceptance. */
+  enabled: boolean;
+  /** `CreateBridgeRequest.notification_suppress`. */
+  notificationSuppress: boolean;
+  /** Write-only slot values, keyed by the provider-declared slot name. */
+  secretSlotValues: Record<string, string>;
   providerConfigText: string;
   routingPolicy: BridgeRoutingPolicy;
   scope: BridgeScope;

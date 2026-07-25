@@ -1,6 +1,6 @@
-import { AlertCircle, Waypoints } from "lucide-react";
+import { AlertCircle, SearchCheck, Waypoints } from "lucide-react";
 
-import { cn, DataSurface, PAGE_CONTENT_GUTTER, Skeleton } from "@agh/ui";
+import { Button, cn, DataSurface, Eyebrow, PAGE_CONTENT_GUTTER, Skeleton } from "@agh/ui";
 
 import { formatBridgeProviderConfig } from "../lib/bridge-formatters";
 import type { BridgeSetupProjection } from "../lib/bridge-setup";
@@ -12,7 +12,6 @@ import type {
   BridgeStatus,
   BridgeSummary,
 } from "../types";
-import { BridgeDeliveryActions } from "./bridge-delivery-actions";
 import { BridgeDetailConfiguration } from "./bridge-detail-configuration";
 import { BridgeDetailHeader } from "./bridge-detail-header";
 import { BridgeDetailMetrics } from "./bridge-detail-metrics";
@@ -33,8 +32,8 @@ interface BridgeDetailPanelProps {
   onDisableBridge?: () => void;
   onEnableBridge?: () => void;
   onOpenEdit?: () => void;
-  onOpenSendTest: () => void;
-  onOpenTestDelivery: () => void;
+  /** Opens the editor in Advanced, where the delivery test lives (D2). */
+  onOpenDeliveryTest: () => void;
   onRestartBridge?: () => void;
   onSaveSecretBinding?: (bindingName: string) => void;
   onSecretDraftChange?: (bindingName: string, value: string) => void;
@@ -78,8 +77,7 @@ export function BridgeDetailPanel({
   onDisableBridge,
   onEnableBridge,
   onOpenEdit,
-  onOpenSendTest,
-  onOpenTestDelivery,
+  onOpenDeliveryTest,
   onRestartBridge,
   onSaveSecretBinding,
   onSecretDraftChange,
@@ -138,7 +136,6 @@ export function BridgeDetailPanel({
   const providerConfig = formatBridgeProviderConfig(bridge.provider_config);
   const effectiveStatus = (health?.status ?? bridge.status) as BridgeStatus;
   const bindingsByName = new Map(secretBindings.map(binding => [binding.binding_name, binding]));
-  const bridgeDisabled = !bridge.enabled || effectiveStatus === "disabled";
 
   return (
     <section
@@ -197,11 +194,25 @@ export function BridgeDetailPanel({
         />
         <BridgeTargetDirectorySection state={targetDirectory} />
         <BridgeEventStreamSection isRoutesLoading={isRoutesLoading} routes={routes} />
-        <BridgeDeliveryActions
-          bridgeDisabled={bridgeDisabled}
-          onOpenDryRun={onOpenTestDelivery}
-          onOpenSendTest={onOpenSendTest}
-        />
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-line bg-canvas-soft px-5 py-4">
+          <div className="min-w-0 flex-1 space-y-1">
+            <Eyebrow className="block text-muted">Delivery checks</Eyebrow>
+            <p className="text-small-body text-muted">
+              Resolve a target without provider side effects, or send one real message — both live
+              in the editor&apos;s Advanced tier.
+            </p>
+          </div>
+          <Button
+            data-testid="open-test-delivery-btn"
+            onClick={onOpenDeliveryTest}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <SearchCheck className="size-3" />
+            Test delivery
+          </Button>
+        </div>
       </div>
     </section>
   );

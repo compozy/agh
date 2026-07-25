@@ -116,8 +116,7 @@ export const FullyConfigured: Story = {
         bridge={slackBridge}
         error={null}
         health={slackHealth}
-        onOpenSendTest={() => undefined}
-        onOpenTestDelivery={() => undefined}
+        onOpenDeliveryTest={() => undefined}
         provider={slackProvider}
         routes={bridgeRoutesFixture}
         secretBindings={bridgeSecretBindingsFixture}
@@ -137,8 +136,7 @@ export const FailedVerify: Story = {
         bridge={failedSlackBridge}
         error={null}
         health={failedSlackHealth}
-        onOpenSendTest={() => undefined}
-        onOpenTestDelivery={() => undefined}
+        onOpenDeliveryTest={() => undefined}
         provider={slackProvider}
         routes={[]}
         secretBindings={bridgeSecretBindingsFixture}
@@ -159,8 +157,7 @@ export const BindingsUnavailable: Story = {
         bridge={slackBridge}
         error={null}
         health={slackHealth}
-        onOpenSendTest={() => undefined}
-        onOpenTestDelivery={() => undefined}
+        onOpenDeliveryTest={() => undefined}
         provider={slackProvider}
         routes={bridgeRoutesFixture}
         secretBindings={bridgeSecretBindingsFixture}
@@ -189,8 +186,7 @@ export const NoRoutes: Story = {
         bridge={slackBridge}
         error={null}
         health={slackHealth}
-        onOpenSendTest={() => undefined}
-        onOpenTestDelivery={() => undefined}
+        onOpenDeliveryTest={() => undefined}
         provider={slackProvider}
         routes={[]}
         secretBindings={bridgeSecretBindingsFixture}
@@ -209,8 +205,7 @@ export const Error: Story = {
         bridge={undefined}
         error={new globalThis.Error("Failed to load bridge details")}
         health={undefined}
-        onOpenSendTest={() => undefined}
-        onOpenTestDelivery={() => undefined}
+        onOpenDeliveryTest={() => undefined}
         routes={[]}
         setup={setup(fullyConfiguredProjection)}
         state={{ isLoading: false, isRoutesLoading: false }}

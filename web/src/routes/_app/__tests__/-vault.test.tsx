@@ -24,6 +24,7 @@ type PageState = {
   editorError: string | null;
   editorIsSaving: boolean;
   editorIsValid: boolean;
+  editorRefExists: boolean;
   filter: VaultListFilter;
   isLoading: boolean;
   isRefetching: boolean;
@@ -87,6 +88,7 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     editorError: null,
     editorIsSaving: false,
     editorIsValid: false,
+    editorRefExists: false,
     filter: {},
     isLoading: false,
     isRefetching: false,
@@ -157,6 +159,7 @@ describe("VaultPage", () => {
       ref: "vault:sessions/sess_123/github-token",
       kind: "token",
       secretValue: "super-secret-token",
+      overwriteConfirmed: false,
     };
     const openCreate = vi.fn();
     mockUseVaultPage.mockReturnValue(
@@ -176,6 +179,54 @@ describe("VaultPage", () => {
       "password"
     );
     expect(container.textContent).not.toContain("super-secret-token");
+  });
+
+  it("gates the write behind an explicit confirmation when the ref already exists", () => {
+    const draft: VaultDraft = {
+      ref: "vault:sessions/sess_123/github-token",
+      kind: "token",
+      secretValue: "super-secret-token",
+      overwriteConfirmed: false,
+    };
+    mockUseVaultPage.mockReturnValue(
+      makeState({
+        editor: { mode: "create", draft },
+        editorIsValid: false,
+        editorRefExists: true,
+      })
+    );
+
+    render(<VaultPage />);
+
+    expect(screen.getByTestId("settings-vault-editor-overwrite")).toHaveTextContent(
+      /rotates its write-only value/i
+    );
+    expect(screen.getByTestId("settings-vault-editor-overwrite-confirm")).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+    expect(screen.getByTestId("settings-vault-editor-save")).toBeDisabled();
+  });
+
+  it("omits the overwrite notice for a new ref", () => {
+    const draft: VaultDraft = {
+      ref: "vault:sessions/sess_999/new-token",
+      kind: "token",
+      secretValue: "fresh",
+      overwriteConfirmed: false,
+    };
+    mockUseVaultPage.mockReturnValue(
+      makeState({
+        editor: { mode: "create", draft },
+        editorIsValid: true,
+        editorRefExists: false,
+      })
+    );
+
+    render(<VaultPage />);
+
+    expect(screen.queryByTestId("settings-vault-editor-overwrite")).not.toBeInTheDocument();
+    expect(screen.getByTestId("settings-vault-editor-save")).toBeEnabled();
   });
 
   it("opens the inspect sheet when a row is selected", () => {

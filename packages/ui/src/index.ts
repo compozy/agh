@@ -95,6 +95,47 @@ export {
   WIDTH_RIGHT_RAIL_DEFAULT,
   WIDTH_TABLE_CELL_LG,
 } from "./lib/layout-widths";
+
+// Entity-editor modal shell (modals-redesign F1-F7).
+export {
+  dialogShellClass,
+  type DialogShellOptions,
+  type DialogShellSize,
+} from "./lib/dialog-shell";
+export {
+  EntityDialogHeader,
+  type EntityDialogHeaderProps,
+} from "./components/custom/entity-dialog-header";
+export {
+  EntityDialogFooter,
+  type EntityDialogFooterProps,
+} from "./components/custom/entity-dialog-footer";
+export {
+  EntityDialogBody,
+  type EntityDialogBodyProps,
+  type EntityDialogBodyVariant,
+} from "./components/custom/entity-dialog-body";
+export {
+  EntityModeToolbar,
+  type EntityMode,
+  type EntityModeToolbarProps,
+} from "./components/custom/entity-mode-toolbar";
+export {
+  SecretField,
+  type SecretFieldBinding,
+  type SecretFieldMode,
+  type SecretFieldProps,
+  type SecretFieldSource,
+  type SecretFieldSourceCreate,
+  type SecretFieldState,
+} from "./components/custom/secret-field";
+export {
+  ImmutableIdentity,
+  type ImmutableIdentityProps,
+  type ImmutableIdentityRow,
+} from "./components/custom/immutable-identity";
+export { RequiredMark, type RequiredMarkProps } from "./components/custom/required-mark";
+
 export { Markdown, STREAMDOWN_SAFE_CONFIG, type MarkdownProps } from "./components/custom/markdown";
 export { DescriptionCard, type DescriptionCardProps } from "./components/custom/description-card";
 export { StreamMarkdown, type StreamMarkdownProps } from "./components/custom/stream-markdown";

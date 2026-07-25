@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -106,15 +106,49 @@ describe("TaskEditorModal", () => {
   it("Should render the create header and Simple template grid by default", () => {
     renderModal();
 
-    expect(screen.getByTestId("task-editor-modal")).toBeInTheDocument();
-    expect(screen.queryByTestId("task-editor-modal-title")).not.toBeInTheDocument();
-    expect(screen.getByText(/A task is a durable contract/)).toBeInTheDocument();
+    const modal = screen.getByTestId("task-editor-modal");
+    expect(modal).toBeInTheDocument();
+    // The shared entity header owns the eyebrow, title, and description.
+    const header = modal.querySelector('[data-slot="entity-dialog-header"]');
+    expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).getByText("Autonomy · Task")).toBeInTheDocument();
+    expect(within(header as HTMLElement).getByText("Create task")).toBeInTheDocument();
+    expect(
+      within(header as HTMLElement).getByText(/A task is a durable contract/)
+    ).toBeInTheDocument();
+    // The description no longer duplicates as a paragraph in the scrolling body.
+    expect(
+      within(screen.getByTestId("task-editor-modal-body")).queryByText(
+        /A task is a durable contract/
+      )
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("task-mode-simple")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("task-template-one_shot")).toBeInTheDocument();
     expect(screen.getByTestId("task-template-human_in_loop")).toBeInTheDocument();
     expect(screen.getByTestId("task-template-epic")).toBeInTheDocument();
     // Advanced-only sections stay hidden in Simple mode.
     expect(screen.queryByTestId("task-parent-input")).not.toBeInTheDocument();
+  });
+
+  it("Should expose exactly one close route", () => {
+    renderModal();
+
+    // The header owns dismissal; DialogContent's stock close stays disabled so
+    // the two never render together.
+    const closes = screen.getAllByRole("button", { name: /close/i });
+    expect(closes).toHaveLength(1);
+    expect(closes[0]).toHaveAttribute("data-slot", "entity-dialog-header-close");
+    expect(
+      screen.getByTestId("task-editor-modal").querySelector('[data-slot="dialog-close"]')
+    ).toBeNull();
+  });
+
+  it("Should dismiss through the header close control", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange } = renderModal();
+
+    await user.click(screen.getByRole("button", { name: /close/i }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("Should switch to Advanced and reveal the advanced numbered sections", () => {
@@ -132,6 +166,27 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-identifier-input")).toBeInTheDocument();
     // Execution collapsible
     expect(screen.getByTestId("task-execution-toggle")).toBeInTheDocument();
+    // Advanced is a disclosure tier, not a replacement: required fields stay put.
+    expect(screen.getByTestId("task-title-input")).toBeInTheDocument();
+  });
+
+  it("Should snap an advanced-only template back to a Simple-valid default on leaving Advanced", () => {
+    const { onTemplateChange } = renderModal({ templateId: "recurring" });
+
+    fireEvent.click(screen.getByTestId("task-mode-advanced"));
+    expect(onTemplateChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("task-mode-simple"));
+    expect(onTemplateChange).toHaveBeenCalledWith("one_shot");
+  });
+
+  it("Should keep a Simple-valid template when leaving Advanced", () => {
+    const { onTemplateChange } = renderModal({ templateId: "human_in_loop" });
+
+    fireEvent.click(screen.getByTestId("task-mode-advanced"));
+    fireEvent.click(screen.getByTestId("task-mode-simple"));
+
+    expect(onTemplateChange).not.toHaveBeenCalled();
   });
 
   it("Should update the title and propagate it through onDraftChange", () => {
@@ -217,8 +272,10 @@ describe("TaskEditorModal", () => {
 
     renderModal({ mode: "edit", draft, task: editTask });
 
-    expect(screen.queryByTestId("task-editor-modal-title")).not.toBeInTheDocument();
-    expect(screen.getByText(/A task is a durable contract/)).toBeInTheDocument();
+    const header = screen
+      .getByTestId("task-editor-modal")
+      .querySelector('[data-slot="entity-dialog-header"]');
+    expect(within(header as HTMLElement).getByText("Edit task")).toBeInTheDocument();
     expect(screen.queryByTestId("task-mode-simple")).not.toBeInTheDocument();
     expect(screen.queryByTestId("task-mode-advanced")).not.toBeInTheDocument();
     expect(screen.queryByTestId("task-template-one_shot")).not.toBeInTheDocument();

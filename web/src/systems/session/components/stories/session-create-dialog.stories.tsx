@@ -80,8 +80,17 @@ const liveParticipation = {
 const baseArgs = {
   open: true,
   onOpenChange: fn(),
+  mode: "simple" as const,
+  onModeChange: fn(),
   agents: agentFixtures,
   workspace,
+  workspaces: [{ id: workspace.id, name: workspace.name, root_dir: workspace.root_dir }],
+  workspaceId: workspace.id,
+  onWorkspaceChange: fn(),
+  sessionName: "Investigate checkout latency",
+  onSessionNameChange: fn(),
+  workspacePath: "",
+  onWorkspacePathChange: fn(),
   selectedAgentName: agentFixtures[0]?.name ?? "",
   runtimeValue,
   runtimeProviders,
@@ -126,8 +135,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Drafted first message with the runtime selector closed — the chromeless
- * trigger sits inside the prompt box, and the accent Send disc is armed.
+ * VC-01 capture target: Simple fields plus a drafted first message. The
+ * chromeless runtime trigger sits inside the prompt box and Send is armed.
  */
 export const Default: Story = {
   args: baseArgs,
@@ -173,13 +182,99 @@ export const RuntimeSelectorOpen: Story = {
 };
 
 /**
- * Catalog stale state keeps the refresh affordance + status line visible.
+ * VC-02 capture target: Advanced tier — participation and working path are
+ * revealed without hiding the Simple fields or composer-owned runtime control.
  */
+export const Advanced: Story = {
+  args: {
+    ...baseArgs,
+    mode: "advanced" as const,
+    workspacePath: "services/checkout",
+  },
+};
+
+/**
+ * VC-09 capture target: ≤760px full-width bottom surface with 44px targets.
+ */
+export const Mobile: Story = {
+  args: baseArgs,
+  parameters: {
+    viewport: { defaultViewport: "iphone14" },
+  },
+};
+
+/**
+ * Catalog state lives inside the RuntimeSelector popover, never in the dialog
+ * chrome, so these stories open the popover to make the status line visible.
+ */
+async function openRuntimePopup(canvasElement: HTMLElement) {
+  const body = within(canvasElement.ownerDocument.body);
+  await userEvent.click(await body.findByTestId("session-create-runtime-select"));
+  await expect(await body.findByTestId("runtime-selector-popup")).toBeInTheDocument();
+  return body;
+}
+
+/** Stale catalog: the status line warns without blocking submit. */
 export const CatalogStale: Story = {
   args: {
     ...baseArgs,
+    mode: "advanced" as const,
     catalogStale: true,
-    catalogError: "Model catalog is older than the current provider config.",
+  },
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = await openRuntimePopup(canvasElement);
+    await expect(await body.findByTestId("session-create-catalog-stale")).toBeVisible();
+  },
+};
+
+/** Catalog source failure — the draft survives and only the model picker degrades. */
+export const CatalogError: Story = {
+  args: {
+    ...baseArgs,
+    mode: "advanced" as const,
+    runtimeModels: [],
+    catalogError: "Model catalog request failed.",
+  },
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = await openRuntimePopup(canvasElement);
+    await expect(await body.findByTestId("session-create-catalog-error")).toBeVisible();
+  },
+};
+
+/** Empty catalog — the provider default remains selectable. */
+export const CatalogEmpty: Story = {
+  args: {
+    ...baseArgs,
+    mode: "advanced" as const,
+    runtimeModels: [],
+  },
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = await openRuntimePopup(canvasElement);
+    await expect(await body.findByTestId("session-create-catalog-empty")).toBeVisible();
+  },
+};
+
+/**
+ * Keyboard traversal reaches the header close control with a visible 2px ring.
+ * Focus must arrive through real tabbing — a programmatic `.focus()` sets
+ * `:focus` without `:focus-visible`, so the ring would never render.
+ */
+export const FocusVisibleClose: Story = {
+  args: baseArgs,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const close = await body.findByRole("button", { name: "Close" });
+    const doc = canvasElement.ownerDocument;
+    for (let step = 0; step < 12 && doc.activeElement !== close; step += 1) {
+      await userEvent.tab();
+    }
+    await expect(close).toHaveFocus();
+    // The ring itself is a `:focus-visible` pseudo-class, not a DOM class, so it
+    // is verified visually in the capture rather than asserted here.
   },
 };
 
@@ -199,6 +294,7 @@ export const SubmitError: Story = {
 export const LiveParticipation: Story = {
   args: {
     ...baseArgs,
+    mode: "advanced" as const,
     networkParticipation: liveParticipation,
   },
 };

@@ -47,6 +47,8 @@ export type {
   SettingsMutationResult,
   SettingsNetworkSection,
   SettingsObservabilitySection,
+  ProviderAuthMode,
+  ProviderCredentialSlotDraft,
   ProviderDraft,
   SettingsProviderCollection,
   SettingsProviderCredentialSlotRequest,

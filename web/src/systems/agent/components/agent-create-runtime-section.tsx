@@ -1,15 +1,6 @@
 import { Settings2 } from "lucide-react";
 
-import {
-  Button,
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-  FieldTitle,
-  FormSection,
-  Input,
-} from "@agh/ui";
+import { Button, Field, FieldDescription, FieldError, FieldTitle, FormSection } from "@agh/ui";
 
 import {
   RuntimeSelector,
@@ -20,7 +11,7 @@ import {
 
 import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
 
-export interface AgentCreateRuntimeStepProps {
+export interface AgentCreateRuntimeSectionProps {
   draft: AgentCreateDialogDraft;
   errors: Record<string, string | undefined>;
   modelCatalogError: string | null;
@@ -35,7 +26,14 @@ export interface AgentCreateRuntimeStepProps {
   runtimeModels: RuntimeModelOption[];
 }
 
-export function AgentCreateRuntimeStep({
+/**
+ * Simple tier: provider, model, and reasoning as one segmented control.
+ *
+ * Catalog state stays visible here rather than behind Advanced — a Simple view
+ * that hides catalog truth would let an operator submit against a stale or
+ * failed catalog without knowing it.
+ */
+export function AgentCreateRuntimeSection({
   draft,
   errors,
   modelCatalogError,
@@ -48,7 +46,7 @@ export function AgentCreateRuntimeStep({
   providerOptions,
   providersLoading,
   runtimeModels,
-}: AgentCreateRuntimeStepProps) {
+}: AgentCreateRuntimeSectionProps) {
   const runtimeValue: RuntimeSelectorValue = {
     provider: draft.provider,
     model: draft.model,
@@ -60,16 +58,16 @@ export function AgentCreateRuntimeStep({
   return (
     <FormSection
       data-testid="agent-create-runtime"
+      description="Backed by the live provider and model catalogs."
       icon={Settings2}
       size="compact"
       title="Runtime"
-      description="Choose the provider, model, and reasoning defaults for new sessions."
     >
       <Field data-invalid={Boolean(errors.provider || errors.reasoningEffort)}>
         <FieldTitle id="agent-create-runtime-label">Runtime</FieldTitle>
         <FieldDescription>
-          Leave this unchanged to inherit the project provider, model, and reasoning defaults.
-          Selecting a runtime creates agent-level overrides.
+          Leave this unchanged to inherit the project defaults; selecting a runtime creates
+          agent-level overrides.
         </FieldDescription>
         {draft.provider.trim().length === 0 ? (
           <p className="text-form-hint text-info" data-testid="agent-create-runtime-inherited">
@@ -77,7 +75,11 @@ export function AgentCreateRuntimeStep({
           </p>
         ) : null}
         <RuntimeSelector
-          value={runtimeValue}
+          ariaLabelledby="agent-create-runtime-label"
+          catalogLoaded={modelCatalogLoaded}
+          disabled={providersLoading || providerOptions.length === 0}
+          loading={modelCatalogLoading}
+          models={runtimeModels}
           onChange={next =>
             onDraftChange({
               ...draft,
@@ -86,17 +88,13 @@ export function AgentCreateRuntimeStep({
               reasoningEffort: next.reasoning_effort,
             })
           }
-          providers={providerOptions}
-          models={runtimeModels}
-          loading={modelCatalogLoading}
-          catalogLoaded={modelCatalogLoaded}
-          refreshing={modelCatalogRefreshing}
-          onRefreshCatalog={onRefreshCatalog}
           onOpenProviderSettings={onOpenProviderSettings}
-          disabled={providersLoading || providerOptions.length === 0}
-          ariaLabelledby="agent-create-runtime-label"
+          onRefreshCatalog={onRefreshCatalog}
+          providers={providerOptions}
+          refreshing={modelCatalogRefreshing}
           triggerId="agent-create-runtime-trigger"
           triggerTestId="agent-create-runtime-select"
+          value={runtimeValue}
         />
         {hasRuntimeOverride ? (
           <Button
@@ -125,18 +123,6 @@ export function AgentCreateRuntimeStep({
             {modelCatalogError}
           </p>
         ) : null}
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor="agent-create-command">Command</FieldLabel>
-        <FieldDescription>Optional provider command override for this agent.</FieldDescription>
-        <Input
-          data-testid="agent-create-command"
-          id="agent-create-command"
-          onChange={event => onDraftChange({ ...draft, command: event.target.value })}
-          placeholder="Leave blank to use the provider default"
-          value={draft.command}
-        />
       </Field>
     </FormSection>
   );

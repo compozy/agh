@@ -44,6 +44,7 @@ export interface AgentCreateDialogState {
   submitError: string | null;
   isSubmitting: boolean;
   hasActiveWorkspace: boolean;
+  workspaceId: string | null;
   workspaceName: string | null;
   mode: "create" | "duplicate";
   duplicateSourceName: string | null;
@@ -263,6 +264,7 @@ export function useAgentCreateDialog({
     submitError,
     isSubmitting: createAgent.isPending || duplicateAgent.isPending,
     hasActiveWorkspace: Boolean(activeWorkspace),
+    workspaceId: activeWorkspace?.id ?? null,
     workspaceName: activeWorkspace?.name ?? null,
     mode,
     duplicateSourceName: duplicateSource?.name ?? null,

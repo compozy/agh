@@ -12,25 +12,19 @@ import {
   type SandboxPersistenceFilter,
 } from "../lib/sandbox-list-filters";
 import {
+  emptySandboxDraft,
+  toSandboxDraft,
+  toSandboxRequest,
+  type SandboxDraft,
+} from "../lib/sandbox-profile-draft";
+import {
   SettingsApiError,
   useDeleteSettingsSandbox,
   usePutSettingsSandbox,
   useSettingsSandboxes,
   type SettingsSandboxEntry,
-  type SettingsSandboxRequest,
   type SettingsMutationResult,
 } from "@/systems/settings";
-
-type Profile = SettingsSandboxRequest["profile"];
-
-export type SandboxDraft = {
-  name: string;
-  backend: string;
-  sync_mode: string;
-  persistence: string;
-  runtime_root: string;
-  preserved: Omit<Profile, "backend" | "sync_mode" | "persistence" | "runtime_root">;
-};
 
 export interface SandboxRouteSearch {
   q?: string;
@@ -46,37 +40,6 @@ export function validateSandboxSearch(search: Record<string, unknown>): SandboxR
     persistence: parseSandboxPersistenceFilter(search.persistence),
     view: parseListingView(search.view),
   };
-}
-
-function emptyDraft(): SandboxDraft {
-  return {
-    name: "",
-    backend: "local",
-    sync_mode: "",
-    persistence: "",
-    runtime_root: "",
-    preserved: {},
-  };
-}
-
-function toDraft(entry: SettingsSandboxEntry): SandboxDraft {
-  const { backend, sync_mode, persistence, runtime_root, ...preserved } = entry.profile;
-  return {
-    name: entry.name,
-    backend,
-    sync_mode: sync_mode ?? "",
-    persistence: persistence ?? "",
-    runtime_root: runtime_root ?? "",
-    preserved,
-  };
-}
-
-function toRequest(draft: SandboxDraft): SettingsSandboxRequest {
-  const profile: Profile = { backend: draft.backend.trim(), ...draft.preserved };
-  if (draft.sync_mode.trim()) profile.sync_mode = draft.sync_mode.trim();
-  if (draft.persistence.trim()) profile.persistence = draft.persistence.trim();
-  if (draft.runtime_root.trim()) profile.runtime_root = draft.runtime_root.trim();
-  return { profile };
 }
 
 function errorMessage(error: unknown): string | null {
@@ -218,13 +181,13 @@ export function useSandboxPage(search: SandboxRouteSearch = {}) {
   const openCreate = () => {
     putMutation.reset();
     setSelectedName(null);
-    setEditor({ mode: "create", draft: emptyDraft() });
+    setEditor({ mode: "create", draft: emptySandboxDraft() });
   };
 
   const openEdit = (entry: SettingsSandboxEntry) => {
     putMutation.reset();
     setSelectedName(null);
-    setEditor({ mode: "edit", name: entry.name, draft: toDraft(entry), entry });
+    setEditor({ mode: "edit", name: entry.name, draft: toSandboxDraft(entry), entry });
   };
 
   const closeEditor = () => {
@@ -251,7 +214,7 @@ export function useSandboxPage(search: SandboxRouteSearch = {}) {
     if (editor.mode === "closed") return;
     const name = editor.draft.name.trim();
     if (!name) return;
-    const body = toRequest(editor.draft);
+    const body = toSandboxRequest(editor.draft);
     putMutation.mutate(
       { name, body },
       {

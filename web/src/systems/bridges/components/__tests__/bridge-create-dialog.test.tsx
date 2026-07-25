@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import type { EntityMode } from "@agh/ui";
+
 import { BridgeCreateDialog } from "@/systems/bridges/components/bridge-create-dialog";
 import type { BridgeCreateDraft, BridgeProvider } from "@/systems/bridges/types";
 
@@ -10,6 +12,9 @@ const baseDraft: BridgeCreateDraft = {
   deliveryDefaults: {},
   dmPolicy: "",
   displayName: "",
+  enabled: false,
+  notificationSuppress: false,
+  secretSlotValues: {},
   providerConfigText: "",
   routingPolicy: { include_group: true, include_peer: true, include_thread: true },
   scope: "global",
@@ -40,11 +45,6 @@ function makeProvider(overrides: Partial<BridgeProvider> = {}): BridgeProvider {
   };
 }
 
-function readDialogWidth(): string {
-  const dialog = screen.getByTestId("bridge-create-dialog");
-  return dialog.className;
-}
-
 function createDeferredRequest() {
   let resolve!: () => void;
   const promise = new Promise<void>(resolvePromise => {
@@ -53,164 +53,249 @@ function createDeferredRequest() {
   return { promise, resolve };
 }
 
-describe("BridgeCreateDialog", () => {
-  it("Should anchor the dialog to the 880 px modal width token (--width-modal-lg)", () => {
-    render(
+/** Stateful host so mode and draft transitions behave like the real flow hook. */
+function DialogHarness({
+  initialDraft = baseDraft,
+  initialMode = "simple",
+  providers = [makeProvider()],
+  ...overrides
+}: Partial<Parameters<typeof BridgeCreateDialog>[0]> & {
+  initialDraft?: BridgeCreateDraft;
+  initialMode?: EntityMode;
+}) {
+  const [draft, setDraft] = useState<BridgeCreateDraft>(initialDraft);
+  const [mode, setMode] = useState<EntityMode>(initialMode);
+  return (
+    <>
       <BridgeCreateDialog
         activeWorkspaceId="ws_test"
         activeWorkspaceName="test-workspace"
-        draft={baseDraft}
+        draft={draft}
         isPending={false}
-        onDraftChange={vi.fn()}
+        mode={mode}
+        onDraftChange={setDraft}
+        onModeChange={setMode}
         onOpenChange={vi.fn()}
         onSubmit={vi.fn()}
         open
-        providers={[]}
+        providers={providers}
+        {...overrides}
       />
-    );
+      <output data-testid="bridge-create-draft-probe">{JSON.stringify(draft)}</output>
+    </>
+  );
+}
 
-    expect(readDialogWidth()).toContain("w-(--width-modal-lg)");
-    expect(readDialogWidth()).toContain("sm:max-w-(--width-modal-lg)");
+function readDraftProbe(): BridgeCreateDraft {
+  return JSON.parse(screen.getByTestId("bridge-create-draft-probe").textContent ?? "{}");
+}
+
+describe("BridgeCreateDialog", () => {
+  it("Should present a single-surface editor with no wizard chrome left", () => {
+    render(<DialogHarness providers={[]} />);
+
+    expect(screen.getByRole("dialog", { name: "Create bridge" })).toBeInTheDocument();
+    expect(screen.queryByTestId("bridge-wizard-stepper")).toBeNull();
+    expect(screen.queryByTestId("bridge-wizard-progress")).toBeNull();
+    expect(screen.queryByTestId("bridge-wizard-next")).toBeNull();
+    expect(screen.queryByTestId("bridge-wizard-back")).toBeNull();
   });
 
-  it("Should render an empty state on the provider step when no providers are available", () => {
-    render(
-      <BridgeCreateDialog
-        activeWorkspaceId="ws_test"
-        activeWorkspaceName="test-workspace"
-        draft={baseDraft}
-        isPending={false}
-        onDraftChange={vi.fn()}
-        onOpenChange={vi.fn()}
-        onSubmit={vi.fn()}
-        open
-        providers={[]}
-      />
-    );
+  it("Should render the provider empty state and gate submit when no provider is available", () => {
+    render(<DialogHarness providers={[]} />);
 
     expect(screen.getByTestId("bridge-provider-empty")).toHaveTextContent(
       "No bridge providers are currently available."
     );
-    expect(screen.getByTestId("bridge-wizard-next")).toBeDisabled();
+    expect(screen.getByTestId("submit-bridge-create")).toBeDisabled();
   });
 
-  it("Should advance through provider → runtime → delivery steps and reveal the create button", async () => {
-    const user = userEvent.setup();
-
-    function Wrapper() {
-      const [draft, setDraft] = useState<BridgeCreateDraft>({
-        ...baseDraft,
-        selectedProviderKey: "ext-telegram::telegram",
-        displayName: "Telegram",
-      });
-
-      return (
-        <BridgeCreateDialog
-          activeWorkspaceId="ws_test"
-          activeWorkspaceName="test-workspace"
-          draft={draft}
-          isPending={false}
-          onDraftChange={setDraft}
-          onOpenChange={vi.fn()}
-          onSubmit={vi.fn()}
-          open
-          providers={[makeProvider()]}
-        />
-      );
-    }
-
-    render(<Wrapper />);
-
-    expect(screen.getByTestId("bridge-wizard-stepper")).toBeInTheDocument();
-    expect(screen.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 1 of 3");
-
-    await user.click(screen.getByTestId("bridge-wizard-next"));
-    expect(screen.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 2 of 3");
-    expect(screen.getByTestId("bridge-display-name-input")).toHaveValue("Telegram");
-
-    await user.click(screen.getByTestId("bridge-wizard-next"));
-    expect(screen.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 3 of 3");
-    expect(screen.getByTestId("submit-bridge-create")).toBeInTheDocument();
-  });
-
-  it("Should select a provider card on click and update provider runtime metadata when the runtime step is revealed", async () => {
-    const user = userEvent.setup();
-
-    function Wrapper() {
-      const [draft, setDraft] = useState<BridgeCreateDraft>({
-        ...baseDraft,
-        selectedProviderKey: "ext-telegram::telegram",
-      });
-
-      return (
-        <BridgeCreateDialog
-          activeWorkspaceId="ws_test"
-          activeWorkspaceName="test-workspace"
-          draft={draft}
-          isPending={false}
-          onDraftChange={setDraft}
-          onOpenChange={vi.fn()}
-          onSubmit={vi.fn()}
-          open
-          providers={[
-            makeProvider(),
-            makeProvider({
-              config_schema: { schema: "provider-config", version: "2026-04-16" },
-              display_name: "Slack",
-              extension_name: "ext-slack",
-              platform: "slack",
-              secret_slots: [
-                {
-                  description: "Webhook signing secret",
-                  name: "signing_secret",
-                  required: true,
-                },
-              ],
-            }),
-          ]}
-        />
-      );
-    }
-
-    render(<Wrapper />);
-
-    await user.click(screen.getByTestId("bridge-provider-card-ext-slack::slack"));
-    await user.click(screen.getByTestId("bridge-wizard-next"));
-
-    expect(screen.getByTestId("bridge-provider-config-schema")).toHaveTextContent(
-      "provider-config · v2026-04-16"
-    );
-    expect(screen.getByTestId("bridge-provider-secret-slots")).toHaveTextContent("signing_secret");
-  });
-
-  it("Should block the wizard on the runtime step when provider config is invalid JSON", async () => {
-    const user = userEvent.setup();
-
+  it("Should render one write-only SecretField per provider-declared slot", () => {
     render(
-      <BridgeCreateDialog
-        activeWorkspaceId="ws_test"
-        activeWorkspaceName="test-workspace"
-        draft={{
+      <DialogHarness
+        initialDraft={{
           ...baseDraft,
-          displayName: "Telegram",
-          providerConfigText: "{invalid",
-          selectedProviderKey: "ext-telegram::telegram",
+          displayName: "Slack",
+          selectedProviderKey: "ext-slack::slack",
         }}
-        isPending={false}
-        onDraftChange={vi.fn()}
-        onOpenChange={vi.fn()}
-        onSubmit={vi.fn()}
-        open
-        providers={[makeProvider()]}
+        providers={[
+          makeProvider({
+            display_name: "Slack",
+            extension_name: "ext-slack",
+            platform: "slack",
+            secret_slots: [
+              { description: "Bot token", name: "bot_token", required: true },
+              { description: "Signing secret", name: "signing_secret", required: true },
+              { description: "Socket app token", name: "app_token", required: false },
+            ],
+          }),
+        ]}
       />
     );
 
-    await user.click(screen.getByTestId("bridge-wizard-next"));
+    const credentials = screen.getByTestId("bridge-create-section-credentials");
+    expect(within(credentials).getByText("bot_token")).toBeInTheDocument();
+    expect(within(credentials).getByText("signing_secret")).toBeInTheDocument();
+    expect(within(credentials).getByText("app_token")).toBeInTheDocument();
+  });
+
+  it("Should keep submit gated until every required slot carries a value", async () => {
+    const user = userEvent.setup();
+    render(
+      <DialogHarness
+        initialDraft={{
+          ...baseDraft,
+          displayName: "Telegram",
+          selectedProviderKey: "ext-telegram::telegram",
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("submit-bridge-create")).toBeDisabled();
+
+    await user.type(screen.getByLabelText("bot_token"), "123:abc");
+
+    expect(screen.getByTestId("submit-bridge-create")).toBeEnabled();
+  });
+
+  it("Should never carry a typed slot value across a provider switch", async () => {
+    const user = userEvent.setup();
+    render(
+      <DialogHarness
+        initialDraft={{
+          ...baseDraft,
+          displayName: "Telegram",
+          selectedProviderKey: "ext-telegram::telegram",
+        }}
+        providers={[
+          makeProvider(),
+          makeProvider({
+            display_name: "Slack",
+            extension_name: "ext-slack",
+            platform: "slack",
+            secret_slots: [{ description: "Signing secret", name: "signing_secret" }],
+          }),
+        ]}
+      />
+    );
+
+    await user.type(screen.getByLabelText("bot_token"), "123:abc");
+    expect(readDraftProbe().secretSlotValues.bot_token).toBe("123:abc");
+
+    await user.click(screen.getByRole("radio", { name: /Slack/ }));
+
+    expect(readDraftProbe().secretSlotValues).toEqual({});
+    expect(screen.queryByLabelText("bot_token")).toBeNull();
+    expect(screen.getByLabelText("signing_secret")).toHaveValue("");
+  });
+
+  it("Should keep routing, delivery and provider config behind Advanced", async () => {
+    const user = userEvent.setup();
+    render(
+      <DialogHarness
+        initialDraft={{
+          ...baseDraft,
+          displayName: "Telegram",
+          selectedProviderKey: "ext-telegram::telegram",
+        }}
+      />
+    );
+
+    expect(screen.queryByTestId("bridge-provider-config-input")).toBeNull();
+    expect(screen.queryByTestId("bridge-dm-policy-select")).toBeNull();
+    // Credentials and identity are never hidden by the disclosure tier.
+    expect(screen.getByTestId("bridge-display-name-input")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("bridge-create-mode-advanced"));
+
+    expect(screen.getByTestId("bridge-provider-config-input")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-dm-policy-select")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-display-name-input")).toBeInTheDocument();
+  });
+
+  it("Should block submit while provider config is invalid JSON", async () => {
+    const user = userEvent.setup();
+    render(
+      <DialogHarness
+        initialDraft={{
+          ...baseDraft,
+          displayName: "Telegram",
+          providerConfigText: "{invalid",
+          secretSlotValues: { bot_token: "123:abc" },
+          selectedProviderKey: "ext-telegram::telegram",
+        }}
+        initialMode="advanced"
+      />
+    );
 
     expect(screen.getByTestId("bridge-provider-config-error")).toHaveTextContent(
       "Provider configuration must be valid JSON."
     );
-    expect(screen.getByTestId("bridge-wizard-next")).toBeDisabled();
+    expect(screen.getByTestId("submit-bridge-create")).toBeDisabled();
+
+    await user.clear(screen.getByTestId("bridge-provider-config-input"));
+
+    expect(screen.getByTestId("submit-bridge-create")).toBeEnabled();
+  });
+
+  it("Should never send a typed secret through provider_config", async () => {
+    const user = userEvent.setup();
+    render(
+      <DialogHarness
+        initialDraft={{
+          ...baseDraft,
+          displayName: "Telegram",
+          selectedProviderKey: "ext-telegram::telegram",
+        }}
+      />
+    );
+
+    await user.type(screen.getByLabelText("bot_token"), "123:abc");
+
+    const draft = readDraftProbe();
+    expect(draft.providerConfigText).toBe("");
+    expect(draft.secretSlotValues.bot_token).toBe("123:abc");
+  });
+
+  it("Should offer a recovery retry that never re-displays the earlier plaintext", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <DialogHarness
+        initialDraft={{
+          ...baseDraft,
+          displayName: "Slack",
+          selectedProviderKey: "ext-slack::slack",
+        }}
+        onSubmit={onSubmit}
+        providers={[
+          makeProvider({
+            display_name: "Slack",
+            extension_name: "ext-slack",
+            platform: "slack",
+            secret_slots: [
+              { description: "Bot token", name: "bot_token", required: true },
+              { description: "Signing secret", name: "signing_secret", required: true },
+            ],
+          }),
+        ]}
+        secretRecovery={{
+          bridgeId: "brg_slack",
+          bound: ["signing_secret"],
+          failures: { bot_token: "vault unavailable" },
+        }}
+      />
+    );
+
+    // The alert names what still has to be bound; the identity block names the
+    // bridge that already exists and can no longer be cancelled away.
+    expect(screen.getByTestId("bridge-create-secret-recovery")).toHaveTextContent("bot_token");
+    expect(screen.getByText("brg_slack")).toBeInTheDocument();
+    expect(screen.getByLabelText("bot_token")).toHaveValue("");
+    expect(screen.getByTestId("submit-bridge-create")).toHaveTextContent("Retry secret binding");
+
+    await user.click(screen.getByTestId("submit-bridge-create"));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
   it("Should block Cancel and dialog dismissal while the create request is pending", async () => {
@@ -223,6 +308,7 @@ describe("BridgeCreateDialog", () => {
       const [draft, setDraft] = useState<BridgeCreateDraft>({
         ...baseDraft,
         displayName: "Telegram",
+        secretSlotValues: { bot_token: "123:abc" },
         selectedProviderKey: "ext-telegram::telegram",
       });
       const [isPending, setIsPending] = useState(false);
@@ -255,19 +341,13 @@ describe("BridgeCreateDialog", () => {
 
     render(<Wrapper />);
 
-    await user.click(screen.getByTestId("bridge-wizard-next"));
-    await user.click(screen.getByTestId("bridge-wizard-next"));
     await user.click(screen.getByTestId("submit-bridge-create"));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("submit-bridge-create")).toHaveTextContent("Creating…");
     expect(screen.getByTestId("bridge-wizard-cancel")).toBeDisabled();
 
     await user.keyboard("{Escape}");
     expect(screen.getByTestId("bridge-create-dialog")).toBeInTheDocument();
-    expect(onOpenChange).not.toHaveBeenCalled();
-
-    await user.click(screen.getByTestId("bridge-wizard-cancel"));
     expect(onOpenChange).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -278,44 +358,21 @@ describe("BridgeCreateDialog", () => {
 
     await user.click(screen.getByTestId("bridge-wizard-cancel"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(screen.queryByTestId("bridge-create-dialog")).not.toBeInTheDocument();
   });
 
   it("Should write a complete progress override and remove it when provider default is restored", async () => {
     const user = userEvent.setup();
 
-    function Wrapper() {
-      const [draft, setDraft] = useState<BridgeCreateDraft>({
-        ...baseDraft,
-        displayName: "Telegram",
-        selectedProviderKey: "ext-telegram::telegram",
-      });
-
-      return (
-        <>
-          <BridgeCreateDialog
-            activeWorkspaceId="ws_test"
-            activeWorkspaceName="test-workspace"
-            draft={draft}
-            isPending={false}
-            onDraftChange={setDraft}
-            onOpenChange={vi.fn()}
-            onSubmit={vi.fn()}
-            open
-            providers={[makeProvider()]}
-          />
-          <output data-testid="bridge-create-progress-draft">
-            {draft.deliveryDefaults.progress
-              ? JSON.stringify(draft.deliveryDefaults.progress)
-              : "provider-default"}
-          </output>
-        </>
-      );
-    }
-
-    render(<Wrapper />);
-    await user.click(screen.getByTestId("bridge-wizard-next"));
-    await user.click(screen.getByTestId("bridge-wizard-next"));
+    render(
+      <DialogHarness
+        initialDraft={{
+          ...baseDraft,
+          displayName: "Telegram",
+          selectedProviderKey: "ext-telegram::telegram",
+        }}
+        initialMode="advanced"
+      />
+    );
 
     await user.selectOptions(screen.getByTestId("bridge-delivery-progress-mode-select"), "all");
     const groupingSelect = screen.getByTestId("bridge-delivery-progress-grouping-select");
@@ -328,9 +385,7 @@ describe("BridgeCreateDialog", () => {
       "false"
     );
 
-    expect(
-      JSON.parse(screen.getByTestId("bridge-create-progress-draft").textContent ?? "")
-    ).toEqual({
+    expect(readDraftProbe().deliveryDefaults.progress).toEqual({
       grouping: "separate",
       reactions: false,
       tool_progress: "all",
@@ -339,9 +394,7 @@ describe("BridgeCreateDialog", () => {
 
     await user.selectOptions(screen.getByTestId("bridge-delivery-progress-mode-select"), "");
 
-    expect(screen.getByTestId("bridge-create-progress-draft")).toHaveTextContent(
-      "provider-default"
-    );
+    expect(readDraftProbe().deliveryDefaults.progress).toBeUndefined();
     expect(screen.getByTestId("bridge-delivery-progress-grouping-select")).toBeDisabled();
     expect(screen.getByTestId("bridge-delivery-progress-typing-select")).toBeDisabled();
     expect(screen.getByTestId("bridge-delivery-progress-reactions-select")).toBeDisabled();
@@ -394,6 +447,31 @@ describe("BridgeCreateDialog", () => {
     expect(screen.queryByTestId("bridge-manifest-handoff")).not.toBeInTheDocument();
   });
 
+  it("Should defer credential entry for a manifest provider instead of gating create on it", () => {
+    render(
+      <DialogHarness
+        initialDraft={{
+          ...baseDraft,
+          displayName: "Slack",
+          selectedProviderKey: "ext-slack::slack",
+        }}
+        providers={[
+          makeProvider({
+            display_name: "Slack",
+            extension_name: "ext-slack",
+            platform: "slack",
+          }),
+        ]}
+        supportsManifest
+      />
+    );
+
+    expect(screen.getByTestId("bridge-create-secret-deferred")).toHaveTextContent(
+      "bind them from the bridge detail"
+    );
+    expect(screen.getByTestId("submit-bridge-create")).toBeEnabled();
+  });
+
   it("Should render the committed Slack manifest with copy and dashboard handoff", async () => {
     const user = userEvent.setup();
     const manifestJSON = JSON.stringify({ display_information: { name: "AGH Support" } }, null, 2);
@@ -440,8 +518,7 @@ describe("BridgeCreateDialog", () => {
       "href",
       "https://api.slack.com/apps"
     );
-    expect(screen.queryByTestId("bridge-wizard-back")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("bridge-wizard-cancel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("submit-bridge-create")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Copy Slack app manifest" }));
     expect(writeText).toHaveBeenCalledWith(manifestJSON);

@@ -298,8 +298,8 @@ describe("bridge operator selectors", () => {
     expect(selectors.openTestDeliveryButton).toBe(
       `locator:${bridgeOperatorTestIds.openTestDeliveryButton}`
     );
-    expect(selectors.testDeliveryDialog).toBe(
-      `locator:${bridgeOperatorTestIds.bridgeTestDeliveryDialog}`
+    expect(selectors.deliveryTestPanel).toBe(
+      `locator:${bridgeOperatorTestIds.bridgeDeliveryTestPanel}`
     );
     expect(selectors.testDeliveryResult).toBe(
       `locator:${bridgeOperatorTestIds.bridgeTestDeliveryResult}`

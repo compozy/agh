@@ -1,24 +1,15 @@
 import { useState } from "react";
 
+import type { EntityMode } from "@agh/ui";
+
 import type { RuntimeProviderOption } from "@/systems/runtime";
 
-import {
-  validateAgentCreateDraft,
-  type AgentCreateDialogDraft,
-  type AgentCreateStep,
-} from "../lib/agent-create-draft";
-
-const AGENT_CREATE_STEPS: readonly AgentCreateStep[] = [
-  "basics",
-  "runtime",
-  "instructions",
-  "access",
-];
+import { validateAgentCreateDraft, type AgentCreateDialogDraft } from "../lib/agent-create-draft";
 
 interface AgentCreateDialogViewStateArgs {
   draft: AgentCreateDialogDraft;
   hasActiveWorkspace: boolean;
-  initialStep: AgentCreateStep;
+  initialMode: EntityMode;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   providerOptions: RuntimeProviderOption[];
@@ -29,13 +20,13 @@ interface AgentCreateDialogViewStateArgs {
 function useAgentCreateDialogViewState({
   draft,
   hasActiveWorkspace,
-  initialStep,
+  initialMode,
   onOpenChange,
   providerOptions,
   providersError,
   providersLoading,
 }: AgentCreateDialogViewStateArgs) {
-  const [step, setStep] = useState<AgentCreateStep>(initialStep);
+  const [mode, setMode] = useState<EntityMode>(initialMode);
   const validation = validateAgentCreateDraft(draft, {
     hasActiveWorkspace,
     providerOptions,
@@ -48,29 +39,35 @@ function useAgentCreateDialogViewState({
     providersLoading,
   });
 
-  const currentIndex = AGENT_CREATE_STEPS.indexOf(step);
-  const previousStep = currentIndex > 0 ? AGENT_CREATE_STEPS[currentIndex - 1] : undefined;
-  const nextStep =
-    currentIndex < AGENT_CREATE_STEPS.length - 1 ? AGENT_CREATE_STEPS[currentIndex + 1] : undefined;
-  const canAdvance = validation.stepValidity[step];
   const activeProvider = providerOptions.find(option => option.id === draft.provider);
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
-      setStep(initialStep);
+      setMode(initialMode);
     }
     onOpenChange(next);
   };
 
+  /**
+   * Advanced holds no unsupported selection to snap back — every advanced field
+   * is a real contract field — so leaving Advanced preserves the draft. The one
+   * thing that must not happen is a hidden invalid field silently blocking
+   * submit, so the dialog reveals Advanced instead of discarding the value.
+   */
+  const revealAdvancedWhenBlocked = () => {
+    if (!validation.advancedValid) {
+      setMode("advanced");
+      return true;
+    }
+    return false;
+  };
+
   return {
     activeProvider,
-    canAdvance,
-    currentIndex,
     handleOpenChange,
-    nextStep,
-    previousStep,
-    setStep,
-    step,
+    mode,
+    revealAdvancedWhenBlocked,
+    setMode,
     validation,
     visibleErrors,
   };

@@ -22,6 +22,9 @@ function makeDraft(overrides: Partial<BridgeCreateDraft> = {}): BridgeCreateDraf
     },
     dmPolicy: "",
     displayName: "Telegram",
+    enabled: false,
+    notificationSuppress: false,
+    secretSlotValues: {},
     providerConfigText: "",
     routingPolicy: {
       include_group: true,
@@ -82,6 +85,13 @@ describe("createBridgeTestDeliveryDraft", () => {
 });
 
 describe("parseBridgeProviderConfig", () => {
+  it("seeds the create draft disabled so credentials can be bound before the bridge runs", () => {
+    const draft = createBridgeCreateDraft([], "ws_test");
+
+    expect(draft.enabled).toBe(false);
+    expect(draft.secretSlotValues).toEqual({});
+  });
+
   it("accepts only JSON objects for provider config", () => {
     expect(parseBridgeProviderConfig("")).toEqual({});
     expect(parseBridgeProviderConfig('{"mode":"bot"}')).toEqual({

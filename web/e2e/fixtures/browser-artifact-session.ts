@@ -384,7 +384,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       bridge_secret_binding_count: countByPrefix("bridge-secret-binding-"),
       bridge_selected_item: bridgeSelectedItem,
       bridge_test_delivery_open:
-        document.querySelector('[data-testid="bridge-test-delivery-dialog"]') !== null,
+        document.querySelector('[data-testid="bridge-delivery-test-panel"]') !== null,
       bridge_test_delivery_result_visible:
         document.querySelector('[data-testid="bridge-test-delivery-result"]') !== null,
       bridge_view_visible:

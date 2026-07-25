@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Trash2 } from "lucide-react";
+import { KeyRound, Plug, Settings2, Trash2 } from "lucide-react";
 import { fn } from "storybook/test";
 
-import { ConfirmDialog, Input, Pill } from "@agh/ui";
+import { ConfirmDialog, Input, Pill, SecretField } from "@agh/ui";
 
 import { SettingsEditorDialog } from "../settings-editor-dialog";
 import { SettingsFieldRow } from "../settings-field-row";
@@ -14,7 +14,8 @@ const meta: Meta<typeof SettingsEditorDialog> = {
     layout: "centered",
     docs: {
       description: {
-        component: "Reusable settings create/edit and delete dialogs with inline feedback.",
+        component:
+          "Reusable settings create/edit and delete dialogs. `SettingsEditorDialog` pins the shared modal shell — ruled `EntityDialogHeader`, host size token, and `EntityDialogFooter` with its consequence hint — so vault and sandbox inherit chrome without per-page header forks.",
       },
     },
   },
@@ -32,9 +33,13 @@ export const Editor: Story = {
     <SettingsEditorDialog
       open
       mode="edit"
+      icon={Settings2}
+      eyebrow="Settings · Provider"
+      size="md"
       slug="providers"
       title="Edit provider"
       description="Update command and model defaults for this provider overlay."
+      hint="Saved overlays apply to new sessions in this workspace."
       metadata={<Pill tone="info">workspace override</Pill>}
       warnings={["Changing the command requires a daemon restart."]}
       canSave
@@ -79,6 +84,9 @@ export const SavingAndError: Story = {
     <SettingsEditorDialog
       open
       mode="create"
+      icon={Plug}
+      eyebrow="System · MCP server"
+      size="md"
       slug="mcp"
       title="Add MCP server"
       error="Server command failed validation."
@@ -88,6 +96,57 @@ export const SavingAndError: Story = {
       onOpenChange={fn()}
     >
       <SettingsFieldRow label="Name" error="Required" control={<Input aria-invalid />} />
+    </SettingsEditorDialog>
+  ),
+};
+
+/**
+ * Vault create runs through the same shell. This story is the shell pin for the
+ * modal-redesign visual contract: header, host token, and footer only — the
+ * field body is owned by the vault body migration.
+ */
+export const VaultCreate: Story = {
+  args: {},
+  render: () => (
+    <SettingsEditorDialog
+      open
+      mode="create"
+      icon={KeyRound}
+      eyebrow="System · Vault"
+      size="sm"
+      slug="vault"
+      title="Add vault secret"
+      description="Stores a write-only secret value and returns redacted metadata."
+      hint={
+        <>
+          Bind it from providers, bridges, or sandboxes as{" "}
+          <b className="font-medium text-muted">vault:&lt;reference&gt;</b>.
+        </>
+      }
+      saveLabel="Store secret"
+      canSave
+      isSaving={false}
+      onSave={fn()}
+      onOpenChange={fn()}
+    >
+      <SettingsFieldRow
+        label="Ref"
+        description="Daemon-owned vault reference."
+        control={<Input className="font-mono" defaultValue="vault:mcp/github-token" />}
+      />
+      <SettingsFieldRow
+        label="Kind"
+        description="Metadata label returned on public Vault surfaces."
+        control={<Input className="w-48 font-mono" defaultValue="api_key" />}
+      />
+      <SecretField
+        description="Write-only payload. The daemon never returns this value."
+        id="vault-secret-value"
+        label="Secret value"
+        onValueChange={fn()}
+        required
+        value=""
+      />
     </SettingsEditorDialog>
   ),
 };

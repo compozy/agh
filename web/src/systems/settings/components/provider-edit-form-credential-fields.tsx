@@ -1,247 +1,272 @@
-import { KeyRound, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import { useState } from "react";
 
-import { Button, Input } from "@agh/ui";
+import { Button, Eyebrow, Input, RequiredMark, SecretField, Switch } from "@agh/ui";
 
-import type { ProviderDraft } from "../types";
+import {
+  addProviderCredentialSlot,
+  isVaultSecretRef,
+  providerCredentialSecretValue,
+  removeProviderCredentialSlot,
+  setProviderCredentialSecretValue,
+  updateProviderCredentialSlot,
+} from "../lib/provider-draft";
+import type { ProviderCredentialSlotDraft, ProviderDraft, SettingsProviderEntry } from "../types";
 import type { ProviderDraftChange } from "./provider-edit-form";
 import { ModalSettingsFieldRow } from "./settings-field-row";
 
-type CredentialSlotDraft = ProviderDraft["credential_slots"][number];
-
 interface ProviderCredentialFieldsProps {
+  mode: "create" | "edit";
   draft: ProviderDraft;
+  entry: SettingsProviderEntry | null;
   onChange: ProviderDraftChange;
 }
 
-export function ProviderCredentialFields({ draft, onChange }: ProviderCredentialFieldsProps) {
-  const disabled = draft.auth_mode !== "bound_secret";
+type CredentialPresence = { present: boolean; secretRef: string };
+
+/**
+ * Credential slots for `auth_mode = bound_secret`.
+ *
+ * Only a `vault:` ref can hold a value AGH writes; an `env:` ref is read from
+ * the operator environment at launch, so no write control is offered for it.
+ * On edit the stored value is never read back — presence comes from
+ * `entry.credentials[].present` and replacing it is an explicit rotation.
+ */
+export function ProviderCredentialFields({
+  mode,
+  draft,
+  entry,
+  onChange,
+}: ProviderCredentialFieldsProps) {
+  const [rotating, setRotating] = useState<Record<number, boolean>>({});
+  const presence = credentialPresence(entry);
+
+  const removeSlot = (index: number) => {
+    onChange(current => removeProviderCredentialSlot(current, index));
+    setRotating(current => shiftRotationState(current, index));
+  };
 
   return (
-    <>
+    <div className="flex flex-col gap-3" data-testid="settings-providers-editor-credential-slots">
+      {draft.credential_slots.map((slot, index) => (
+        <CredentialSlotBlock
+          index={index}
+          isEditing={Boolean(rotating[index])}
+          key={slot.key}
+          mode={mode}
+          onChange={onChange}
+          onEditingChange={editing => setRotating(current => ({ ...current, [index]: editing }))}
+          onRemove={draft.credential_slots.length > 1 ? () => removeSlot(index) : undefined}
+          presence={presence.get(slot.name.trim())}
+          secretValue={providerCredentialSecretValue(draft, index)}
+          slot={slot}
+        />
+      ))}
+      <Button
+        className="w-fit"
+        data-testid="settings-providers-editor-add-credential-slot"
+        onClick={() => onChange(addProviderCredentialSlot)}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        <Plus aria-hidden="true" className="size-3" />
+        Add credential slot
+      </Button>
+    </div>
+  );
+}
+
+interface CredentialSlotBlockProps {
+  index: number;
+  mode: "create" | "edit";
+  slot: ProviderCredentialSlotDraft;
+  secretValue: string;
+  presence: CredentialPresence | undefined;
+  isEditing: boolean;
+  onEditingChange: (editing: boolean) => void;
+  onChange: ProviderDraftChange;
+  onRemove?: () => void;
+}
+
+function CredentialSlotBlock({
+  index,
+  mode,
+  slot,
+  secretValue,
+  presence,
+  isEditing,
+  onEditingChange,
+  onChange,
+  onRemove,
+}: CredentialSlotBlockProps) {
+  const testId = `settings-providers-editor-credential-slot-${index}`;
+  const vaultBacked = isVaultSecretRef(slot.secret_ref);
+  const present = mode === "edit" && Boolean(presence?.present);
+
+  return (
+    <section className="flex flex-col gap-3 rounded-md bg-canvas px-3 py-3" data-testid={testId}>
+      <header className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate font-mono text-mono-id tracking-normal text-muted">
+          {slot.name.trim() || `slot ${index + 1}`}
+        </span>
+        {onRemove ? (
+          <Button
+            aria-label={`Remove credential slot ${index + 1}`}
+            data-testid={`${testId}-remove`}
+            onClick={onRemove}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <X aria-hidden="true" className="size-3" />
+          </Button>
+        ) : null}
+      </header>
+
       <ModalSettingsFieldRow
-        data-testid="settings-providers-editor-api-key"
-        label="Target env"
-        description="Environment variable injected from the provider credential slot."
         control={
-          <div className="flex items-center gap-2">
-            <KeyRound aria-hidden="true" className="size-3 text-subtle" />
-            <Input
-              className="w-56 font-mono"
-              data-testid="settings-providers-editor-api-key-input"
-              value={draft.target_env}
-              placeholder="ANTHROPIC_API_KEY"
-              disabled={disabled}
-              onChange={event =>
-                onChange(current => ({ ...current, target_env: event.target.value }))
-              }
-            />
-          </div>
+          <Input
+            className="w-56 font-mono"
+            data-testid={`${testId}-name-input`}
+            onChange={event =>
+              onChange(current =>
+                updateProviderCredentialSlot(current, index, { name: event.target.value })
+              )
+            }
+            placeholder="api_key"
+            value={slot.name}
+          />
+        }
+        data-testid={`${testId}-name`}
+        description="Stable credential slot declared by the provider."
+        label={
+          <>
+            Slot name
+            <RequiredMark />
+          </>
         }
       />
+
       <ModalSettingsFieldRow
-        data-testid="settings-providers-editor-secret-ref"
-        label="Secret ref"
-        description="Bound credential source injected into the target env var at launch."
         control={
-          <div className="flex items-center gap-2">
-            <KeyRound aria-hidden="true" className="size-3 text-subtle" />
-            <Input
-              className="w-72 font-mono"
-              data-testid="settings-providers-editor-secret-ref-input"
-              value={draft.secret_ref}
-              placeholder="env:OPENROUTER_API_KEY"
-              disabled={disabled}
-              onChange={event =>
-                onChange(current => ({ ...current, secret_ref: event.target.value }))
-              }
-            />
-          </div>
+          <Input
+            className="w-56 font-mono"
+            data-testid={`${testId}-target-env-input`}
+            onChange={event =>
+              onChange(current =>
+                updateProviderCredentialSlot(current, index, { target_env: event.target.value })
+              )
+            }
+            placeholder="OPENAI_API_KEY"
+            value={slot.target_env}
+          />
+        }
+        data-testid={`${testId}-target-env`}
+        description="Environment variable injected into the provider subprocess."
+        label={
+          <>
+            Target env
+            <RequiredMark />
+          </>
         }
       />
+
       <ModalSettingsFieldRow
-        data-testid="settings-providers-editor-secret-value"
-        label="API key"
-        description="Write-only value stored when the secret ref uses vault:."
         control={
           <Input
             className="w-72 font-mono"
-            data-testid="settings-providers-editor-secret-value-input"
-            value={draft.secret_value}
-            type="password"
-            placeholder="sk-..."
-            disabled={disabled}
+            data-testid={`${testId}-secret-ref-input`}
             onChange={event =>
-              onChange(current => ({ ...current, secret_value: event.target.value }))
+              onChange(current =>
+                updateProviderCredentialSlot(current, index, { secret_ref: event.target.value })
+              )
             }
+            placeholder="vault:providers/openai/api-key"
+            value={slot.secret_ref}
           />
         }
+        data-testid={`${testId}-secret-ref`}
+        description="Bound credential source. Use env: to read the operator environment, vault: to store the value in AGH."
+        label={
+          <>
+            Secret ref
+            <RequiredMark />
+          </>
+        }
       />
-      <AdditionalCredentialSlotsEditor draft={draft} onChange={onChange} />
-    </>
-  );
-}
 
-function AdditionalCredentialSlotsEditor({ draft, onChange }: ProviderCredentialFieldsProps) {
-  const additionalSlots = draft.credential_slots.slice(1);
-  const disabled = draft.auth_mode !== "bound_secret";
+      {vaultBacked ? (
+        <SecretField
+          badges={<Eyebrow className="text-subtle">write-only</Eyebrow>}
+          description={
+            present
+              ? "The stored value is never revealed. Rotate only when replacing it."
+              : "Stored in the AGH vault under this ref. It is never displayed again."
+          }
+          editing={isEditing}
+          id={`${testId}-value`}
+          inputTestId={`${testId}-value-input`}
+          label="Credential value"
+          onEditingChange={onEditingChange}
+          onValueChange={next =>
+            onChange(current => setProviderCredentialSecretValue(current, index, next))
+          }
+          placeholder="Enter write-only value"
+          present={present}
+          presenceLabel={`${presence?.secretRef || slot.secret_ref} → ${slot.target_env}`}
+          replaceLabel="Rotate"
+          testIdPrefix={`${testId}-value`}
+          value={secretValue}
+        />
+      ) : (
+        <p className="text-form-hint text-subtle" data-testid={`${testId}-value-unavailable`}>
+          Set a value only when the ref is managed by the AGH vault. This ref resolves at launch
+          from outside AGH.
+        </p>
+      )}
 
-  return (
-    <ModalSettingsFieldRow
-      data-testid="settings-providers-editor-credential-slots"
-      label="More slots"
-      description="Additional credential refs injected into provider subprocess env."
-      control={
-        <div className="flex w-full max-w-176 flex-col gap-2">
-          {additionalSlots.length === 0 ? (
-            <span
-              className="font-mono text-xs text-subtle"
-              data-testid="settings-providers-editor-credential-slots-empty"
-            >
-              No additional credential slots
-            </span>
-          ) : (
-            additionalSlots.map((slot, offset) => {
-              const index = offset + 1;
-              return (
-                <div
-                  className="grid gap-2 rounded-md border border-line p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
-                  data-testid={`settings-providers-editor-credential-slot-${index}`}
-                  key={`credential-slot-${index}`}
-                >
-                  <Input
-                    className="font-mono"
-                    aria-label={`Credential slot ${index} name`}
-                    value={slot.name}
-                    placeholder="organization"
-                    disabled={disabled}
-                    onChange={event =>
-                      onChange(current =>
-                        updateCredentialSlot(current, index, { name: event.target.value })
-                      )
-                    }
-                  />
-                  <Input
-                    className="font-mono"
-                    aria-label={`Credential slot ${index} target env`}
-                    value={slot.target_env}
-                    placeholder="OPENROUTER_ORG_ID"
-                    disabled={disabled}
-                    onChange={event =>
-                      onChange(current =>
-                        updateCredentialSlot(current, index, { target_env: event.target.value })
-                      )
-                    }
-                  />
-                  <Input
-                    className="font-mono"
-                    aria-label={`Credential slot ${index} secret ref`}
-                    value={slot.secret_ref}
-                    placeholder="env:OPENROUTER_ORG_ID"
-                    disabled={disabled}
-                    onChange={event =>
-                      onChange(current =>
-                        updateCredentialSlot(current, index, { secret_ref: event.target.value })
-                      )
-                    }
-                  />
-                  <Input
-                    className="font-mono"
-                    aria-label={`Credential slot ${index} vault value`}
-                    type="password"
-                    value={draft.credential_secret_values[index] ?? ""}
-                    placeholder="value"
-                    disabled={disabled}
-                    onChange={event =>
-                      onChange(current =>
-                        updateCredentialSecretValue(current, index, event.target.value)
-                      )
-                    }
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remove credential slot ${index}`}
-                    disabled={disabled}
-                    onClick={() => onChange(current => removeCredentialSlot(current, index))}
-                  >
-                    <X aria-hidden="true" className="size-3" />
-                  </Button>
-                </div>
-              );
-            })
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="w-fit"
-            disabled={disabled}
-            onClick={() => onChange(addCredentialSlot)}
-            data-testid="settings-providers-editor-add-credential-slot"
-          >
-            <Plus aria-hidden="true" className="size-3" />
-            Add slot
-          </Button>
+      <div className="flex items-center gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-form-label font-medium text-fg">Required credential</p>
+          <p className="text-form-hint text-subtle">
+            Block provider activation until this slot reference resolves.
+          </p>
         </div>
-      }
-    />
+        <Switch
+          aria-label={`Credential slot ${index + 1} required`}
+          checked={slot.required}
+          data-testid={`${testId}-required`}
+          onCheckedChange={checked =>
+            onChange(current => updateProviderCredentialSlot(current, index, { required: checked }))
+          }
+        />
+      </div>
+    </section>
   );
 }
 
-function addCredentialSlot(draft: ProviderDraft): ProviderDraft {
-  const slots =
-    draft.credential_slots.length > 0 ? [...draft.credential_slots] : [primarySlot(draft)];
-  const values = [...draft.credential_secret_values];
-  slots.push({
-    name: `credential_${slots.length + 1}`,
-    target_env: "",
-    secret_ref: "",
-    kind: "api_key",
-    required: false,
-  });
-  values.length = slots.length;
-  values[slots.length - 1] = "";
-  return { ...draft, credential_slots: slots, credential_secret_values: values };
-}
-
-function primarySlot(draft: ProviderDraft): CredentialSlotDraft {
-  const targetEnv = draft.target_env.trim();
-  return {
-    name: "api_key",
-    target_env: targetEnv,
-    secret_ref: draft.secret_ref.trim() || (targetEnv ? `env:${targetEnv}` : ""),
-    kind: "api_key",
-    required: true,
-  };
-}
-
-function updateCredentialSlot(
-  draft: ProviderDraft,
-  index: number,
-  patch: Partial<CredentialSlotDraft>
-): ProviderDraft {
-  const slots = [...draft.credential_slots];
-  const current = slots[index];
-  if (!current) {
-    return draft;
+function credentialPresence(entry: SettingsProviderEntry | null): Map<string, CredentialPresence> {
+  const presence = new Map<string, CredentialPresence>();
+  for (const credential of entry?.credentials ?? []) {
+    presence.set(credential.name, {
+      present: credential.present,
+      secretRef: credential.secret_ref,
+    });
   }
-  slots[index] = { ...current, ...patch };
-  return { ...draft, credential_slots: slots };
+  return presence;
 }
 
-function updateCredentialSecretValue(
-  draft: ProviderDraft,
-  index: number,
-  value: string
-): ProviderDraft {
-  const values = [...draft.credential_secret_values];
-  values[index] = value;
-  return { ...draft, credential_secret_values: values };
-}
-
-function removeCredentialSlot(draft: ProviderDraft, index: number): ProviderDraft {
-  const slots = draft.credential_slots.filter((_, currentIndex) => currentIndex !== index);
-  const values = draft.credential_secret_values.filter((_, currentIndex) => currentIndex !== index);
-  return { ...draft, credential_slots: slots, credential_secret_values: values };
+/** Keeps open rotations attached to their slot after one is removed. */
+function shiftRotationState(
+  rotating: Record<number, boolean>,
+  removedIndex: number
+): Record<number, boolean> {
+  const next: Record<number, boolean> = {};
+  for (const [key, value] of Object.entries(rotating)) {
+    const index = Number(key);
+    if (index === removedIndex) continue;
+    next[index > removedIndex ? index - 1 : index] = value;
+  }
+  return next;
 }

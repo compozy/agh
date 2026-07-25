@@ -93,10 +93,13 @@ describe("useVaultPage route state", () => {
       view: "cards" as const,
     };
 
-    expect(mocks.vaultFilter).toHaveBeenLastCalledWith({
+    // Two reads are issued: the filtered listing, plus an unfiltered pass used
+    // only to detect ref collisions the active filter would otherwise hide.
+    expect(mocks.vaultFilter).toHaveBeenCalledWith({
       namespace: "providers",
       prefix: "vault:providers/",
     });
+    expect(mocks.vaultFilter).toHaveBeenCalledWith({});
 
     act(() => result.current.setPrefix("  vault:mcp/  "));
     expect(mocks.navigate.mock.lastCall?.[0].search(current)).toEqual({
@@ -185,5 +188,98 @@ describe("useVaultPage route state", () => {
 
     expect(result.current.deleteTarget).toEqual({ mode: "closed" });
     expect(mocks.deleteReset).not.toHaveBeenCalled();
+  });
+
+  it("Should block a write onto an existing ref until the overwrite is confirmed", () => {
+    mocks.secrets = [providerSecret];
+    const { result } = renderHook(() => useVaultPage());
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.updateDraft(draft => ({
+        ...draft,
+        ref: "  vault:providers/openai  ",
+        secretValue: "sk-live",
+      }))
+    );
+
+    expect(result.current.editorRefExists).toBe(true);
+    expect(result.current.editorIsValid).toBe(false);
+    act(() => result.current.saveEditor());
+    expect(mocks.putMutate).not.toHaveBeenCalled();
+
+    act(() => result.current.updateDraft(draft => ({ ...draft, overwriteConfirmed: true })));
+    expect(result.current.editorIsValid).toBe(true);
+    act(() => result.current.saveEditor());
+    expect(mocks.putMutate.mock.lastCall?.[0]).toEqual({
+      ref: "vault:providers/openai",
+      secret_value: "sk-live",
+    });
+  });
+
+  it("Should allow a write onto an unused ref without any confirmation", () => {
+    mocks.secrets = [providerSecret];
+    const { result } = renderHook(() => useVaultPage());
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.updateDraft(draft => ({
+        ...draft,
+        ref: "vault:providers/anthropic",
+        secretValue: "sk-live",
+      }))
+    );
+
+    expect(result.current.editorRefExists).toBe(false);
+    expect(result.current.editorIsValid).toBe(true);
+  });
+
+  it("Should retract the overwrite confirmation when the ref is pointed elsewhere", () => {
+    mocks.secrets = [providerSecret];
+    const { result } = renderHook(() => useVaultPage());
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.updateDraft(draft => ({
+        ...draft,
+        ref: "vault:providers/openai",
+        secretValue: "sk-live",
+        overwriteConfirmed: true,
+      }))
+    );
+    act(() => result.current.updateDraft(draft => ({ ...draft, ref: "vault:providers/other" })));
+    act(() => result.current.updateDraft(draft => ({ ...draft, ref: "vault:providers/openai" })));
+
+    expect(result.current.editorRefExists).toBe(true);
+    expect(result.current.editorIsValid).toBe(false);
+  });
+
+  it("Should keep the create draft after a failed write", () => {
+    mocks.secrets = [];
+    const { result, rerender } = renderHook(() => useVaultPage());
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.updateDraft(draft => ({
+        ...draft,
+        ref: "vault:providers/anthropic",
+        kind: "api_key",
+        secretValue: "sk-live",
+      }))
+    );
+    act(() => result.current.saveEditor());
+    mocks.putState.error = new Error("Vault write failed");
+    rerender();
+
+    expect(result.current.editor).toEqual({
+      mode: "create",
+      draft: {
+        ref: "vault:providers/anthropic",
+        kind: "api_key",
+        secretValue: "sk-live",
+        overwriteConfirmed: false,
+      },
+    });
+    expect(result.current.editorError).toBe("Vault write failed");
   });
 });

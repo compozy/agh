@@ -71,6 +71,7 @@ describe("createNetworkChannelDraft", () => {
       channelName: "",
       purpose: "",
       selectedAgentNames: [],
+      fanoutPolicy: "capability_match",
     });
   });
 

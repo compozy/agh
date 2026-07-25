@@ -38,9 +38,15 @@ export {
 export {
   useSandboxPage,
   validateSandboxSearch,
-  type SandboxDraft,
   type SandboxEditorState,
   type SandboxLastAction,
   type SandboxRouteSearch,
 } from "./hooks/use-sandbox-page";
+export {
+  emptySandboxDraft,
+  toSandboxDraft,
+  toSandboxRequest,
+  type SandboxDraft,
+  type SandboxEnvPair,
+} from "./lib/sandbox-profile-draft";
 export { SandboxPage } from "./routes/sandbox-page";

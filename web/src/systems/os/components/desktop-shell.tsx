@@ -239,6 +239,7 @@ function DesktopShellBody({ model, firstRun }: { model: DesktopShellModel; first
         providersLoading={model.agentCreate.providersLoading}
         runtimeModels={model.agentCreate.runtimeModels}
         submitError={model.agentCreate.submitError}
+        workspaceId={model.agentCreate.workspaceId}
         workspaceName={model.agentCreate.workspaceName}
       />
       <SessionCreateDialog
@@ -251,15 +252,20 @@ function DesktopShellBody({ model, firstRun }: { model: DesktopShellModel; first
         catalogStale={model.sessionCreate.catalogStale}
         hasProviderOptions={model.sessionCreate.hasProviderOptions}
         isSubmitting={model.sessionCreate.isSubmitting}
+        mode={model.sessionCreate.mode}
         networkParticipation={model.sessionCreate.networkParticipation}
         onAgentChange={model.sessionCreate.onAgentChange}
         onCatalogRefresh={model.sessionCreate.refreshCatalog}
+        onModeChange={model.sessionCreate.onModeChange}
         onNetworkParticipationChange={model.sessionCreate.onNetworkParticipationChange}
         onOpenChange={model.sessionCreate.onOpenChange}
         onOpenProviderSettings={model.sessionCreate.openProviderSettings}
         onPromptChange={model.sessionCreate.onPromptChange}
         onRuntimeChange={model.sessionCreate.onRuntimeChange}
+        onSessionNameChange={model.sessionCreate.onSessionNameChange}
         onSubmit={model.sessionCreate.submit}
+        onWorkspaceChange={model.sessionCreate.onWorkspaceChange}
+        onWorkspacePathChange={model.sessionCreate.onWorkspacePathChange}
         open={model.sessionCreate.open}
         promptValue={model.sessionCreate.promptValue}
         providersError={model.sessionCreate.providersError}
@@ -268,8 +274,12 @@ function DesktopShellBody({ model, firstRun }: { model: DesktopShellModel; first
         runtimeProviders={model.sessionCreate.runtimeProviders}
         runtimeValue={model.sessionCreate.runtimeValue}
         selectedAgentName={model.sessionCreate.selectedAgentName}
+        sessionName={model.sessionCreate.sessionName}
         submitError={model.sessionCreate.submitError}
         workspace={model.sessionCreate.workspace}
+        workspaceId={model.sessionCreate.workspaceId}
+        workspacePath={model.sessionCreate.workspacePath}
+        workspaces={model.sessionCreate.workspaces}
       />
     </div>
   );

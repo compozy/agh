@@ -50,6 +50,7 @@ function NetworkCreateChannelDialogHarness({ conflictMessage }: { conflictMessag
         draft={draft}
         isSubmitting={false}
         onChannelNameChange={channelName => setDraft(current => ({ ...current, channelName }))}
+        onFanoutPolicyChange={fanoutPolicy => setDraft(current => ({ ...current, fanoutPolicy }))}
         onOpenChange={() => undefined}
         onPurposeChange={purpose => setDraft(current => ({ ...current, purpose }))}
         onAgentSelectionChange={selectedAgentNames =>

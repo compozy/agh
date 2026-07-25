@@ -1,16 +1,16 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
-import { Button, Spinner } from "@agh/ui";
+import { EntityDialogBody, EntityDialogFooter, EntityModeToolbar, type EntityMode } from "@agh/ui";
 
 import {
   NetworkParticipationFields,
   isNetworkParticipationDraftValid,
   networkParticipationDraftFromValues,
 } from "@/systems/network";
-import type { WorkspaceCommandSelectOption } from "@/systems/workspace";
+import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 
 import type { TaskEditorDraft } from "../lib/task-editor";
 import {
@@ -21,7 +21,6 @@ import {
 import { ContractSection } from "./task-form/contract-section";
 import { ExecutionCollapsible } from "./task-form/execution-collapsible";
 import { IngressIdentitySection } from "./task-form/ingress-identity-section";
-import { ModeToolbar, type TaskFormMode } from "./task-form/mode-toolbar";
 import { NumberedSection } from "./task-form/numbered-section";
 import { PlacementSection } from "./task-form/placement-section";
 import { PrioritySection } from "./task-form/priority-section";
@@ -33,6 +32,12 @@ export type TaskEditorSurfaceMode = "new" | "edit";
 
 export interface TaskEditorSurfaceProps {
   mode: TaskEditorSurfaceMode;
+  /**
+   * Dialog chrome supplied by the modal host. `EntityDialogHeader` renders
+   * `DialogTitle`, so it can only be mounted inside a `Dialog` — OS window
+   * locations mount this surface directly and pass nothing.
+   */
+  header?: ReactNode;
   draft: TaskEditorDraft;
   onDraftChange: (next: TaskEditorDraft | ((current: TaskEditorDraft) => TaskEditorDraft)) => void;
   onSubmit: (draft: TaskEditorDraft, asDraft: boolean) => Promise<unknown> | void;
@@ -45,7 +50,7 @@ export interface TaskEditorSurfaceProps {
   onTemplateChange?: (templateId: TaskTemplateId) => void;
 }
 
-const TASK_DESCRIPTION =
+export const TASK_DESCRIPTION =
   "A task is a durable contract — a unit of work that gets claimed and run by an owner. Runs descend from it and respect its dependencies.";
 
 function resolveSubmitLabel(mode: TaskEditorSurfaceMode, saveAsDraft: boolean): string {
@@ -55,6 +60,7 @@ function resolveSubmitLabel(mode: TaskEditorSurfaceMode, saveAsDraft: boolean): 
 
 export function TaskEditorSurface({
   mode,
+  header,
   draft,
   onDraftChange,
   onSubmit,
@@ -66,13 +72,13 @@ export function TaskEditorSurface({
   onTemplateChange,
 }: TaskEditorSurfaceProps) {
   const form = useTasksCreateModalForm({ draft, onDraftChange, onSubmit });
-  const [formMode, setFormMode] = useState<TaskFormMode>("simple");
+  const [formMode, setFormMode] = useState<EntityMode>("simple");
   const isNewMode = mode === "new";
 
   const setField = (field: keyof TaskEditorDraft) => (value: string) =>
     onDraftChange(current => ({ ...current, [field]: value }));
 
-  const handleModeChange = (nextMode: TaskFormMode) => {
+  const handleModeChange = (nextMode: EntityMode) => {
     setFormMode(nextMode);
     if (
       nextMode === "simple" &&
@@ -104,6 +110,7 @@ export function TaskEditorSurface({
       data-mode={mode}
       data-testid="task-editor-surface"
     >
+      {header}
       <form
         className="flex min-h-0 flex-1 flex-col"
         data-testid="task-editor-modal-form"
@@ -116,22 +123,26 @@ export function TaskEditorSurface({
         }}
       >
         {isNewMode ? (
-          <ModeToolbar
+          <EntityModeToolbar
             mode={formMode}
             onModeChange={handleModeChange}
-            onScopeChange={form.updateScope}
-            onWorkspaceChange={form.updateWorkspace}
-            scope={draft.scope}
-            workspaceId={draft.workspaceId}
-            workspaces={workspaces}
+            testIdPrefix="task"
+            trailing={
+              <ScopeSelector
+                ariaLabel="Task scope"
+                onScopeChange={form.updateScope}
+                onWorkspaceChange={form.updateWorkspace}
+                scope={draft.scope}
+                testIdPrefix="task"
+                workspaceId={draft.workspaceId}
+                workspaces={workspaces}
+              />
+            }
+            trailingLabel="Scope"
           />
         ) : null}
 
-        <div
-          className="min-h-0 flex-1 overflow-y-auto px-6 py-5"
-          data-testid="task-editor-modal-body"
-        >
-          <p className="mb-5 max-w-prose text-small-body text-muted">{TASK_DESCRIPTION}</p>
+        <EntityDialogBody data-testid="task-editor-modal-body">
           <NumberedSection first index="01" subtitle="What should get done?" title="The contract">
             <ContractSection
               description={draft.description}
@@ -248,46 +259,29 @@ export function TaskEditorSurface({
               />
             </NumberedSection>
           ) : null}
-        </div>
+        </EntityDialogBody>
 
-        <footer className="flex items-center gap-3 border-t border-line px-6 py-4">
-          <div
-            className="flex flex-1 items-center gap-2 text-form-hint text-subtle"
-            data-testid="task-editor-modal-hint"
-          >
-            <span>
-              {draft.saveAsDraft ? (
-                <>
-                  Saved as a <b className="font-medium text-muted">draft</b>; no run is queued until
-                  you enqueue it.
-                </>
-              ) : (
-                <>The contract is durable; runs descend from this task and respect dependencies.</>
-              )}
-            </span>
-          </div>
-          <Button
-            data-testid="task-editor-modal-cancel"
-            onClick={onCancel}
-            type="button"
-            variant="outline"
-          >
-            Cancel
-          </Button>
-          <Button
-            className="min-w-32"
-            data-testid="task-editor-modal-submit"
-            disabled={!submitAllowed || isSubmitting}
-            type="submit"
-          >
-            {isSubmitting ? (
-              <Spinner className="size-3" />
-            ) : mode === "new" ? (
-              <Check aria-hidden="true" className="size-4" />
-            ) : null}
-            {submitLabel}
-          </Button>
-        </footer>
+        <EntityDialogFooter
+          cancelTestId="task-editor-modal-cancel"
+          hint={
+            draft.saveAsDraft ? (
+              <>
+                Saved as a <b className="font-medium text-muted">draft</b>; no run is queued until
+                you enqueue it.
+              </>
+            ) : (
+              <>The contract is durable; runs descend from this task and respect dependencies.</>
+            )
+          }
+          hintTestId="task-editor-modal-hint"
+          isSaving={isSubmitting}
+          onCancel={onCancel}
+          primaryDisabled={!submitAllowed}
+          primaryIcon={mode === "new" ? Check : undefined}
+          primaryLabel={submitLabel}
+          primaryTestId="task-editor-modal-submit"
+          primaryType="submit"
+        />
       </form>
     </section>
   );

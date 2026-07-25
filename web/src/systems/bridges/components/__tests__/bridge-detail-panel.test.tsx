@@ -163,8 +163,7 @@ function defaultProps(): ComponentProps<typeof BridgeDetailPanel> {
     bridge: makeBridge(),
     error: null,
     health: makeHealth(),
-    onOpenSendTest: vi.fn(),
-    onOpenTestDelivery: vi.fn(),
+    onOpenDeliveryTest: vi.fn(),
     routes: [],
     setup: makeSetup(),
     state: { isLoading: false, isRoutesLoading: false },
@@ -331,25 +330,24 @@ describe("BridgeDetailPanel", () => {
     expect(onResolveSubmit).toHaveBeenCalledTimes(1);
   });
 
-  it("Should keep dry-run enabled and disable real send while the bridge is disabled", async () => {
+  it("Should route both delivery checks through one entry point, even while disabled", async () => {
     const user = userEvent.setup();
-    const onOpenTestDelivery = vi.fn();
-    const onOpenSendTest = vi.fn();
+    const onOpenDeliveryTest = vi.fn();
     renderPanel({
       bridge: makeBridge({ enabled: false, status: "disabled" }),
       health: makeHealth({ status: "disabled" }),
-      onOpenSendTest,
-      onOpenTestDelivery,
+      onOpenDeliveryTest,
     });
 
-    expect(screen.getByTestId("open-test-delivery-btn")).toBeEnabled();
-    expect(screen.getByTestId("open-test-delivery-btn")).toHaveTextContent(
-      "Check target (dry run)"
-    );
-    expect(screen.getByTestId("open-send-test-btn")).toBeDisabled();
-    await user.click(screen.getByTestId("open-test-delivery-btn"));
-    expect(onOpenTestDelivery).toHaveBeenCalledTimes(1);
-    expect(onOpenSendTest).not.toHaveBeenCalled();
+    // A disabled bridge can still resolve a target, so the entry point stays
+    // live; the real-send gate now lives beside the action it guards.
+    const entry = screen.getByTestId("open-test-delivery-btn");
+    expect(entry).toBeEnabled();
+    expect(entry).toHaveTextContent("Test delivery");
+    expect(screen.queryByTestId("open-send-test-btn")).toBeNull();
+
+    await user.click(entry);
+    expect(onOpenDeliveryTest).toHaveBeenCalledTimes(1);
   });
 
   it("Should render projected setup states and invoke verify and Telegram registration", async () => {

@@ -156,9 +156,13 @@ describe("useNetworkCreateChannelAction", () => {
     expect(mutateAsyncMock).toHaveBeenCalledWith({
       agent_names: [agentFixtures[0]!.name],
       channel: "deployments",
+      fanout_policy: "capability_match",
       purpose: "Coordinate deploy verification",
       workspace_id: "ws_123",
     });
+    // `coordinator_peer_id` is rejected by the daemon under any other policy and
+    // has no resolvable value before the member sessions exist.
+    expect(mutateAsyncMock.mock.calls.at(-1)?.[0]).not.toHaveProperty("coordinator_peer_id");
     expect(navigateMock).toHaveBeenCalledWith({
       params: { workspaceId: "ws_123", channel: "deployments" },
       to: "/network/$workspaceId/$channel/threads",

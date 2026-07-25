@@ -192,7 +192,6 @@ export {
 export {
   useSessionCreateDialog,
   type SessionCreateDialogApi,
-  type SessionCreateDialogDraft,
   type SessionCreateDialogState,
 } from "./hooks/use-session-create-dialog";
 export {

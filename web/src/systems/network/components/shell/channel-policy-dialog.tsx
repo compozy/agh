@@ -1,25 +1,30 @@
+import { Check, Network } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import {
-  Button,
+  CommandEmpty,
+  CommandItem,
+  CommandList,
+  CommandSelect,
+  CommandSelectGroup,
+  CommandSelectShell,
+  CommandSelectTrigger,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  dialogShellClass,
+  EntityDialogBody,
+  EntityDialogFooter,
+  EntityDialogHeader,
   Field,
+  FieldContent,
   FieldDescription,
   FieldLabel,
+  FormSection,
+  ImmutableIdentity,
   Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Spinner,
 } from "@agh/ui";
 
+import { ChannelFanoutCards } from "../channel-fanout-cards";
 import type { ChannelMember } from "../../hooks/use-channel-members";
 import type {
   NetworkChannel,
@@ -27,30 +32,6 @@ import type {
   NetworkChannelUpdateRequest,
   NetworkFanoutPolicy,
 } from "../../types";
-
-const NO_COORDINATOR_VALUE = "__none__";
-
-const FANOUT_POLICIES: ReadonlyArray<{
-  value: NetworkFanoutPolicy;
-  label: string;
-  description: string;
-}> = [
-  {
-    value: "capability_match",
-    label: "Capability match",
-    description: "Activate the smallest matching peer set for unaddressed thread traffic.",
-  },
-  {
-    value: "coordinator",
-    label: "Coordinator",
-    description: "Route unaddressed thread traffic to one named coordinator peer.",
-  },
-  {
-    value: "all_members",
-    label: "All members",
-    description: "Deliver unaddressed thread traffic to every eligible member.",
-  },
-];
 
 interface ChannelPolicyDialogProps {
   channel: NetworkChannelSummary;
@@ -110,6 +91,11 @@ function channelPolicyFormKey(
   ]);
 }
 
+function memberLabel(members: ReadonlyArray<ChannelMember>, peerId: string): string {
+  const match = members.find(member => member.peerId === peerId);
+  return match?.displayName || match?.peerId || peerId;
+}
+
 function ChannelPolicyDialogForm({
   channel,
   detail,
@@ -119,12 +105,13 @@ function ChannelPolicyDialogForm({
   onSubmit,
 }: Omit<ChannelPolicyDialogProps, "open">) {
   const [formState, setFormState] = useState(() => initialFormState(channel, detail));
-  const selectedPolicy =
-    FANOUT_POLICIES.find(candidate => candidate.value === formState.policy) ?? FANOUT_POLICIES[0];
+  const [coordinatorOpen, setCoordinatorOpen] = useState(false);
 
   const setPurpose = (purpose: string) => {
     setFormState(current => ({ ...current, purpose }));
   };
+  // Leaving `coordinator` clears the peer: the daemon rejects a coordinator id
+  // under any other fanout policy (`ValidateNetworkChannelFanoutConfiguration`).
   const setPolicy = (policy: NetworkFanoutPolicy) => {
     setFormState(current => ({
       ...current,
@@ -132,6 +119,9 @@ function ChannelPolicyDialogForm({
       policy,
     }));
   };
+
+  const requiresCoordinator = formState.policy === "coordinator";
+  const missingCoordinator = requiresCoordinator && formState.coordinatorPeerId.trim() === "";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -150,89 +140,124 @@ function ChannelPolicyDialogForm({
     }
   };
 
+  const memberNames = members.map(member => member.displayName || member.peerId);
+
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="space-y-5 p-5">
-        <Field>
-          <FieldLabel htmlFor="network-channel-policy-purpose">Purpose</FieldLabel>
-          <FieldDescription>
-            Used by agents to decide whether this room is relevant.
-          </FieldDescription>
-          <Input
-            className="font-mono"
-            data-testid="channel-policy-purpose"
-            id="network-channel-policy-purpose"
-            onChange={event => setPurpose(event.target.value)}
-            value={formState.purpose}
-          />
-        </Field>
+    <form className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]" onSubmit={handleSubmit}>
+      <EntityDialogBody className="flex flex-col gap-4">
+        <ImmutableIdentity
+          data-testid="channel-policy-identity"
+          hint="UpdateNetworkChannelRequest cannot change the name or membership — recreate the channel to change them."
+          rows={[
+            { label: "Channel", value: channel.channel, mono: true },
+            {
+              label: "Members",
+              value: memberNames.length > 0 ? memberNames.join(", ") : "No members yet",
+            },
+          ]}
+        />
 
-        <Field>
-          <FieldLabel>Fanout policy</FieldLabel>
-          <FieldDescription>{selectedPolicy?.description}</FieldDescription>
-          <Select
-            onValueChange={value => {
-              const nextPolicy = normalizeFanoutPolicy(value);
-              setPolicy(nextPolicy);
-            }}
-            value={formState.policy}
-          >
-            <SelectTrigger data-testid="channel-policy-fanout">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FANOUT_POLICIES.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+        <FormSection
+          description="The mutable half of the channel."
+          size="compact"
+          title="Purpose & fanout"
+        >
+          <div className="flex flex-col gap-4">
+            <Field>
+              <FieldContent>
+                <FieldLabel htmlFor="network-channel-policy-purpose">Purpose</FieldLabel>
+                <FieldDescription>
+                  Used by agents to decide whether this room is relevant.
+                </FieldDescription>
+              </FieldContent>
+              <Input
+                className="font-mono"
+                data-testid="channel-policy-purpose"
+                id="network-channel-policy-purpose"
+                onChange={event => setPurpose(event.target.value)}
+                value={formState.purpose}
+              />
+            </Field>
 
-        <Field>
-          <FieldLabel>Coordinator peer</FieldLabel>
-          <FieldDescription>
-            Required for coordinator policy; leave empty for other policies.
-          </FieldDescription>
-          <Select
-            onValueChange={value =>
-              setFormState(current => ({
-                ...current,
-                coordinatorPeerId: value === NO_COORDINATOR_VALUE ? "" : (value ?? ""),
-              }))
-            }
-            value={formState.coordinatorPeerId || NO_COORDINATOR_VALUE}
-          >
-            <SelectTrigger data-testid="channel-policy-coordinator">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_COORDINATOR_VALUE}>No coordinator</SelectItem>
-              {members.map(member => (
-                <SelectItem key={member.peerId} value={member.peerId}>
-                  {member.displayName || member.peerId}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        {formState.submitError ? (
-          <p className="text-xs text-danger" role="alert">
-            {formState.submitError}
-          </p>
-        ) : null}
-      </div>
+            <Field>
+              <FieldContent>
+                <FieldLabel>Who receives a message?</FieldLabel>
+                <FieldDescription>
+                  The fanout policy routes unaddressed thread traffic.
+                </FieldDescription>
+              </FieldContent>
+              <ChannelFanoutCards
+                disabled={isSubmitting}
+                onChange={setPolicy}
+                testIdPrefix="channel-policy"
+                value={formState.policy}
+              />
+            </Field>
 
-      <DialogFooter className="border-t border-line bg-canvas-soft px-5 py-3">
-        <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
-          Cancel
-        </Button>
-        <Button data-testid="channel-policy-submit" disabled={isSubmitting} type="submit">
-          {isSubmitting ? <Spinner aria-hidden="true" className="size-4" /> : null}
-          Save policy
-        </Button>
-      </DialogFooter>
+            {requiresCoordinator ? (
+              <Field>
+                <FieldContent>
+                  <FieldLabel id="channel-policy-coordinator-label">Coordinator peer</FieldLabel>
+                  <FieldDescription>Derived from the channel's live members.</FieldDescription>
+                </FieldContent>
+                <CommandSelect onOpenChange={setCoordinatorOpen} open={coordinatorOpen}>
+                  <CommandSelectTrigger
+                    aria-labelledby="channel-policy-coordinator-label"
+                    data-testid="channel-policy-coordinator"
+                    placeholder="Select coordinator"
+                    selected={formState.coordinatorPeerId !== ""}
+                  >
+                    {formState.coordinatorPeerId
+                      ? memberLabel(members, formState.coordinatorPeerId)
+                      : null}
+                  </CommandSelectTrigger>
+                  <CommandSelectShell inputPlaceholder="Search members…">
+                    <CommandList>
+                      <CommandEmpty>No members match.</CommandEmpty>
+                      <CommandSelectGroup>
+                        {members.map(member => (
+                          <CommandItem
+                            data-testid={`channel-policy-coordinator-${member.peerId}`}
+                            key={member.peerId}
+                            onSelect={() => {
+                              setFormState(current => ({
+                                ...current,
+                                coordinatorPeerId: member.peerId,
+                              }));
+                              setCoordinatorOpen(false);
+                            }}
+                            value={`${member.displayName ?? ""} ${member.peerId}`}
+                          >
+                            {member.displayName || member.peerId}
+                          </CommandItem>
+                        ))}
+                      </CommandSelectGroup>
+                    </CommandList>
+                  </CommandSelectShell>
+                </CommandSelect>
+              </Field>
+            ) : null}
+
+            {formState.submitError ? (
+              <p className="text-xs text-danger" role="alert">
+                {formState.submitError}
+              </p>
+            ) : null}
+          </div>
+        </FormSection>
+      </EntityDialogBody>
+
+      <EntityDialogFooter
+        cancelTestId="channel-policy-cancel"
+        hint="Delivery changes apply to new unaddressed traffic."
+        isSaving={isSubmitting}
+        onCancel={() => onOpenChange(false)}
+        primaryDisabled={missingCoordinator}
+        primaryIcon={Check}
+        primaryLabel="Save changes"
+        primaryTestId="channel-policy-submit"
+        primaryType="submit"
+      />
     </form>
   );
 }
@@ -250,13 +275,19 @@ export function ChannelPolicyDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="gap-0 p-0 text-fg sm:max-w-120" data-testid="channel-policy-dialog">
-        <DialogHeader className="border-b border-line px-5 py-4">
-          <DialogTitle>Delivery policy</DialogTitle>
-          <DialogDescription>
-            Control how unaddressed thread traffic fans out in #{channel.channel}.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        className={`grid-rows-[auto_minmax(0,1fr)] ${dialogShellClass("sm")}`}
+        data-testid="channel-policy-dialog"
+        showCloseButton={false}
+        unframed
+      >
+        <EntityDialogHeader
+          description={`Update the purpose and fanout policy for #${channel.channel}. Identity and membership stay fixed by the update contract.`}
+          eyebrow="Network · Channel"
+          icon={Network}
+          onClose={() => onOpenChange(false)}
+          title="Edit channel"
+        />
 
         <ChannelPolicyDialogForm
           channel={channel}

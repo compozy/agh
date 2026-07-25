@@ -35,7 +35,15 @@ export function BridgeCreateProviderStep({
           before creating a new bridge.
         </div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2" data-testid="bridge-wizard-provider-grid">
+        // Provider choice is permanent — `UpdateBridgeRequest` omits platform and
+        // extension — so it is a mutually exclusive, consequence-bearing choice
+        // and carries radiogroup semantics, not independent toggle buttons.
+        <div
+          aria-label="Bridge provider"
+          className="grid gap-3 lg:grid-cols-2"
+          data-testid="bridge-wizard-provider-grid"
+          role="radiogroup"
+        >
           {providers.map(provider => {
             const providerKey = buildBridgeProviderKey(provider);
             const selectable = isBridgeProviderSelectable(provider);
@@ -44,7 +52,7 @@ export function BridgeCreateProviderStep({
             return (
               <BridgeProviderCatalogCard
                 actionable={selectable}
-                aria-pressed={selected}
+                aria-checked={selected}
                 key={providerKey}
                 onClick={selectable ? () => onSelect(providerKey) : undefined}
                 onKeyDown={
@@ -58,7 +66,7 @@ export function BridgeCreateProviderStep({
                     : undefined
                 }
                 provider={provider}
-                role="button"
+                role="radio"
                 selected={selected}
                 tabIndex={selectable ? 0 : -1}
               />

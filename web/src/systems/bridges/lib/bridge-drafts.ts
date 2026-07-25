@@ -89,6 +89,12 @@ export function createBridgeCreateDraft(
     deliveryDefaults: {},
     dmPolicy: "",
     displayName: preferredProvider?.display_name ?? "",
+    // Setup instances are created disabled: the provider-declared credentials
+    // are bound after the POST, so a bridge that started on acceptance would be
+    // running without them.
+    enabled: false,
+    notificationSuppress: false,
+    secretSlotValues: {},
     providerConfigText: "",
     routingPolicy: { ...DEFAULT_BRIDGE_ROUTING_POLICY },
     scope: activeWorkspaceId ? "workspace" : "global",
@@ -181,9 +187,9 @@ export function buildBridgeCreateRequest(
       delivery_defaults: compactBridgeDeliveryDefaults(draft.deliveryDefaults),
       display_name: draft.displayName.trim(),
       dm_policy: parseBridgeDmPolicy(draft.dmPolicy),
-      enabled: false,
+      enabled: draft.enabled,
       extension_name: provider.extension_name,
-      notification_suppress: false,
+      notification_suppress: draft.notificationSuppress,
       platform: provider.platform,
       provider_config: providerConfigResult.value,
       routing_policy: draft.routingPolicy,

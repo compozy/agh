@@ -81,7 +81,6 @@ export function ProvidersSettingsPage() {
     page.inspector.mode === "edit" || page.inspector.mode === "create"
       ? page.inspector.draft
       : null;
-  const existingNames = page.providers.map(provider => provider.name);
   const readyCount = page.counts.installed;
   const setupCount = page.counts.needsSetup;
   const missingCount = page.counts.binaryMissing;
@@ -166,7 +165,6 @@ export function ProvidersSettingsPage() {
         mode={page.inspector.mode === "closed" ? "inspect" : page.inspector.mode}
         entry={inspectorEntry}
         draft={inspectorDraft}
-        existingNames={existingNames}
         error={page.inspectorError}
         warnings={page.inspectorWarnings}
         canSave={page.inspectorIsValid}

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
@@ -22,41 +22,62 @@ const meta: Meta<typeof WorkspaceOnboarding> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function WorkspaceSetupValidationHarness() {
-  const containerRef = useRef<HTMLDivElement>(null);
+type DialogStory = StoryObj<typeof WorkspaceSetupDialog>;
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const form = containerRef.current?.querySelector("form");
-      form?.requestSubmit();
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
+function dialogHarness(padding: string) {
   return (
-    <div ref={containerRef}>
-      <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
-    </div>
+    <StorySurface className={padding}>
+      <WorkspaceSetupDialog
+        open
+        onOpenChange={() => undefined}
+        onWorkspaceResolved={() => undefined}
+      />
+    </StorySurface>
   );
 }
 
-export const OnboardingDefault: Story = {
-  args: {},
-  render: () => (
+function onboardingHarness() {
+  return (
     <StorySurface className="p-0">
       <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
     </StorySurface>
-  ),
-};
+  );
+}
 
-export const OnboardingPathError: Story = {
+/** Stalls the directory browse so the reading state stays on screen. */
+const browseLoading = storybookMswParameters({
+  workspace: [
+    aghApiMock.get("/api/fs/browse", async () => {
+      await delay("infinite");
+      return HttpResponse.json({ entries: [], home: "/Users/pedro", path: "/Users/pedro" });
+    }),
+  ],
+});
+
+const browseEmpty = storybookMswParameters({
+  workspace: [
+    aghApiMock.get("/api/fs/browse", () =>
+      HttpResponse.json({
+        entries: [],
+        home: "/Users/pedro",
+        parent: "/Users",
+        path: "/Users/pedro",
+      })
+    ),
+  ],
+});
+
+const browseError = storybookMswParameters({
+  workspace: [
+    aghApiMock.get("/api/fs/browse", () =>
+      HttpResponse.json({ error: "permission denied" }, { status: 403 })
+    ),
+  ],
+});
+
+export const OnboardingDefault: Story = {
   args: {},
-  render: () => (
-    <StorySurface className="p-0">
-      <WorkspaceSetupValidationHarness />
-    </StorySurface>
-  ),
+  render: onboardingHarness,
 };
 
 export const OnboardingGlobalUnavailable: Story = {
@@ -73,52 +94,62 @@ export const OnboardingGlobalUnavailable: Story = {
       ],
     }),
   },
-  render: () => (
-    <StorySurface className="p-0">
-      <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
-    </StorySurface>
-  ),
+  render: onboardingHarness,
 };
 
-export const SetupDialogOpen: StoryObj<typeof WorkspaceSetupDialog> = {
+/** VC-03 capture target: the xl split shell at desktop width. */
+export const SetupDialogOpen: DialogStory = {
   args: {},
-  render: () => (
-    <StorySurface className="p-10">
-      <WorkspaceSetupDialog
-        open
-        onOpenChange={() => undefined}
-        onWorkspaceResolved={() => undefined}
-      />
-    </StorySurface>
-  ),
+  render: () => dialogHarness("p-10"),
 };
 
-export const SubmitManualPath: Story = {
+/** Below 980px the split body collapses and session defaults stack underneath. */
+export const SetupDialogStacked: DialogStory = {
+  args: {},
+  parameters: {
+    viewport: { defaultViewport: "ipad" },
+    docs: {
+      description: {
+        story:
+          "Below 980px the two panes collapse to a single column with session defaults stacked beneath Location.",
+      },
+    },
+  },
+  render: () => dialogHarness("p-4"),
+};
+
+/** A root chosen in the browser, ready for the single create on submit. */
+export const SetupDialogRootSelected: DialogStory = {
   args: {},
   tags: ["play-fn"],
-  render: () => {
-    function Harness() {
-      const [status, setStatus] = useState("");
-      return (
-        <StorySurface className="p-0">
-          <WorkspaceOnboarding onWorkspaceResolved={id => setStatus(`resolved:${id}`)} />
-          <div data-testid="resolve-status" className="sr-only">
-            {status}
-          </div>
-        </StorySurface>
-      );
-    }
-
-    return <Harness />;
-  },
+  render: () => dialogHarness("p-10"),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const input = await canvas.findByLabelText("Workspace path");
-    await userEvent.type(input, "/Users/pedro/Dev/agh");
-    const submit = canvas.getByTestId("workspace-register-manual");
-    await userEvent.click(submit);
-    await expect(canvas.queryByTestId("workspace-path-error")).not.toBeInTheDocument();
+    const canvas = within(canvasElement.ownerDocument.body);
+    const useCurrent = await canvas.findByTestId("workspace-setup-browser-use-current");
+    // The control stays disabled until the browse resolves a current path; clicking
+    // before then is a silent no-op.
+    await waitFor(() => expect(useCurrent).toBeEnabled());
+    await userEvent.click(useCurrent);
+    await expect(await canvas.findByTestId("workspace-setup-selected-root")).toBeVisible();
   },
+};
+
+export const SetupDialogBrowserLoading: DialogStory = {
+  args: {},
+  parameters: browseLoading,
+  render: () => dialogHarness("p-10"),
+};
+
+export const SetupDialogBrowserEmpty: DialogStory = {
+  args: {},
+  parameters: browseEmpty,
+  render: () => dialogHarness("p-10"),
+};
+
+export const SetupDialogBrowserError: DialogStory = {
+  args: {},
+  parameters: browseError,
+  render: () => dialogHarness("p-10"),
 };
 
 export const OnboardingMobile: Story = {
@@ -132,11 +163,7 @@ export const OnboardingMobile: Story = {
       },
     },
   },
-  render: () => (
-    <StorySurface className="p-0">
-      <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
-    </StorySurface>
-  ),
+  render: onboardingHarness,
 };
 
 export const OnboardingLoadingGlobal: Story = {
@@ -145,33 +172,29 @@ export const OnboardingLoadingGlobal: Story = {
   parameters: {
     ...storybookMswParameters({
       workspace: [
-        aghApiMock.post("/api/workspaces", async () => {
+        aghApiMock.post("/api/workspaces/resolve", async () => {
           await delay("infinite");
-          return HttpResponse.json({ workspace: primaryWorkspaceFixture }, { status: 201 });
+          return HttpResponse.json({ workspace: primaryWorkspaceFixture });
         }),
       ],
     }),
     docs: {
       description: {
         story:
-          "Drives the global submission CTA into its loading state by stalling `POST /api/workspaces` indefinitely.",
+          "Drives the global-default CTA into its loading state by stalling the resolve call indefinitely.",
       },
     },
   },
-  render: () => (
-    <StorySurface className="p-0">
-      <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
-    </StorySurface>
-  ),
+  render: onboardingHarness,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const button = await canvas.findByTestId("workspace-use-global");
-    await userEvent.click(button);
+    await userEvent.click(await canvas.findByTestId("workspace-use-global"));
     await expect(canvas.getByTestId("workspace-use-global")).toBeDisabled();
   },
 };
 
-export const OnboardingLoadingManual: Story = {
+/** Registration spinner: stall `POST /api/workspaces` after picking a root. */
+export const OnboardingLoadingCreate: Story = {
   args: {},
   tags: ["play-fn"],
   parameters: {
@@ -183,24 +206,35 @@ export const OnboardingLoadingManual: Story = {
         }),
       ],
     }),
-    docs: {
-      description: {
-        story:
-          "Manual submission spinner: stall `POST /api/workspaces` and submit a valid absolute path.",
-      },
-    },
   },
-  render: () => (
-    <StorySurface className="p-0">
-      <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
-    </StorySurface>
-  ),
+  render: onboardingHarness,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const input = await canvas.findByLabelText("Workspace path");
-    await userEvent.type(input, "/Users/pedro/Dev/agh");
-    await userEvent.click(canvas.getByTestId("workspace-register-manual"));
-    await expect(canvas.getByTestId("workspace-register-manual")).toBeDisabled();
+    await userEvent.click(await canvas.findByTestId("workspace-setup-browser-use-current"));
+    await userEvent.click(canvas.getByTestId("workspace-setup-onboarding-submit"));
+    await expect(canvas.getByTestId("workspace-setup-onboarding-submit")).toBeDisabled();
+  },
+};
+
+/** Registration failure keeps the draft and reports inline. */
+export const OnboardingCreateError: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: {
+    ...storybookMswParameters({
+      workspace: [
+        aghApiMock.post("/api/workspaces", () =>
+          HttpResponse.json({ error: "root is already registered" }, { status: 409 })
+        ),
+      ],
+    }),
+  },
+  render: onboardingHarness,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("workspace-setup-browser-use-current"));
+    await userEvent.click(canvas.getByTestId("workspace-setup-onboarding-submit"));
+    await expect(await canvas.findByTestId("workspace-setup-error")).toBeVisible();
   },
 };
 
@@ -224,7 +258,6 @@ export const UseGlobalWorkspace: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const button = await canvas.findByTestId("workspace-use-global");
-    await userEvent.click(button);
+    await userEvent.click(await canvas.findByTestId("workspace-use-global"));
   },
 };

@@ -7,7 +7,6 @@ import type { AgentPayload, CreateAgentParams, DuplicateAgentParams } from "../t
 export type AgentCreateScope = CreateAgentParams["scope"];
 export type AgentCreatePermission = NonNullable<CreateAgentParams["agent"]["permissions"]>;
 export type AgentCreatePermissionChoice = "" | AgentCreatePermission;
-export type AgentCreateStep = "basics" | "runtime" | "instructions" | "access";
 
 export interface AgentCreateDialogDraft {
   scope: AgentCreateScope;
@@ -34,10 +33,25 @@ export interface AgentCreateValidationContext {
 
 export interface AgentCreateValidation {
   fields: Partial<Record<AgentCreateFieldKey, string>>;
-  stepValidity: Record<AgentCreateStep, boolean>;
+  /**
+   * True when every field that only renders under Advanced is valid. Simple can
+   * never surface these errors, so a blocked submit has to reveal Advanced
+   * instead of leaving the operator with a dead primary.
+   */
+  advancedValid: boolean;
+  /** True when every field Simple renders is valid. */
+  simpleValid: boolean;
   canSubmit: boolean;
   categorySegments: string[];
 }
+
+/** Fields that only exist under the Advanced disclosure tier. */
+export const AGENT_CREATE_ADVANCED_FIELDS: readonly AgentCreateFieldKey[] = [
+  "categoryPath",
+  "tools",
+  "toolsets",
+  "denyTools",
+] as const;
 
 export type AgentCreateFieldKey =
   | "name"
@@ -202,17 +216,16 @@ export function validateAgentCreateDraft(
   const toolsetsError = validateToolsetList(draft.toolsets);
   if (toolsetsError) fields.toolsets = toolsetsError;
 
-  const stepValidity: Record<AgentCreateStep, boolean> = {
-    basics: !fields.name && !fields.scope && !fields.categoryPath,
-    runtime: !fields.provider && !fields.reasoningEffort,
-    instructions: !fields.prompt,
-    access: !fields.tools && !fields.toolsets && !fields.denyTools,
-  };
+  const advancedValid = AGENT_CREATE_ADVANCED_FIELDS.every(field => !fields[field]);
+  const simpleValid = (Object.keys(fields) as AgentCreateFieldKey[]).every(
+    field => AGENT_CREATE_ADVANCED_FIELDS.includes(field) || !fields[field]
+  );
 
   return {
     fields,
-    stepValidity,
-    canSubmit: Object.values(stepValidity).every(Boolean),
+    advancedValid,
+    simpleValid,
+    canSubmit: Object.values(fields).every(message => !message),
     categorySegments: category.segments,
   };
 }

@@ -59,25 +59,39 @@ export type SettingsProviderModelRequest = NonNullable<
   SettingsProviderModelsRequest["curated"]
 >[number];
 
+/** Who owns launch-time provider authentication (`internal/config/provider.go`). */
+export type ProviderAuthMode = "native_cli" | "bound_secret" | "none";
+
+export type ProviderCredentialSlotDraft = SettingsProviderCredentialSlotRequest & {
+  /**
+   * Stable row identity for the editor. Slot names are user-editable and may
+   * repeat mid-typing, so they cannot key a list whose rows carry rotation
+   * state. Never sent to the daemon.
+   */
+  key: string;
+};
+
 export type ProviderDraft = {
   name: string;
   command: string;
   display_name: string;
   model_default: string;
   curated_models: string;
-  target_env: string;
   harness: string;
   runtime_provider: string;
   transport: string;
   base_url: string;
-  auth_mode: string;
+  auth_mode: ProviderAuthMode;
   env_policy: string;
   home_policy: string;
   auth_status_command: string;
   auth_login_command: string;
-  secret_ref: string;
-  secret_value: string;
-  credential_slots: SettingsProviderCredentialSlotRequest[];
+  /**
+   * Declared credential bindings. Only `auth_mode = bound_secret` may carry
+   * them — the daemon rejects slots under any other mode.
+   */
+  credential_slots: ProviderCredentialSlotDraft[];
+  /** Write-only plaintext per slot, parallel to `credential_slots`. Never read back. */
   credential_secret_values: string[];
 };
 

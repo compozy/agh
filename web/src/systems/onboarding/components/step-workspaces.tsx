@@ -22,7 +22,23 @@ export function StepWorkspaces({ workspaces }: StepWorkspacesProps) {
       <div className="grid h-setup-split grid-cols-[1.12fr_1fr] gap-4.5 max-md:h-auto max-md:grid-cols-1 max-md:gap-5">
         <section className="flex min-h-0 flex-col">
           <Eyebrow className="mb-2.5 block text-subtle">Browse for a folder</Eyebrow>
-          <DirectoryBrowser workspaces={workspaces} />
+          {/* Onboarding registers on pick — the wizard has no deferred commit. */}
+          <DirectoryBrowser
+            browseError={workspaces.browseError}
+            currentPath={workspaces.currentPath}
+            entries={workspaces.entries}
+            homePath={workspaces.home}
+            isBrowsing={workspaces.isBrowsing}
+            isPicked={workspaces.isAdded}
+            onGoHome={workspaces.goHome}
+            onGoParent={workspaces.goToParent}
+            onNavigate={workspaces.navigateTo}
+            onPick={path => void workspaces.addWorkspace(path)}
+            parentPath={workspaces.parent}
+            pickPending={workspaces.isResolving}
+            pickRowLabel={name => `Add ${name} as a workspace`}
+            testIdPrefix="onboarding-directory-browser"
+          />
           {workspaces.resolveError ? (
             <p
               className="mt-2 text-form-hint text-danger"

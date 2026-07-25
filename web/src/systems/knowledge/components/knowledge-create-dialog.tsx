@@ -2,15 +2,19 @@ import { BookOpen, ClipboardList, MessageSquare, Plus, Tag } from "lucide-react"
 import { useState } from "react";
 
 import {
-  Button,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  dialogShellClass,
+  EntityDialogBody,
+  EntityDialogFooter,
+  EntityDialogHeader,
+  Eyebrow,
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FormSection,
   Input,
-  Label,
   RadioCard,
   Textarea,
 } from "@agh/ui";
@@ -116,112 +120,116 @@ function KnowledgeCreateDialog({
   return (
     <Dialog onOpenChange={updateDialogOpen} open={open}>
       <DialogContent
-        className="grid-rows-[auto_minmax(0,1fr)_auto_auto] max-h-[min(var(--height-modal-tall),calc(100vh-2rem))] gap-0 overflow-hidden p-0 sm:max-w-2xl"
+        className={`grid-rows-[auto_minmax(0,1fr)_auto_auto] ${dialogShellClass("sm")}`}
         data-testid="knowledge-create-dialog"
         showCloseButton={false}
+        unframed
       >
-        <DialogHeader className="gap-2 border-b border-line px-5 py-4" variant="ruled">
-          <DialogTitle>Create knowledge entry</DialogTitle>
-          <DialogDescription>
-            Add knowledge in the {scope} scope through the controller. The entry is recorded as a
-            decision and becomes available to matching future recall.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="min-h-0 overflow-y-auto px-5 py-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label className="eyebrow text-muted" htmlFor="knowledge-create-name">
-                Type
-              </Label>
-              <div
-                aria-label="Knowledge type"
-                className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-                data-testid="knowledge-create-type-grid"
-                role="radiogroup"
-              >
-                {TYPE_OPTIONS.map(option => (
-                  <RadioCard
-                    data-testid={`knowledge-create-type-${option.value}`}
-                    description={option.description}
-                    icon={option.icon}
-                    key={option.value}
-                    onSelect={() => setSelectedType(option.value)}
-                    selected={type === option.value}
-                    title={option.title}
-                  />
-                ))}
-              </div>
+        <EntityDialogHeader
+          description={`Add knowledge in the ${scope} scope. The entry is recorded as a decision and becomes available to matching future recall.`}
+          eyebrow="Catalog · Knowledge"
+          icon={BookOpen}
+          onClose={() => updateDialogOpen(false)}
+          title="Create knowledge entry"
+        />
+        <EntityDialogBody className="flex flex-col gap-4">
+          <FormSection
+            description="The form decides how agents consume it."
+            size="compact"
+            title="What kind of knowledge?"
+          >
+            <div
+              aria-label="Knowledge type"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+              data-testid="knowledge-create-type-grid"
+              role="radiogroup"
+            >
+              {TYPE_OPTIONS.map(option => (
+                <RadioCard
+                  data-testid={`knowledge-create-type-${option.value}`}
+                  description={option.description}
+                  icon={option.icon}
+                  key={option.value}
+                  onSelect={() => setSelectedType(option.value)}
+                  selected={type === option.value}
+                  title={option.title}
+                />
+              ))}
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="eyebrow text-muted" htmlFor="knowledge-create-name">
-                Name
-              </Label>
-              <Input
-                data-testid="knowledge-create-name"
-                id="knowledge-create-name"
-                onChange={event => setName(event.target.value)}
-                placeholder="Canonical knowledge name"
-                value={name}
-              />
+          </FormSection>
+          <FormSection
+            description="A stable name and a retrieval-friendly description help agents find it."
+            size="compact"
+            title="The content"
+          >
+            <div className="flex flex-col gap-4">
+              <Field>
+                <FieldContent>
+                  <FieldLabel htmlFor="knowledge-create-name">
+                    Name
+                    <Eyebrow className="ml-1.5 text-accent-strong">required</Eyebrow>
+                  </FieldLabel>
+                </FieldContent>
+                <Input
+                  className="font-mono"
+                  data-testid="knowledge-create-name"
+                  id="knowledge-create-name"
+                  onChange={event => setName(event.target.value)}
+                  placeholder="Canonical knowledge name"
+                  value={name}
+                />
+              </Field>
+              <Field>
+                <FieldContent>
+                  <FieldLabel htmlFor="knowledge-create-description">Description</FieldLabel>
+                  <FieldDescription>What should retrieval match?</FieldDescription>
+                </FieldContent>
+                <Input
+                  data-testid="knowledge-create-description"
+                  id="knowledge-create-description"
+                  onChange={event => setDescription(event.target.value)}
+                  placeholder="Optional summary"
+                  value={description}
+                />
+              </Field>
+              <Field>
+                <FieldContent>
+                  <FieldLabel htmlFor="knowledge-create-content">
+                    Content
+                    <Eyebrow className="ml-1.5 text-accent-strong">required</Eyebrow>
+                  </FieldLabel>
+                </FieldContent>
+                <Textarea
+                  className="h-60 font-mono text-small-body"
+                  data-testid="knowledge-create-content"
+                  id="knowledge-create-content"
+                  onChange={event => setContent(event.target.value)}
+                  value={content}
+                />
+              </Field>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="eyebrow text-muted" htmlFor="knowledge-create-description">
-                Description
-              </Label>
-              <Input
-                data-testid="knowledge-create-description"
-                id="knowledge-create-description"
-                onChange={event => setDescription(event.target.value)}
-                placeholder="Optional summary"
-                value={description}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="eyebrow text-muted" htmlFor="knowledge-create-content">
-                Content
-              </Label>
-              <Textarea
-                className="h-60 font-mono text-small-body"
-                data-testid="knowledge-create-content"
-                id="knowledge-create-content"
-                onChange={event => setContent(event.target.value)}
-                value={content}
-              />
-            </div>
-          </div>
-        </div>
+          </FormSection>
+        </EntityDialogBody>
         {error ? (
           <div
-            className="border-t border-line px-5 py-3 text-xs text-danger"
+            className="border-t border-line px-6 py-3 text-xs text-danger"
             data-testid="knowledge-create-dialog-error"
+            role="alert"
           >
             {error}
           </div>
         ) : null}
-        <DialogFooter
-          className="mx-0 mb-0 rounded-b-xl border-t border-line bg-transparent px-5 py-3"
-          variant="ruled"
-        >
-          <Button
-            data-testid="cancel-create-memory-btn"
-            onClick={() => updateDialogOpen(false)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            Cancel
-          </Button>
-          <Button
-            data-testid="confirm-create-memory-btn"
-            disabled={submitDisabled}
-            onClick={handleSubmit}
-            size="sm"
-            type="button"
-          >
-            <Plus className="size-3" />
-            Create
-          </Button>
-        </DialogFooter>
+        <EntityDialogFooter
+          cancelTestId="cancel-create-memory-btn"
+          hint={`Stays scoped to ${scope} — other scopes never retrieve it.`}
+          isSaving={isPending}
+          onCancel={() => updateDialogOpen(false)}
+          onPrimary={handleSubmit}
+          primaryDisabled={submitDisabled}
+          primaryIcon={Plus}
+          primaryLabel="Create entry"
+          primaryTestId="confirm-create-memory-btn"
+        />
       </DialogContent>
     </Dialog>
   );
