@@ -260,6 +260,9 @@ func (r *Resolver) rollbackDeleteWorkspace(ctx context.Context, workspaceID stri
 
 // Invalidate deletes one workspace snapshot from the in-memory cache.
 func (r *Resolver) Invalidate(workspaceID string) {
+	if r == nil {
+		return
+	}
 	trimmedID := strings.TrimSpace(workspaceID)
 	if trimmedID == "" {
 		return

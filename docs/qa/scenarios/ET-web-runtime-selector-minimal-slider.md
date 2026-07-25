@@ -17,3 +17,6 @@ overlaps: RT-068;RT-072;RT-071;RT-064;RT-061
 ---
 
 Added by the 2026-07-22 runtime-selector redesign (reference: docs/design/opendesign/_done/agents/provider-model-reasoning-selector.html). Trigger segments, deep-link focus routing, and the component-scoped ⌘J shortcut are deleted; the reasoning strip is replaced by the slider; `none` is no longer a selectable effort from the web UI.
+
+QA impact 2026-07-25 (deep-review remediation): every slider thumb now has an accessible label,
+including multi-thumb use. Flag only; the next QA cycle owns screen-reader and keyboard retesting.

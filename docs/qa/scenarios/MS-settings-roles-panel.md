@@ -39,3 +39,6 @@ force-opens on a daemon diagnostic or a save-blocking validation error. Fallback
 selector per entry with a single "Choose a provider and model." error. The next QA cycle owns
 expand/collapse behavior, keyboard reach across rows, runtime-selector commit inside the settings
 scroll container, out-of-catalog agent display, and Live save/reload through the new controls.
+
+QA impact 2026-07-25 (deep-review remediation): role validation now reports invalid fields against
+the owning role consistently. Flag only; the next QA cycle owns save-blocking focus and recovery.

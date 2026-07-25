@@ -32,3 +32,8 @@ together from one `RuntimeSelector` (a model pick pins both provider and model) 
 override action for inherit. Split provider-only / model-only overrides remain expressible through
 `config.toml`, the CLI, and the API. The next QA cycle owns Web-versus-CLI parity for those partial
 routes.
+
+QA impact 2026-07-25 (deep-review remediation): disabled roles now return a disabled routing
+decision before catalog or provider resolution, structured JSON config writes preserve integer
+values, and direct ACP roles accept an empty model. Flag only; the next QA cycle owns live
+global/workspace and CLI/native-tool parity retesting.

@@ -44,15 +44,7 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 		}
 		promptOverlay = joinPromptOverlays(taskOverlay, promptOverlay)
 	}
-	role := ResolvedRole{
-		Role:            aghconfig.RoleCoordinator,
-		AgentName:       cfg.AgentName,
-		Provider:        cfg.Provider,
-		Model:           cfg.Model,
-		ReasoningEffort: cfg.ReasoningEffort,
-		Fallbacks:       append([]aghconfig.RoleFallback(nil), cfg.Fallbacks...),
-	}
-	role.eventWriter = r.roleEvents
+	role := coordinatorInvocationRole(cfg, r.roleEvents)
 	correlation := roleInvocationCorrelationFromContext(ctx, decision.WorkspaceID)
 	created, err := invokeRoleWithFallback(ctx, role, correlation, func(
 		attemptCtx context.Context,
@@ -101,10 +93,33 @@ func (r *coordinatorRuntime) stopFailedCoordinatorSession(
 	if info == nil || strings.TrimSpace(info.ID) == "" {
 		return errors.New("daemon: accepted coordinator session returned no cleanup identity")
 	}
+	return r.stopCoordinatorSessionWithCause(ctx, info.ID, cause.Error())
+}
+
+func coordinatorInvocationRole(
+	cfg aghconfig.ResolvedCoordinatorRole,
+	events roleEventSummaryWriter,
+) ResolvedRole {
+	return ResolvedRole{
+		Role:            aghconfig.RoleCoordinator,
+		AgentName:       cfg.AgentName,
+		Provider:        cfg.Provider,
+		Model:           cfg.Model,
+		ReasoningEffort: cfg.ReasoningEffort,
+		Fallbacks:       append([]aghconfig.RoleFallback(nil), cfg.Fallbacks...),
+		eventWriter:     events,
+	}
+}
+
+func (r *coordinatorRuntime) stopCoordinatorSessionWithCause(ctx context.Context, sessionID string, detail string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return errors.New("daemon: accepted coordinator session returned no cleanup identity")
+	}
 	stopCtx, cancel := detachedDaemonOperationContext(ctx, coordinatorRuntimeCleanupTimeout)
 	defer cancel()
-	if err := r.sessions.StopWithCause(stopCtx, info.ID, session.CauseFailed, cause.Error()); err != nil {
-		return fmt.Errorf("daemon: stop failed coordinator session %q: %w", info.ID, err)
+	if err := r.sessions.StopWithCause(stopCtx, sessionID, session.CauseFailed, detail); err != nil {
+		return fmt.Errorf("daemon: stop coordinator session %q: %w", sessionID, err)
 	}
 	return nil
 }

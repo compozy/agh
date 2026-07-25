@@ -228,6 +228,15 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 		aghcontract.DuplicateAgentRequest{Name: "coordinator"},
 	)
 	assertReservedAgentHTTPError(t, duplicate)
+	input, err := json.Marshal(map[string]string{
+		"scope":     "workspace",
+		"workspace": harness.WorkspaceRoot,
+		"name":      "coordinator",
+		"prompt":    "Reserved native create.",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(native reserved create) error = %v", err)
+	}
 	native := agentDefinitionE2EToolRequestError(
 		t,
 		ctx,
@@ -235,9 +244,7 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 		harness.HTTPURL("/api/tools/agh__agent_create/invoke"),
 		aghcontract.ToolInvokeRequest{
 			WorkspaceID: harness.WorkspaceID,
-			Input: json.RawMessage(
-				`{"scope":"workspace","workspace":"` + harness.WorkspaceRoot + `","name":"coordinator","prompt":"Reserved native create."}`,
-			),
+			Input:       input,
 		},
 	)
 	if native.Status != http.StatusUnprocessableEntity ||
@@ -245,7 +252,7 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 		t.Fatalf("native reserved create = %#v, want 422 agent_name_reserved", native)
 	}
 
-	for _, name := range []string{"coordinator", "dreaming-curator"} {
+	for _, name := range aghconfig.BuiltinAgentNames() {
 		path := filepath.Join(harness.HomePaths.AgentsDir, name)
 		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("os.Stat(%q) error = %v, want os.ErrNotExist", path, err)

@@ -86,6 +86,7 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	a.state.cfg = next
 	a.daemon.config = next
 	a.daemon.mu.Unlock()
+	// Drop cached workspace overlays so role and status resolution sees the applied global config.
 	if a.state.workspaceResolver != nil {
 		a.state.workspaceResolver.InvalidateAll()
 	}

@@ -464,13 +464,7 @@ func resourceSourceFromInput(rawKind string, rawID string, path string) (resourc
 
 func nativeBundleToolError(id toolspkg.ToolID, err error) error {
 	if errors.Is(err, aghconfig.ErrAgentNameReserved) {
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeAgentNameReserved,
-			id,
-			err.Error(),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonSchemaInvalid,
-		)
+		return nativeReservedAgentNameToolError(id, err)
 	}
 	return nativeHTTPStatusToolError(id, err, core.StatusForBundleError(err))
 }

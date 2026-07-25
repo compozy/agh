@@ -258,13 +258,7 @@ func (n *daemonNativeTools) agentCreateRequest(
 func nativeAgentCreateToolError(id toolspkg.ToolID, err error) error {
 	switch {
 	case errors.Is(err, aghconfig.ErrAgentNameReserved):
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeAgentNameReserved,
-			id,
-			err.Error(),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonSchemaInvalid,
-		)
+		return nativeReservedAgentNameToolError(id, err)
 	case errors.Is(err, aghconfig.ErrAgentDefinitionExists):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeConflict,
@@ -284,4 +278,14 @@ func nativeAgentCreateToolError(id toolspkg.ToolID, err error) error {
 	default:
 		return nativeNetworkInputError(id, err)
 	}
+}
+
+func nativeReservedAgentNameToolError(id toolspkg.ToolID, err error) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeAgentNameReserved,
+		id,
+		err.Error(),
+		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+		toolspkg.ReasonSchemaInvalid,
+	)
 }

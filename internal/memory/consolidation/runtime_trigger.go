@@ -43,7 +43,7 @@ func (r *Runtime) Trigger(ctx context.Context, workspace string) (bool, string, 
 			return false, dreamGatesNotSatisfiedReason, nil
 		}
 		if errors.Is(err, memory.ErrDreamRoleDisabled) {
-			return false, "dream role is disabled for the selected workspace", nil
+			return false, "dream role is disabled", nil
 		}
 		return false, "", err
 	}

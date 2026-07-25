@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ConfirmDialog } from "@agh/ui";
 
 import type { WindowManagerLayoutProfilesModel } from "../../hooks/use-window-manager-layout-profiles";
+import { isSelectedLayoutProfile } from "../../lib/window-manager-layout-profile-key";
 import type { WindowManagerLayoutDocument } from "../../lib/window-manager-layout-types";
 import { LayoutProfileCard } from "./layout-profile-card";
 import { LayoutProfileEditor } from "./layout-profile-editor";
@@ -28,7 +29,7 @@ export function LayoutProfileGrid({ editor, document }: LayoutProfileGridProps) 
           <LayoutProfileCard
             key={`${record.scope.kind}:${record.scope.id}:${record.id}`}
             record={record}
-            selected={editor.selected?.id === record.id}
+            selected={isSelectedLayoutProfile(editor.selectedKey, record)}
             onDelete={() => {
               editor.selectProfile(record);
               editor.requestDelete();

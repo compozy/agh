@@ -19,3 +19,7 @@ overlaps: ET-window-manager-layout-recovery; ET-window-manager-layout-gestures
 story: As an operator, I can tune window behavior and layouts without accepting a partial or internally conflicting runtime configuration.
 
 qa-impact: 2026-07-22 replaced storage-limit settings with validated behavior defaults, shortcuts, bindings, gaps, snap thresholds, and declarative layout editing; 2026-07-24 added `window_manager.swap_modifier` (default `shift`) across config.toml, settings PATCH, Settings UI, and web gesture resolution; 2026-07-24 rebuilt Settings › Layouts as a direct-manipulation surface (canvas + inspector + docked review gate, diagram choice cards, gap box, snap map, repeat-width track, chord recorder, saved-layout cards) and added the `agh layout-profile` CLI verbs. Flag only; the next QA cycle owns live retesting.
+
+QA impact 2026-07-25 (deep-review remediation): ratio-track controls now keep stable semantic
+identity and layout JSON export removes its temporary anchor after download. Flag only; the next QA
+cycle owns direct-manipulation and import/export retesting.

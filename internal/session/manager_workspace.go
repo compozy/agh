@@ -234,8 +234,9 @@ func builtinSessionAgentDef(agentName string, sessionType Type) (aghconfig.Agent
 	default:
 		return aghconfig.AgentDef{}, false
 	}
-	if strings.TrimSpace(agentName) != expectedName {
+	def, ok := aghconfig.BuiltinAgentDef(agentName)
+	if !ok || def.Name != expectedName {
 		return aghconfig.AgentDef{}, false
 	}
-	return aghconfig.BuiltinAgentDef(agentName)
+	return def, true
 }

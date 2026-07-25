@@ -20,6 +20,7 @@ vi.mock("../../adapters/window-manager-layouts-api", () => ({
 }));
 
 import { useWindowManagerLayoutProfiles } from "../use-window-manager-layout-profiles";
+import { settingsKeys } from "../../lib/query-keys";
 import type {
   WindowManagerLayoutDocument,
   WindowManagerLayoutResourceRecord,
@@ -69,7 +70,7 @@ function renderProfiles(draftDirty: boolean) {
       }),
     { wrapper }
   );
-  return { ...view, loaded };
+  return { ...view, loaded, queryClient };
 }
 
 describe("useWindowManagerLayoutProfiles", () => {
@@ -171,5 +172,35 @@ describe("useWindowManagerLayoutProfiles", () => {
     expect(result.current.aspect).toBe("any");
     expect(result.current.overflow).toBe("stack");
     expect(result.current.pendingDelete).toBe(null);
+  });
+
+  it("Should preserve the current version and replace the previous scoped cache identity on save", async () => {
+    const workspaceRecord = {
+      ...RECORD,
+      scope: { kind: "workspace" as const, id: "workspace-a" },
+      version: 5,
+    };
+    apiMocks.putProfile.mockResolvedValue(workspaceRecord);
+    const { result, queryClient } = renderProfiles(false);
+    queryClient.setQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"), [RECORD]);
+
+    act(() => {
+      result.current.selectProfile(RECORD);
+      result.current.setScope("workspace");
+    });
+
+    await act(async () => {
+      await result.current.save.mutateAsync();
+    });
+
+    expect(apiMocks.putProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "two-up-review" }),
+      "workspace",
+      "workspace-a",
+      4
+    );
+    expect(
+      queryClient.getQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"))
+    ).toEqual([workspaceRecord]);
   });
 });

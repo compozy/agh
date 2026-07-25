@@ -33,6 +33,26 @@ export function roleFromFieldId(id: string): string {
  */
 export function collectRoleValidationErrors(config: SettingsRolesConfig): RoleFieldError[] {
   const errors: RoleFieldError[] = [];
+  const numericFields = [
+    ["coordinator", "max_children", config.coordinator.max_children],
+    [
+      "coordinator",
+      "max_active_sessions_per_workspace",
+      config.coordinator.max_active_sessions_per_workspace,
+    ],
+    ["memory_controller", "top_k", config.memory_controller.top_k],
+    ["memory_controller", "max_tokens_out", config.memory_controller.max_tokens_out],
+  ] as const;
+  for (const [role, field, value] of numericFields) {
+    const id = roleFieldId(role, field);
+    if (!Number.isSafeInteger(value)) {
+      errors.push({ id, message: "Enter a safely representable whole number." });
+      continue;
+    }
+    if (value < 1) {
+      errors.push({ id, message: "Value must be 1 or greater." });
+    }
+  }
   for (const role of ROLE_ORDER) {
     config[role].fallback_chain.forEach((entry, index) => {
       const id = fallbackFieldId(role, index);

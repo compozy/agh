@@ -69,20 +69,20 @@ func TestRoleStatusProjection(t *testing.T) {
 
 		global := roleResolverConfig()
 		global.Roles.Dream.Model = "global-model"
-		global.RoleSources[aghconfig.RoleDream][roleFieldModel] = aghconfig.RoleFieldSourceGlobal
+		global.RoleSources[aghconfig.RoleDream][aghconfig.RoleFieldModel] = aghconfig.RoleFieldSourceGlobal
 		resolver := newRoleResolver(&global, nil, nil)
 		globalStatus, err := resolver.RoleStatus(t.Context(), "", string(aghconfig.RoleDream))
 		if err != nil {
 			t.Fatalf("RoleStatus(global dream) error = %v", err)
 		}
-		if got := globalStatus.Provenance[roleFieldModel]; got != aghconfig.RoleFieldSourceGlobal {
+		if got := globalStatus.Provenance[aghconfig.RoleFieldModel]; got != aghconfig.RoleFieldSourceGlobal {
 			t.Fatalf("RoleStatus(global dream) model source = %q, want global", got)
 		}
 
 		workspace := global
 		workspace.RoleSources = aghconfig.CloneRoleFieldSources(global.RoleSources)
 		workspace.Roles.Dream.Model = "workspace-model"
-		workspace.RoleSources[aghconfig.RoleDream][roleFieldModel] = aghconfig.RoleFieldSourceWorkspace
+		workspace.RoleSources[aghconfig.RoleDream][aghconfig.RoleFieldModel] = aghconfig.RoleFieldSourceWorkspace
 		resolver = newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]aghconfig.Config{
 			"ws-role-status": workspace,
 		}}, nil)
@@ -94,7 +94,7 @@ func TestRoleStatusProjection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RoleStatus(workspace dream) error = %v", err)
 		}
-		if got := workspaceStatus.Provenance[roleFieldModel]; got != aghconfig.RoleFieldSourceWorkspace {
+		if got := workspaceStatus.Provenance[aghconfig.RoleFieldModel]; got != aghconfig.RoleFieldSourceWorkspace {
 			t.Fatalf("RoleStatus(workspace dream) model source = %q, want workspace", got)
 		}
 	})
@@ -117,13 +117,13 @@ func assertRoleStatusProvenance(t *testing.T, status contract.RoleStatus) {
 		name    string
 		present bool
 	}{
-		{name: roleFieldEnabled, present: true},
-		{name: "fallback_chain", present: true},
-		{name: "agent", present: status.Agent != nil},
-		{name: "provider", present: status.Provider != nil},
-		{name: "model", present: status.Model != nil},
-		{name: "reasoning_effort", present: status.ReasoningEffort != nil},
-		{name: "timeout", present: status.Timeout != nil},
+		{name: aghconfig.RoleFieldEnabled, present: true},
+		{name: aghconfig.RoleFieldFallbacks, present: true},
+		{name: daemonAgentField, present: status.Agent != nil},
+		{name: aghconfig.RoleFieldProvider, present: status.Provider != nil},
+		{name: aghconfig.RoleFieldModel, present: status.Model != nil},
+		{name: aghconfig.RoleFieldReasoning, present: status.ReasoningEffort != nil},
+		{name: roleFieldTimeout, present: status.Timeout != nil},
 	} {
 		source, exists := status.Provenance[field.name]
 		if exists != field.present {

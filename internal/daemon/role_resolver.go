@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
@@ -15,11 +14,6 @@ import (
 const (
 	roleErrorUnknown       = contract.CodeRoleUnknown
 	roleErrorAgentNotFound = contract.CodeRoleAgentNotFound
-	roleFieldEnabled       = "enabled"
-	roleFieldProvider      = "provider"
-	roleFieldModel         = "model"
-	roleFieldReasoning     = "reasoning_effort"
-	roleFieldFallbackChain = "fallback_chain"
 	roleFieldTimeout       = "timeout"
 )
 
@@ -133,10 +127,14 @@ func (r *roleResolver) resolveEffective(
 		Role:            role,
 		Enabled:         common.Enabled,
 		Fallbacks:       append([]aghconfig.RoleFallback(nil), common.FallbackChain...),
-		Provenance:      roleProvenance(role, effectiveConfig, r.config, resolvedWorkspace != nil),
+		Provenance:      roleProvenance(role, effectiveConfig),
 		Provider:        strings.TrimSpace(common.Provider),
 		Model:           strings.TrimSpace(common.Model),
 		ReasoningEffort: strings.TrimSpace(common.ReasoningEffort),
+	}
+	if !resolved.Enabled {
+		populateDisabledRoleIdentity(role, common, &resolved)
+		return resolved, effectiveConfig, nil
 	}
 
 	agentName := strings.TrimSpace(common.Agent)
@@ -167,6 +165,25 @@ func (r *roleResolver) resolveEffective(
 		return ResolvedRole{}, nil, fmt.Errorf("daemon: resolve %s role runtime: %w", role, err)
 	}
 	return resolved, effectiveConfig, nil
+}
+
+func populateDisabledRoleIdentity(
+	role aghconfig.RoleName,
+	common aghconfig.RoleConfig,
+	resolved *ResolvedRole,
+) {
+	if resolved == nil {
+		return
+	}
+	agentName := strings.TrimSpace(common.Agent)
+	if agentName == "" {
+		agentName, resolved.Inherit = defaultRoleIdentity(role)
+	}
+	if builtin, ok := aghconfig.BuiltinAgentDef(agentName); ok {
+		resolved.AgentName = agentName
+		resolved.AgentDef = builtin
+		resolved.Builtin = true
+	}
 }
 
 func (r *roleResolver) effectiveRoleConfig(
@@ -295,25 +312,13 @@ func defaultRoleIdentity(role aghconfig.RoleName) (string, bool) {
 func roleProvenance(
 	role aghconfig.RoleName,
 	effective *aghconfig.Config,
-	global *aghconfig.Config,
-	hasWorkspace bool,
 ) map[string]string {
-	defaults := aghconfig.DefaultRolesConfig()
 	effectiveFields := roleFields(role, &effective.Roles)
-	globalFields := roleFields(role, &global.Roles)
-	defaultFields := roleFields(role, &defaults)
 	provenance := make(map[string]string, len(effectiveFields))
-	for field, value := range effectiveFields {
-		if source := effective.RoleFieldSource(role, field); source == aghconfig.RoleFieldSourceWorkspace ||
-			source == aghconfig.RoleFieldSourceGlobal {
-			provenance[field] = source
-			continue
-		}
-		source := aghconfig.RoleFieldSourceDefault
-		if hasWorkspace && !reflect.DeepEqual(value, globalFields[field]) {
-			source = aghconfig.RoleFieldSourceWorkspace
-		} else if !reflect.DeepEqual(globalFields[field], defaultFields[field]) {
-			source = aghconfig.RoleFieldSourceGlobal
+	for field := range effectiveFields {
+		source := effective.RoleFieldSource(role, field)
+		if source == "" {
+			source = aghconfig.RoleFieldSourceDefault
 		}
 		provenance[field] = source
 	}
@@ -326,12 +331,12 @@ func roleFields(role aghconfig.RoleName, roles *aghconfig.RolesConfig) map[strin
 		return nil
 	}
 	fields := map[string]any{
-		roleFieldEnabled:       common.Enabled,
-		daemonAgentField:       common.Agent,
-		roleFieldProvider:      common.Provider,
-		roleFieldModel:         common.Model,
-		roleFieldReasoning:     common.ReasoningEffort,
-		roleFieldFallbackChain: common.FallbackChain,
+		aghconfig.RoleFieldEnabled:   common.Enabled,
+		daemonAgentField:             common.Agent,
+		aghconfig.RoleFieldProvider:  common.Provider,
+		aghconfig.RoleFieldModel:     common.Model,
+		aghconfig.RoleFieldReasoning: common.ReasoningEffort,
+		aghconfig.RoleFieldFallbacks: common.FallbackChain,
 	}
 	if role == aghconfig.RoleCoordinator {
 		fields["ttl"] = roles.Coordinator.TTL

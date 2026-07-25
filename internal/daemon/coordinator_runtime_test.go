@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/coordinator"
+	eventspkg "github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
@@ -175,7 +176,7 @@ func TestCoordinatorRuntimeEmitsRoleFallbackEvents(t *testing.T) {
 			t.Fatalf("coordinator route attempts = %#v, want codex then claude", attempts)
 		}
 		event := events.single(t)
-		if event.Type != "role.fallback.used" || event.WorkspaceID != "ws-1" {
+		if event.Type != eventspkg.RoleFallbackUsed || event.WorkspaceID != "ws-1" {
 			t.Fatalf("coordinator fallback event = %#v", event)
 		}
 		var payload roleFallbackEventPayload

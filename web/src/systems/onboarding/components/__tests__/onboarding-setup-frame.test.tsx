@@ -81,11 +81,15 @@ describe("OnboardingSetupFrame", () => {
     );
   });
 
-  it("Should show a busy Finish setup that cannot be pressed twice", () => {
+  it("Should lock every setup action while Finish setup is busy", async () => {
+    const user = userEvent.setup();
     const next = vi.fn();
+    const goToStep = vi.fn();
     render(
       <OnboardingSetupFrame
-        wizard={onboardingWizardFixture({ wizard: { step: 2, maxStep: 2, isBusy: true, next } })}
+        wizard={onboardingWizardFixture({
+          wizard: { step: 2, maxStep: 2, isBusy: true, next, goToStep },
+        })}
       />
     );
 
@@ -93,6 +97,11 @@ describe("OnboardingSetupFrame", () => {
     expect(finish).toHaveTextContent("Finish setup");
     expect(finish).toBeDisabled();
     expect(finish.querySelector('[role="status"][aria-label="Loading"]')).not.toBeNull();
+
+    const previousStep = screen.getByTestId("onboarding-step-1");
+    expect(previousStep).toBeDisabled();
+    await user.click(previousStep);
+    expect(goToStep).not.toHaveBeenCalled();
   });
 
   it("Should not close on Escape or an outside press", async () => {

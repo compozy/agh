@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -153,6 +154,20 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject non-positive coordinator active session caps", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []int{0, -1} {
+			cfg := DefaultRolesConfig()
+			cfg.Coordinator.MaxActiveSessionsPerWorkspace = value
+			err := cfg.Validate("roles", &Config{})
+			if err == nil || !strings.Contains(err.Error(), "roles.coordinator.max_active_sessions_per_workspace") ||
+				!strings.Contains(err.Error(), "must be positive") {
+				t.Errorf("Validate(max_active_sessions_per_workspace=%d) error = %v, want positive bound", value, err)
+			}
+		}
+	})
+
 	t.Run("Should require a provider for every fallback", func(t *testing.T) {
 		t.Parallel()
 
@@ -215,6 +230,31 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		err := cfg.Validate("roles", &Config{})
 		if err == nil || !strings.Contains(err.Error(), "roles.memory_controller.timeout must be positive") {
 			t.Fatalf("Validate() error = %v, want controller timeout error", err)
+		}
+	})
+}
+
+func TestLoadAllowsDirectACPCoordinatorWithoutModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should allow a direct ACP coordinator without a model", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, "[roles.coordinator]\nprovider = \"opencode\"\n")
+
+		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(t.TempDir()))
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if got := cfg.Roles.Coordinator.Model; got != "" {
+			t.Fatalf("LoadForHome() coordinator model = %q, want empty for direct ACP", got)
 		}
 	})
 }

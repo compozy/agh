@@ -61,44 +61,61 @@ func (t *daemonMemoryControllerTiebreaker) BreakTie(
 	if t.invoker == nil {
 		return controller.TiebreakerResult{}, errors.New("daemon: transient model invoker is required")
 	}
-	options, prompt, maxOutputBytes, cwd, err := t.prepareCall(ctx, request)
+	prepared, err := t.prepareCall(ctx, request)
 	if err != nil {
 		return controller.TiebreakerResult{}, err
 	}
 
-	callCtx, cancel := memoryControllerCallContext(ctx, options.Timeout, options.Config.Memory.Controller.MaxLatency)
+	callCtx, cancel := memoryControllerCallContext(
+		ctx,
+		prepared.options.Timeout,
+		prepared.options.Config.Memory.Controller.MaxLatency,
+	)
 	defer cancel()
 	startedAt := time.Now()
 	lastRoute := roleAttemptRoute{
-		Provider:        options.Provider,
-		Model:           options.Model,
-		ReasoningEffort: options.ReasoningEffort,
+		Provider:        prepared.options.resolvedRole.Provider,
+		Model:           prepared.options.resolvedRole.Model,
+		ReasoningEffort: prepared.options.resolvedRole.ReasoningEffort,
 	}
 	invocation, invokeErr := invokeRoleWithFallback(
 		callCtx,
-		options.resolvedRole,
+		prepared.options.resolvedRole,
 		memoryControllerCorrelation(request.Candidate),
 		func(attemptCtx context.Context, route roleAttemptRoute) (memoryControllerInvocation, bool, error) {
 			lastRoute = route
 			result, callErr := t.invoker.InvokeTransientModel(attemptCtx, session.TransientModelCall{
-				Config:          &options.Config,
+				Config:          &prepared.options.Config,
 				Provider:        route.Provider,
 				Model:           route.Model,
 				ReasoningEffort: route.ReasoningEffort,
-				CWD:             cwd,
-				Prompt:          prompt,
-				MaxOutputBytes:  maxOutputBytes,
+				CWD:             prepared.cwd,
+				Prompt:          prepared.prompt,
+				MaxOutputBytes:  prepared.maxOutputBytes,
 			})
 			return memoryControllerInvocation{route: route, result: result}, result.Accepted, callErr
 		},
 	)
-	return memoryControllerResult(invocation, lastRoute, options.PromptVersion, startedAt, invokeErr)
+	return memoryControllerResult(
+		invocation,
+		lastRoute,
+		prepared.options.PromptVersion,
+		startedAt,
+		invokeErr,
+	)
+}
+
+type memoryControllerPreparedCall struct {
+	options        memoryControllerCallOptions
+	prompt         string
+	maxOutputBytes int
+	cwd            string
 }
 
 func (t *daemonMemoryControllerTiebreaker) prepareCall(
 	ctx context.Context,
 	request controller.TiebreakerRequest,
-) (memoryControllerCallOptions, string, int, string, error) {
+) (memoryControllerPreparedCall, error) {
 	roles := t.roles
 	if t.configSnapshot != nil {
 		cfg := t.configSnapshot()
@@ -106,24 +123,29 @@ func (t *daemonMemoryControllerTiebreaker) prepareCall(
 	}
 	options, err := roles.resolveMemoryControllerCallOptions(ctx, request.Candidate.WorkspaceID)
 	if err != nil {
-		return memoryControllerCallOptions{}, "", 0, "", err
+		return memoryControllerPreparedCall{}, err
 	}
-	if !options.Enabled {
-		return memoryControllerCallOptions{}, "", 0, "", controller.ErrTiebreakerDisabled
+	if !options.resolvedRole.Enabled {
+		return memoryControllerPreparedCall{}, controller.ErrTiebreakerDisabled
 	}
 	prompt, err := renderMemoryControllerPrompt(request, options.TopK, options.PromptVersion)
 	if err != nil {
-		return memoryControllerCallOptions{}, "", 0, "", err
+		return memoryControllerPreparedCall{}, err
 	}
 	maxOutputBytes, err := memoryControllerOutputBytes(options.MaxTokensOut)
 	if err != nil {
-		return memoryControllerCallOptions{}, "", 0, "", err
+		return memoryControllerPreparedCall{}, err
 	}
 	cwd, err := t.resolveCWD(ctx, request.Candidate.WorkspaceID)
 	if err != nil {
-		return memoryControllerCallOptions{}, "", 0, "", err
+		return memoryControllerPreparedCall{}, err
 	}
-	return options, prompt, maxOutputBytes, cwd, nil
+	return memoryControllerPreparedCall{
+		options:        options,
+		prompt:         prompt,
+		maxOutputBytes: maxOutputBytes,
+		cwd:            cwd,
+	}, nil
 }
 
 func memoryControllerResult(

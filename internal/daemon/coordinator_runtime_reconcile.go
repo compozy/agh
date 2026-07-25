@@ -104,12 +104,7 @@ func (r *coordinatorRuntime) cleanupCreatedCoordinatorSession(
 	if sessionID == "" {
 		return nil
 	}
-	stopCtx, cancel := detachedDaemonOperationContext(ctx, coordinatorRuntimeCleanupTimeout)
-	defer cancel()
-	if err := r.sessions.StopWithCause(stopCtx, sessionID, session.CauseFailed, detail); err != nil {
-		return fmt.Errorf("daemon: stop coordinator session %q: %w", sessionID, err)
-	}
-	return nil
+	return r.stopCoordinatorSessionWithCause(ctx, sessionID, detail)
 }
 
 func (r *coordinatorRuntime) createCoordinatorSession(

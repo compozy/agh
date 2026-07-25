@@ -1006,60 +1006,48 @@ func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 
 func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 	t.Parallel()
+	t.Run("Should skip reserved identities and emit named diagnostics", func(t *testing.T) {
+		t.Parallel()
 
-	homePaths := newTestHomePaths(t)
-	root := t.TempDir()
-	writeAgentDef(
-		t,
-		filepath.Join(
-			root,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
-			aghconfig.BuiltinCoordinatorAgentName,
-			agentDefinitionFile,
-		),
-		aghconfig.BuiltinCoordinatorAgentName,
-		"shadowed-coordinator",
-	)
-	writeAgentDef(
-		t,
-		filepath.Join(homePaths.AgentsDir, aghconfig.BuiltinDreamingCuratorAgentName, agentDefinitionFile),
-		aghconfig.BuiltinDreamingCuratorAgentName,
-		"shadowed-curator",
-	)
-	writeAgentDef(
-		t,
-		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "alias", agentDefinitionFile),
-		aghconfig.BuiltinCoordinatorAgentName,
-		"aliased-coordinator",
-	)
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		writeAgentDef(t, filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, aghconfig.BuiltinCoordinatorAgentName, agentDefinitionFile), aghconfig.BuiltinCoordinatorAgentName, "shadowed-coordinator")
+		writeAgentDef(t, filepath.Join(homePaths.AgentsDir, aghconfig.BuiltinDreamingCuratorAgentName, agentDefinitionFile), aghconfig.BuiltinDreamingCuratorAgentName, "shadowed-curator")
+		writeAgentDef(t, filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "alias", agentDefinitionFile), aghconfig.BuiltinCoordinatorAgentName, "aliased-coordinator")
 
-	store := newMockWorkspaceStore(Workspace{ID: "ws_reserved_agents", RootDir: root, Name: "repo"})
-	loader := &countingConfigLoader{cfg: validConfig(homePaths)}
-	resolver := newTestResolver(
-		t,
-		store,
-		WithHomePaths(homePaths),
-		WithConfigLoader(loader.Load),
-	)
-	resolved, err := resolver.Resolve(context.Background(), "ws_reserved_agents")
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
-	}
-	if got := agentModel(resolved.Agents, aghconfig.BuiltinCoordinatorAgentName); got != "" {
-		t.Fatalf("reserved coordinator model = %q, want excluded", got)
-	}
-	if got := agentModel(resolved.Agents, aghconfig.BuiltinDreamingCuratorAgentName); got != "" {
-		t.Fatalf("reserved dreaming-curator model = %q, want excluded", got)
-	}
-	if got, want := len(resolved.AgentDiagnostics), 3; got != want {
-		t.Fatalf("len(AgentDiagnostics) = %d, want %d: %#v", got, want, resolved.AgentDiagnostics)
-	}
-	for _, diagnostic := range resolved.AgentDiagnostics {
-		if diagnostic.ErrorKind != reservedAgentDiagnosticKind {
-			t.Fatalf("reserved agent diagnostic = %#v, want %q", diagnostic, reservedAgentDiagnosticKind)
+		store := newMockWorkspaceStore(Workspace{ID: "ws_reserved_agents", RootDir: root, Name: "repo"})
+		loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+		resolver := newTestResolver(t, store, WithHomePaths(homePaths), WithConfigLoader(loader.Load))
+		resolved, err := resolver.Resolve(context.Background(), "ws_reserved_agents")
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
 		}
-	}
+		if got := agentModel(resolved.Agents, aghconfig.BuiltinCoordinatorAgentName); got != "" {
+			t.Fatalf("reserved coordinator model = %q, want excluded", got)
+		}
+		if got := agentModel(resolved.Agents, aghconfig.BuiltinDreamingCuratorAgentName); got != "" {
+			t.Fatalf("reserved dreaming-curator model = %q, want excluded", got)
+		}
+		if got, want := len(resolved.AgentDiagnostics), 3; got != want {
+			t.Fatalf("len(AgentDiagnostics) = %d, want %d: %#v", got, want, resolved.AgentDiagnostics)
+		}
+		names := make([]string, 0, len(resolved.AgentDiagnostics))
+		for _, diagnostic := range resolved.AgentDiagnostics {
+			if diagnostic.ErrorKind != reservedAgentDiagnosticKind {
+				t.Fatalf("reserved agent diagnostic = %#v, want %q", diagnostic, reservedAgentDiagnosticKind)
+			}
+			names = append(names, diagnostic.Name)
+		}
+		slices.Sort(names)
+		wantNames := []string{
+			aghconfig.BuiltinCoordinatorAgentName,
+			aghconfig.BuiltinCoordinatorAgentName,
+			aghconfig.BuiltinDreamingCuratorAgentName,
+		}
+		if !slices.Equal(names, wantNames) {
+			t.Fatalf("diagnostic names = %#v, want %#v", names, wantNames)
+		}
+	})
 }
 
 func TestResolveConfigFromRootOnly(t *testing.T) {
@@ -1718,6 +1706,9 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 					MaxActiveSessionsPerWorkspace: 5,
 				},
 			},
+			RoleSources: aghconfig.RoleFieldSources{
+				aghconfig.RoleCoordinator: {"model": aghconfig.RoleFieldSourceDefault},
+			},
 			Providers: map[string]aghconfig.ProviderConfig{
 				"claude": {
 					Command: "claude",
@@ -1769,6 +1760,9 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 			!slices.Equal(cloned.Roles.Coordinator.FallbackChain, original.Roles.Coordinator.FallbackChain) {
 			t.Fatalf("cloned Roles.Coordinator = %#v, want preserved role config", cloned.Roles.Coordinator)
 		}
+		if got := cloned.RoleSources[aghconfig.RoleCoordinator]["model"]; got != aghconfig.RoleFieldSourceDefault {
+			t.Fatalf("cloned RoleSources = %#v, want preserved coordinator model source", cloned.RoleSources)
+		}
 		cloned.Agents.Soul.MaxBodyBytes = 8192
 		cloned.Agents.Heartbeat.MaxBodyBytes = 8192
 		cloned.Session.Limits.Timeout = 2 * time.Minute
@@ -1776,6 +1770,7 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		cloned.Roles.Coordinator.Agent = "mutated-coordinator"
 		cloned.Roles.Coordinator.TTL = 2 * time.Hour
 		cloned.Roles.Coordinator.FallbackChain[0].Model = "mutated-model"
+		cloned.RoleSources[aghconfig.RoleCoordinator]["model"] = "overlay"
 		cloned.Providers["claude"] = aghconfig.ProviderConfig{}
 		cloned.Skills.DisabledSkills[0] = "beta"
 		cloned.Hooks.Declarations[0].Args[0] = "two"
@@ -1803,6 +1798,9 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		}
 		if got, want := original.Roles.Coordinator.FallbackChain[0].Model, "sonnet"; got != want {
 			t.Fatalf("original.Roles.Coordinator.FallbackChain[0].Model = %q, want %q", got, want)
+		}
+		if got := original.RoleSources[aghconfig.RoleCoordinator]["model"]; got != aghconfig.RoleFieldSourceDefault {
+			t.Fatalf("original RoleSources mutated through clone: %#v", original.RoleSources)
 		}
 		provider := original.Providers["claude"]
 		if provider.Command != "claude" || provider.MCPServers[0].Env["TOKEN"] != "one" {

@@ -501,6 +501,22 @@ func TestControllerTiebreaker(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve noop when an unsafe failure fallback is requested", func(t *testing.T) {
+		t.Parallel()
+
+		decision, err := New(
+			fakeIndex{targets: targets},
+			WithTiebreaker(&fakeTiebreaker{err: context.DeadlineExceeded}),
+			WithDefaultOpOnFail(memcontract.OpAdd),
+		).Decide(testutil.Context(t), candidate)
+		if err != nil {
+			t.Fatalf("Decide() error = %v", err)
+		}
+		if decision.Op != memcontract.OpNoop {
+			t.Fatalf("Decision.Op = %s, want noop", decision.Op.String())
+		}
+	})
+
 	t.Run("Should preserve the rules-only fallback when the live role is disabled", func(t *testing.T) {
 		t.Parallel()
 

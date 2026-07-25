@@ -106,7 +106,7 @@ func (s *Store) deleteDreamRun(ctx context.Context, runID string) error {
 	}
 	return s.catalog.withCatalogWriteTx(ctx, "dream run delete", func(tx *storepkg.WriteTx) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM memory_consolidations WHERE id = ?`, trimmed); err != nil {
-			return fmt.Errorf("memory: delete skipped dream run %q: %w", trimmed, err)
+			return fmt.Errorf("memory: delete dream run %q: %w", trimmed, err)
 		}
 		if _, err := tx.ExecContext(
 			ctx,
@@ -114,7 +114,7 @@ func (s *Store) deleteDreamRun(ctx context.Context, runID string) error {
 			trimmed,
 			memoryEventDreamStarted,
 		); err != nil {
-			return fmt.Errorf("memory: delete skipped dream run event %q: %w", trimmed, err)
+			return fmt.Errorf("memory: delete dream run event %q: %w", trimmed, err)
 		}
 		return nil
 	})

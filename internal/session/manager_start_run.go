@@ -89,6 +89,8 @@ func (m *Manager) sessionStartRun(sessionID string) *sessionStartRun {
 	return m.startRuns[strings.TrimSpace(sessionID)]
 }
 
+// sessionInfoForRead returns the externally visible session snapshot.
+// Active is projected as Starting while its start run remains tracked.
 func (m *Manager) sessionInfoForRead(session *Session) *Info {
 	if session == nil {
 		return nil

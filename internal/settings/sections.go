@@ -25,7 +25,6 @@ const (
 	sectionsExtractorKey              = "extractor"
 	sectionsGatesKey                  = "gates"
 	sectionsHTTPKey                   = "http"
-	sectionsLlmKey                    = "llm"
 	sectionsMarketplaceKey            = "marketplace"
 	sectionsMaxKey                    = "max"
 	sectionsModelKey                  = "model"
@@ -167,7 +166,7 @@ func (s *service) populateSectionEnvelope(
 		envelope.Memory = &section
 	case SectionRoles:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
-		section := RolesSection{Config: cloneRolesConfig(&cfg.Roles)}
+		section := RolesSection{Config: aghconfig.CloneRolesConfig(&cfg.Roles)}
 		envelope.Roles = &section
 	case SectionSkills:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeAgent}

@@ -77,7 +77,7 @@ func (r *roleResolver) projectRoleStatus(
 		status.Timeout = &timeout
 	}
 	status.Provenance = roleStatusProvenance(
-		roleProvenance(role, effective, r.config, resolvedWorkspace != nil),
+		roleProvenance(role, effective),
 		status,
 	)
 	return status, nil
@@ -140,18 +140,18 @@ func roleStatusFallbacks(fallbacks []aghconfig.RoleFallback) []contract.RoleFall
 }
 
 func roleStatusProvenance(all map[string]string, status contract.RoleStatus) map[string]string {
-	fields := []string{roleFieldEnabled, roleFieldFallbackChain}
+	fields := []string{aghconfig.RoleFieldEnabled, aghconfig.RoleFieldFallbacks}
 	if status.Agent != nil {
 		fields = append(fields, daemonAgentField)
 	}
 	if status.Provider != nil {
-		fields = append(fields, roleFieldProvider)
+		fields = append(fields, aghconfig.RoleFieldProvider)
 	}
 	if status.Model != nil {
-		fields = append(fields, roleFieldModel)
+		fields = append(fields, aghconfig.RoleFieldModel)
 	}
 	if status.ReasoningEffort != nil {
-		fields = append(fields, roleFieldReasoning)
+		fields = append(fields, aghconfig.RoleFieldReasoning)
 	}
 	if status.Timeout != nil {
 		fields = append(fields, roleFieldTimeout)

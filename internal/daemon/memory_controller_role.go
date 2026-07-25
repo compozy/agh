@@ -12,17 +12,15 @@ import (
 // memoryControllerCallOptions is the invocation contract for the in-process
 // write-controller tiebreaker.
 type memoryControllerCallOptions struct {
-	Enabled         bool
-	Provider        string
-	Model           string
-	ReasoningEffort string
-	Timeout         time.Duration
-	TopK            int
-	PromptVersion   string
-	MaxTokensOut    int
-	Config          aghconfig.Config
-	resolvedRole    ResolvedRole
+	Timeout       time.Duration
+	TopK          int
+	PromptVersion string
+	MaxTokensOut  int
+	Config        aghconfig.Config
+	resolvedRole  ResolvedRole
 }
+
+const memoryControllerTransientAgentName = "memory-controller"
 
 func (r *roleResolver) resolveMemoryControllerCallOptions(
 	ctx context.Context,
@@ -36,8 +34,18 @@ func (r *roleResolver) resolveMemoryControllerCallOptions(
 		return memoryControllerCallOptions{}, fmt.Errorf("daemon: resolve memory controller role: %w", err)
 	}
 	effective := effectiveConfig.Roles.MemoryController
+	if !resolved.Enabled {
+		return memoryControllerCallOptions{
+			Timeout:       effective.Timeout,
+			TopK:          effective.TopK,
+			PromptVersion: effective.PromptVersion,
+			MaxTokensOut:  effective.MaxTokensOut,
+			Config:        *effectiveConfig,
+			resolvedRole:  resolved,
+		}, nil
+	}
 	runtime, err := effectiveConfig.ResolveAgent(aghconfig.AgentDef{
-		Name:            "memory-controller",
+		Name:            memoryControllerTransientAgentName,
 		Provider:        resolved.Provider,
 		Model:           resolved.Model,
 		ReasoningEffort: resolved.ReasoningEffort,
@@ -51,15 +59,11 @@ func (r *roleResolver) resolveMemoryControllerCallOptions(
 	resolved.ReasoningEffort = runtime.ReasoningEffort
 	resolved.eventWriter = r.events
 	return memoryControllerCallOptions{
-		Enabled:         resolved.Enabled,
-		Provider:        resolved.Provider,
-		Model:           resolved.Model,
-		ReasoningEffort: resolved.ReasoningEffort,
-		Timeout:         effective.Timeout,
-		TopK:            effective.TopK,
-		PromptVersion:   effective.PromptVersion,
-		MaxTokensOut:    effective.MaxTokensOut,
-		Config:          *effectiveConfig,
-		resolvedRole:    resolved,
+		Timeout:       effective.Timeout,
+		TopK:          effective.TopK,
+		PromptVersion: effective.PromptVersion,
+		MaxTokensOut:  effective.MaxTokensOut,
+		Config:        *effectiveConfig,
+		resolvedRole:  resolved,
 	}, nil
 }

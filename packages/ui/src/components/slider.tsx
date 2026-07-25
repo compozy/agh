@@ -1,6 +1,7 @@
 "use client";
 
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
+import { useId } from "react";
 
 import { cn } from "../lib/utils";
 
@@ -13,6 +14,11 @@ import { cn } from "../lib/utils";
  * - The accessible name reaches the thumb. Base UI puts `role="slider"` on the
  *   thumb, so a label left on the root names a group nobody can operate.
  */
+type SliderProps<Value extends number | readonly number[]> = SliderPrimitive.Root.Props<Value> & {
+  /** Gives each thumb an explicit name when a range needs domain-specific language. */
+  getAriaLabel?: NonNullable<SliderPrimitive.Thumb.Props["getAriaLabel"]>;
+};
+
 function Slider<Value extends number | readonly number[] = number>({
   className,
   defaultValue,
@@ -21,10 +27,24 @@ function Slider<Value extends number | readonly number[] = number>({
   max = 100,
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledBy,
+  getAriaLabel,
   ...props
-}: SliderPrimitive.Root.Props<Value>) {
+}: SliderProps<Value>) {
   const resolved = value ?? defaultValue;
   const thumbCount = Array.isArray(resolved) ? resolved.length : 1;
+  const thumbDescriptionId = useId();
+  const thumbDescriptor = (index: number) => {
+    if (thumbCount === 2) return index === 0 ? "Minimum" : "Maximum";
+    return thumbCount === 1 ? "Value" : `Value ${index + 1}`;
+  };
+  const resolvedGetAriaLabel =
+    getAriaLabel ??
+    (ariaLabelledBy
+      ? undefined
+      : (index: number) =>
+          thumbCount === 1
+            ? (ariaLabel ?? "Slider")
+            : `${ariaLabel ?? "Slider"}: ${thumbDescriptor(index)}`);
 
   return (
     <SliderPrimitive.Root
@@ -48,18 +68,30 @@ function Slider<Value extends number | readonly number[] = number>({
           />
         </SliderPrimitive.Track>
         {Array.from({ length: thumbCount }, (_, index) => (
-          <SliderPrimitive.Thumb
-            aria-label={ariaLabel}
-            aria-labelledby={ariaLabelledBy}
-            className={cn(
-              "relative block size-3 shrink-0 rounded-pill border border-line-strong bg-fg-strong",
-              "transition-[box-shadow] duration-fast ease-out select-none after:absolute after:-inset-2",
-              "focus-visible:shadow-focus-ring focus-visible:outline-none",
-              "data-disabled:pointer-events-none"
-            )}
-            data-slot="slider-thumb"
-            key={index}
-          />
+          <span className="contents" key={index}>
+            {ariaLabelledBy && thumbCount > 1 ? (
+              <span className="sr-only" id={`${thumbDescriptionId}-${index}`}>
+                {thumbDescriptor(index)}
+              </span>
+            ) : null}
+            <SliderPrimitive.Thumb
+              aria-labelledby={
+                ariaLabelledBy
+                  ? thumbCount > 1
+                    ? `${ariaLabelledBy} ${thumbDescriptionId}-${index}`
+                    : ariaLabelledBy
+                  : undefined
+              }
+              className={cn(
+                "relative block size-3 shrink-0 rounded-pill border border-line-strong bg-fg-strong",
+                "transition-[box-shadow] duration-fast ease-out select-none after:absolute after:-inset-2",
+                "focus-visible:shadow-focus-ring focus-visible:outline-none",
+                "data-disabled:pointer-events-none"
+              )}
+              data-slot="slider-thumb"
+              getAriaLabel={resolvedGetAriaLabel}
+            />
+          </span>
         ))}
       </SliderPrimitive.Control>
     </SliderPrimitive.Root>

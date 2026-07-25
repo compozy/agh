@@ -3969,11 +3969,7 @@ func TestSkillsRegistryConfigUsesDaemonHomeAndDisabledSkills(t *testing.T) {
 
 func TestRunConfiguresDreamRuntimeForLiveRoleLifecycle(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Should honor memory availability and live dream role state", func(t *testing.T) {
-		t.Parallel()
-		runDreamRuntimeLifecycleCases(t)
-	})
+	runDreamRuntimeLifecycleCases(t)
 }
 
 func runDreamRuntimeLifecycleCases(t *testing.T) {

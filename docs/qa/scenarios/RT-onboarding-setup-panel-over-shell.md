@@ -21,3 +21,6 @@ story: As a first-run operator I want to see the workspace I am about to unlock 
 Added 2026-07-24 with the onboarding shell-panel redesign. Covers the shell requirements the panel places on the chrome rather than the two setup steps themselves (RT-004 owns those): the chrome must render with zero workspaces and zero windows, suppress the layout-connection pill while unbound, mark itself `inert`, and unbind the global shortcut listener for as long as setup is open.
 
 Checks that only a browser pass can confirm: focus containment across Tab/Shift+Tab, Esc and outside-press being inert, the runtime selector popover portaling above the panel, the panel resizing from the one-column runtime step to the two-pane workspace split, and the dock/menu-bar wake transition on completion.
+
+QA impact 2026-07-25 (deep-review remediation): setup step navigation is now inert while a step is
+busy. Flag only; the next QA cycle owns pointer and keyboard attempts during pending transitions.

@@ -15,6 +15,8 @@ interface SeamDragState {
   desktop: WindowManagerLayoutDesktop;
   origin: number;
   scale: number;
+  /** The projection at pointer-down; parent re-projection must not compound the gesture. */
+  seam: ProjectedSeam;
 }
 
 export interface LayoutDraftSeamModel {
@@ -47,17 +49,18 @@ export function useLayoutDraftSeam(
   const restingRatio = pairTotal === 0 ? 0.5 : seam.leadingWeight / pairTotal;
 
   const commit = (state: SeamDragState, deltaPixels: number) => {
-    const clampedWeightDelta = seamWeightDelta(seam, deltaPixels);
-    const proposed = seam.leadingWeight + clampedWeightDelta;
+    const clampedWeightDelta = seamWeightDelta(state.seam, deltaPixels);
+    const pairTotal = state.seam.leadingWeight + state.seam.trailingWeight;
+    const proposed = state.seam.leadingWeight + clampedWeightDelta;
     const proposedRatio = pairTotal === 0 ? 0.5 : proposed / pairTotal;
     const detent = nearestDetent(proposedRatio);
     const targetLeading = detent === null ? proposed : detent * pairTotal;
-    const snappedDelta = (targetLeading - seam.leadingWeight) * seam.axisSpan;
+    const snappedDelta = (targetLeading - state.seam.leadingWeight) * state.seam.axisSpan;
     setPreview({
       ratio: pairTotal === 0 ? 0.5 : targetLeading / pairTotal,
       snapped: detent !== null,
     });
-    onChange(toDraftDesktop(applySeamPreviewToDesktop(state.desktop, seam, snappedDelta)));
+    onChange(toDraftDesktop(applySeamPreviewToDesktop(state.desktop, state.seam, snappedDelta)));
   };
 
   const drag = usePointerDrag<SeamDragState>({
@@ -68,6 +71,7 @@ export function useLayoutDraftSeam(
       return {
         desktop,
         origin: vertical ? event.clientX : event.clientY,
+        seam,
         // The canvas is a scale model of the reference screen, so one CSS pixel
         // of travel is this many reference pixels.
         scale: vertical

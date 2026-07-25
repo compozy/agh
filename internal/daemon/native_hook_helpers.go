@@ -163,7 +163,7 @@ func (n *daemonNativeTools) setHookEnabled(
 	}
 	action := hookActionDisabled
 	if enabled {
-		action = hookEnabledValue
+		action = hookActionEnabled
 	}
 	return nativeHookMutationResult(decl, action, target)
 }
@@ -273,9 +273,9 @@ func nativeHookDeclPayload(decl hookspkg.HookDecl) map[string]any {
 		"matcher":                    decl.Matcher,
 	}
 	if decl.Enabled != nil {
-		payload[hookEnabledValue] = *decl.Enabled
+		payload[hookEnabledKey] = *decl.Enabled
 	} else {
-		payload[hookEnabledValue] = true
+		payload[hookEnabledKey] = true
 	}
 	if decl.Timeout > 0 {
 		payload["timeout_ms"] = decl.Timeout.Milliseconds()

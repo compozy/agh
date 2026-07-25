@@ -34,7 +34,8 @@ const (
 
 const (
 	hookActionDisabled = "disabled"
-	hookEnabledValue   = "enabled"
+	hookActionEnabled  = "enabled"
+	hookEnabledKey     = "enabled"
 )
 
 func (n *daemonNativeTools) configShow(

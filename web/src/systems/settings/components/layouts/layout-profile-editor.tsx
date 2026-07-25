@@ -76,7 +76,7 @@ export function LayoutProfileEditor({ editor, document, onClose }: LayoutProfile
           hint={
             forking
               ? "Changing the id saves a new layout instead of replacing this one."
-              : "Unique across every scope."
+              : "Unique within this scope. A workspace layout may override a global layout with the same id."
           }
           htmlFor="layout-profile-id"
           label="Resource ID"

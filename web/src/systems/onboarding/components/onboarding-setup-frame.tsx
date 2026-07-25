@@ -82,6 +82,7 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
         <OnboardingStepStrip
           step={wizard.step}
           maxStep={wizard.maxStep}
+          busy={wizard.isBusy}
           onSelect={wizard.goToStep}
         />
 

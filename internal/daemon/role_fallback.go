@@ -8,13 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/store"
 )
 
 const (
-	roleResolutionFailedCode = "role_resolution_failed"
+	roleResolutionFailedCode = contract.CodeRoleResolutionFailed
 	roleEventWriteTimeout    = 5 * time.Second
 )
 
@@ -55,9 +56,6 @@ type roleResolveErrorEventPayload struct {
 }
 
 func withRoleInvocationCorrelation(ctx context.Context, correlation roleInvocationCorrelation) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithValue(ctx, roleInvocationCorrelationContextKey{}, correlation)
 }
 
@@ -104,7 +102,7 @@ func invokeRoleWithFallback[T any](
 		}
 		attempt := index + 1
 		if eventErr := recordRoleFallbackEvent(ctx, role, correlation, attempt, route); eventErr != nil {
-			return zero, errors.Join(errors.Join(attemptErrors...), eventErr)
+			return zero, errors.Join(append(attemptErrors, eventErr)...)
 		}
 		value, accepted, err = invoke(ctx, route)
 		if accepted {

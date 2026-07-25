@@ -27,6 +27,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
 		resolver := newRoleResolver(&cfg, nil, nil)
+		defaults := aghconfig.DefaultRolesConfig()
 
 		for _, testCase := range []struct {
 			role    aghconfig.RoleName
@@ -41,7 +42,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 			{role: aghconfig.RoleCheckpointSummary, agent: aghconfig.BuiltinDreamingCuratorAgentName, enabled: true, builtin: true},
 			{role: aghconfig.RoleMemoryExtractor, enabled: true, inherit: true},
 			{role: aghconfig.RoleAutoTitle, enabled: true, inherit: true},
-			{role: aghconfig.RoleMemoryController, enabled: true, model: "anthropic/claude-haiku-4"},
+			{role: aghconfig.RoleMemoryController, enabled: defaults.MemoryController.Enabled, model: defaults.MemoryController.Model},
 		} {
 			t.Run("Should resolve "+string(testCase.role), func(t *testing.T) {
 				t.Parallel()

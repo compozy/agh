@@ -12,6 +12,7 @@ import {
 
 import { useDesktop } from "../hooks/use-desktop";
 import { useOsShell } from "../hooks/use-os-shell";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { resolveWindowManagerActions } from "../lib/window-manager-shortcuts";
 
 export interface OsShortcutsDialogProps {
@@ -47,6 +48,7 @@ const SECTIONS = [
 export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps) {
   const { coordinator } = useOsShell();
   const windowManagerConfig = useDesktop(state => state.windowManagerConfig);
+  const canOpenApps = useDesktop(windowManagerCommandsAvailable);
   const actions = resolveWindowManagerActions(windowManagerConfig?.shortcuts ?? {});
   const groups = [
     { title: "Shell", rows: SHELL_ROWS },
@@ -61,6 +63,7 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
   ].filter(group => group.rows.length > 0);
 
   const openLayoutSettings = () => {
+    if (!canOpenApps) return;
     onOpenChange(false);
     void coordinator.userOpen({
       app: "settings",
@@ -110,6 +113,7 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
           <Button
             type="button"
             variant="outline"
+            disabled={!canOpenApps}
             data-testid="os-shortcuts-edit"
             onClick={openLayoutSettings}
           >

@@ -62,7 +62,6 @@ func (d *Daemon) nativeToolsDeps(
 		ExtensionRuntime: state.currentExtensionRuntime,
 		ExtensionMarket:  state.cfg.Extensions.Marketplace,
 		ExtensionEvents:  extensionEventSummaryStore(state.registry),
-		AgentSkills:      state.agentSkillResources,
 		AgentSkillsRuntime: func() agentSkillPublisher {
 			return state.agentSkillResources
 		},

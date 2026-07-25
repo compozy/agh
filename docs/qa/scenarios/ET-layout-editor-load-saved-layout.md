@@ -19,3 +19,7 @@ overlaps: MS-configure-window-manager
 story: As an operator, loading or deleting a saved layout never silently destroys work I have not applied yet.
 
 qa-impact: 2026-07-24 fixes a defect: selecting a profile replaced the whole draft with no confirmation and no dirty check, and a delete left three of the removed record's fields seeded into the next one. Flag only; the next QA cycle owns live testing.
+
+QA impact 2026-07-25 (deep-review remediation): saved-layout mutations now use the profile's scope
+identity and current expected version, and cache updates target the exact workspace. Flag only; the
+next QA cycle owns save, load, overwrite, and delete retesting across workspaces.

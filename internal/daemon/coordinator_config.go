@@ -24,16 +24,6 @@ type defaultCoordinatorRoleResolver struct {
 
 var _ CoordinatorRoleResolver = (*defaultCoordinatorRoleResolver)(nil)
 
-func newCoordinatorRoleResolver(
-	cfg *aghconfig.Config,
-	workspaceResolver workspacepkg.RuntimeResolver,
-	agents coordinatorAgentResolver,
-) CoordinatorRoleResolver {
-	return &defaultCoordinatorRoleResolver{
-		roles: newRoleResolver(cfg, workspaceResolver, agents),
-	}
-}
-
 func coordinatorRoleResolverFor(roles *roleResolver) CoordinatorRoleResolver {
 	return &defaultCoordinatorRoleResolver{roles: roles}
 }

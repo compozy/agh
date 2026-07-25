@@ -139,4 +139,19 @@ describe("collectRoleValidationErrors", () => {
   it("Should accept a fully specified fallback entry", () => {
     expect(collectRoleValidationErrors(settingsRolesConfigWithFallbackFixture)).toHaveLength(0);
   });
+
+  it("Should block every positive role limit when a persisted value falls below one", () => {
+    const config = {
+      ...settingsRolesConfigFixture,
+      coordinator: {
+        ...settingsRolesConfigFixture.coordinator,
+        max_active_sessions_per_workspace: 0,
+      },
+    };
+
+    expect(collectRoleValidationErrors(config)).toContainEqual({
+      id: "coordinator.max_active_sessions_per_workspace",
+      message: "Value must be 1 or greater.",
+    });
+  });
 });

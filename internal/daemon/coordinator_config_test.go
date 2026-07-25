@@ -16,7 +16,7 @@ func TestCoordinatorRoleResolverReturnsBundledDefaultIdentity(t *testing.T) {
 		t.Parallel()
 
 		cfg := defaultCoordinatorResolverConfig(t)
-		resolver := newCoordinatorRoleResolver(&cfg, nil, nil)
+		resolver := coordinatorRoleResolverFor(newRoleResolver(&cfg, nil, nil))
 
 		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "")
 		if err != nil {
@@ -46,7 +46,7 @@ func TestCoordinatorRoleResolverPrefersGlobalConfigOverBundledDefault(t *testing
 		cfg.Roles.Coordinator.Model = "global-model"
 		cfg.Roles.Coordinator.TTL = 4 * time.Hour
 		cfg.Roles.Coordinator.MaxChildren = 4
-		resolver := newCoordinatorRoleResolver(&cfg, nil, nil)
+		resolver := coordinatorRoleResolverFor(newRoleResolver(&cfg, nil, nil))
 
 		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "")
 		if err != nil {
@@ -93,7 +93,7 @@ func TestCoordinatorRoleResolverPrefersWorkspaceConfig(t *testing.T) {
 		workspaceCfg.Roles.Coordinator.TTL = 3 * time.Hour
 		workspaceCfg.Roles.Coordinator.MaxChildren = 2
 
-		resolver := newCoordinatorRoleResolver(
+		resolver := coordinatorRoleResolverFor(newRoleResolver(
 			&global,
 			&coordinatorWorkspaceResolverStub{
 				resolved: workspacepkg.ResolvedWorkspace{
@@ -102,7 +102,7 @@ func TestCoordinatorRoleResolverPrefersWorkspaceConfig(t *testing.T) {
 				},
 			},
 			nil,
-		)
+		))
 
 		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "ws-1")
 		if err != nil {
@@ -136,8 +136,9 @@ func TestCoordinatorRoleResolverUsesAgentFallbackForProviderModel(t *testing.T) 
 
 		cfg := defaultCoordinatorResolverConfig(t)
 		cfg.Defaults.Provider = "codex"
+		cfg.Roles.Coordinator.Enabled = true
 		cfg.Roles.Coordinator.Agent = "custom-coordinator"
-		resolver := newCoordinatorRoleResolver(
+		resolver := coordinatorRoleResolverFor(newRoleResolver(
 			&cfg,
 			nil,
 			coordinatorAgentResolverStub{
@@ -148,7 +149,7 @@ func TestCoordinatorRoleResolverUsesAgentFallbackForProviderModel(t *testing.T) 
 					Prompt:   "agent fallback",
 				},
 			},
-		)
+		))
 
 		resolved, err := resolver.ResolveCoordinatorRole(context.Background(), "")
 		if err != nil {

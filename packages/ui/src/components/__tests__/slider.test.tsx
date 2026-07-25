@@ -23,6 +23,13 @@ describe("Slider", () => {
     expect(container.querySelectorAll("[data-slot=slider-thumb]")).toHaveLength(2);
   });
 
+  it("Should give every range thumb a distinct accessible name", () => {
+    render(<Slider aria-label="Bounds" defaultValue={[20, 80]} />);
+
+    expect(screen.getByLabelText("Bounds: Minimum")).toBeInTheDocument();
+    expect(screen.getByLabelText("Bounds: Maximum")).toBeInTheDocument();
+  });
+
   it("Should step with the arrow keys and jump with Home and End", async () => {
     const onValueChange = vi.fn();
     const user = userEvent.setup();

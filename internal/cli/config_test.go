@@ -154,6 +154,24 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if got := configured.WindowManager.Shortcuts["window.focus.left"]; got != "alt+KeyH" {
 			t.Fatalf("WindowManager.Shortcuts[window.focus.left] = %q, want alt+KeyH", got)
 		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"roles",
+			`{"memory_controller":{"enabled":true,"provider":"pi","model":"anthropic/claude-haiku-4","timeout":"500ms","top_k":7,"prompt_version":"v2","max_tokens_out":512}}`,
+		); err != nil {
+			t.Fatalf("config set roles error = %v", err)
+		}
+		configured, err = aghconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig(roles) error = %v", err)
+		}
+		if got := configured.Roles.MemoryController; got.TopK != 7 || got.MaxTokensOut != 512 {
+			t.Fatalf("Roles.MemoryController = %#v, want top_k=7 max_tokens_out=512", got)
+		}
 	})
 }
 

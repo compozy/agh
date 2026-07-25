@@ -245,7 +245,7 @@ func reservedAgentDiagnostic(path string, name string) AgentDiagnostic {
 		Name:      name,
 		Path:      filepath.Clean(path),
 		ErrorKind: reservedAgentDiagnosticKind,
-		Message:   fmt.Sprintf("workspace: skipped reserved agent definition %q", path),
+		Message:   fmt.Sprintf("workspace: skipped reserved agent %q definition %q", name, path),
 	}
 }
 

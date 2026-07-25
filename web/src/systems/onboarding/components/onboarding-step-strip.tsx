@@ -10,6 +10,7 @@ const STEPS: { step: number; label: string }[] = [
 export interface OnboardingStepStripProps {
   step: number;
   maxStep: number;
+  busy: boolean;
   onSelect: (step: number) => void;
 }
 
@@ -25,7 +26,7 @@ function stateFor(entry: number, step: number): StepState {
  * each carrying a 2px rule that fills with accent as the step is reached. A
  * segment beyond `maxStep` is disabled — you cannot skip a question.
  */
-export function OnboardingStepStrip({ step, maxStep, onSelect }: OnboardingStepStripProps) {
+export function OnboardingStepStrip({ step, maxStep, busy, onSelect }: OnboardingStepStripProps) {
   return (
     <nav
       aria-label="Setup progress"
@@ -42,7 +43,7 @@ export function OnboardingStepStrip({ step, maxStep, onSelect }: OnboardingStepS
             data-testid={`onboarding-step-${entry.step}`}
             data-state={state}
             aria-current={state === "current" ? "step" : undefined}
-            disabled={entry.step > maxStep}
+            disabled={busy || entry.step > maxStep}
             onClick={() => onSelect(entry.step)}
             className={cn(
               "relative flex items-center gap-2.5 px-4 text-left text-small-body font-medium",

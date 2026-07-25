@@ -78,6 +78,10 @@ func (s *Service) skipDreamRun(
 	run dreamSignalGateResult,
 	priorMtime time.Time,
 ) error {
+	s.logger.Debug(
+		"memory: dream consolidation skipped because the workspace role is disabled",
+		"workspace_id", workspace.id,
+	)
 	var cleanupErrs []error
 	if run.active && workspace.store != nil {
 		if err := workspace.store.deleteDreamRun(ctx, run.runID); err != nil {
@@ -90,9 +94,6 @@ func (s *Service) skipDreamRun(
 	if cleanupErr := errors.Join(cleanupErrs...); cleanupErr != nil {
 		return fmt.Errorf("memory: clean up disabled dream run: %w", cleanupErr)
 	}
-	s.logger.Debug("memory: dream consolidation skipped because the workspace role is disabled",
-		"workspace_id", workspace.id,
-	)
 	return ErrDreamRoleDisabled
 }
 

@@ -133,6 +133,7 @@ const (
 	CodeReasoningEffortUnsupported    = "reasoning_effort_unsupported"
 	CodeReasoningOptionMissing        = "reasoning_option_missing"
 	CodeRoleAgentNotFound             = "role_agent_not_found"
+	CodeRoleResolutionFailed          = "role_resolution_failed"
 	CodeRoleUnknown                   = "role_unknown"
 	CodeRetryChainTooDeep             = "retry_chain_too_deep"
 	CodeSchedulerReady                = "scheduler_ready"
@@ -260,6 +261,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeReasoningEffortUnsupported, Category: CategoryProvider},
 	{Code: CodeReasoningOptionMissing, Category: CategoryProvider},
 	{Code: CodeRoleAgentNotFound, Category: CategoryConfig},
+	{Code: CodeRoleResolutionFailed, Category: CategoryConfig},
 	{Code: CodeRoleUnknown, Category: CategoryConfig},
 	{Code: CodeRetryChainTooDeep, Category: CategoryTask},
 	{Code: CodeSchedulerReady, Category: CategoryTask},

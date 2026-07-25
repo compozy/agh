@@ -469,20 +469,7 @@ func TestServiceRunSkipsWorkspaceDisabledDreamWithoutPromotion(t *testing.T) {
 			t.Fatalf("Run() error = %v, want ErrDreamRoleDisabled", err)
 		}
 		assertDreamPromotedCount(t, env.workspaceStore, 0)
-		db, dbErr := env.workspaceStore.catalog.ensureDB(testutil.Context(t))
-		if dbErr != nil {
-			t.Fatalf("ensureDB() error = %v", dbErr)
-		}
-		var runCount int
-		if queryErr := db.QueryRowContext(
-			testutil.Context(t),
-			`SELECT COUNT(*) FROM memory_consolidations`,
-		).Scan(&runCount); queryErr != nil {
-			t.Fatalf("query skipped dream run count error = %v", queryErr)
-		}
-		if runCount != 0 {
-			t.Fatalf("dream run count = %d, want 0", runCount)
-		}
+		assertDreamConsolidationCount(t, env.workspaceStore, 0)
 		assertDreamEventCount(t, env.workspaceStore, memoryEventDreamStarted, 0)
 		if lock.releaseCalls != 0 || len(lock.rollbackCalls) != 1 || !lock.rollbackCalls[0].Equal(prior) {
 			t.Fatalf("lock release/rollback = %d/%v, want 0/[prior]", lock.releaseCalls, lock.rollbackCalls)
@@ -1408,6 +1395,25 @@ func assertDreamConsolidationStatus(t *testing.T, store *Store, wantStatus strin
 	}
 	if status != wantStatus || promoted != wantPromoted {
 		t.Fatalf("dream consolidation = %s/%d, want %s/%d", status, promoted, wantStatus, wantPromoted)
+	}
+}
+
+func assertDreamConsolidationCount(t *testing.T, store *Store, want int) {
+	t.Helper()
+
+	db, err := store.catalog.ensureDB(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ensureDB() error = %v", err)
+	}
+	var got int
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT COUNT(*) FROM memory_consolidations`,
+	).Scan(&got); err != nil {
+		t.Fatalf("query dream consolidation count error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("dream consolidation count = %d, want %d", got, want)
 	}
 }
 

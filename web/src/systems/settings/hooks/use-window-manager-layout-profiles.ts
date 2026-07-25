@@ -6,6 +6,7 @@ import {
   putWindowManagerLayoutProfile,
 } from "../adapters/window-manager-layouts-api";
 import { settingsKeys } from "../lib/query-keys";
+import { layoutProfileResourceKey } from "../lib/window-manager-layout-profile-key";
 import type {
   WindowManagerLayoutAspect,
   WindowManagerLayoutDocument,
@@ -13,10 +14,6 @@ import type {
   WindowManagerLayoutResourceRecord,
   WindowManagerLayoutScopeKind,
 } from "../lib/window-manager-layout-types";
-
-function resourceKey(record: WindowManagerLayoutResourceRecord): string {
-  return `${record.scope.kind}:${record.scope.id}:${record.id}`;
-}
 
 export function useWindowManagerLayoutProfiles({
   workspaceId,
@@ -34,7 +31,8 @@ export function useWindowManagerLayoutProfiles({
 }) {
   const queryClient = useQueryClient();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const selected = profiles.find(profile => resourceKey(profile) === selectedKey) ?? null;
+  const selected =
+    profiles.find(profile => layoutProfileResourceKey(profile) === selectedKey) ?? null;
   const [id, setId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [aspect, setAspect] = useState<WindowManagerLayoutAspect>("any");
@@ -62,14 +60,14 @@ export function useWindowManagerLayoutProfiles({
       );
     },
     onSuccess: record => {
-      const previousKey = selected === null ? null : resourceKey(selected);
-      setSelectedKey(resourceKey(record));
+      const previousKey = selected === null ? null : layoutProfileResourceKey(selected);
+      setSelectedKey(layoutProfileResourceKey(record));
       queryClient.setQueryData<WindowManagerLayoutResourceRecord[]>(
         settingsKeys.windowManagerLayoutProfiles(workspaceId),
         current => [
           ...(current ?? []).filter(item => {
-            const key = resourceKey(item);
-            return key !== resourceKey(record) && key !== previousKey;
+            const key = layoutProfileResourceKey(item);
+            return key !== layoutProfileResourceKey(record) && key !== previousKey;
           }),
           record,
         ]
@@ -86,7 +84,10 @@ export function useWindowManagerLayoutProfiles({
       if (selected === null) return;
       queryClient.setQueryData<WindowManagerLayoutResourceRecord[]>(
         settingsKeys.windowManagerLayoutProfiles(workspaceId),
-        current => (current ?? []).filter(item => resourceKey(item) !== resourceKey(selected))
+        current =>
+          (current ?? []).filter(
+            item => layoutProfileResourceKey(item) !== layoutProfileResourceKey(selected)
+          )
       );
       // The whole form belonged to the deleted record — clearing only the name
       // and id left its scope, screen shape and overflow behind as defaults for
@@ -98,7 +99,7 @@ export function useWindowManagerLayoutProfiles({
 
   /** Fills the editor form from a record without touching the layout draft. */
   const selectProfile = (record: WindowManagerLayoutResourceRecord) => {
-    setSelectedKey(resourceKey(record));
+    setSelectedKey(layoutProfileResourceKey(record));
     setId(record.id);
     setDisplayName(record.spec.displayName);
     setAspect(record.spec.aspectVariant);

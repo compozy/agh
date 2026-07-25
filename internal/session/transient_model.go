@@ -11,10 +11,13 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/providerenv"
 )
 
-const transientModelStopTimeout = 5 * time.Second
+const (
+	transientMemoryControllerAgentName = "memory-controller"
+	transientMemoryControllerPrompt    = "AGH memory controller transient runtime."
+	transientModelStopTimeout          = 5 * time.Second
+)
 
 // TransientModelCall describes one provider-backed model turn that must not
 // create a durable AGH session.
@@ -58,19 +61,19 @@ func (m *Manager) InvokeTransientModel(
 	}
 
 	resolved, err := call.Config.ResolveAgent(aghconfig.AgentDef{
-		Name:            "memory-controller",
+		Name:            transientMemoryControllerAgentName,
 		Provider:        strings.TrimSpace(call.Provider),
 		Model:           strings.TrimSpace(call.Model),
 		ReasoningEffort: strings.TrimSpace(call.ReasoningEffort),
 		Permissions:     string(aghconfig.PermissionModeDenyAll),
-		Prompt:          "AGH memory controller transient runtime.",
+		Prompt:          transientMemoryControllerPrompt,
 	})
 	if err != nil {
 		return result, fmt.Errorf("session: resolve transient model runtime: %w", err)
 	}
 
 	startOpts := acp.StartOpts{
-		AgentName:       "memory-controller",
+		AgentName:       transientMemoryControllerAgentName,
 		Command:         resolved.Command,
 		Cwd:             strings.TrimSpace(call.CWD),
 		Env:             sessionStartEnvForProvider(os.Environ(), nil, resolved.EnvPolicy),
@@ -122,37 +125,11 @@ func (m *Manager) prepareTransientModelProvider(
 	resolved aghconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, func() error, error) {
-	opts.Env = setProviderStartEnv(opts.Env, resolved)
-	var err error
-	if resolved.HomePolicy == aghconfig.ProviderHomePolicyIsolated {
-		opts.Env, err = providerenv.ApplyHomePolicy(
-			m.homePaths,
-			strings.TrimSpace(resolved.Provider),
-			resolved.HomePolicy,
-			opts.Env,
-		)
-		if err != nil {
-			return acp.StartOpts{}, nil, fmt.Errorf("session: apply transient provider home policy: %w", err)
-		}
-	}
-	if resolved.Harness == aghconfig.ProviderHarnessPiACP &&
-		resolved.AuthMode == aghconfig.ProviderAuthModeNativeCLI {
-		opts.Env, err = providerenv.ApplyPiAgentDirPolicy(
-			m.homePaths,
-			strings.TrimSpace(resolved.Provider),
-			resolved.HomePolicy,
-			opts.Env,
-		)
-		if err != nil {
-			return acp.StartOpts{}, nil, fmt.Errorf("session: apply transient pi auth directory policy: %w", err)
-		}
-	}
-
-	bindings, err := m.injectProviderSecrets(ctx, resolved, opts.Env)
+	prepared, bindings, err := m.prepareProviderStartPolicies(ctx, resolved, opts)
 	if err != nil {
 		return acp.StartOpts{}, nil, err
 	}
-	opts.Env = bindings.env
+	opts = prepared
 	runtimeDir := ""
 	cleanup := func() error {
 		runProviderSecretRedactions(bindings.redactionCleanups)
@@ -176,11 +153,6 @@ func (m *Manager) prepareTransientModelProvider(
 		}
 		opts.Env = setSessionStartEnvValue(opts.Env, "PI_CODING_AGENT_DIR", piDir)
 	}
-	opts.ProviderName = strings.TrimSpace(resolved.Provider)
-	providerConfig := providerConfigFromResolvedAgent(resolved)
-	opts.ProviderConfig = &providerConfig
-	probeEnv := providerProbeEnvForStart(m, resolved, opts.Env)
-	opts.ProviderAuthEnv = &probeEnv
 	return opts, cleanup, nil
 }
 

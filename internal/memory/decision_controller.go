@@ -24,12 +24,12 @@ func (s *Store) SetDecisionControllerFactory(factory DecisionControllerFactory) 
 	if s == nil {
 		return
 	}
-	if s.decisionFactory == nil {
-		s.decisionFactory = &decisionControllerFactoryState{}
+	if s.decisionControllerFactory == nil {
+		return
 	}
-	s.decisionFactory.mu.Lock()
-	s.decisionFactory.factory = factory
-	s.decisionFactory.mu.Unlock()
+	s.decisionControllerFactory.mu.Lock()
+	s.decisionControllerFactory.factory = factory
+	s.decisionControllerFactory.mu.Unlock()
 }
 
 // DecideCandidate computes a controller decision without applying it.
@@ -47,10 +47,10 @@ func (s *Store) DecideCandidate(
 }
 
 func (s *Store) newDecisionController() memcontract.Controller {
-	if s.decisionFactory != nil {
-		s.decisionFactory.mu.RLock()
-		factory := s.decisionFactory.factory
-		s.decisionFactory.mu.RUnlock()
+	if s.decisionControllerFactory != nil {
+		s.decisionControllerFactory.mu.RLock()
+		factory := s.decisionControllerFactory.factory
+		s.decisionControllerFactory.mu.RUnlock()
 		if factory != nil {
 			if built := factory(s); built != nil {
 				return built

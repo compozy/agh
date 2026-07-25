@@ -19,3 +19,7 @@ overlaps: MS-configure-window-manager; ET-window-manager-layout-gestures
 story: As an operator, I can set how much room each window gets by dragging the divider between them, and trust that what I built is a layout the daemon will accept.
 
 qa-impact: 2026-07-24 new behavior. The Settings canvas drives the divider through the runtime's own `seam-preview` math, the same code the live shell uses, so the weight vector is normalized by construction rather than validated afterwards. Flag only; the next QA cycle owns live testing.
+
+QA impact 2026-07-25 (deep-review remediation): pointer dragging now anchors the seam at pointer
+down and keeps ratio-track identities stable across updates. Flag only; the next QA cycle owns
+pointer and keyboard rebalance retesting.

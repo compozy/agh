@@ -21,3 +21,7 @@ story: As a builder, I can find every bound chord and identify exactly which dae
 qa-impact: 2026-07-24 both dialogs are new. They replace the unfocusable raw `<div>` of shortcut
 rows that used to render inside the Help dropdown (the menu opened with zero focusable children).
 Flag only; the next QA cycle owns live retesting.
+
+QA impact 2026-07-25 (deep-review remediation): the Layouts shortcut is now disabled when the live
+window-manager command fence is unavailable. Flag only; the next QA cycle owns degraded-state
+keyboard and pointer retesting.

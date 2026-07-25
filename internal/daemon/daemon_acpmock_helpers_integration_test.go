@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -60,16 +61,7 @@ func createSessionHTTPFailure(
 	t.Helper()
 
 	response := postSessionHTTP(t, ctx, harness, request)
-	var payload aghcontract.ErrorPayload
-	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
-	closeErr := response.Body.Close()
-	if decodeErr != nil {
-		t.Fatalf("decode HTTP create session failure error = %v", decodeErr)
-	}
-	if closeErr != nil {
-		t.Fatalf("close HTTP create session failure body error = %v", closeErr)
-	}
-	return response.StatusCode, payload
+	return response.StatusCode, decodeSessionHTTPResponse[aghcontract.ErrorPayload](t, response)
 }
 
 func createSessionHTTPAccepted(
@@ -81,16 +73,19 @@ func createSessionHTTPAccepted(
 	t.Helper()
 
 	response := postSessionHTTP(t, ctx, harness, request)
-	var payload aghcontract.SessionResponse
+	payload := decodeSessionHTTPResponse[aghcontract.SessionResponse](t, response)
+	return response.StatusCode, payload.Session
+}
+
+func decodeSessionHTTPResponse[T any](t testing.TB, response *http.Response) T {
+	t.Helper()
+	var payload T
 	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
 	closeErr := response.Body.Close()
-	if decodeErr != nil {
-		t.Fatalf("decode HTTP accepted session error = %v", decodeErr)
+	if err := errors.Join(decodeErr, closeErr); err != nil {
+		t.Fatalf("decode/close HTTP create session response error = %v", err)
 	}
-	if closeErr != nil {
-		t.Fatalf("close HTTP accepted session body error = %v", closeErr)
-	}
-	return response.StatusCode, payload.Session
+	return payload
 }
 
 func postSessionHTTP(
