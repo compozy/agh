@@ -1,18 +1,17 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { QueryClient } from "@tanstack/react-query";
 import { fn, userEvent, within } from "storybook/test";
 
+import { AgentCreateHostProvider } from "@/systems/agent";
 import type { SessionPayload } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
-import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
+import { OsShellContext } from "../../contexts/os-shell-context";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
-import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
-import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
 import { DesktopMenubar } from "../desktop-menubar";
 import { OsSessionsModal } from "../sessions-modal";
 import { OsDockZone } from "../os-dock";
+import { createStoryShell } from "./_shell-fixture";
 import { buildDeskItems, DesktopShell } from "./_desktop";
 
 function session(
@@ -79,15 +78,6 @@ const ATTENTION: OsAttentionModel = {
   loading: false,
 };
 
-function createStoryShell({ collapsedAgent }: { collapsedAgent?: string } = {}): OsShellHandle {
-  const manager = new WindowManagerRuntime(new QueryClient());
-  const router: OsRouterPort = { navigate: () => {}, replace: () => {} };
-  if (collapsedAgent) manager.getState().toggleRailGroup(collapsedAgent);
-  const coordinator = new RoutingCoordinator(manager, router);
-  coordinator.completeHydration();
-  return { store: manager, manager, coordinator };
-}
-
 function SessionsModalFixture({ collapsedAgent }: { collapsedAgent?: string }) {
   const [shell] = useState(() => createStoryShell({ collapsedAgent }));
   const dockItems = buildDeskItems({
@@ -108,24 +98,27 @@ function BellFixture() {
   const [shell] = useState(() => createStoryShell());
   return (
     <OsShellContext.Provider value={shell}>
-      <DesktopShell
-        menubar={false}
-        dockItems={buildDeskItems({ badges: { sessions: 1, tasks: 1 } })}
-      >
-        <DesktopMenubar
-          workspaces={[WORKSPACE]}
-          activeWorkspace={WORKSPACE}
-          onOpenWorkspaces={fn()}
-          onSelectWorkspace={fn()}
-          onAddWorkspace={fn()}
-          onNewSession={fn()}
-          onOpenPalette={fn()}
-          onOpenDesktops={fn()}
-          activeOverlay="bell"
-          onOverlayOpenChange={fn()}
-          attention={ATTENTION}
-        />
-      </DesktopShell>
+      <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
+        <DesktopShell
+          menubar={false}
+          dockItems={buildDeskItems({ badges: { sessions: 1, tasks: 1 } })}
+        >
+          <DesktopMenubar
+            workspaces={[WORKSPACE]}
+            activeWorkspace={WORKSPACE}
+            onOpenWorkspaces={fn()}
+            onSelectWorkspace={fn()}
+            onAddWorkspace={fn()}
+            onNewSession={fn()}
+            onOpenPalette={fn()}
+            onOpenDesktops={fn()}
+            onToggleSessions={fn()}
+            activeOverlay="bell"
+            onOverlayOpenChange={fn()}
+            attention={ATTENTION}
+          />
+        </DesktopShell>
+      </AgentCreateHostProvider>
     </OsShellContext.Provider>
   );
 }

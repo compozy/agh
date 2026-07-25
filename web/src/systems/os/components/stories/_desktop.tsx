@@ -90,10 +90,6 @@ export function DesktopShell({
         <OsMenuBar
           workspace={{ name: "agh", monogram: "AG" }}
           notifications={2}
-          onLogoClick={fn()}
-          onWorkspaceClick={fn()}
-          onMenuClick={fn()}
-          onNotificationsClick={fn()}
           onCommandClick={fn()}
           onSettingsClick={fn()}
         />

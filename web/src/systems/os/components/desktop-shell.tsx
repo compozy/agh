@@ -13,8 +13,10 @@ import { DesktopMenubar } from "./desktop-menubar";
 import { DesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
 import { DesktopPagerSurface } from "./desktop-pager-surface";
+import { OsAboutDialog } from "./os-about-dialog";
 import { OsAppPreloader } from "./os-app-preloader";
 import { OsCommandPalette } from "./os-command-palette";
+import { OsShortcutsDialog } from "./os-shortcuts-dialog";
 import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { OsWinLayer } from "./os-win-layer";
@@ -99,6 +101,7 @@ function DesktopShellBody({ model }: { model: DesktopShellModel }) {
         onOpenPalette={() => overlays.setOverlayOpen("palette", true)}
         onOpenDesktops={() => overlays.setOverlayOpen("desktops", true)}
         onOpenWorkspaces={() => overlays.setOverlayOpen("workspaces", true)}
+        onToggleSessions={() => overlays.toggleOverlay("sessions")}
         activeOverlay={overlays.activeOverlay}
         onOverlayOpenChange={overlays.setOverlayOpen}
         attention={attention}
@@ -170,6 +173,14 @@ function DesktopShellBody({ model }: { model: DesktopShellModel }) {
         onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
         sessions={attention.sessions}
         disconnected={attention.sessionsDisconnected}
+      />
+      <OsShortcutsDialog
+        open={overlays.activeOverlay === "shortcuts"}
+        onOpenChange={open => overlays.setOverlayOpen("shortcuts", open)}
+      />
+      <OsAboutDialog
+        open={overlays.activeOverlay === "about"}
+        onOpenChange={open => overlays.setOverlayOpen("about", open)}
       />
       <OsWorkspacesOverview
         open={overlays.activeOverlay === "workspaces"}
