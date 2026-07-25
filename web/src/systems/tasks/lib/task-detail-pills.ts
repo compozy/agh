@@ -53,7 +53,7 @@ export function projectTaskExceptionPills(detail: TaskDetailView): TaskException
   }
 
   if (taskWakeIndicatorApplies(record)) {
-    const wakeEnabled = record.wake_creator !== false;
+    const wakeEnabled = record.wake_creator;
     pills.push({
       key: "wake",
       label: wakeEnabled ? "Wake on" : "Wake off",

@@ -433,6 +433,79 @@ func TestServiceRunDreamSignalGatePromotesEligibleSignals(t *testing.T) {
 	})
 }
 
+func TestServiceRunSkipsWorkspaceDisabledDreamWithoutPromotion(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should roll back the provisional run without promotion", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		env := newDreamSeedEnv(t, now)
+		seedDreamRecallSignals(t, env.workspaceStore, memcontract.ScopeWorkspace, env.workspaceID, 5, now)
+		prior := now.Add(-48 * time.Hour)
+		lock := &stubLock{
+			tryAcquireFn: func() (time.Time, bool, error) {
+				return prior, true, nil
+			},
+		}
+		service := NewService(
+			WithMemoryStore(env.baseStore),
+			WithWorkspaceResolver(&fakeDreamWorkspaceResolver{
+				resolved: workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: env.workspaceID, RootDir: env.workspaceRoot},
+				},
+			}),
+			WithMinHours(0),
+			WithMinSessions(0),
+			WithDreamGateConfig(DreamGateConfig{MinCandidates: 5, MinRecallCount: 2, MinScore: 0.75}),
+			withLock(lock),
+			withNow(func() time.Time { return now }),
+		)
+
+		err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
+			return ErrDreamRoleDisabled
+		}, env.workspaceID)
+		if !errors.Is(err, ErrDreamRoleDisabled) {
+			t.Fatalf("Run() error = %v, want ErrDreamRoleDisabled", err)
+		}
+		assertDreamPromotedCount(t, env.workspaceStore, 0)
+		db, dbErr := env.workspaceStore.catalog.ensureDB(testutil.Context(t))
+		if dbErr != nil {
+			t.Fatalf("ensureDB() error = %v", dbErr)
+		}
+		var runCount int
+		if queryErr := db.QueryRowContext(
+			testutil.Context(t),
+			`SELECT COUNT(*) FROM memory_consolidations`,
+		).Scan(&runCount); queryErr != nil {
+			t.Fatalf("query skipped dream run count error = %v", queryErr)
+		}
+		if runCount != 0 {
+			t.Fatalf("dream run count = %d, want 0", runCount)
+		}
+		assertDreamEventCount(t, env.workspaceStore, memoryEventDreamStarted, 0)
+		if lock.releaseCalls != 0 || len(lock.rollbackCalls) != 1 || !lock.rollbackCalls[0].Equal(prior) {
+			t.Fatalf("lock release/rollback = %d/%v, want 0/[prior]", lock.releaseCalls, lock.rollbackCalls)
+		}
+	})
+
+	t.Run("Should surface rollback failure instead of reporting a clean skip", func(t *testing.T) {
+		t.Parallel()
+
+		rollbackErr := errors.New("rollback disabled dream run")
+		service := NewService(withLock(&stubLock{rollbackErr: rollbackErr}))
+		err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
+			return ErrDreamRoleDisabled
+		}, "")
+		if !errors.Is(err, rollbackErr) {
+			t.Fatalf("Run() error = %v, want rollback failure", err)
+		}
+		if errors.Is(err, ErrDreamRoleDisabled) {
+			t.Fatalf("Run() error = %v, must not suppress cleanup failure as disabled-role skip", err)
+		}
+	})
+}
+
 func TestServiceRunDreamSignalGateUsesStableWorkspaceIdentity(t *testing.T) {
 	t.Parallel()
 

@@ -23,9 +23,7 @@ func reloadChangedPaths(current *aghconfig.Config, desired *aghconfig.Config) []
 	var changed []string
 	changed = append(changed, diffGeneralSettings(current, generalSettingsFromConfig(desired))...)
 	changed = append(changed, diffSkillsSettings(current.Skills, desired.Skills)...)
-	if !reflect.DeepEqual(current.Roles, desired.Roles) {
-		changed = append(changed, "roles.*")
-	}
+	changed = append(changed, diffRolesSettings(&current.Roles, &desired.Roles)...)
 	changed = append(changed, diffMemorySettings(&current.Memory, &desired.Memory)...)
 	changed = append(changed, diffAutomationSettings(current, automationSettingsFromConfig(desired))...)
 	if current.Automation.Suggestions.PendingCap != desired.Automation.Suggestions.PendingCap {

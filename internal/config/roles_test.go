@@ -37,17 +37,20 @@ func TestDefaultRolesConfigPreservesRoleBehavior(t *testing.T) {
 		t.Parallel()
 
 		got := DefaultRolesConfig()
-		for name, role := range map[RoleName]RoleConfig{
-			RoleDream:             got.Dream,
-			RoleCheckpointSummary: got.CheckpointSummary,
-			RoleMemoryExtractor:   got.MemoryExtractor,
-			RoleAutoTitle:         got.AutoTitle,
+		for _, item := range []struct {
+			name RoleName
+			role RoleConfig
+		}{
+			{name: RoleDream, role: got.Dream},
+			{name: RoleCheckpointSummary, role: got.CheckpointSummary},
+			{name: RoleMemoryExtractor, role: got.MemoryExtractor},
+			{name: RoleAutoTitle, role: got.AutoTitle},
 		} {
-			if !role.Enabled {
-				t.Errorf("DefaultRolesConfig().%s.Enabled = false, want true", name)
+			if !item.role.Enabled {
+				t.Errorf("DefaultRolesConfig().%s.Enabled = false, want true", item.name)
 			}
-			if role.Agent != "" {
-				t.Errorf("DefaultRolesConfig().%s.Agent = %q, want empty", name, role.Agent)
+			if item.role.Agent != "" {
+				t.Errorf("DefaultRolesConfig().%s.Agent = %q, want empty", item.name, item.role.Agent)
 			}
 		}
 	})
@@ -58,6 +61,9 @@ func TestDefaultRolesConfigPreservesRoleBehavior(t *testing.T) {
 		got := DefaultRolesConfig().MemoryController
 		if !got.Enabled {
 			t.Fatal("DefaultRolesConfig().MemoryController.Enabled = false, want true")
+		}
+		if got.Provider != "pi" {
+			t.Fatalf("DefaultRolesConfig().MemoryController.Provider = %q, want pi", got.Provider)
 		}
 		if got.Model != "anthropic/claude-haiku-4" {
 			t.Fatalf("DefaultRolesConfig().MemoryController.Model = %q, want anthropic/claude-haiku-4", got.Model)
@@ -70,6 +76,21 @@ func TestDefaultRolesConfigPreservesRoleBehavior(t *testing.T) {
 				"DefaultRolesConfig().MemoryController = %#v, want top_k=5 prompt_version=v1 max_tokens_out=256",
 				got,
 			)
+		}
+	})
+
+	t.Run("Should clone every fallback chain without shared ownership", func(t *testing.T) {
+		t.Parallel()
+
+		source := DefaultRolesConfig()
+		source.Dream.FallbackChain = []RoleFallback{{Provider: "primary", Model: "dream-model"}}
+		source.MemoryController.FallbackChain = []RoleFallback{{Provider: "backup", Model: "controller-model"}}
+		cloned := CloneRolesConfig(&source)
+		cloned.Dream.FallbackChain[0].Model = "changed-dream"
+		cloned.MemoryController.FallbackChain[0].Model = "changed-controller"
+		if source.Dream.FallbackChain[0].Model != "dream-model" ||
+			source.MemoryController.FallbackChain[0].Model != "controller-model" {
+			t.Fatalf("CloneRolesConfig() mutated source fallbacks: %#v", source)
 		}
 	})
 }
@@ -164,6 +185,25 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "roles.memory_extractor.reasoning_effort") ||
 			!strings.Contains(err.Error(), "extreme") {
 			t.Fatalf("Validate() error = %v, want reasoning enum error", err)
+		}
+	})
+
+	t.Run("Should defer a catalog agent model to invocation-time resolution", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultRolesConfig()
+		cfg.Dream.Agent = "curator"
+		cfg.Dream.Provider = "bare-pi"
+		cfg.Dream.Model = ""
+		providers := &Config{Providers: map[string]ProviderConfig{
+			"bare-pi": {
+				Command:         "pi-acp",
+				Harness:         ProviderHarnessPiACP,
+				RuntimeProvider: "anthropic",
+			},
+		}}
+		if err := cfg.Validate("roles", providers); err != nil {
+			t.Fatalf("Validate(catalog agent supplies model) error = %v", err)
 		}
 	})
 

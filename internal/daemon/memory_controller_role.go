@@ -20,7 +20,8 @@ type memoryControllerCallOptions struct {
 	TopK            int
 	PromptVersion   string
 	MaxTokensOut    int
-	Fallbacks       []aghconfig.RoleFallback
+	Config          aghconfig.Config
+	resolvedRole    ResolvedRole
 }
 
 func (r *roleResolver) resolveMemoryControllerCallOptions(
@@ -35,6 +36,20 @@ func (r *roleResolver) resolveMemoryControllerCallOptions(
 		return memoryControllerCallOptions{}, fmt.Errorf("daemon: resolve memory controller role: %w", err)
 	}
 	effective := effectiveConfig.Roles.MemoryController
+	runtime, err := effectiveConfig.ResolveAgent(aghconfig.AgentDef{
+		Name:            "memory-controller",
+		Provider:        resolved.Provider,
+		Model:           resolved.Model,
+		ReasoningEffort: resolved.ReasoningEffort,
+		Prompt:          "AGH memory controller transient runtime.",
+	})
+	if err != nil {
+		return memoryControllerCallOptions{}, fmt.Errorf("daemon: resolve memory controller runtime: %w", err)
+	}
+	resolved.Provider = runtime.Provider
+	resolved.Model = runtime.Model
+	resolved.ReasoningEffort = runtime.ReasoningEffort
+	resolved.eventWriter = r.events
 	return memoryControllerCallOptions{
 		Enabled:         resolved.Enabled,
 		Provider:        resolved.Provider,
@@ -44,6 +59,7 @@ func (r *roleResolver) resolveMemoryControllerCallOptions(
 		TopK:            effective.TopK,
 		PromptVersion:   effective.PromptVersion,
 		MaxTokensOut:    effective.MaxTokensOut,
-		Fallbacks:       append([]aghconfig.RoleFallback(nil), resolved.Fallbacks...),
+		Config:          *effectiveConfig,
+		resolvedRole:    resolved,
 	}, nil
 }

@@ -13,6 +13,12 @@ import (
 // RoleRecord is one effective background-role configuration projection.
 type RoleRecord = contract.RoleStatus
 
+// RolesClient is the focused daemon surface for background-role inspection.
+type RolesClient interface {
+	ListRoles(context.Context, RoleQuery) ([]RoleRecord, error)
+	GetRole(context.Context, string, RoleQuery) (RoleRecord, error)
+}
+
 // RoleQuery scopes role resolution to a workspace when supplied.
 type RoleQuery struct {
 	Workspace string

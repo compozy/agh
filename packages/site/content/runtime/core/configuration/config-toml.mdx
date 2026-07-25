@@ -38,7 +38,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[roles.checkpoint_summary]`         | Checkpoint-summary session routing.                                                  | enabled, builtin `dreaming-curator`                                                               |
 | `[roles.memory_extractor]`           | Memory-extractor session routing.                                                    | enabled, inherits the invoking agent                                                              |
 | `[roles.auto_title]`                 | Automatic-title session routing.                                                     | enabled, inherits the invoking agent                                                              |
-| `[roles.memory_controller]`          | In-process memory-controller model routing and call bounds.                          | enabled, `anthropic/claude-haiku-4`, 250 ms, top-K 5, prompt v1, 256 output tokens                |
+| `[roles.memory_controller]`          | In-process memory-controller model routing and call bounds.                          | enabled, `pi` + `anthropic/claude-haiku-4`, 250 ms, top-K 5, prompt v1, 256 output tokens         |
 | `[limits]`                           | Daemon-level concurrently running agent cap.                                         | `max_concurrent_agents = 20`                                                                      |
 | `[session.limits]`                   | Session-scoped wall-clock timeout.                                                   | `timeout = "0s"`                                                                                  |
 | `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.      | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes                 |
@@ -207,6 +207,7 @@ reasoning_effort = "low"
 [roles.memory_controller]
 # This in-process role has no agent field.
 enabled = true
+provider = "pi"
 model = "anthropic/claude-haiku-4"
 timeout = "250ms"
 top_k = 5
@@ -881,6 +882,7 @@ semantics above, plus these call-policy fields:
 
 | Field            | Type     | Default                    | Valid values             | Description                                        |
 | ---------------- | -------- | -------------------------- | ------------------------ | -------------------------------------------------- |
+| `provider`       | string   | `pi`                       | Configured provider name | ACP transport used by the transient model call.    |
 | `model`          | string   | `anthropic/claude-haiku-4` | Non-empty when enabled   | Model used by the controller tiebreaker.           |
 | `timeout`        | duration | `250ms`                    | Positive Go duration     | Deadline for one controller model call.            |
 | `top_k`          | integer  | `5`                        | Positive integer         | Candidate count passed to the tiebreaker.          |

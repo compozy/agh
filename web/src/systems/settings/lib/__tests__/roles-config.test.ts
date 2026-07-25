@@ -10,22 +10,10 @@ import {
   applyRoleFieldEdit,
   removeFallbackEntry,
   ROLE_ORDER,
-  rolesConfigPath,
   updateFallbackEntry,
 } from "../roles-config";
 import { buildRolesViewModel } from "../roles-view-model";
 import { collectRoleValidationErrors, fallbackFieldId } from "../roles-validation";
-
-describe("rolesConfigPath", () => {
-  it("Should map a role field to the exact roles.<role>.<field> config path", () => {
-    expect(rolesConfigPath("auto_title", "model")).toBe("roles.auto_title.model");
-    expect(rolesConfigPath("memory_controller", "timeout")).toBe("roles.memory_controller.timeout");
-  });
-
-  it("Should map the fallback chain to the array-level roles.<role>.fallback_chain path", () => {
-    expect(rolesConfigPath("dream", "fallback_chain")).toBe("roles.dream.fallback_chain");
-  });
-});
 
 describe("applyRoleFieldEdit", () => {
   it("Should set one scalar field immutably without touching other roles or the original", () => {

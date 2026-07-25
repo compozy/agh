@@ -15,6 +15,7 @@ export interface RoleSettingsGroupProps {
   vm: RoleViewModel;
   validationErrors: Record<string, string>;
   disabled?: boolean;
+  draftRevision?: number;
   setRoleField: (role: RoleName, field: string, value: string | number | boolean) => void;
   setNumberFieldValidity: (id: string) => (message: string | null) => void;
   addFallback: (role: RoleName) => void;
@@ -37,6 +38,7 @@ export function RoleSettingsGroup({
   vm,
   validationErrors,
   disabled,
+  draftRevision,
   setRoleField,
   setNumberFieldValidity,
   addFallback,
@@ -97,6 +99,8 @@ export function RoleSettingsGroup({
               error={validationErrors[id]}
               disabled={disabled}
               testId={`${TEST_PREFIX}-${role}-${field.key}`}
+              resetRevision={draftRevision}
+              fieldRef={field.kind === "number" ? registerFieldRef(id) : undefined}
               onValueChange={value => setRoleField(role, field.key, value)}
               onValidityChange={field.kind === "number" ? setNumberFieldValidity(id) : undefined}
             />

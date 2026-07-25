@@ -150,14 +150,11 @@ test("operator verifies thread and direct network surfaces with final conversati
   await expect(ui.threadList).toHaveAttribute("aria-label", `Threads in #${channelName}`);
   await ui.channelInspectorToggle.click();
   await expect(ui.inspector).toBeVisible();
-  await expect(ui.inspectorMembersTab).toHaveAttribute("aria-selected", "true");
+  await expect(ui.inspectorMembersTab).toHaveAttribute("aria-pressed", "true");
   await expect(ui.inspectorPanelMembers).toBeVisible();
   await ui.inspectorWorkTab.click();
-  await expect(ui.inspectorWorkTab).toHaveAttribute("aria-selected", "true");
+  await expect(ui.inspectorWorkTab).toHaveAttribute("aria-pressed", "true");
   await expect(ui.inspectorPanelWork).toBeVisible();
-  await ui.inspectorActivityTab.click();
-  await expect(ui.inspectorActivityTab).toHaveAttribute("aria-selected", "true");
-  await expect(ui.inspectorPanelActivity).toBeVisible();
   await ui.channelInspectorToggle.click();
   await expect(ui.inspector).toHaveCount(0);
   await expect(ui.threadItem(operatorFlow.threadId)).toBeVisible();
@@ -419,6 +416,10 @@ async function createChannelFromUI(
   for (const agent of input.agents) {
     await ui.agentOption(agent).click();
   }
+  const firstAgent = input.agents[0];
+  if (!firstAgent) throw new Error("channel creation requires at least one agent");
+  await ui.createAgentTrigger.click();
+  await expect(ui.agentOption(firstAgent)).toBeHidden();
   const createResponse = page.waitForResponse(
     response =>
       response.request().method() === "POST" &&

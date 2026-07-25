@@ -62,7 +62,7 @@ func (s *daemonCheckpointSummarizer) Summarize(
 		return "", fmt.Errorf("daemon: resolve checkpoint summary role: %w", err)
 	}
 	if !role.Enabled {
-		return "", nil
+		return "", memory.ErrCheckpointSummaryDisabled
 	}
 	prompt, err := memory.RenderCheckpointSummaryPrompt(request)
 	if err != nil {

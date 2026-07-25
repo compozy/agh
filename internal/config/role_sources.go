@@ -47,11 +47,13 @@ func defaultRoleFieldSources() RoleFieldSources {
 	for _, role := range allRoleNames {
 		fields := []string{
 			roleConfigFieldEnabled,
-			roleConfigFieldAgent,
 			roleConfigFieldProvider,
 			roleConfigFieldModel,
 			roleConfigFieldReasoning,
 			roleConfigFieldFallbacks,
+		}
+		if role != RoleMemoryController {
+			fields = append(fields, roleConfigFieldAgent)
 		}
 		switch role {
 		case RoleCoordinator:

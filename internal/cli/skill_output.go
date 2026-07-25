@@ -150,7 +150,11 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 				{Label: skillOutputInactiveValue, Value: stringOrDash(skillInactiveReason(item.Activation))},
 			})
 			provenanceRows := skillProvenanceRows(item.Provenance)
-			provenance := renderHumanTable("Provenance", []string{"Field", skillOutputValueValue}, provenanceRows)
+			provenance := renderHumanTable(
+				"Provenance",
+				[]string{cliFieldValue, skillOutputValueValue},
+				provenanceRows,
+			)
 
 			metadataRows := make([][]string, 0, len(item.Metadata))
 			for _, entry := range sortedSkillMetadataEntries(item.Metadata) {
@@ -203,7 +207,7 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 				),
 				renderToonArray(
 					"provenance",
-					[]string{"field", skillOutputValueKey},
+					[]string{cliFieldKey, skillOutputValueKey},
 					skillProvenanceRows(item.Provenance),
 				),
 				renderToonArray("metadata", []string{cliKeyKey, skillOutputValueKey}, metadataRows),

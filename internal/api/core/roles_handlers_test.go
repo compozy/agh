@@ -62,8 +62,21 @@ func TestRoleStatusHandlers(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(RolesResponse) error = %v", err)
 		}
-		if len(payload.Roles) != 6 || provider.workspace != "ws-a" {
-			t.Fatalf("roles/workspace = %d/%q, want 6/ws-a", len(payload.Roles), provider.workspace)
+		wantRoles := []string{
+			"auto_title",
+			"checkpoint_summary",
+			"coordinator",
+			"dream",
+			"memory_controller",
+			"memory_extractor",
+		}
+		if len(payload.Roles) != len(wantRoles) || provider.workspace != "ws-a" {
+			t.Fatalf("roles/workspace = %d/%q, want %d/ws-a", len(payload.Roles), provider.workspace, len(wantRoles))
+		}
+		for index, wantRole := range wantRoles {
+			if payload.Roles[index].Role != wantRole {
+				t.Fatalf("roles[%d].Role = %q, want %q", index, payload.Roles[index].Role, wantRole)
+			}
 		}
 	})
 
@@ -85,6 +98,9 @@ func TestRoleStatusHandlers(t *testing.T) {
 		if payload.Diagnostic == nil || payload.Diagnostic.Code != contract.CodeRoleUnknown {
 			t.Fatalf("GET /api/roles/judge payload = %#v, want role_unknown", payload)
 		}
+		if provider.role != "judge" {
+			t.Fatalf("RoleStatus role = %q, want judge", provider.role)
+		}
 	})
 }
 
@@ -101,6 +117,7 @@ type rolesStatusProviderStub struct {
 	status    contract.RoleStatus
 	statusErr error
 	workspace string
+	role      string
 }
 
 func (s *rolesStatusProviderStub) RoleStatuses(
@@ -114,9 +131,10 @@ func (s *rolesStatusProviderStub) RoleStatuses(
 func (s *rolesStatusProviderStub) RoleStatus(
 	_ context.Context,
 	workspaceID string,
-	_ string,
+	role string,
 ) (contract.RoleStatus, error) {
 	s.workspace = workspaceID
+	s.role = role
 	return s.status, s.statusErr
 }
 

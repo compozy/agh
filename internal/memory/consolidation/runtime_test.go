@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,58 +23,64 @@ import (
 
 func TestRuntimeTriggerReturnsAlreadyRunningWhenLockUnavailable(t *testing.T) {
 	t.Parallel()
+	t.Run("Should report an already-running lock conflict as a clean skip", func(t *testing.T) {
+		t.Parallel()
 
-	service := &fakeDreamService{
-		shouldRun: true,
-		runErr:    memory.ErrLockUnavailable,
-	}
-	runtime := NewRuntime(
-		staticEnabled(true),
-		service,
-		func(context.Context, string, string, string, time.Time) error { return nil },
-		time.Minute,
-		discardLogger(),
-		nil,
-	)
+		service := &fakeDreamService{
+			shouldRun: true,
+			runErr:    memory.ErrLockUnavailable,
+		}
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Minute,
+			discardLogger(),
+			nil,
+		)
 
-	triggered, reason, err := runtime.Trigger(context.Background(), "ws-1")
-	if err != nil {
-		t.Fatalf("Trigger() error = %v", err)
-	}
-	if triggered {
-		t.Fatal("Trigger() triggered = true, want false")
-	}
-	if reason != "dream consolidation is already running" {
-		t.Fatalf("Trigger() reason = %q, want already-running message", reason)
-	}
+		triggered, reason, err := runtime.Trigger(context.Background(), "ws-1")
+		if err != nil {
+			t.Fatalf("Trigger() error = %v", err)
+		}
+		if triggered {
+			t.Fatal("Trigger() triggered = true, want false")
+		}
+		if reason != "dream consolidation is already running" {
+			t.Fatalf("Trigger() reason = %q, want already-running message", reason)
+		}
+	})
 }
 
 func TestRuntimeTriggerReturnsGateMissWhenRunSignalGateMisses(t *testing.T) {
 	t.Parallel()
+	t.Run("Should report a signal-gate miss as a clean skip", func(t *testing.T) {
+		t.Parallel()
 
-	service := &fakeDreamService{
-		shouldRun: true,
-		runErr:    memory.ErrDreamGateNotSatisfied,
-	}
-	runtime := NewRuntime(
-		staticEnabled(true),
-		service,
-		func(context.Context, string, string, string, time.Time) error { return nil },
-		time.Minute,
-		discardLogger(),
-		nil,
-	)
+		service := &fakeDreamService{
+			shouldRun: true,
+			runErr:    memory.ErrDreamGateNotSatisfied,
+		}
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Minute,
+			discardLogger(),
+			nil,
+		)
 
-	triggered, reason, err := runtime.Trigger(context.Background(), "ws-1")
-	if err != nil {
-		t.Fatalf("Trigger() error = %v", err)
-	}
-	if triggered {
-		t.Fatal("Trigger() triggered = true, want false")
-	}
-	if reason != "dream consolidation gates are not satisfied" {
-		t.Fatalf("Trigger() reason = %q, want gates-not-satisfied message", reason)
-	}
+		triggered, reason, err := runtime.Trigger(context.Background(), "ws-1")
+		if err != nil {
+			t.Fatalf("Trigger() error = %v", err)
+		}
+		if triggered {
+			t.Fatal("Trigger() triggered = true, want false")
+		}
+		if reason != "dream consolidation gates are not satisfied" {
+			t.Fatalf("Trigger() reason = %q, want gates-not-satisfied message", reason)
+		}
+	})
 }
 
 func TestRuntimeTriggerStates(t *testing.T) {
@@ -205,115 +212,153 @@ func TestRuntimeLastConsolidatedAt(t *testing.T) {
 
 func TestRuntimeTickerRunsAndStopsOnCancellation(t *testing.T) {
 	t.Parallel()
+	t.Run("Should run scheduled checks and stop after cancellation", func(t *testing.T) {
+		t.Parallel()
 
-	service := &fakeDreamService{shouldRun: true}
-	runtime := NewRuntime(
-		staticEnabled(true),
-		service,
-		func(context.Context, string, string, string, time.Time) error { return nil },
-		10*time.Millisecond,
-		discardLogger(),
-		nil,
-	)
+		service := &fakeDreamService{shouldRun: true}
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			10*time.Millisecond,
+			discardLogger(),
+			nil,
+		)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	runtime.Start(ctx)
-	t.Cleanup(runtime.Shutdown)
+		ctx, cancel := context.WithCancel(context.Background())
+		runtime.Start(ctx)
+		t.Cleanup(runtime.Shutdown)
 
-	waitForCondition(t, "dream ticker run", func() bool {
-		return service.runCount() > 0
+		waitForCondition(t, "dream ticker run", func() bool {
+			return service.runCount() > 0
+		})
+
+		cancel()
+		runtime.Shutdown()
+
+		runCount := service.runCount()
+		time.Sleep(30 * time.Millisecond)
+		if got := service.runCount(); got != runCount {
+			t.Fatalf("run count after shutdown = %d, want %d", got, runCount)
+		}
 	})
-
-	cancel()
-	runtime.Shutdown()
-
-	runCount := service.runCount()
-	time.Sleep(30 * time.Millisecond)
-	if got := service.runCount(); got != runCount {
-		t.Fatalf("run count after shutdown = %d, want %d", got, runCount)
-	}
 }
 
 func TestRuntimeEnqueueCheckRunsQueuedRequest(t *testing.T) {
 	t.Parallel()
+	t.Run("Should execute a queued workspace check", func(t *testing.T) {
+		t.Parallel()
 
-	service := &fakeDreamService{shouldRun: true}
-	runtime := NewRuntime(
-		staticEnabled(true),
-		service,
-		func(context.Context, string, string, string, time.Time) error { return nil },
-		time.Hour,
-		discardLogger(),
-		nil,
-	)
+		service := &fakeDreamService{shouldRun: true}
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Hour,
+			discardLogger(),
+			nil,
+		)
 
-	ctx := t.Context()
-	runtime.Start(ctx)
-	t.Cleanup(runtime.Shutdown)
+		ctx := t.Context()
+		runtime.Start(ctx)
+		t.Cleanup(runtime.Shutdown)
 
-	runtime.EnqueueCheck("session_stop", "  ws-queued  ")
-	waitForCondition(t, "queued dream check", func() bool {
-		return service.runCount() == 1
+		runtime.EnqueueCheck("session_stop", "  ws-queued  ")
+		waitForCondition(t, "queued dream check", func() bool {
+			return service.runCount() == 1
+		})
+
+		if got := service.lastWorkspace(); got != "ws-queued" {
+			t.Fatalf("queued workspace = %q, want trimmed queued workspace", got)
+		}
 	})
-
-	if got := service.lastWorkspace(); got != "ws-queued" {
-		t.Fatalf("queued workspace = %q, want trimmed queued workspace", got)
-	}
 }
 
-func TestRuntimeStartDoesNothingWhenDisabled(t *testing.T) {
+func TestRuntimeSkipsChecksWhileDisabled(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep the scheduler idle while disabled", func(t *testing.T) {
+		t.Parallel()
 
-	service := &fakeDreamService{shouldRun: true}
-	runtime := NewRuntime(
-		staticEnabled(false),
-		service,
-		func(context.Context, string, string, string, time.Time) error { return nil },
-		10*time.Millisecond,
-		discardLogger(),
-		nil,
-	)
+		service := &fakeDreamService{shouldRun: true}
+		runtime := NewRuntime(
+			staticEnabled(false),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			10*time.Millisecond,
+			discardLogger(),
+			nil,
+		)
 
-	ctx := t.Context()
-	runtime.Start(ctx)
-	runtime.EnqueueCheck("manual", "ws-disabled")
+		ctx := t.Context()
+		runtime.Start(ctx)
+		runtime.EnqueueCheck("manual", "ws-disabled")
 
-	if got := service.runCount(); got != 0 {
-		t.Fatalf("run count = %d, want 0", got)
-	}
+		if got := service.runCount(); got != 0 {
+			t.Fatalf("run count = %d, want 0", got)
+		}
+	})
 }
 
 func TestRuntimeReadsLiveEnabledState(t *testing.T) {
 	t.Parallel()
+	t.Run("Should read enabled state for each trigger", func(t *testing.T) {
+		t.Parallel()
 
-	enabled := false
-	service := &fakeDreamService{shouldRun: true}
-	runtime := NewRuntime(func() bool { return enabled }, service, func(
-		context.Context,
-		string,
-		string,
-		string,
-		time.Time,
-	) error {
-		return nil
-	}, time.Minute, discardLogger(), nil)
+		enabled := false
+		service := &fakeDreamService{shouldRun: true}
+		runtime := NewRuntime(func() bool { return enabled }, service, func(
+			context.Context,
+			string,
+			string,
+			string,
+			time.Time,
+		) error {
+			return nil
+		}, time.Minute, discardLogger(), nil)
 
-	triggered, _, err := runtime.Trigger(context.Background(), "ws-live")
-	if err != nil {
-		t.Fatalf("Trigger(disabled) error = %v", err)
-	}
-	if triggered || service.runCount() != 0 {
-		t.Fatalf("Trigger(disabled) = %t with %d runs, want skipped", triggered, service.runCount())
-	}
+		triggered, _, err := runtime.Trigger(context.Background(), "ws-live")
+		if err != nil {
+			t.Fatalf("Trigger(disabled) error = %v", err)
+		}
+		if triggered || service.runCount() != 0 {
+			t.Fatalf("Trigger(disabled) = %t with %d runs, want skipped", triggered, service.runCount())
+		}
 
-	enabled = true
-	triggered, _, err = runtime.Trigger(context.Background(), "ws-live")
-	if err != nil {
-		t.Fatalf("Trigger(enabled) error = %v", err)
-	}
-	if !triggered || service.runCount() != 1 {
-		t.Fatalf("Trigger(enabled) = %t with %d runs, want one run", triggered, service.runCount())
-	}
+		enabled = true
+		triggered, _, err = runtime.Trigger(context.Background(), "ws-live")
+		if err != nil {
+			t.Fatalf("Trigger(enabled) error = %v", err)
+		}
+		if !triggered || service.runCount() != 1 {
+			t.Fatalf("Trigger(enabled) = %t with %d runs, want one run", triggered, service.runCount())
+		}
+	})
+
+	t.Run("Should run a queued check after live enablement", func(t *testing.T) {
+		t.Parallel()
+
+		var enabled atomic.Bool
+		service := &fakeDreamService{shouldRun: true}
+		runtime := NewRuntime(
+			enabled.Load,
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Hour,
+			discardLogger(),
+			nil,
+		)
+		runtime.Start(t.Context())
+		t.Cleanup(runtime.Shutdown)
+
+		enabled.Store(true)
+		runtime.EnqueueCheck("live-enable", "ws-live")
+		waitForCondition(t, "live-enabled queued dream check", func() bool {
+			return service.runCount() == 1
+		})
+		if got := service.lastWorkspace(); got != "ws-live" {
+			t.Fatalf("queued workspace = %q, want ws-live", got)
+		}
+	})
 }
 
 func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
@@ -532,6 +577,23 @@ func TestNewSessionSpawnerPropagatesWorkspaceResolveErrors(t *testing.T) {
 	err := spawner(context.Background(), "memory-consolidation", "prompt", "workspace-alias", time.Time{})
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("spawner() error = %v, want %v", err, expectedErr)
+	}
+}
+
+func TestNewSessionSpawnerRejectsAWorkspaceDisabledDreamRole(t *testing.T) {
+	t.Parallel()
+
+	cfg := dreamConfig()
+	cfg.Roles.Dream.Enabled = false
+	resolver := &fakeWorkspaceResolver{
+		resolveResolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-disabled", RootDir: t.TempDir()},
+		},
+	}
+	spawner := newTestSessionSpawner(&fakeSessionManager{}, resolver, &cfg)
+	err := spawner(context.Background(), "memory-consolidation", "prompt", "ws-disabled", time.Time{})
+	if !errors.Is(err, memory.ErrDreamRoleDisabled) {
+		t.Fatalf("spawner() error = %v, want ErrDreamRoleDisabled", err)
 	}
 }
 
@@ -847,10 +909,12 @@ func testDreamRouteResolver(cfg *aghconfig.Config) SessionRouteResolver {
 	return func(context.Context, string) (SessionRoute, error) {
 		role := cfg.Roles.Dream
 		return SessionRoute{
-			Enabled:   role.Enabled,
-			AgentName: role.Agent,
-			Provider:  role.Provider,
-			Model:     role.Model,
+			Enabled:         role.Enabled,
+			AgentName:       role.Agent,
+			Provider:        role.Provider,
+			Model:           role.Model,
+			ReasoningEffort: role.ReasoningEffort,
+			Fallbacks:       append([]aghconfig.RoleFallback(nil), role.FallbackChain...),
 		}, nil
 	}
 }

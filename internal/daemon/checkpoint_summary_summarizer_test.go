@@ -27,8 +27,8 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 			resolvedRoleResolver(ResolvedRole{Enabled: false}),
 		)
 		summary, err := summarizer.Summarize(testutil.Context(t), checkpointSummaryRequestFixture())
-		if err != nil {
-			t.Fatalf("Summarize() error = %v", err)
+		if !errors.Is(err, memory.ErrCheckpointSummaryDisabled) {
+			t.Fatalf("Summarize() error = %v, want ErrCheckpointSummaryDisabled", err)
 		}
 		if summary != "" || manager.createCalls != 0 {
 			t.Fatalf("Summarize() = %q with %d create calls, want skipped", summary, manager.createCalls)

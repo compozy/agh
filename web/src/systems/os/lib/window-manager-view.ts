@@ -144,6 +144,7 @@ export function buildWindowManagerWindows(input: {
   workArea: PixelRect;
   projections: Readonly<Record<string, LayoutProjection>>;
   raiseOnFocus: boolean;
+  routeIntents?: Readonly<Record<string, { route: OsWindowRoute }>>;
 }): Readonly<Record<string, OsWindow>> {
   if (input.snapshot === null) return {};
   const windows: Record<string, OsWindow> = {};
@@ -166,13 +167,14 @@ export function buildWindowManagerWindows(input: {
       ? (input.client?.focusOrder.indexOf(authoritative.id) ?? -1)
       : -1;
     const stableLayer = stableFloatingLayers.get(authoritative.id) ?? -1;
+    const route = input.routeIntents?.[authoritative.id]?.route ?? authoritative.route;
     windows[authoritative.id] = {
       id: authoritative.id,
       app: resolvedApp,
       instanceKey: authoritative.instanceKey,
       route: {
-        pathname: authoritative.route.pathname,
-        search: { ...authoritative.route.search },
+        pathname: route.pathname,
+        search: { ...route.search },
       },
       desktopId: authoritative.desktopId,
       placement: authoritative.placement,

@@ -16,6 +16,8 @@ interface RoleFieldControlProps {
   error?: string;
   disabled?: boolean;
   testId: string;
+  resetRevision?: number;
+  fieldRef?: (element: HTMLInputElement | null) => void;
   onValueChange: (value: string | number | boolean) => void;
   onValidityChange?: (message: string | null) => void;
 }
@@ -40,6 +42,8 @@ function renderControl({
   testId,
   onValueChange,
   onValidityChange,
+  resetRevision,
+  fieldRef,
 }: RoleFieldControlProps): ReactNode {
   switch (field.kind) {
     case "switch":
@@ -58,6 +62,8 @@ function renderControl({
           data-testid={`${testId}-input`}
           min={field.min}
           value={Number(value)}
+          resetRevision={resetRevision}
+          ref={fieldRef}
           disabled={disabled}
           onValueChange={next => onValueChange(next)}
           onValidityChange={onValidityChange}

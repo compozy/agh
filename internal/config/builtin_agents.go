@@ -3,6 +3,7 @@ package config
 import (
 	_ "embed"
 	"errors"
+	"sort"
 	"strings"
 )
 
@@ -34,7 +35,12 @@ var (
 
 // BuiltinAgentNames returns the reserved runtime-owned identity names.
 func BuiltinAgentNames() []string {
-	return []string{BuiltinCoordinatorAgentName, BuiltinDreamingCuratorAgentName}
+	names := make([]string, 0, len(builtinAgentDefs))
+	for name := range builtinAgentDefs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // BuiltinAgentDef returns a detached copy of a runtime-owned agent definition.

@@ -382,6 +382,8 @@ export {
 
 // Hooks -- restart
 export { useSettingsRestart } from "./hooks/use-settings-restart";
+export { useSettingsRolesPage } from "./hooks/use-settings-roles-page";
 export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";
 export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-settings-topbar";
 export type { SettingsSaveBarState } from "./lib/save-state";
+export { buildRolesViewModel, type RoleViewModel } from "./lib/roles-view-model";

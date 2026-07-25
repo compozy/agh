@@ -6,7 +6,7 @@ persona: Dora
 journey: J-route-background-work
 expected: Settings → Roles renders the six roles in product order with truthful builtin, inherit, off, provenance, fallback, and diagnostic states; a valid edit applies Live, survives reload, and never exposes virtual builtins in the Agents fleet.
 entry_points: Web /settings/roles; GET/PATCH /api/settings/roles; GET /api/roles
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260724-inherited-role-provider-resolution
 fix_status: fixed
 retest_status: pass
@@ -25,3 +25,7 @@ surface; the panel is runtime administration). Session charter: CH-settings-role
 also settles MS-026's retained-memory-controls check on the adjacent Memory settings page.
 
 QA 2026-07-24: the real panel rendered six roles in product order with truthful states/provenance, applied and reloaded a model plus fallback live, discarded a dirty draft on navigation, retained/focused invalid fallback input, cleared a repaired ghost diagnostic, hid builtins from the fleet, and survived a 900x700 viewport without horizontal overflow. The saved model-only inherited route initially exposed BUG-20260724-inherited-role-provider-resolution; its rebuilt-daemon retest generated the title on the primary route with no fallback.
+
+QA impact 2026-07-24 (final review remediation): incomplete role rosters now fail closed and invalid
+numeric fields receive focus when they block save. The next QA cycle owns these corrected error and
+recovery states.

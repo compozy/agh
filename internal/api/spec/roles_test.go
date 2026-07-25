@@ -59,5 +59,9 @@ func TestRolesRoutesAndSchemas(t *testing.T) {
 			"diagnostics",
 		)
 		assertEnumValues(t, propertySchema(t, role, "resolution_mode"), "builtin", "catalog", "inherit")
+
+		detail := operationFor(t, doc, "/api/roles/{role}", "GET")
+		detailResponse := jsonResponseSchema(t, detail, 200)
+		assertRequired(t, detailResponse, "role")
 	})
 }

@@ -102,6 +102,14 @@ func (s *service) resolveSectionScope(
 }
 
 func validateSectionScope(section SectionName, scope ScopeKind, agentName string) error {
+	if section == SectionRoles {
+		if scope == ScopeAgent {
+			return conflictError(
+				fmt.Errorf("settings: section %q does not support %s scope", section, scope),
+			)
+		}
+		return nil
+	}
 	if section != SectionSkills && scope != ScopeGlobal {
 		return conflictError(
 			fmt.Errorf("settings: section %q does not support %s scope", section, scope),
@@ -158,7 +166,7 @@ func (s *service) populateSectionEnvelope(
 		}
 		envelope.Memory = &section
 	case SectionRoles:
-		envelope.Scope = ScopeGlobal
+		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
 		section := RolesSection{Config: cloneRolesConfig(&cfg.Roles)}
 		envelope.Roles = &section
 	case SectionSkills:
@@ -219,6 +227,11 @@ func (s *service) finalizeSectionUpdate(
 ) (MutationResult, error) {
 	if err != nil {
 		return MutationResult{}, err
+	}
+	if result.Scope == ScopeWorkspace {
+		if invalidator, ok := s.workspaceResolver.(interface{ Invalidate(string) }); ok {
+			invalidator.Invalidate(result.WorkspaceID)
+		}
 	}
 	if emitErr := s.emitSettingsChanged(ctx, result, "patch"); emitErr != nil {
 		return MutationResult{}, emitErr

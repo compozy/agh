@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -121,7 +122,7 @@ func roleBundle(role RoleRecord) outputBundle {
 	return outputBundle{
 		jsonValue: role,
 		human: func() (string, error) {
-			return renderHumanSection(roleOutputLabel, []keyValue{
+			summary := renderHumanSection(roleOutputLabel, []keyValue{
 				{Label: roleOutputLabel, Value: role.Role},
 				{Label: "Enabled", Value: strconv.FormatBool(role.Enabled)},
 				{Label: "Resolution", Value: string(role.ResolutionMode)},
@@ -131,10 +132,20 @@ func roleBundle(role RoleRecord) outputBundle {
 				{Label: "Reasoning Effort", Value: stringOrDash(roleStatusValue(role.ReasoningEffort))},
 				{Label: "Timeout", Value: stringOrDash(roleStatusValue(role.Timeout))},
 				{Label: "Diagnostics", Value: strconv.Itoa(len(role.Diagnostics))},
-			}), nil
+			})
+			return renderHumanBlocks(
+				summary,
+				renderHumanTable(
+					"Fallback Chain",
+					[]string{"Provider", "Model", "Reasoning Effort"},
+					roleFallbackRows(role),
+				),
+				renderHumanTable("Provenance", []string{cliFieldValue, "Source"}, roleProvenanceRows(role)),
+				renderHumanTable("Diagnostics", []string{"Code", "Message", "Agent"}, roleDiagnosticRows(role)),
+			), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("role", []string{
+			return renderHumanBlocks(renderToonObject("role", []string{
 				"role",
 				"enabled",
 				"resolution_mode",
@@ -152,9 +163,46 @@ func roleBundle(role RoleRecord) outputBundle {
 				roleStatusValue(role.Model),
 				roleStatusValue(role.ReasoningEffort),
 				roleStatusValue(role.Timeout),
-			}), nil
+			}),
+				renderToonArray(
+					"fallback_chain",
+					[]string{cliProviderKey, agentKernelModelKey, "reasoning_effort"},
+					roleFallbackRows(role),
+				),
+				renderToonArray("provenance", []string{cliFieldKey, "source"}, roleProvenanceRows(role)),
+				renderToonArray("diagnostics", []string{"code", "message", agentAgentKey}, roleDiagnosticRows(role)),
+			), nil
 		},
 	}
+}
+
+func roleFallbackRows(role RoleRecord) [][]string {
+	rows := make([][]string, 0, len(role.FallbackChain))
+	for _, fallback := range role.FallbackChain {
+		rows = append(rows, []string{fallback.Provider, fallback.Model, fallback.ReasoningEffort})
+	}
+	return rows
+}
+
+func roleProvenanceRows(role RoleRecord) [][]string {
+	fields := make([]string, 0, len(role.Provenance))
+	for field := range role.Provenance {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	rows := make([][]string, 0, len(fields))
+	for _, field := range fields {
+		rows = append(rows, []string{field, role.Provenance[field]})
+	}
+	return rows
+}
+
+func roleDiagnosticRows(role RoleRecord) [][]string {
+	rows := make([][]string, 0, len(role.Diagnostics))
+	for _, diagnostic := range role.Diagnostics {
+		rows = append(rows, []string{diagnostic.Code, diagnostic.Message, diagnostic.Agent})
+	}
+	return rows
 }
 
 func roleStatusValue(value *string) string {

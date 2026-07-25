@@ -51,11 +51,27 @@ func configStructNode(value reflect.Value) (any, bool) {
 		if field.PkgPath != "" {
 			continue
 		}
+		fieldValue := value.Field(i)
+		if field.Anonymous && field.Tag.Get("toml") == "" {
+			node, hasValue := configNodeFromValue(fieldValue, "")
+			if !hasValue {
+				continue
+			}
+			embedded, isStruct := node.(map[string]any)
+			if !isStruct {
+				continue
+			}
+			for key, embeddedValue := range embedded {
+				if _, exists := result[key]; !exists {
+					result[key] = embeddedValue
+				}
+			}
+			continue
+		}
 		name, omitEmpty, ok := tomlFieldName(field)
 		if !ok {
 			continue
 		}
-		fieldValue := value.Field(i)
 		if omitEmpty && fieldValue.IsZero() {
 			continue
 		}

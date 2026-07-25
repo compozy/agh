@@ -6,13 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/store"
 )
 
-const roleResolutionFailedCode = "role_resolution_failed"
+const (
+	roleResolutionFailedCode = "role_resolution_failed"
+	roleEventWriteTimeout    = 5 * time.Second
+)
 
 type roleEventSummaryWriter interface {
 	WriteEventSummary(context.Context, store.EventSummary) error
@@ -139,7 +143,9 @@ func recordRoleFallbackEvent(
 	if err != nil {
 		return fmt.Errorf("daemon: marshal role fallback event: %w", err)
 	}
-	if err := role.eventWriter.WriteEventSummary(roleEventContext(ctx), store.EventSummary{
+	eventCtx, cancel := detachedDaemonOperationContext(ctx, roleEventWriteTimeout)
+	defer cancel()
+	if err := role.eventWriter.WriteEventSummary(eventCtx, store.EventSummary{
 		SessionID: correlation.SessionID, WorkspaceID: correlation.WorkspaceID,
 		Type: eventspkg.RoleFallbackUsed, AgentName: firstRoleValue(correlation.AgentName, route.AgentName),
 		Provider: route.Provider, Outcome: string(eventspkg.OutcomeFor(eventspkg.RoleFallbackUsed)), Content: content,
@@ -175,7 +181,9 @@ func (r *roleResolver) recordRoleResolveError(
 	if err != nil {
 		return fmt.Errorf("daemon: marshal role resolution event: %w", err)
 	}
-	if err := r.events.WriteEventSummary(roleEventContext(ctx), store.EventSummary{
+	eventCtx, cancel := detachedDaemonOperationContext(ctx, roleEventWriteTimeout)
+	defer cancel()
+	if err := r.events.WriteEventSummary(eventCtx, store.EventSummary{
 		SessionID: correlation.SessionID, WorkspaceID: correlation.WorkspaceID,
 		Type: eventspkg.RoleResolveError, AgentName: firstRoleValue(correlation.AgentName, agentName),
 		Outcome: string(eventspkg.OutcomeFor(eventspkg.RoleResolveError)), Content: content,
@@ -186,11 +194,4 @@ func (r *roleResolver) recordRoleResolveError(
 		return fmt.Errorf("daemon: record %s: %w", eventspkg.RoleResolveError, err)
 	}
 	return nil
-}
-
-func roleEventContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
-	return context.WithoutCancel(ctx)
 }

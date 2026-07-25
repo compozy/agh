@@ -169,7 +169,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   runtime,
 }) => {
   const jobsWin = appPage.getByTestId("os-window-app:jobs");
-  const ui = automationOperatorSelectors(jobsWin);
+  const ui = automationOperatorSelectors(jobsWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const jobStatus = jobsWin.locator('[data-slot="topbar-status"]');
   const workspace = await createWorkspace(runtime);
@@ -339,7 +339,7 @@ test("scheduled job survives daemon restart and does not duplicate fire ids", as
   runtime,
 }) => {
   const jobsWin = appPage.getByTestId("os-window-app:jobs");
-  const ui = automationOperatorSelectors(jobsWin);
+  const ui = automationOperatorSelectors(jobsWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const job = await createJob(
     runtime,
@@ -406,7 +406,7 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
   runtime,
 }) => {
   const jobsWin = appPage.getByTestId("os-window-app:jobs");
-  const ui = automationOperatorSelectors(jobsWin);
+  const ui = automationOperatorSelectors(jobsWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const job = await createJob(
     runtime,
@@ -712,7 +712,7 @@ async function assertJobsLifecycleViewportMatrix(
   jobID: string
 ): Promise<void> {
   const jobsWin = appPage.getByTestId("os-window-app:jobs");
-  const ui = automationOperatorSelectors(jobsWin);
+  const ui = automationOperatorSelectors(jobsWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
     await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
@@ -740,7 +740,7 @@ async function assertJobsViewportMatrix(
   jobID: string
 ): Promise<void> {
   const jobsWin = appPage.getByTestId("os-window-app:jobs");
-  const ui = automationOperatorSelectors(jobsWin);
+  const ui = automationOperatorSelectors(jobsWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
     await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });

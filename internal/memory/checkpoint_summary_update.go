@@ -43,12 +43,8 @@ func (s *CheckpointSummaryService) Compact(
 	if err := s.validate(ctx, record); err != nil {
 		return CheckpointCompactionResult{}, err
 	}
-	if request.FromSequence <= 0 || request.ToSequence < request.FromSequence {
-		return CheckpointCompactionResult{}, fmt.Errorf(
-			"memory: invalid checkpoint compaction range %d..%d",
-			request.FromSequence,
-			request.ToSequence,
-		)
+	if err := validateCheckpointCompactionRange(request); err != nil {
+		return CheckpointCompactionResult{}, err
 	}
 	workspaceID, workspaceRoot, workspaceStore, err := s.resolveCheckpointWorkspace(ctx, request.WorkspaceID)
 	if err != nil {
@@ -75,6 +71,11 @@ func (s *CheckpointSummaryService) Compact(
 	}
 	summary, err := s.summarizeCheckpoint(ctx, summaryRequest)
 	if err != nil {
+		if errors.Is(err, ErrCheckpointSummaryDisabled) {
+			return CheckpointCompactionResult{Hint: memcontract.PreCompressHint{
+				Markdown: firstCheckpointValue(state.coverage.ResumeSummary, state.body),
+			}}, nil
+		}
 		return CheckpointCompactionResult{}, err
 	}
 	header := checkpointSummaryHeader(summaryRequest.EndedAt, state.header)
@@ -106,6 +107,17 @@ func (s *CheckpointSummaryService) Compact(
 	}, nil
 }
 
+func validateCheckpointCompactionRange(request memcontract.PreCompressRequest) error {
+	if request.FromSequence > 0 && request.ToSequence >= request.FromSequence {
+		return nil
+	}
+	return fmt.Errorf(
+		"memory: invalid checkpoint compaction range %d..%d",
+		request.FromSequence,
+		request.ToSequence,
+	)
+}
+
 func (s *CheckpointSummaryService) updateSessionEnd(
 	ctx context.Context,
 	record memcontract.SessionEndRecord,
@@ -132,6 +144,9 @@ func (s *CheckpointSummaryService) updateSessionEnd(
 	}
 	summary, err := s.summarizeCheckpoint(ctx, request)
 	if err != nil {
+		if errors.Is(err, ErrCheckpointSummaryDisabled) {
+			return DecisionApplyResult{}, nil
+		}
 		return DecisionApplyResult{}, err
 	}
 	header := checkpointSummaryHeader(request.EndedAt, state.header)

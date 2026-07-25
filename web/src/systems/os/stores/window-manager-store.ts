@@ -13,6 +13,7 @@ import {
 } from "../lib/layout-gesture-session";
 import type { SeamPreview } from "../lib/seam-preview";
 import type { SnapCorner, SnapSide, SnapTarget } from "../lib/snap-targets";
+import type { OsWindowRoute } from "../lib/os-types";
 import type {
   DesktopId,
   LayoutRevision,
@@ -50,6 +51,12 @@ export interface DesktopTransitionIntent {
   readonly toDesktopId: DesktopId;
   readonly direction: "earlier" | "later";
   readonly mode: "slide" | "crossfade" | "instant";
+}
+
+export interface WindowRouteIntent {
+  readonly id: string;
+  readonly windowId: string;
+  readonly route: OsWindowRoute;
 }
 
 export interface WindowPlacementCycle {
@@ -98,6 +105,8 @@ export interface WindowManagerActions {
   closeOverlay: () => void;
   requestOverviewSegment: (request: DesktopOverviewSegmentRequest) => void;
   setTransitionIntent: (intent: DesktopTransitionIntent | null) => void;
+  setRouteIntent: (intent: WindowRouteIntent) => void;
+  clearRouteIntent: (windowId: string, intentId: string) => void;
   nextPlacementCycle: (windowId: string, edge: SnapSide | SnapCorner) => number;
   trackPlacementTarget: (windowId: string, edge: SnapSide | SnapCorner | null) => void;
   setSeamPreview: (preview: SeamPreview) => void;
@@ -130,6 +139,7 @@ export interface WindowManagerStoreState {
   readonly activeOverlay: WindowManagerOverlay | null;
   readonly overviewSegmentRequest: DesktopOverviewSegmentRequest | null;
   readonly transitionIntent: DesktopTransitionIntent | null;
+  readonly routeIntents: Readonly<Record<string, WindowRouteIntent>>;
   readonly placementCycles: Readonly<Record<string, WindowPlacementCycle>>;
   readonly gesture: LayoutGestureSession | null;
   /** Live seam-drag preview applied to the projection until commit or cancel. */
@@ -185,6 +195,14 @@ function copyTransitionIntent(intent: DesktopTransitionIntent): DesktopTransitio
   return { ...intent };
 }
 
+function copyRouteIntent(intent: WindowRouteIntent): WindowRouteIntent {
+  return {
+    id: intent.id,
+    windowId: intent.windowId,
+    route: { pathname: intent.route.pathname, search: { ...intent.route.search } },
+  };
+}
+
 function copyCommand(command: PendingWindowManagerCommand): PendingWindowManagerCommand {
   return { ...command };
 }
@@ -210,6 +228,7 @@ function bindingScopedState(binding: WindowManagerBinding | null): BindingScoped
     activeOverlay: null,
     overviewSegmentRequest: null,
     transitionIntent: null,
+    routeIntents: {},
     placementCycles: {},
     gesture: null,
     seamPreview: null,
@@ -265,6 +284,23 @@ export function createWindowManagerStore(): WindowManagerStoreApi {
           transitionIntent:
             transitionIntent === null ? null : copyTransitionIntent(transitionIntent),
         });
+      },
+
+      setRouteIntent: intent => {
+        set({
+          routeIntents: {
+            ...get().routeIntents,
+            [intent.windowId]: copyRouteIntent(intent),
+          },
+        });
+      },
+
+      clearRouteIntent: (windowId, intentId) => {
+        const current = get().routeIntents[windowId];
+        if (current?.id !== intentId) return;
+        const routeIntents = { ...get().routeIntents };
+        delete routeIntents[windowId];
+        set({ routeIntents });
       },
 
       nextPlacementCycle: (windowId, edge) => {

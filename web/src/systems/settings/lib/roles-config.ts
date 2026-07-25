@@ -176,16 +176,6 @@ export function isReasoningEffortOptionValue(value: string): boolean {
 }
 
 /**
- * The daemon config path for one role field — the mutation contract asserted by
- * UT-078. The transport still submits the full section; this names the exact
- * `roles.<role>.<field>` key each edit targets (`roles.dream.fallback_chain`
- * for the whole fallback list).
- */
-export function rolesConfigPath(role: RoleName, field: string): string {
-  return `roles.${role}.${field}`;
-}
-
-/**
  * Immutably set one scalar role field, returning a new full section config.
  * The cast is contained here: `ROLE_FIELDS` guarantees `field` is a valid key
  * for `role` and `value`'s runtime kind matches the descriptor.

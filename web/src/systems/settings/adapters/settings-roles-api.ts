@@ -41,12 +41,7 @@ export async function getSettingsRoles(signal?: AbortSignal): Promise<SettingsRo
   return requireResponseData(data, response, "Failed to load roles settings");
 }
 
-/**
- * Apply the full `[roles]` section through the existing config-apply plane
- * (`PATCH /api/settings/roles`). The transport accepts the whole section
- * payload; per-field `roles.<role>.<field>` mapping is an adapter-level
- * contract layered on top (see `lib/roles-config.ts`).
- */
+/** Apply the full `[roles]` section through the typed Settings config plane. */
 export async function updateSettingsRoles(
   body: SettingsUpdateRolesRequest,
   signal?: AbortSignal

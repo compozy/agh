@@ -6,7 +6,7 @@ persona: Ada
 journey: J-route-background-work
 expected: When a primary role route fails before acceptance, AGH tries each declared fallback once in order, emits one correlated role.fallback.used event before each attempt, and never reroutes an accepted ACP session.
 entry_points: config.toml roles.<role>.fallback_chain; eligible coordinator, dream, extractor, auto-title, or checkpoint-summary invocation; agh logs --workspace <ref> --session <parent-session-id> --type role.fallback.used --last 10 -o json; GET /api/logs?workspace_id=<id>&session_id=<parent-session-id>&type=role.fallback.used&limit=10
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260724-inherited-role-provider-resolution
 fix_status: fixed
 retest_status: pass
@@ -28,3 +28,7 @@ are cross-session runtime logs — not a session-events feed — read via `agh l
 on every record. Session charter: CH-role-fallback-boundary.
 
 QA 2026-07-24: a real auto-title primary failed before acceptance, the configured `codex/gpt-5.6-sol` fallback completed the work, and CLI/HTTP returned the same single correlated `role.fallback.used` event. After fixing the primary inherited-provider chain, the same workflow completed on `codex/gpt-5.6-luna` with zero fallback events. Ordered exhaustion, zero residue, and the post-acceptance fence passed in the real-daemon integration lane; public post-acceptance fault injection was explicitly skipped because no supported surface can kill only the accepted hidden ACP child.
+
+QA impact 2026-07-24 (final review remediation): structured root `[roles]` mutations can now carry
+ordered fallback chains through CLI and native config surfaces. The next QA cycle owns this new
+mutation path; prior runtime fallback evidence remains historical.

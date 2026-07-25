@@ -328,6 +328,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	m.closed = true
+	m.cancel()
 	sessionIDs := make([]string, 0, len(m.sessions))
 	for sessionID := range m.sessions {
 		sessionIDs = append(sessionIDs, sessionID)
@@ -340,7 +341,6 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	}
 	m.waiters = make(map[string]map[chan struct{}]struct{})
 	m.mu.Unlock()
-	m.cancel()
 	for _, sessionID := range sessionIDs {
 		m.router.Leave(sessionID)
 	}

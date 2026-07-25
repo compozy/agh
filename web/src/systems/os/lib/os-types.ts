@@ -97,6 +97,7 @@ export interface MoveWindowInput {
 
 export interface WindowManagerCommandOutcome {
   accepted: boolean;
+  /** Total completion: diagnosed runtime failures resolve false instead of rejecting. */
   completion: Promise<boolean>;
 }
 
@@ -135,7 +136,7 @@ export interface OsDesktopRuntimeStore {
   toggleFloating(id: string): void;
   moveWindow(id: string, input: MoveWindowInput): void;
   arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
-  commitFloatingRect(id: string, rect: OsRect, drop?: OsFloatingDrop): void;
+  commitFloatingRect(id: string, rect: OsRect, drop?: OsFloatingDrop): WindowManagerCommandOutcome;
   resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
   balanceLayout(groupId?: string, splitId?: string): void;
   navigateWindow(id: string, route: OsWindowRoute): WindowManagerCommandOutcome;
@@ -168,7 +169,11 @@ export interface WindowManagerController extends OsDesktopRuntime {
   deleteDesktop(desktopId: string, destinationId: string | null): void;
   moveWindowToDesktop(windowId: string, destinationDesktopId: string): void;
   tileWindow(windowId: string, edge: SnapSide | SnapCorner): void;
-  applySnapTarget(windowId: string, target: SnapTarget, moveGroup?: boolean): void;
+  applySnapTarget(
+    windowId: string,
+    target: SnapTarget,
+    moveGroup?: boolean
+  ): WindowManagerCommandOutcome;
   focusDirection(direction: FocusDirection): void;
   undoLayout(): void;
   redoLayout(): void;

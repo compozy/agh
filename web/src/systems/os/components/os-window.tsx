@@ -42,6 +42,10 @@ export function OsWindow({ windowId }: OsWindowProps) {
   } = useOsWindow(windowId);
   const presentation = useDesktop(state => state.presentation);
   if (!win || !keepMounted) return null;
+  if (rect === null) return null;
+
+  const compact = presentation === "compact";
+  const minimum = getOsAppMinimum(win.app);
 
   const frame = (
     <WindowFrame
@@ -58,33 +62,16 @@ export function OsWindow({ windowId }: OsWindowProps) {
     />
   );
 
-  // Compact (<960px): the same logical window as a full-bleed stack surface —
-  // geometry untouched, z decides which one is visible (US-014.AC-1/AC-2).
-  if (presentation === "compact") {
-    return (
-      <div
-        className="absolute inset-0"
-        style={{
-          zIndex: win.layer,
-          display: win.minimized || !win.stackActive ? "none" : undefined,
-        }}
-      >
-        {frame}
-      </div>
-    );
-  }
-
-  if (rect === null) return null;
-  const minimum = getOsAppMinimum(win.app);
   return (
     <Rnd
       ref={rndRef}
-      position={{ x: rect.x, y: rect.y }}
-      size={{ width: rect.w, height: rect.h }}
-      minWidth={minimum.width}
-      minHeight={minimum.height}
-      disableDragging={!win.stackActive}
-      enableResizing={win.placement === "floating"}
+      className={compact ? "absolute inset-0" : undefined}
+      position={compact ? { x: 0, y: 0 } : { x: rect.x, y: rect.y }}
+      size={compact ? { width: "100%", height: "100%" } : { width: rect.w, height: rect.h }}
+      minWidth={compact ? undefined : minimum.width}
+      minHeight={compact ? undefined : minimum.height}
+      disableDragging={compact || !win.stackActive}
+      enableResizing={!compact && win.placement === "floating"}
       resizeHandleClasses={{ bottomRight: "os-window-resize-handle" }}
       dragHandleClassName={OS_WINDOW_DRAG_HANDLE_CLASS}
       cancel={OS_WINDOW_DRAG_CANCEL_SELECTOR}

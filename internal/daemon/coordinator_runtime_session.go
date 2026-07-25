@@ -52,9 +52,7 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 		ReasoningEffort: cfg.ReasoningEffort,
 		Fallbacks:       append([]aghconfig.RoleFallback(nil), cfg.Fallbacks...),
 	}
-	if resolver, ok := r.config.(*defaultCoordinatorRoleResolver); ok && resolver != nil && resolver.roles != nil {
-		role.eventWriter = resolver.roles.events
-	}
+	role.eventWriter = r.roleEvents
 	correlation := roleInvocationCorrelationFromContext(ctx, decision.WorkspaceID)
 	created, err := invokeRoleWithFallback(ctx, role, correlation, func(
 		attemptCtx context.Context,

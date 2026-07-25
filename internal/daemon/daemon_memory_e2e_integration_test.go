@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -722,11 +723,7 @@ func roleDreamMockCommand(t testing.TB, diagnosticsPath string) string {
 }
 
 func quotedYAMLString(value string) string {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return `""`
-	}
-	return string(encoded)
+	return strconv.Quote(value)
 }
 
 func seedDreamEligibility(
@@ -783,7 +780,11 @@ func triggerDreamEventually(
 	defer deadline.Stop()
 
 	for {
-		if dreamPromptRecorded(diagnosticsPath) {
+		recorded, err := dreamPromptRecorded(diagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(dream poll) error = %v", err)
+		}
+		if recorded {
 			return
 		}
 		var response aghcontract.MemoryDreamTriggerResponse
@@ -825,17 +826,17 @@ func triggerDreamEventually(
 	}
 }
 
-func dreamPromptRecorded(diagnosticsPath string) bool {
+func dreamPromptRecorded(diagnosticsPath string) (bool, error) {
 	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
 	if err != nil {
-		return false
+		return false, err
 	}
 	for _, record := range acpmock.PromptDiagnostics(records) {
 		if strings.Contains(record.Prompt, "# Dream Consolidation") {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func dreamGateDiagnostics(t testing.TB, databasePath string, sessionsDir string, workspaceRoot string) string {

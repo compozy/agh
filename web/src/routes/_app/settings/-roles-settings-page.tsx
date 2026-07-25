@@ -1,11 +1,11 @@
 import { AlertCircle } from "lucide-react";
 
-import { useSettingsRolesPage } from "@/systems/settings/hooks/use-settings-roles-page";
 import {
   RoleSettingsGroup,
   SettingsPageFrame,
   SettingsSaveBar,
   useSettingsSaveBarState,
+  useSettingsRolesPage,
   useSettingsTopbar,
 } from "@/systems/settings";
 import { Button, Spinner } from "@agh/ui";
@@ -39,6 +39,7 @@ export function RolesSettingsPage() {
   useSettingsTopbar("roles");
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isDirty,
+    isInvalid: page.isInvalid,
     isSaving: page.isSaving,
     error: page.saveError,
     warnings: page.warnings,
@@ -99,6 +100,7 @@ export function RolesSettingsPage() {
           validationErrors={page.validationErrors}
           disabled={page.isSaving}
           setRoleField={page.setRoleField}
+          draftRevision={page.draftRevision}
           setNumberFieldValidity={page.setNumberFieldValidity}
           addFallback={page.addFallback}
           removeFallback={page.removeFallback}

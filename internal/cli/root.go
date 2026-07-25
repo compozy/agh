@@ -23,6 +23,8 @@ const (
 	rootAghKey       = "agh"
 	rootVersionKey   = "version"
 	cliCodeKey       = "code"
+	cliFieldKey      = "field"
+	cliFieldValue    = "Field"
 	cliGetKey        = "get"
 	cliKeyKey        = "key"
 	cliKeyValue      = "Key"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/compozy/agh/internal/api/contract"
@@ -25,8 +26,14 @@ func TestRolesCommands(t *testing.T) {
 				FallbackChain: []contract.RoleFallbackStatus{}, Provenance: map[string]string{},
 				Diagnostics: []contract.RoleDiagnostic{}},
 			{Role: "coordinator", Enabled: true, ResolutionMode: contract.RoleResolutionModeBuiltin,
-				Provider: &provider, Model: &model, FallbackChain: []contract.RoleFallbackStatus{},
-				Provenance: map[string]string{"provider": "global"}, Diagnostics: []contract.RoleDiagnostic{}},
+				Provider: &provider, Model: &model,
+				FallbackChain: []contract.RoleFallbackStatus{{
+					Provider: "backup", Model: "backup-model", ReasoningEffort: "low",
+				}},
+				Provenance: map[string]string{"provider": "global", "model": "workspace"},
+				Diagnostics: []contract.RoleDiagnostic{{
+					Code: "role_agent_not_found", Message: "configured agent is unavailable", Agent: "missing",
+				}}},
 			{Role: "dream", Enabled: true, ResolutionMode: contract.RoleResolutionModeBuiltin,
 				FallbackChain: []contract.RoleFallbackStatus{}, Provenance: map[string]string{},
 				Diagnostics: []contract.RoleDiagnostic{}},
@@ -58,7 +65,7 @@ func TestRolesCommands(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 			t.Fatalf("json.Unmarshal(roles list) error = %v; stdout=%s", err, stdout)
 		}
-		if len(got) != 6 || got[2].Role != roles[2].Role || got[2].Model == nil || *got[2].Model != model {
+		if !reflect.DeepEqual(got, roles) {
 			t.Fatalf("roles list = %#v, want %#v", got, roles)
 		}
 	})
@@ -67,14 +74,22 @@ func TestRolesCommands(t *testing.T) {
 		t.Parallel()
 
 		agent := "catalog-agent"
+		provider := "anthropic"
+		model := "claude-sonnet"
 		role := RoleRecord{
 			Role:           "dream",
 			Enabled:        true,
 			ResolutionMode: contract.RoleResolutionModeCatalog,
 			Agent:          &agent,
-			FallbackChain:  []contract.RoleFallbackStatus{},
-			Provenance:     map[string]string{"agent": "workspace"},
-			Diagnostics:    []contract.RoleDiagnostic{},
+			Provider:       &provider,
+			Model:          &model,
+			FallbackChain: []contract.RoleFallbackStatus{{
+				Provider: "backup", Model: "fallback-model", ReasoningEffort: "medium",
+			}},
+			Provenance: map[string]string{"agent": "workspace", "provider": "global"},
+			Diagnostics: []contract.RoleDiagnostic{{
+				Code: "role_warning", Message: "fallback configured", Agent: agent,
+			}},
 		}
 		deps := newTestDeps(t, &stubClient{
 			getRoleFn: func(_ context.Context, name string, query RoleQuery) (RoleRecord, error) {
@@ -97,7 +112,7 @@ func TestRolesCommands(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 			t.Fatalf("json.Unmarshal(roles show) error = %v; stdout=%s", err, stdout)
 		}
-		if got.Role != role.Role || got.Agent == nil || *got.Agent != agent {
+		if !reflect.DeepEqual(got, role) {
 			t.Fatalf("roles show = %#v, want %#v", got, role)
 		}
 	})

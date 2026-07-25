@@ -183,7 +183,7 @@ test("E2E-009: operator pages an oversized tool result to its retained tail", as
     waitUntil: "domcontentloaded",
   });
   const sessionWin = sessionWindow(appPage, session.id);
-  const ui = sessionWindowSelectors(sessionWin);
+  const ui = sessionWindowSelectors(sessionWin, appPage);
   await expect(sessionWin).toBeVisible();
   await ui.composerTextarea.fill("exercise tool artifact recovery");
   await ui.composerTextarea.press("Enter");
@@ -243,7 +243,7 @@ test("operator rejects a permission request, records tool output, and keeps sess
   });
 
   const sessionWin = sessionWindow(appPage, session.id);
-  const ui = sessionWindowSelectors(sessionWin);
+  const ui = sessionWindowSelectors(sessionWin, appPage);
   await expect(sessionWin).toBeVisible();
   sampleDeepLinkLoading = false;
   await deepLinkLoadingSampler;
@@ -313,7 +313,7 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   });
 
   const sessionWin = sessionWindow(appPage, session.id);
-  const ui = sessionWindowSelectors(sessionWin);
+  const ui = sessionWindowSelectors(sessionWin, appPage);
   await expect(sessionWin).toBeVisible();
   await ui.composerTextarea.fill("block until canceled");
   await ui.composerTextarea.press("Enter");
@@ -414,7 +414,7 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
   });
 
   const sessionWin = sessionWindow(appPage, session.id);
-  const ui = sessionWindowSelectors(sessionWin);
+  const ui = sessionWindowSelectors(sessionWin, appPage);
   await expect(sessionWin).toBeVisible();
   await ui.composerTextarea.fill("trigger crash mid-stream");
   await ui.composerTextarea.press("Enter");
@@ -478,7 +478,7 @@ test("operator sees the daemon-generated session title and the file-mutation ver
   });
 
   const sessionWin = sessionWindow(appPage, session.id);
-  const ui = sessionWindowSelectors(sessionWin);
+  const ui = sessionWindowSelectors(sessionWin, appPage);
   await expect(sessionWin).toBeVisible();
   await ui.composerTextarea.fill("Implement checkout retry fencing");
   await ui.composerTextarea.press("Enter");
@@ -632,7 +632,7 @@ async function openUsageCostForProvider(
     waitUntil: "domcontentloaded",
   });
   const sessionWin = sessionWindow(page, session.id);
-  const sessionUi = sessionWindowSelectors(sessionWin);
+  const sessionUi = sessionWindowSelectors(sessionWin, page);
   await expect(sessionWin).toBeVisible();
   await expect(sessionUi.composerTextarea).toBeEnabled();
   await sessionUi.composerTextarea.fill(costProvenancePrompt);

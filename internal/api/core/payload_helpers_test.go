@@ -231,7 +231,7 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 			want: http.StatusUnprocessableEntity,
 		},
 		{
-			name: "agent name reserved",
+			name: "Should map a reserved agent name to unprocessable entity",
 			err:  fmt.Errorf("bundle agent: %w", aghconfig.ErrAgentNameReserved),
 			want: http.StatusUnprocessableEntity,
 		},

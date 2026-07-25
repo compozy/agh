@@ -969,29 +969,6 @@ func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "embedded-tab", agentDefinitionFile),
 		"---\nna\tme: broken\n---\nPrompt.",
 	)
-	writeAgentDef(
-		t,
-		filepath.Join(
-			root,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
-			aghconfig.BuiltinCoordinatorAgentName,
-			agentDefinitionFile,
-		),
-		aghconfig.BuiltinCoordinatorAgentName,
-		"shadowed-coordinator",
-	)
-	writeAgentDef(
-		t,
-		filepath.Join(
-			homePaths.AgentsDir,
-			aghconfig.BuiltinDreamingCuratorAgentName,
-			agentDefinitionFile,
-		),
-		aghconfig.BuiltinDreamingCuratorAgentName,
-		"shadowed-curator",
-	)
-
 	store := newMockWorkspaceStore(Workspace{ID: "ws_agents", RootDir: root, Name: "repo"})
 	loader := &countingConfigLoader{cfg: validConfig(homePaths)}
 	resolver := newTestResolver(t, store,
@@ -1006,13 +983,7 @@ func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 	if got := agentModel(resolved.Agents, "healthy"); got != "local" {
 		t.Fatalf("healthy model = %q, want local", got)
 	}
-	if got := agentModel(resolved.Agents, aghconfig.BuiltinCoordinatorAgentName); got != "" {
-		t.Fatalf("reserved coordinator model = %q, want excluded", got)
-	}
-	if got := agentModel(resolved.Agents, aghconfig.BuiltinDreamingCuratorAgentName); got != "" {
-		t.Fatalf("reserved dreaming-curator model = %q, want excluded", got)
-	}
-	if got, want := len(resolved.AgentDiagnostics), 6; got != want {
+	if got, want := len(resolved.AgentDiagnostics), 4; got != want {
 		t.Fatalf("len(AgentDiagnostics) = %d, want %d: %#v", got, want, resolved.AgentDiagnostics)
 	}
 	kinds := make(map[string]string, len(resolved.AgentDiagnostics))
@@ -1023,15 +994,71 @@ func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 		}
 	}
 	wantKinds := map[string]string{
-		"no-fence":                            "frontmatter.missing",
-		"unterminated":                        "frontmatter.unterminated",
-		"bom":                                 "frontmatter.bom",
-		"embedded-tab":                        "frontmatter.invalid_key",
-		aghconfig.BuiltinCoordinatorAgentName: reservedAgentDiagnosticKind,
-		aghconfig.BuiltinDreamingCuratorAgentName: reservedAgentDiagnosticKind,
+		"no-fence":     "frontmatter.missing",
+		"unterminated": "frontmatter.unterminated",
+		"bom":          "frontmatter.bom",
+		"embedded-tab": "frontmatter.invalid_key",
 	}
 	if !maps.Equal(kinds, wantKinds) {
 		t.Fatalf("diagnostic kinds = %#v, want %#v", kinds, wantKinds)
+	}
+}
+
+func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	root := t.TempDir()
+	writeAgentDef(
+		t,
+		filepath.Join(
+			root,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			aghconfig.BuiltinCoordinatorAgentName,
+			agentDefinitionFile,
+		),
+		aghconfig.BuiltinCoordinatorAgentName,
+		"shadowed-coordinator",
+	)
+	writeAgentDef(
+		t,
+		filepath.Join(homePaths.AgentsDir, aghconfig.BuiltinDreamingCuratorAgentName, agentDefinitionFile),
+		aghconfig.BuiltinDreamingCuratorAgentName,
+		"shadowed-curator",
+	)
+	writeAgentDef(
+		t,
+		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "alias", agentDefinitionFile),
+		aghconfig.BuiltinCoordinatorAgentName,
+		"aliased-coordinator",
+	)
+
+	store := newMockWorkspaceStore(Workspace{ID: "ws_reserved_agents", RootDir: root, Name: "repo"})
+	loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+	resolver := newTestResolver(
+		t,
+		store,
+		WithHomePaths(homePaths),
+		WithConfigLoader(loader.Load),
+	)
+	resolved, err := resolver.Resolve(context.Background(), "ws_reserved_agents")
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if got := agentModel(resolved.Agents, aghconfig.BuiltinCoordinatorAgentName); got != "" {
+		t.Fatalf("reserved coordinator model = %q, want excluded", got)
+	}
+	if got := agentModel(resolved.Agents, aghconfig.BuiltinDreamingCuratorAgentName); got != "" {
+		t.Fatalf("reserved dreaming-curator model = %q, want excluded", got)
+	}
+	if got, want := len(resolved.AgentDiagnostics), 3; got != want {
+		t.Fatalf("len(AgentDiagnostics) = %d, want %d: %#v", got, want, resolved.AgentDiagnostics)
+	}
+	for _, diagnostic := range resolved.AgentDiagnostics {
+		if diagnostic.ErrorKind != reservedAgentDiagnosticKind {
+			t.Fatalf("reserved agent diagnostic = %#v, want %q", diagnostic, reservedAgentDiagnosticKind)
+		}
 	}
 }
 

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/compozy/agh/internal/api/contract"
@@ -20,7 +19,7 @@ func parseUpdateSettingsRolesRequest(c *gin.Context) (settingspkg.SectionUpdateR
 	}
 	if body.Config == nil {
 		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
-			errors.New("roles.config is required"),
+			errSettingsRolesConfigRequired,
 		)
 	}
 	req, err := parseSettingsSectionRequest(c, settingspkg.SectionRoles)

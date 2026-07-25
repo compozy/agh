@@ -142,42 +142,6 @@ var (
 		"memory.daily.sweep_hour":                                  ConfigValueInt,
 		"memory.file.max_lines":                                    ConfigValueInt,
 		"memory.file.max_bytes":                                    ConfigValueInt64,
-		"roles.coordinator.enabled":                                ConfigValueBool,
-		"roles.coordinator.agent":                                  ConfigValueString,
-		"roles.coordinator.provider":                               ConfigValueString,
-		"roles.coordinator.model":                                  ConfigValueString,
-		"roles.coordinator.reasoning_effort":                       ConfigValueString,
-		"roles.coordinator.ttl":                                    ConfigValueDuration,
-		"roles.coordinator.max_children":                           ConfigValueInt,
-		"roles.coordinator.max_active_sessions_per_workspace":      ConfigValueInt,
-		"roles.dream.enabled":                                      ConfigValueBool,
-		"roles.dream.agent":                                        ConfigValueString,
-		"roles.dream.provider":                                     ConfigValueString,
-		"roles.dream.model":                                        ConfigValueString,
-		"roles.dream.reasoning_effort":                             ConfigValueString,
-		"roles.checkpoint_summary.enabled":                         ConfigValueBool,
-		"roles.checkpoint_summary.agent":                           ConfigValueString,
-		"roles.checkpoint_summary.provider":                        ConfigValueString,
-		"roles.checkpoint_summary.model":                           ConfigValueString,
-		"roles.checkpoint_summary.reasoning_effort":                ConfigValueString,
-		"roles.memory_extractor.enabled":                           ConfigValueBool,
-		"roles.memory_extractor.agent":                             ConfigValueString,
-		"roles.memory_extractor.provider":                          ConfigValueString,
-		"roles.memory_extractor.model":                             ConfigValueString,
-		"roles.memory_extractor.reasoning_effort":                  ConfigValueString,
-		"roles.auto_title.enabled":                                 ConfigValueBool,
-		"roles.auto_title.agent":                                   ConfigValueString,
-		"roles.auto_title.provider":                                ConfigValueString,
-		"roles.auto_title.model":                                   ConfigValueString,
-		"roles.auto_title.reasoning_effort":                        ConfigValueString,
-		"roles.memory_controller.enabled":                          ConfigValueBool,
-		"roles.memory_controller.provider":                         ConfigValueString,
-		"roles.memory_controller.model":                            ConfigValueString,
-		"roles.memory_controller.reasoning_effort":                 ConfigValueString,
-		"roles.memory_controller.timeout":                          ConfigValueDuration,
-		"roles.memory_controller.top_k":                            ConfigValueInt,
-		"roles.memory_controller.prompt_version":                   ConfigValueString,
-		"roles.memory_controller.max_tokens_out":                   ConfigValueInt,
 		"memory.provider.name":                                     ConfigValueString,
 		toolSurfaceMemoryProviderTimeoutPath:                       ConfigValueDuration,
 		"memory.provider.failure_threshold":                        ConfigValueInt,
@@ -209,7 +173,7 @@ var (
 		toolSurfaceToolsArtifactsMaxAgePath:                        ConfigValueDuration,
 		toolSurfaceToolsArtifactsMaxBytesPath:                      ConfigValueInt64,
 		toolSurfaceToolsArtifactsMaxCountPath:                      ConfigValueInt,
-	}, automationToolPathKinds(), loopAndGoalToolPathKinds(), taskToolSurfaceMutableConfigKinds())
+	}, roleMutableConfigKinds, automationToolPathKinds(), loopAndGoalToolPathKinds(), taskToolSurfaceMutableConfigKinds())
 )
 
 // RedactedConfigMap converts config to the same redacted map shape used by operator-facing CLI output.
@@ -370,6 +334,12 @@ func NormalizeToolConfigValue(kind ValueKind, value any) (any, error) {
 		return trimmed, nil
 	case ConfigValueStringSlice:
 		return coerceConfigStringSlice(value)
+	case ConfigValueTable:
+		table, ok := value.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("config: expected object value, got %T", value)
+		}
+		return normalizeTreeValue(table)
 	default:
 		return nil, fmt.Errorf("config: unsupported config value kind %d", kind)
 	}

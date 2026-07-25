@@ -222,6 +222,10 @@ func loadAgents(ctx context.Context, candidates []agentCandidate) ([]aghconfig.A
 			diagnostics = append(diagnostics, agentDiagnosticFromError(candidate.path, err))
 			continue
 		}
+		if aghconfig.IsReservedAgentName(agent.Name) {
+			diagnostics = append(diagnostics, reservedAgentDiagnostic(candidate.path, agent.Name))
+			continue
+		}
 
 		if _, ok := seen[agent.Name]; ok {
 			continue

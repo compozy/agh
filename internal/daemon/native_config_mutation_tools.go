@@ -53,6 +53,13 @@ func (n *daemonNativeTools) configSet(
 		workspaceRoot,
 		target,
 		func(editor *aghconfig.OverlayEditor) error {
+			if policy.Kind == aghconfig.ConfigValueTable {
+				table, ok := value.(map[string]any)
+				if !ok {
+					return fmt.Errorf("daemon: config path %q requires an object", path)
+				}
+				return editor.SetTable(policy.Segments, table)
+			}
 			return editor.SetValue(policy.Segments, value)
 		},
 	); err != nil {

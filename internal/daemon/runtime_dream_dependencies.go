@@ -13,14 +13,18 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-func initializeDreamRuntime(state *bootState, sessions SessionManager) {
+func (d *Daemon) initializeDreamRuntime(state *bootState, sessions SessionManager) {
 	if state == nil || state.dreamSvc == nil {
 		return
 	}
 	lockPath := memory.ConsolidationLockPath(state.globalMemoryDir)
 	roles := roleResolverForState(state)
 	state.dreamRuntime = consolidation.NewRuntime(
-		func() bool { return state.cfg.Roles.Dream.Enabled },
+		func() bool {
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			return state.cfg.Memory.Enabled
+		},
 		state.dreamSvc,
 		consolidation.NewSessionSpawner(
 			sessions,

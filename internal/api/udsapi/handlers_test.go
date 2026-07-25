@@ -1160,7 +1160,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"GET /api/agent/channels":                                      "AgentChannels",
 		"GET /api/agent/channels/:channel/recv":                        "AgentChannelRecv",
 		"GET /api/agent/context":                                       "AgentContext",
-		"GET /api/agent/coordinator/config":                            "AgentCoordinatorConfig",
+		"GET /api/agent/coordinator/config":                            "AgentCoordinatorRole",
 		"GET /api/agent/me":                                            "AgentMe",
 		"POST /api/agent/channels/:channel/send":                       "AgentChannelSend",
 		"POST /api/agent/channels/reply":                               "AgentChannelReply",

@@ -1933,6 +1933,20 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
+		globalTarget, err := aghconfig.ResolveConfigWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
+		if err != nil {
+			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+		}
+		if _, err := aghconfig.EditConfigOverlay(
+			homePaths,
+			"",
+			globalTarget,
+			func(editor *aghconfig.OverlayEditor) error {
+				return editor.SetTable([]string{"providers", "codex"}, map[string]any{"command": "codex-acp"})
+			},
+		); err != nil {
+			t.Fatalf("EditConfigOverlay(provider fixture) error = %v", err)
+		}
 		settingsService := &nativeConfigSettingsService{
 			result: settingspkg.ApplyResult{
 				Applied:    true,
@@ -1953,7 +1967,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}, nativeApproveAllPolicyInputs())
 
-		_, err := registry.Call(
+		_, err = registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
@@ -2002,6 +2016,45 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(config_get dream role model) error = %v", err)
 		}
 		requireNativeStructuredContains(t, dreamRoleResult, []byte(`"claude-haiku-4-5"`))
+
+		rolesTableInput := json.RawMessage(
+			`{"path":"roles","value":{"auto_title":{"enabled":true,"fallback_chain":[{"provider":"codex","model":"gpt-5-mini","reasoning_effort":"medium"}]}}}`,
+		)
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input:  rolesTableInput,
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_set roles table) error = %v; cause = %v", err, errors.Unwrap(err))
+		}
+		cfg, err = aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after roles table) error = %v", err)
+		}
+		if got := cfg.Roles.AutoTitle.FallbackChain; len(got) != 1 ||
+			got[0].Provider != "codex" || got[0].Model != "gpt-5-mini" {
+			t.Fatalf("Roles.AutoTitle.FallbackChain = %#v, want structured fallback", got)
+		}
+		coordinatorEnabledResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigGet,
+				Input:  json.RawMessage(`{"path":"roles.coordinator.enabled"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_get coordinator enabled) error = %v", err)
+		}
+		requireNativeStructuredContains(
+			t,
+			coordinatorEnabledResult,
+			[]byte(`"path":"roles.coordinator.enabled"`),
+		)
 
 		goalResult, err := registry.Call(
 			t.Context(),
@@ -2070,8 +2123,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, marketplaceResult, []byte(`"applied":true`))
 		requireNativeStructuredContains(t, marketplaceResult, []byte(`"apply_record_id":"cfgapp-native-marketplace"`))
 		requireNativeStructuredContains(t, marketplaceResult, []byte(`"active_generation":7`))
-		if settingsService.reloadCalls != 2 {
-			t.Fatalf("Settings.Reload calls = %d, want 2", settingsService.reloadCalls)
+		if settingsService.reloadCalls != 3 {
+			t.Fatalf("Settings.Reload calls = %d, want 3", settingsService.reloadCalls)
 		}
 
 		workspaceRoot := t.TempDir()
@@ -2132,8 +2185,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, unsetResult, []byte(`"applied":true`))
 		requireNativeStructuredContains(t, unsetResult, []byte(`"apply_record_id":"cfgapp-native-marketplace"`))
-		if settingsService.reloadCalls != 3 {
-			t.Fatalf("Settings.Reload calls = %d, want 3", settingsService.reloadCalls)
+		if settingsService.reloadCalls != 4 {
+			t.Fatalf("Settings.Reload calls = %d, want 4", settingsService.reloadCalls)
 		}
 
 		result, err := registry.Call(
@@ -2167,7 +2220,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			{path: "session.auto_title_enabled", reason: toolspkg.ReasonConfigPathForbidden},
 		}
 		for _, tc := range cases {
-			t.Run(tc.path, func(t *testing.T) {
+			t.Run("Should reject "+tc.path, func(t *testing.T) {
 				_, err := registry.Call(
 					t.Context(),
 					toolspkg.Scope{},

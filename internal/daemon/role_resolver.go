@@ -20,9 +20,7 @@ const (
 	roleFieldModel         = "model"
 	roleFieldReasoning     = "reasoning_effort"
 	roleFieldFallbackChain = "fallback_chain"
-	roleSourceDefault      = "default"
-	roleSourceGlobal       = "global"
-	roleSourceWorkspace    = "workspace"
+	roleFieldTimeout       = "timeout"
 )
 
 // RoleResolutionError is a deterministic role-resolution failure.
@@ -306,16 +304,16 @@ func roleProvenance(
 	defaultFields := roleFields(role, &defaults)
 	provenance := make(map[string]string, len(effectiveFields))
 	for field, value := range effectiveFields {
-		if source := effective.RoleFieldSource(role, field); source == roleSourceWorkspace ||
-			source == roleSourceGlobal {
+		if source := effective.RoleFieldSource(role, field); source == aghconfig.RoleFieldSourceWorkspace ||
+			source == aghconfig.RoleFieldSourceGlobal {
 			provenance[field] = source
 			continue
 		}
-		source := roleSourceDefault
+		source := aghconfig.RoleFieldSourceDefault
 		if hasWorkspace && !reflect.DeepEqual(value, globalFields[field]) {
-			source = roleSourceWorkspace
+			source = aghconfig.RoleFieldSourceWorkspace
 		} else if !reflect.DeepEqual(globalFields[field], defaultFields[field]) {
-			source = roleSourceGlobal
+			source = aghconfig.RoleFieldSourceGlobal
 		}
 		provenance[field] = source
 	}
@@ -341,7 +339,7 @@ func roleFields(role aghconfig.RoleName, roles *aghconfig.RolesConfig) map[strin
 		fields["max_active_sessions_per_workspace"] = roles.Coordinator.MaxActiveSessionsPerWorkspace
 	}
 	if role == aghconfig.RoleMemoryController {
-		fields["timeout"] = roles.MemoryController.Timeout
+		fields[roleFieldTimeout] = roles.MemoryController.Timeout
 		fields["top_k"] = roles.MemoryController.TopK
 		fields["prompt_version"] = roles.MemoryController.PromptVersion
 		fields["max_tokens_out"] = roles.MemoryController.MaxTokensOut

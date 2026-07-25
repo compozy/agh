@@ -10,7 +10,6 @@ import (
 	"time"
 
 	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/memory/controller"
 )
 
 const (
@@ -99,7 +98,7 @@ func (s *Store) ProposeWrite(
 	if candidate.Origin == "" {
 		candidate.Origin = memcontract.OriginFile
 	}
-	decision, err := controller.New(s).Decide(ctx, candidate)
+	decision, err := s.DecideCandidate(ctx, candidate)
 	if err != nil {
 		return DecisionApplyResult{}, err
 	}
@@ -143,7 +142,7 @@ func (s *Store) ProposeDelete(
 	if candidate.Origin == "" {
 		candidate.Origin = memcontract.OriginFile
 	}
-	decision, err := controller.New(s).Decide(ctx, candidate)
+	decision, err := s.DecideCandidate(ctx, candidate)
 	if err != nil {
 		return DecisionApplyResult{}, err
 	}
@@ -186,7 +185,7 @@ func (s *Store) ProposeCandidate(
 	if normalized.SubmittedAt.IsZero() {
 		normalized.SubmittedAt = time.Now().UTC()
 	}
-	decision, err := controller.New(s).Decide(ctx, normalized)
+	decision, err := s.DecideCandidate(ctx, normalized)
 	if err != nil {
 		return memcontract.Decision{}, err
 	}

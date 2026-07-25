@@ -161,7 +161,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   runtime,
 }) => {
   const triggersWin = appPage.getByTestId("os-window-app:triggers");
-  const ui = automationOperatorSelectors(triggersWin);
+  const ui = automationOperatorSelectors(triggersWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const triggerStatus = triggersWin.locator('[data-slot="topbar-status"]');
   await ensureGlobalWorkspace(runtime);
@@ -423,7 +423,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   runtime,
 }) => {
   const triggersWin = appPage.getByTestId("os-window-app:triggers");
-  const ui = automationOperatorSelectors(triggersWin);
+  const ui = automationOperatorSelectors(triggersWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const trigger = await createTrigger(
     runtime,
@@ -507,7 +507,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
   runtime,
 }) => {
   const triggersWin = appPage.getByTestId("os-window-app:triggers");
-  const ui = automationOperatorSelectors(triggersWin);
+  const ui = automationOperatorSelectors(triggersWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const trigger = await createTrigger(
     runtime,
@@ -926,7 +926,7 @@ async function assertTriggersViewportMatrix(
   triggerID: string
 ): Promise<void> {
   const triggersWin = appPage.getByTestId("os-window-app:triggers");
-  const ui = automationOperatorSelectors(triggersWin);
+  const ui = automationOperatorSelectors(triggersWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
     await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
@@ -961,7 +961,7 @@ async function assertTriggerRunViewportMatrix(
   prefix: string
 ): Promise<void> {
   const triggersWin = appPage.getByTestId("os-window-app:triggers");
-  const ui = automationOperatorSelectors(triggersWin);
+  const ui = automationOperatorSelectors(triggersWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
     await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });

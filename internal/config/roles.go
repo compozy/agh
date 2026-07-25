@@ -35,6 +35,11 @@ var allRoleNames = []RoleName{
 	RoleMemoryController,
 }
 
+// RoleNames returns the complete closed role roster.
+func RoleNames() []RoleName {
+	return append([]RoleName(nil), allRoleNames...)
+}
+
 // RolesConfig is the closed [roles] roster.
 type RolesConfig struct {
 	Coordinator       CoordinatorRoleConfig      `toml:"coordinator"`
@@ -43,6 +48,22 @@ type RolesConfig struct {
 	MemoryExtractor   RoleConfig                 `toml:"memory_extractor"`
 	AutoTitle         RoleConfig                 `toml:"auto_title"`
 	MemoryController  MemoryControllerRoleConfig `toml:"memory_controller"`
+}
+
+// CloneRolesConfig returns an ownership-safe copy of the roles configuration.
+func CloneRolesConfig(source *RolesConfig) RolesConfig {
+	cloned := *source
+	cloned.Coordinator.FallbackChain = cloneRoleFallbacks(source.Coordinator.FallbackChain)
+	cloned.Dream.FallbackChain = cloneRoleFallbacks(source.Dream.FallbackChain)
+	cloned.CheckpointSummary.FallbackChain = cloneRoleFallbacks(source.CheckpointSummary.FallbackChain)
+	cloned.MemoryExtractor.FallbackChain = cloneRoleFallbacks(source.MemoryExtractor.FallbackChain)
+	cloned.AutoTitle.FallbackChain = cloneRoleFallbacks(source.AutoTitle.FallbackChain)
+	cloned.MemoryController.FallbackChain = cloneRoleFallbacks(source.MemoryController.FallbackChain)
+	return cloned
+}
+
+func cloneRoleFallbacks(source []RoleFallback) []RoleFallback {
+	return append([]RoleFallback(nil), source...)
 }
 
 // RoleConfig controls one session-backed role.
@@ -69,6 +90,21 @@ type CoordinatorRoleConfig struct {
 	MaxChildren                   int           `toml:"max_children"`
 	MaxActiveSessionsPerWorkspace int           `toml:"max_active_sessions_per_workspace"`
 }
+
+const (
+	// DefaultCoordinatorTTL is the default TTL for [roles.coordinator].
+	DefaultCoordinatorTTL = 2 * time.Hour
+	// MinCoordinatorTTL is the shortest coordinator TTL accepted by config validation.
+	MinCoordinatorTTL = time.Minute
+	// MaxCoordinatorTTL is the longest coordinator TTL accepted by config validation.
+	MaxCoordinatorTTL = 24 * time.Hour
+	// DefaultCoordinatorMaxChildren is the safe per-coordinator child-session cap.
+	DefaultCoordinatorMaxChildren = 5
+	// MaxCoordinatorChildren is the hard MVP cap for coordinator child sessions.
+	MaxCoordinatorChildren = 5
+	// DefaultCoordinatorMaxActiveSessionsPerWorkspace caps managed coordinator and worker sessions.
+	DefaultCoordinatorMaxActiveSessionsPerWorkspace = 5
+)
 
 // MemoryControllerRoleConfig controls the in-process memory-controller model call.
 type MemoryControllerRoleConfig struct {
@@ -124,6 +160,7 @@ func DefaultRolesConfig() RolesConfig {
 		AutoTitle:         RoleConfig{Enabled: true},
 		MemoryController: MemoryControllerRoleConfig{
 			Enabled:       true,
+			Provider:      "pi",
 			Model:         "anthropic/claude-haiku-4",
 			Timeout:       250 * time.Millisecond,
 			TopK:          5,
@@ -184,7 +221,7 @@ func (c RoleConfig) validate(path string, resolver providerResolver) error {
 	if err := validateRoleReasoningEffort(path+".reasoning_effort", c.ReasoningEffort); err != nil {
 		return err
 	}
-	if err := validateRoleProvider(path, c.Provider, c.Model, resolver); err != nil {
+	if err := validateRoleProvider(path, c.Provider, resolver); err != nil {
 		return err
 	}
 	return validateRoleFallbacks(path, c.FallbackChain, resolver)
@@ -194,7 +231,7 @@ func (c MemoryControllerRoleConfig) validate(path string, resolver providerResol
 	if err := validateRoleReasoningEffort(path+".reasoning_effort", c.ReasoningEffort); err != nil {
 		return err
 	}
-	if err := validateRoleProvider(path, c.Provider, c.Model, resolver); err != nil {
+	if err := validateRoleProvider(path, c.Provider, resolver); err != nil {
 		return err
 	}
 	if err := validateRoleFallbacks(path, c.FallbackChain, resolver); err != nil {
@@ -221,21 +258,17 @@ func (c MemoryControllerRoleConfig) validate(path string, resolver providerResol
 	return nil
 }
 
-func validateRoleProvider(path, providerName, model string, resolver providerResolver) error {
+func validateRoleProvider(path, providerName string, resolver providerResolver) error {
 	providerName = strings.TrimSpace(providerName)
-	model = strings.TrimSpace(model)
 	if providerName == "" {
 		return nil
 	}
 	if resolver == nil {
 		return fmt.Errorf("%s.provider resolver is required", path)
 	}
-	provider, err := resolver.ResolveProvider(providerName)
+	_, err := resolver.ResolveProvider(providerName)
 	if err != nil {
 		return fmt.Errorf("%s.provider: %w", path, err)
-	}
-	if model == "" && strings.TrimSpace(provider.Models.Default) == "" && provider.RequiresRuntimeModel() {
-		return fmt.Errorf("%s.model is required when provider %q has no default model", path, providerName)
 	}
 	return nil
 }

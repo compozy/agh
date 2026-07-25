@@ -50,6 +50,7 @@ type Store struct {
 	mutationRevision *storeMutationRevision
 	recallSignals    recallSignalRecorderConfig
 	recallRecorders  *recallRecorderRegistry
+	decisionFactory  *decisionControllerFactoryState
 }
 
 var _ memcontract.Backend = (*Store)(nil)

@@ -11,6 +11,7 @@ import {
   addFallbackEntry,
   applyRoleFieldEdit,
   removeFallbackEntry,
+  ROLE_ORDER,
   updateFallbackEntry,
 } from "../lib/roles-config";
 import { buildRolesViewModel, type RoleViewModel } from "../lib/roles-view-model";
@@ -49,6 +50,11 @@ function errorMessage(error: unknown): string | null {
   return null;
 }
 
+function hasCompleteRoleRoster(roles: readonly { role: string }[]): boolean {
+  const received = new Set(roles.map(role => role.role));
+  return roles.length === ROLE_ORDER.length && ROLE_ORDER.every(role => received.has(role));
+}
+
 /**
  * Roles Settings page view-model. Two reads gate the editor — the effective
  * projection (`useRolesStatus`) and the editable section (`useSettingsRoles`).
@@ -69,6 +75,7 @@ export function useSettingsRolesPage() {
   const [draftOverride, setDraftOverride] = useState<SettingsRolesConfig | null>();
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
   const [numberErrors, setNumberErrors] = useState<NumberErrors>({});
+  const [draftRevision, setDraftRevision] = useState(0);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const fieldRefs = useRef(new Map<string, HTMLElement | null>());
 
@@ -90,7 +97,9 @@ export function useSettingsRolesPage() {
   };
   const isInvalid = Object.keys(validationErrors).length > 0;
 
-  const roles: RoleViewModel[] = status && draft ? buildRolesViewModel(status.roles, draft) : [];
+  const projectionUnavailable = Boolean(status) && !hasCompleteRoleRoster(status?.roles ?? []);
+  const roles: RoleViewModel[] =
+    status && draft && !projectionUnavailable ? buildRolesViewModel(status.roles, draft) : [];
 
   const registerFieldRef = (id: string) => (element: HTMLElement | null) => {
     if (element) {
@@ -131,6 +140,7 @@ export function useSettingsRolesPage() {
       setDraft(envelope.config);
     }
     setNumberErrors({});
+    setDraftRevision(current => current + 1);
   };
 
   const handleSave = () => {
@@ -140,7 +150,7 @@ export function useSettingsRolesPage() {
     const errors = collectRoleValidationErrors(draft);
     const combined = { ...toRoleErrorMap(errors), ...filterActiveErrors(numberErrors) };
     if (Object.keys(combined).length > 0) {
-      setPendingFocusId(firstRoleFieldError(errors)?.id ?? null);
+      setPendingFocusId(firstRoleFieldError(errors)?.id ?? Object.keys(combined)[0] ?? null);
       return;
     }
     const body: SettingsUpdateRolesRequest = { config: draft };
@@ -156,11 +166,12 @@ export function useSettingsRolesPage() {
 
   return {
     isLoading: statusQuery.isLoading || configQuery.isLoading,
-    isEmpty: Boolean(status) && (status?.roles.length ?? 0) === 0,
+    isEmpty: projectionUnavailable,
     error: (statusQuery.error ?? configQuery.error) as Error | null,
     roles,
     isDirty,
     isInvalid,
+    draftRevision,
     validationErrors,
     isSaving: mutation.isPending,
     saveError: errorMessage(mutation.error),

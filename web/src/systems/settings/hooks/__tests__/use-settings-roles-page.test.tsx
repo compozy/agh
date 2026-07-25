@@ -89,6 +89,15 @@ describe("useSettingsRolesPage", () => {
     expect(result.current.roles).toHaveLength(0);
   });
 
+  it("Should reject a partial closed-role projection", async () => {
+    vi.mocked(getRolesStatus).mockResolvedValue({ roles: rolesStatusFixture.roles.slice(0, 5) });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.isEmpty).toBe(true));
+    expect(result.current.roles).toHaveLength(0);
+  });
+
   it("Should mark dirty on a field edit and reset back to the envelope", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
@@ -98,8 +107,10 @@ describe("useSettingsRolesPage", () => {
     act(() => result.current.setRoleField("auto_title", "model", "claude-haiku-4-5"));
     expect(result.current.isDirty).toBe(true);
 
+    const revision = result.current.draftRevision;
     act(() => result.current.handleReset());
     expect(result.current.isDirty).toBe(false);
+    expect(result.current.draftRevision).toBe(revision + 1);
   });
 
   it("Should save the full section and record the applied-immediately label", async () => {
@@ -147,5 +158,24 @@ describe("useSettingsRolesPage", () => {
     act(() => result.current.handleSave());
     expect(updateSettingsRoles).not.toHaveBeenCalled();
     expect(result.current.isDirty).toBe(true);
+  });
+
+  it("Should focus an invalid numeric field when it blocks save", async () => {
+    vi.mocked(updateSettingsRoles).mockResolvedValue(appliedMutation);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
+    await waitFor(() => expect(result.current.roles).toHaveLength(6));
+
+    const focus = vi.fn();
+    act(() => {
+      result.current.registerFieldRef("coordinator.max_children")({
+        focus,
+      } as unknown as HTMLElement);
+      result.current.setNumberFieldValidity("coordinator.max_children")("Enter a value.");
+    });
+    act(() => result.current.handleSave());
+
+    await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+    expect(updateSettingsRoles).not.toHaveBeenCalled();
   });
 });

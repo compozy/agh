@@ -57,7 +57,7 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
 
   await expect(automationUI.osDesktop).toBeVisible();
   const jobsWin = await openAppWindow(appPage, "Jobs", "jobs");
-  const jobsUI = automationOperatorSelectors(jobsWin);
+  const jobsUI = automationOperatorSelectors(jobsWin, appPage);
 
   await expect(appPage).toHaveURL(/\/jobs$/);
   await expect(jobsUI.jobsShell).toBeVisible();
@@ -79,7 +79,7 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
   );
 
   const triggersWin = await openAppWindow(appPage, "Triggers", "triggers");
-  const triggersUI = automationOperatorSelectors(triggersWin);
+  const triggersUI = automationOperatorSelectors(triggersWin, appPage);
   await expect(appPage).toHaveURL(/\/triggers$/);
   await expect(triggersUI.triggersShell).toBeVisible();
   await expect(triggersUI.triggersListRows).toBeVisible();
@@ -231,7 +231,7 @@ test("operator can accept and dismiss workspace suggestions through the real dae
   }
 
   const jobsWin = await openAppWindow(appPage, "Jobs", "jobs");
-  const jobsUI = automationOperatorSelectors(jobsWin);
+  const jobsUI = automationOperatorSelectors(jobsWin, appPage);
   await expect(appPage).toHaveURL(/\/jobs$/);
   await expect(jobsUI.automationSuggestionsCard).toBeVisible();
 

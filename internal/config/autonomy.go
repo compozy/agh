@@ -8,19 +8,6 @@ import (
 )
 
 const (
-	// DefaultCoordinatorTTL is the conservative coordinator session TTL used by autonomy defaults.
-	DefaultCoordinatorTTL = 2 * time.Hour
-	// MinCoordinatorTTL is the shortest coordinator TTL accepted by config validation.
-	MinCoordinatorTTL = time.Minute
-	// MaxCoordinatorTTL is the longest coordinator TTL accepted by config validation.
-	MaxCoordinatorTTL = 24 * time.Hour
-	// DefaultCoordinatorMaxChildren is the safe per-coordinator child-session cap.
-	DefaultCoordinatorMaxChildren = 5
-	// MaxCoordinatorChildren is the hard MVP cap for coordinator child sessions.
-	MaxCoordinatorChildren = 5
-	// DefaultCoordinatorMaxActiveSessionsPerWorkspace caps managed coordinator and worker sessions.
-	DefaultCoordinatorMaxActiveSessionsPerWorkspace = 5
-
 	// DefaultSchedulerFanOutAfter is the wake count before the convergence ladder fans out.
 	DefaultSchedulerFanOutAfter = 2
 	// DefaultSchedulerSpawnAfter is the wake count before a capability-matched worker is spawned.

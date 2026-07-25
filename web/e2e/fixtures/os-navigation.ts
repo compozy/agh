@@ -19,7 +19,13 @@ import { expect, type Locator, type Page } from "@playwright/test";
  * role+name click path serves Dock launchers and the menubar Settings cog.
  */
 export async function openAppWindow(page: Page, title: string, app: string): Promise<Locator> {
-  await page.getByRole("button", { exact: true, name: title }).click();
+  const launcher =
+    app === "settings"
+      ? page.locator('[data-slot="os-menubar-settings"]')
+      : page
+          .locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible')
+          .getByRole("button", { exact: true, name: title });
+  await launcher.click();
   const win = page.getByTestId(`os-window-app:${app}`);
   await expect(win).toBeVisible();
   return win;

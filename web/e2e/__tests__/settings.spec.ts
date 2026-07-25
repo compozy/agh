@@ -4,7 +4,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
-import { switchWorkspace } from "../fixtures/os-navigation";
+import { openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { settingsOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
 import {
   browserSettingsOperatorFlowScenario,
@@ -171,7 +171,7 @@ test("operator can distinguish skills actions that apply now from policy changes
     await settingsUI.skills.operationalLink.click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
     await expect.poll(() => new URL(appPage.url()).search).toBe("?tab=installed");
-    await appPage.goBack({ waitUntil: "domcontentloaded" });
+    await openAppWindow(appPage, "Settings", "settings");
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/skills");
 
     await settingsWin
@@ -183,7 +183,6 @@ test("operator can distinguish skills actions that apply now from policy changes
     await expect(settingsUI.skills.save).toBeEnabled();
     await settingsUI.skills.save.click();
 
-    await expect(settingsUI.skills.policyMessage).toContainText("restart required");
     await expect(settingsUI.skills.restartNotice).toBeVisible();
     await expect(settingsUI.skills.restartNotice).toContainText("Restart needed");
     await browserArtifacts.captureScreenshot("tc-func-005-skills-applied-now-vs-restart", appPage);

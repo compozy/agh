@@ -12,22 +12,13 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
-var closedRoleRoster = []aghconfig.RoleName{
-	aghconfig.RoleCoordinator,
-	aghconfig.RoleDream,
-	aghconfig.RoleCheckpointSummary,
-	aghconfig.RoleMemoryExtractor,
-	aghconfig.RoleAutoTitle,
-	aghconfig.RoleMemoryController,
-}
-
 // RoleStatuses projects the closed background-role roster in lexical order.
 func (r *roleResolver) RoleStatuses(ctx context.Context, workspaceID string) ([]contract.RoleStatus, error) {
 	effective, resolvedWorkspace, err := r.effectiveRoleConfig(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
-	roles := append([]aghconfig.RoleName(nil), closedRoleRoster...)
+	roles := aghconfig.RoleNames()
 	slices.Sort(roles)
 	statuses := make([]contract.RoleStatus, 0, len(roles))
 	for _, role := range roles {
@@ -125,7 +116,7 @@ func (r *roleResolver) projectRoleIdentity(
 }
 
 func knownRole(role aghconfig.RoleName) bool {
-	return slices.Contains(closedRoleRoster, role)
+	return slices.Contains(aghconfig.RoleNames(), role)
 }
 
 func roleStatusString(value string) *string {
@@ -163,7 +154,7 @@ func roleStatusProvenance(all map[string]string, status contract.RoleStatus) map
 		fields = append(fields, roleFieldReasoning)
 	}
 	if status.Timeout != nil {
-		fields = append(fields, "timeout")
+		fields = append(fields, roleFieldTimeout)
 	}
 	provenance := make(map[string]string, len(fields))
 	for _, field := range fields {

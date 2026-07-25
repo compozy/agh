@@ -12,7 +12,6 @@ import (
 	core "github.com/compozy/agh/internal/api/core"
 
 	memcontract "github.com/compozy/agh/internal/memory/contract"
-	memorycontroller "github.com/compozy/agh/internal/memory/controller"
 
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
@@ -68,7 +67,7 @@ func (n *daemonNativeTools) memoryAdminPromote(
 	}
 	var decision memcontract.Decision
 	if input.DryRun {
-		decision, err = memorycontroller.New(targetLocation.Store).Decide(ctx, candidate)
+		decision, err = targetLocation.Store.DecideCandidate(ctx, candidate)
 	} else {
 		decision, err = targetLocation.Store.ProposeCandidate(ctx, candidate)
 	}

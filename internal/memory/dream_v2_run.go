@@ -93,6 +93,33 @@ func (s *Store) startDreamRun(
 	return s.upsertDreamRun(ctx, run, workspace, "running", 0, "", at)
 }
 
+func (s *Store) deleteDreamRun(ctx context.Context, runID string) error {
+	if s == nil || s.catalog == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(runID)
+	if trimmed == "" {
+		return errors.New("memory: dream run id is required")
+	}
+	if err := s.ensureDecisionCatalog(ctx); err != nil {
+		return err
+	}
+	return s.catalog.withCatalogWriteTx(ctx, "dream run delete", func(tx *storepkg.WriteTx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM memory_consolidations WHERE id = ?`, trimmed); err != nil {
+			return fmt.Errorf("memory: delete skipped dream run %q: %w", trimmed, err)
+		}
+		if _, err := tx.ExecContext(
+			ctx,
+			`DELETE FROM memory_events WHERE target_id = ? AND op = ?`,
+			trimmed,
+			memoryEventDreamStarted,
+		); err != nil {
+			return fmt.Errorf("memory: delete skipped dream run event %q: %w", trimmed, err)
+		}
+		return nil
+	})
+}
+
 func (s *Store) completeDreamRun(
 	ctx context.Context,
 	run dreamSignalGateResult,

@@ -28,7 +28,7 @@ export function deriveSettingsSaveBarState({
 }: SettingsSaveStateInput): SettingsSaveBarState {
   if (isSaving) return { kind: "saving" };
   if (error) return { kind: "error", message: error };
-  if (isDirty && isInvalid) return { kind: "invalid", warnings };
+  if (isInvalid) return { kind: "invalid", warnings };
   if (isDirty) return { kind: "dirty", warnings };
   if (warnings.length > 0) {
     return {

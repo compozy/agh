@@ -1628,7 +1628,7 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 	}{
 		{name: "general", path: "/api/settings/general", want: "general.config is required"},
 		{name: "memory", path: "/api/settings/memory", want: "memory.config is required"},
-		{name: "roles", path: "/api/settings/roles", want: "roles.config is required"},
+		{name: "Should require roles config", path: "/api/settings/roles", want: "roles.config is required"},
 		{name: "skills", path: "/api/settings/skills", want: "skills.config is required"},
 		{name: "automation", path: "/api/settings/automation", want: "automation.config is required"},
 		{name: "network", path: "/api/settings/network", want: "network.config is required"},

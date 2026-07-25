@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
+import { openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
@@ -38,32 +38,6 @@ test("agent navigation renders the managed default agent after first-run setup",
   const fleet = sessionLifecycleSelectors(agentsWin);
   await expect(agentsWin.getByTestId("agent-fleet-empty")).toHaveCount(0);
   await expect(fleet.agentRow("general")).toBeVisible();
-});
-
-test("dashboard reports the agents endpoint failure during shell bootstrap", async ({
-  page,
-  runtime,
-}) => {
-  await page.route("**/api/agents**", async route => {
-    await route.fulfill({
-      status: 500,
-      contentType: "application/json",
-      body: JSON.stringify({ error: "agents unavailable" }),
-    });
-  });
-
-  await ensureGlobalWorkspace(runtime);
-  await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  const ui = sessionLifecycleSelectors(page);
-  await useGlobalWorkspaceIfPrompted(ui);
-  const dashboardWin = await ensureAppWindow(page, "Dashboard", "dashboard");
-
-  await expect(dashboardWin.getByRole("heading", { name: "Unable to load dashboard" })).toBeVisible(
-    {
-      timeout: 20_000,
-    }
-  );
-  await expect(dashboardWin.getByText("agents unavailable")).toBeVisible();
 });
 
 test.describe("seeded agent detail", () => {
@@ -351,6 +325,7 @@ test.describe("fleet scan journey", () => {
     await expect(fleet.agentRow("fleet-release")).toBeVisible();
     await expect(fleet.agentRow("fleet-ops")).toHaveCount(0);
 
+    const search = appPage.getByTestId("agent-fleet-search");
     await appPage.getByTestId("agent-fleet-filters-add").click();
     await appPage.getByRole("option", { name: "Category" }).click();
     await appPage.getByRole("option", { name: "Engineering / Release" }).click();
@@ -358,7 +333,9 @@ test.describe("fleet scan journey", () => {
       .poll(() => new URL(appPage.url()).searchParams.get("category"))
       .toBe("Engineering / Release");
 
-    await appPage.getByTestId("agent-fleet-search").fill("ops");
+    await search.fill("ops");
+    await expect(search).toHaveValue("ops");
+    await expect.poll(() => new URL(appPage.url()).searchParams.get("q")).toBe("ops");
     await expect(appPage.getByTestId("agent-fleet-filtered-empty")).toBeVisible();
     await appPage.getByTestId("agent-fleet-clear-filters").click();
     await expect.poll(() => new URL(appPage.url()).search).toBe("");

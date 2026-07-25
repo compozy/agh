@@ -26,6 +26,31 @@ describe("SettingsNumberInput", () => {
     expect(input).toHaveValue("12");
     expect(input).toHaveFocus();
   });
+
+  it("Should reset a rejected raw value when the draft revision changes", () => {
+    const { rerender } = render(
+      <SettingsNumberInput
+        aria-label="Retry limit"
+        onValueChange={() => undefined}
+        resetRevision={0}
+        value={1}
+      />
+    );
+    const input = screen.getByRole("textbox", { name: "Retry limit" });
+    fireEvent.change(input, { target: { value: "invalid" } });
+    expect(input).toHaveValue("invalid");
+
+    rerender(
+      <SettingsNumberInput
+        aria-label="Retry limit"
+        onValueChange={() => undefined}
+        resetRevision={1}
+        value={1}
+      />
+    );
+    expect(input).toHaveValue("1");
+    expect(input).not.toHaveAttribute("aria-invalid");
+  });
 });
 
 describe("SettingsAdvancedFold", () => {

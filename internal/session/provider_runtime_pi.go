@@ -60,24 +60,34 @@ func (m *Manager) materializePiRuntime(
 	if session == nil {
 		return "", errors.New("session: pi runtime requires a session")
 	}
+	runtimeDir := filepath.Join(session.sessionDir, "provider-runtime", "pi")
+	if err := materializePiRuntimeAt(runtimeDir, resolved, injectedTargetEnvs); err != nil {
+		return "", err
+	}
+	return runtimeDir, nil
+}
+
+func materializePiRuntimeAt(
+	runtimeDir string,
+	resolved aghconfig.ResolvedAgent,
+	injectedTargetEnvs map[string]struct{},
+) error {
 	runtimeProvider := strings.TrimSpace(resolved.RuntimeProvider)
 	if runtimeProvider == "" {
 		runtimeProvider = strings.TrimSpace(resolved.Provider)
 	}
 	model := strings.TrimSpace(resolved.Model)
 	if runtimeProvider == "" {
-		return "", errors.New("session: pi runtime provider is required")
+		return errors.New("session: pi runtime provider is required")
 	}
 	if model == "" {
-		return "", errors.New("session: pi model is required")
+		return errors.New("session: pi model is required")
 	}
-
-	runtimeDir := filepath.Join(session.sessionDir, "provider-runtime", "pi")
 	if err := os.MkdirAll(runtimeDir, 0o700); err != nil {
-		return "", fmt.Errorf("session: create pi runtime directory %q: %w", runtimeDir, err)
+		return fmt.Errorf("session: create pi runtime directory %q: %w", runtimeDir, err)
 	}
 	if err := os.Chmod(runtimeDir, 0o700); err != nil {
-		return "", fmt.Errorf("session: protect pi runtime directory %q: %w", runtimeDir, err)
+		return fmt.Errorf("session: protect pi runtime directory %q: %w", runtimeDir, err)
 	}
 	settings := piSettingsFile{
 		DefaultProvider: runtimeProvider,
@@ -85,7 +95,7 @@ func (m *Manager) materializePiRuntime(
 		EnabledModels:   []string{model},
 	}
 	if err := writeProviderJSON(filepath.Join(runtimeDir, "settings.json"), settings); err != nil {
-		return "", err
+		return err
 	}
 
 	models := piModelsFile{
@@ -99,7 +109,7 @@ func (m *Manager) materializePiRuntime(
 		},
 	}
 	if err := writeProviderJSON(filepath.Join(runtimeDir, "models.json"), models); err != nil {
-		return "", err
+		return err
 	}
-	return runtimeDir, nil
+	return nil
 }

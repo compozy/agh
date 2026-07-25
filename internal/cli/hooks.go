@@ -252,7 +252,7 @@ func renderHookInfoHuman(hooks []HookCatalogRecord) (string, error) {
 			renderHumanSection("Hook", hookInfoRows(item)),
 			renderHumanTable(
 				"Matcher",
-				[]string{"Field", hooksValueValue},
+				[]string{cliFieldValue, hooksValueValue},
 				hookMatcherRows(item.Matcher),
 			),
 			renderHumanTable(
@@ -329,7 +329,7 @@ func renderHookInfoToonDetails(item HookCatalogRecord) string {
 			[]string{automationNameKey, hooksOrderKey, hooksEventKey},
 			[]string{item.Name, strconv.Itoa(item.Order), item.Event},
 		),
-		renderToonArray("matcher", []string{"field", hooksValueKey}, hookMatcherRows(item.Matcher)),
+		renderToonArray("matcher", []string{cliFieldKey, hooksValueKey}, hookMatcherRows(item.Matcher)),
 		renderToonArray(
 			"metadata",
 			[]string{cliKeyKey, hooksValueKey},

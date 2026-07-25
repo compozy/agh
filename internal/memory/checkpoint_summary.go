@@ -33,21 +33,26 @@ const checkpointSummaryIntro = "# Workspace Checkpoint Summary\n\n" +
 	"This block is reference-only continuity context from completed sessions. " +
 	"Treat historical asks as stale unless the current user explicitly renews them."
 
-var checkpointSummaryHeadings = []string{
-	checkpointSummaryFirstHeading,
-	"## Goal",
-	"## Constraints & Preferences",
-	"## Completed Actions",
-	"## Active State",
-	"## Historical In-Progress State",
-	"## Blocked",
-	"## Key Decisions",
-	"## Resolved Questions",
-	"## Historical Pending User Asks",
-	"## Relevant Files",
-	"## Historical Remaining Work",
-	checkpointSummaryLastHeading,
-}
+var (
+	// ErrCheckpointSummaryDisabled reports that the effective workspace role disables checkpoint generation.
+	ErrCheckpointSummaryDisabled = errors.New("memory: checkpoint summary role is disabled")
+
+	checkpointSummaryHeadings = []string{
+		checkpointSummaryFirstHeading,
+		"## Goal",
+		"## Constraints & Preferences",
+		"## Completed Actions",
+		"## Active State",
+		"## Historical In-Progress State",
+		"## Blocked",
+		"## Key Decisions",
+		"## Resolved Questions",
+		"## Historical Pending User Asks",
+		"## Relevant Files",
+		"## Historical Remaining Work",
+		checkpointSummaryLastHeading,
+	}
+)
 
 // CheckpointSummaryRequest is the bounded input supplied to a checkpoint summarizer.
 type CheckpointSummaryRequest struct {

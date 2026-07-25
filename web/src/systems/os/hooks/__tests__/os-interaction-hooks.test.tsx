@@ -19,8 +19,10 @@ import {
   OS_ZOOM_MENU_OPEN_DELAY_MS,
   useOsZoomMenu,
 } from "../use-os-zoom-menu";
+import { useOsWindow } from "../use-os-window";
 import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
+import { windowManagerStore } from "../../stores/window-manager-store";
 
 const CONFIG: WindowManagerConfig = {
   newWindowPolicy: "floating",
@@ -123,7 +125,7 @@ function createShell({ live = true, withPeer = true } = {}) {
     toggleFloating,
     moveWindow: vi.fn(),
     arrangeLayout,
-    commitFloatingRect: vi.fn(),
+    commitFloatingRect: vi.fn(() => acceptedOutcome()),
     resizeLayout: vi.fn(),
     balanceLayout: vi.fn(),
     navigateWindow: vi.fn(() => acceptedOutcome()),
@@ -133,10 +135,15 @@ function createShell({ live = true, withPeer = true } = {}) {
     setReduceMotion: vi.fn(),
     setDesktopBounds: vi.fn(),
   };
+  let currentState = state;
+  const listeners = new Set<Parameters<WindowManagerController["subscribe"]>[0]>();
   const controller: WindowManagerController = {
-    getState: () => state,
+    getState: () => currentState,
     getInitialState: () => state,
-    subscribe: () => () => {},
+    subscribe: listener => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     bind: vi.fn(),
     unbind: vi.fn(),
     setClient: vi.fn(),
@@ -150,7 +157,7 @@ function createShell({ live = true, withPeer = true } = {}) {
     deleteDesktop: vi.fn(),
     moveWindowToDesktop: vi.fn(),
     tileWindow: vi.fn(),
-    applySnapTarget: vi.fn(),
+    applySnapTarget: vi.fn(() => acceptedOutcome()),
     focusDirection: vi.fn(),
     undoLayout: vi.fn(),
     redoLayout: vi.fn(),
@@ -166,13 +173,217 @@ function createShell({ live = true, withPeer = true } = {}) {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <OsShellContext.Provider value={shell}>{children}</OsShellContext.Provider>
   );
-  return { controller, state, wrapper };
+  return {
+    controller,
+    get state() {
+      return currentState;
+    },
+    setRuntimeState(patch: Partial<OsDesktopRuntimeStore>) {
+      const previous = currentState;
+      currentState = { ...currentState, ...patch };
+      for (const listener of listeners) listener(currentState, previous);
+    },
+    wrapper,
+  };
 }
 
 afterEach(() => {
+  act(() => {
+    windowManagerStore.getState().actions.clearGesture();
+    windowManagerStore.getState().actions.setWorkArea(null);
+  });
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+function beginPrimarySnapGesture(): void {
+  const workArea = { x: 0, y: 0, w: 1280, h: 800 };
+  const actions = windowManagerStore.getState().actions;
+  actions.setWorkArea({ rect: workArea, origin: { x: 0, y: 0 } });
+  actions.beginGesture({
+    pointerId: 0,
+    point: { x: 320, y: 200 },
+    workArea,
+    layoutRevision: SNAPSHOT.revision,
+    source: {
+      windowId: "window:primary",
+      nodeId: null,
+      groupId: null,
+      moveMode: "window",
+    },
+  });
+}
+
+function dragData(x: number, y: number) {
+  return {
+    node: document.createElement("div"),
+    x,
+    y,
+    deltaX: 0,
+    deltaY: 0,
+    lastX: x,
+    lastY: y,
+  };
+}
+
+describe("useOsWindow", () => {
+  it("Should defer a never-visible window and retain it after first visibility", () => {
+    const shell = createShell();
+    shell.setRuntimeState({ activeDesktopId: "desktop:other" });
+    const { result } = renderHook(() => useOsWindow("window:primary"), {
+      wrapper: shell.wrapper,
+    });
+
+    expect(result.current.keepMounted).toBe(false);
+
+    act(() => shell.setRuntimeState({ activeDesktopId: "desktop:main" }));
+    expect(result.current.keepMounted).toBe(true);
+
+    act(() => shell.setRuntimeState({ activeDesktopId: "desktop:other" }));
+    expect(result.current.keepMounted).toBe(true);
+  });
+
+  it("Should restore the current authoritative position when a snap command is rejected", async () => {
+    const shell = createShell();
+    const completion = Promise.resolve(false);
+    vi.mocked(shell.controller.applySnapTarget).mockReturnValue({ accepted: true, completion });
+    beginPrimarySnapGesture();
+    const { result } = renderHook(() => useOsWindow("window:primary"), {
+      wrapper: shell.wrapper,
+    });
+    const updatePosition = vi.fn();
+    const updateSize = vi.fn();
+    Object.defineProperty(result.current.rndRef, "current", {
+      configurable: true,
+      value: { updatePosition, updateSize },
+    });
+
+    await act(async () => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 1, clientY: 300 }),
+        dragData(1, 300)
+      );
+      await completion;
+    });
+
+    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
+    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
+    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
+  });
+
+  it("Should retain the local preview when a snap command is applied", async () => {
+    const shell = createShell();
+    const completion = Promise.resolve(true);
+    vi.mocked(shell.controller.applySnapTarget).mockReturnValue({ accepted: true, completion });
+    beginPrimarySnapGesture();
+    const { result } = renderHook(() => useOsWindow("window:primary"), {
+      wrapper: shell.wrapper,
+    });
+    const updatePosition = vi.fn();
+    const updateSize = vi.fn();
+    Object.defineProperty(result.current.rndRef, "current", {
+      configurable: true,
+      value: { updatePosition, updateSize },
+    });
+
+    await act(async () => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 1, clientY: 300 }),
+        dragData(1, 300)
+      );
+      await completion;
+    });
+
+    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
+    expect(updatePosition).not.toHaveBeenCalled();
+    expect(updateSize).not.toHaveBeenCalled();
+  });
+
+  it("Should restore the current authoritative rect when a floating commit is rejected", async () => {
+    const shell = createShell();
+    const completion = Promise.resolve(false);
+    vi.mocked(shell.state.commitFloatingRect).mockReturnValue({ accepted: true, completion });
+    beginPrimarySnapGesture();
+    const { result } = renderHook(() => useOsWindow("window:primary"), {
+      wrapper: shell.wrapper,
+    });
+    const updatePosition = vi.fn();
+    const updateSize = vi.fn();
+    Object.defineProperty(result.current.rndRef, "current", {
+      configurable: true,
+      value: { updatePosition, updateSize },
+    });
+
+    await act(async () => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
+        dragData(500, 300)
+      );
+      await completion;
+    });
+
+    expect(shell.state.commitFloatingRect).toHaveBeenCalledOnce();
+    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
+    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
+    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
+  });
+
+  it("Should restore the authoritative rect after a stale drag stop finishes", async () => {
+    const shell = createShell();
+    beginPrimarySnapGesture();
+    shell.state.snapshot = { ...SNAPSHOT, revision: SNAPSHOT.revision + 1 };
+    const { result } = renderHook(() => useOsWindow("window:primary"), {
+      wrapper: shell.wrapper,
+    });
+    const updatePosition = vi.fn();
+    const updateSize = vi.fn();
+    Object.defineProperty(result.current.rndRef, "current", {
+      configurable: true,
+      value: { updatePosition, updateSize },
+    });
+
+    await act(async () => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
+        dragData(500, 300)
+      );
+      expect(updatePosition).not.toHaveBeenCalled();
+      await Promise.resolve();
+    });
+
+    expect(shell.state.commitFloatingRect).not.toHaveBeenCalled();
+    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
+    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
+    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
+  });
+
+  it("Should restore the authoritative rect when drag stop has no active gesture", async () => {
+    const shell = createShell();
+    const { result } = renderHook(() => useOsWindow("window:primary"), {
+      wrapper: shell.wrapper,
+    });
+    const updatePosition = vi.fn();
+    const updateSize = vi.fn();
+    Object.defineProperty(result.current.rndRef, "current", {
+      configurable: true,
+      value: { updatePosition, updateSize },
+    });
+
+    await act(async () => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
+        dragData(500, 300)
+      );
+      expect(updatePosition).not.toHaveBeenCalled();
+      await Promise.resolve();
+    });
+
+    expect(shell.state.commitFloatingRect).not.toHaveBeenCalled();
+    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
+    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
+    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
+  });
 });
 
 function WinLayerHarness() {

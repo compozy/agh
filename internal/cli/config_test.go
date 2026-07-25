@@ -1101,6 +1101,12 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				wantAllowed: false,
 			},
 			{
+				name:        "Should allow full roles section",
+				path:        "roles",
+				wantKind:    configSetTable,
+				wantAllowed: true,
+			},
+			{
 				name:        "Should allow dream role model",
 				path:        "roles.dream.model",
 				wantKind:    configSetString,
@@ -1169,6 +1175,25 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			t.Fatal("parseStringSliceValue(invalid json) error = nil, want error")
 		} else if !strings.Contains(err.Error(), "string") {
 			t.Fatalf("parseStringSliceValue(invalid json) error = %v, want element type detail", err)
+		}
+	})
+
+	t.Run("Should parse a complete roles object", func(t *testing.T) {
+		t.Parallel()
+
+		value, err := parseConfigSetValue(
+			configSetTable,
+			`{"auto_title":{"enabled":true,"fallback_chain":[{"provider":"codex","model":"gpt-5-mini"}]}}`,
+		)
+		if err != nil {
+			t.Fatalf("parseConfigSetValue(roles object) error = %v", err)
+		}
+		table, ok := value.(map[string]any)
+		if !ok || table["auto_title"] == nil {
+			t.Fatalf("parseConfigSetValue(roles object) = %#v, want object", value)
+		}
+		if _, err := parseConfigSetValue(configSetTable, `[]`); err == nil {
+			t.Fatal("parseConfigSetValue(array) error = nil, want object error")
 		}
 	})
 

@@ -1,24 +1,13 @@
 package settings
 
 import (
-	"reflect"
+	"slices"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func cloneRolesConfig(source *aghconfig.RolesConfig) aghconfig.RolesConfig {
-	cloned := *source
-	cloned.Coordinator.FallbackChain = cloneRoleFallbacks(source.Coordinator.FallbackChain)
-	cloned.Dream.FallbackChain = cloneRoleFallbacks(source.Dream.FallbackChain)
-	cloned.CheckpointSummary.FallbackChain = cloneRoleFallbacks(source.CheckpointSummary.FallbackChain)
-	cloned.MemoryExtractor.FallbackChain = cloneRoleFallbacks(source.MemoryExtractor.FallbackChain)
-	cloned.AutoTitle.FallbackChain = cloneRoleFallbacks(source.AutoTitle.FallbackChain)
-	cloned.MemoryController.FallbackChain = cloneRoleFallbacks(source.MemoryController.FallbackChain)
-	return cloned
-}
-
-func cloneRoleFallbacks(source []aghconfig.RoleFallback) []aghconfig.RoleFallback {
-	return append([]aghconfig.RoleFallback(nil), source...)
+	return aghconfig.CloneRolesConfig(source)
 }
 
 func diffRolesSettings(current *aghconfig.RolesConfig, desired *aghconfig.RolesConfig) []string {
@@ -79,7 +68,7 @@ func diffRoleSettings(
 	if current.ReasoningEffort != desired.ReasoningEffort {
 		changed = append(changed, prefix+"reasoning_effort")
 	}
-	if !reflect.DeepEqual(current.FallbackChain, desired.FallbackChain) {
+	if !roleFallbacksEqual(current.FallbackChain, desired.FallbackChain) {
 		changed = append(changed, prefix+"fallback_chain")
 	}
 	return changed
@@ -115,10 +104,14 @@ func diffMemoryControllerRoleSettings(
 	if current.MaxTokensOut != desired.MaxTokensOut {
 		changed = append(changed, prefix+"max_tokens_out")
 	}
-	if !reflect.DeepEqual(current.FallbackChain, desired.FallbackChain) {
+	if !roleFallbacksEqual(current.FallbackChain, desired.FallbackChain) {
 		changed = append(changed, prefix+"fallback_chain")
 	}
 	return changed
+}
+
+func roleFallbacksEqual(current, desired []aghconfig.RoleFallback) bool {
+	return slices.Equal(current, desired)
 }
 
 func applyRolesSettings(editor *aghconfig.OverlayEditor, roles *aghconfig.RolesConfig) error {

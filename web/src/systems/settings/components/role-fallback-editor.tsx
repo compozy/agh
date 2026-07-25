@@ -1,14 +1,14 @@
-import { useRef } from "react";
+import { useRef, type ComponentPropsWithoutRef } from "react";
 
 import { Plus, Trash2 } from "lucide-react";
 
-import { Button, Input, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Button, cn, Input, NativeSelect, NativeSelectOption } from "@agh/ui";
 
 import { REASONING_OPTIONS } from "../lib/roles-config";
 import { fallbackFieldId } from "../lib/roles-validation";
 import type { RoleFallbackEntry, RoleName } from "../types";
 
-interface RoleFallbackEditorProps {
+interface RoleFallbackEditorProps extends Omit<ComponentPropsWithoutRef<"div">, "role"> {
   role: RoleName;
   entries: readonly RoleFallbackEntry[];
   errors: Record<string, string>;
@@ -20,7 +20,7 @@ interface RoleFallbackEditorProps {
   registerFieldRef: (id: string) => (element: HTMLElement | null) => void;
 }
 
-interface FallbackTextFieldProps {
+interface FallbackTextFieldProps extends Omit<ComponentPropsWithoutRef<"div">, "id" | "onChange"> {
   id: string;
   label: string;
   value: string;
@@ -38,10 +38,12 @@ function FallbackTextField({
   error,
   onChange,
   registerRef,
+  className,
+  ...rootProps
 }: FallbackTextFieldProps) {
   const errorId = error ? `${id}-error` : undefined;
   return (
-    <div className="flex min-w-40 flex-1 flex-col gap-1">
+    <div {...rootProps} className={cn("flex min-w-40 flex-1 flex-col gap-1", className)}>
       <label className="text-form-label font-medium text-muted" htmlFor={id}>
         {label}
       </label>
@@ -80,11 +82,13 @@ export function RoleFallbackEditor({
   onRemove,
   onUpdate,
   registerFieldRef,
+  className,
+  ...rootProps
 }: RoleFallbackEditorProps) {
   // Stable client-side row ids so React keys the editable rows without the array
   // index. Local add appends an id and remove splices the id at that index, so
-  // ids stay aligned across edits; a length mismatch (mount or an external
-  // load/reset) regenerates the ledger.
+  // ids stay aligned across edits; a length mismatch (on mount or when an
+  // external load changes the entry count) regenerates the ledger.
   const rowIdsRef = useRef<number[]>([]);
   const nextRowIdRef = useRef(0);
   if (rowIdsRef.current.length !== entries.length) {
@@ -102,7 +106,7 @@ export function RoleFallbackEditor({
   };
 
   return (
-    <div className="flex flex-col gap-3" data-testid={testId}>
+    <div {...rootProps} className={cn("flex flex-col gap-3", className)} data-testid={testId}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-ws-name font-medium text-fg-strong">Fallback chain</span>
@@ -132,6 +136,8 @@ export function RoleFallbackEditor({
             const providerId = fallbackFieldId(role, index, "provider");
             const modelId = fallbackFieldId(role, index, "model");
             const reasoningId = fallbackFieldId(role, index, "reasoning_effort");
+            const reasoningError = errors[reasoningId];
+            const reasoningErrorId = reasoningError ? `${reasoningId}-error` : undefined;
             return (
               <li
                 key={rowIds[index]}
@@ -167,8 +173,11 @@ export function RoleFallbackEditor({
                     </label>
                     <NativeSelect
                       id={reasoningId}
+                      ref={registerFieldRef(reasoningId)}
                       data-testid={`${reasoningId}-input`}
                       value={entry.reasoning_effort}
+                      aria-invalid={reasoningError ? true : undefined}
+                      aria-describedby={reasoningErrorId}
                       onChange={event => onUpdate(index, "reasoning_effort", event.target.value)}
                     >
                       {REASONING_OPTIONS.map(option => (
@@ -177,6 +186,15 @@ export function RoleFallbackEditor({
                         </NativeSelectOption>
                       ))}
                     </NativeSelect>
+                    {reasoningError ? (
+                      <span
+                        className="text-form-hint text-danger"
+                        id={reasoningErrorId}
+                        role="alert"
+                      >
+                        {reasoningError}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="flex shrink-0 flex-col gap-1">
                     <span aria-hidden="true" className="text-form-label font-medium">

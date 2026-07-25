@@ -69,6 +69,7 @@ type coordinatorRuntime struct {
 	config         CoordinatorRoleResolver
 	hooks          coordinatorHookDispatcher
 	contextOverlay taskSessionContextOverlay
+	roleEvents     roleEventSummaryWriter
 	logger         *slog.Logger
 	now            func() time.Time
 	wakeInFlight   map[string]struct{}
@@ -84,6 +85,14 @@ func withCoordinatorTaskContextOverlay(overlay taskSessionContextOverlay) coordi
 	return func(runtime *coordinatorRuntime) {
 		if runtime != nil {
 			runtime.contextOverlay = overlay
+		}
+	}
+}
+
+func withCoordinatorRoleEvents(events roleEventSummaryWriter) coordinatorRuntimeOption {
+	return func(runtime *coordinatorRuntime) {
+		if runtime != nil {
+			runtime.roleEvents = events
 		}
 	}
 }
@@ -156,6 +165,7 @@ func (d *Daemon) bootCoordinator(ctx context.Context, state *bootState, cleanup 
 		state.logger,
 		d.now,
 		withCoordinatorTaskContextOverlay(state.situationContext),
+		withCoordinatorRoleEvents(state.registry),
 	)
 	if err != nil {
 		return err

@@ -120,6 +120,8 @@ func cloneActiveConfig(cfg *aghconfig.Config) aghconfig.Config {
 	cloned.Sandboxes = mapsClone(cfg.Sandboxes)
 	cloned.MCPServers = append([]aghconfig.MCPServer(nil), cfg.MCPServers...)
 	cloned.Hooks.Declarations = append([]hookspkg.HookDecl(nil), cfg.Hooks.Declarations...)
+	cloned.Roles = aghconfig.CloneRolesConfig(&cfg.Roles)
+	cloned.RoleSources = aghconfig.CloneRoleFieldSources(cfg.RoleSources)
 	cloned.WindowManager = cloneWindowManagerConfig(cfg.WindowManager)
 	return cloned
 }

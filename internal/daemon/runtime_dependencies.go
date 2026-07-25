@@ -11,7 +11,7 @@ func (d *Daemon) runtimeDeps(
 	state *bootState,
 	sessions SessionManager,
 ) RuntimeDeps {
-	initializeDreamRuntime(state, sessions)
+	d.initializeDreamRuntime(state, sessions)
 	authoredContext := authoredContextRuntimeDeps(ctx, state, sessions)
 	var memoryProviders core.MemoryProviderService
 	if state.memoryProviderRegistry != nil {
@@ -54,26 +54,18 @@ func (d *Daemon) runtimeDeps(
 		HeartbeatWake:       authoredContext.HeartbeatWake,
 		SessionHealth:       authoredContext.SessionHealth,
 		WakeEvents:          authoredContext.WakeEvents,
-		CoordinatorRole: newCoordinatorRoleResolver(
-			&state.cfg,
-			state.workspaceResolver,
-			agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
-				soul:      state.soulCatalog,
-				heartbeat: state.heartbeatCatalog,
-			}),
-			state.registry,
-		),
-		Roles:          roles,
-		SkillsRegistry: skillsRegistryAPI(state.skillsRegistry),
-		ToolRegistry:   state.toolRegistry,
-		Toolsets:       state.toolsets,
-		ToolApprovals:  state.toolApprovals,
-		ApprovalGrants: state.deps.ApprovalGrants,
-		Clarify:        state.clarify,
-		HostedMCP:      state.hostedMCP,
-		MCPHostAPI:     newMCPHostAPIRuntimeInvoker(state.currentExtensionRuntime),
-		DreamTrigger:   dreamTriggerFromRuntime(state.dreamRuntime),
-		Vault:          state.providerVault,
-		StartedAt:      state.startedAt,
+		CoordinatorRole:     coordinatorRoleResolverFor(roles),
+		Roles:               roles,
+		SkillsRegistry:      skillsRegistryAPI(state.skillsRegistry),
+		ToolRegistry:        state.toolRegistry,
+		Toolsets:            state.toolsets,
+		ToolApprovals:       state.toolApprovals,
+		ApprovalGrants:      state.deps.ApprovalGrants,
+		Clarify:             state.clarify,
+		HostedMCP:           state.hostedMCP,
+		MCPHostAPI:          newMCPHostAPIRuntimeInvoker(state.currentExtensionRuntime),
+		DreamTrigger:        dreamTriggerFromRuntime(state.dreamRuntime),
+		Vault:               state.providerVault,
+		StartedAt:           state.startedAt,
 	}
 }

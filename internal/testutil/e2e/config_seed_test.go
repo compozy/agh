@@ -95,7 +95,7 @@ func TestSeedConfigPersistsNetworkOverlay(t *testing.T) {
 func TestSeedConfigPersistsRolesOverlay(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should persist role mutations for a real daemon", func(t *testing.T) {
+	t.Run("Should persist role mutations in seeded config", func(t *testing.T) {
 		t.Parallel()
 		runSeedConfigPersistsRolesOverlay(t)
 	})
@@ -122,7 +122,9 @@ func runSeedConfigPersistsRolesOverlay(t *testing.T) {
 }
 
 func TestSeedConfigPersistsMemoryOverlay(t *testing.T) {
-	t.Run("Should persist memory mutations for a real daemon", func(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist memory mutations in seeded config", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := NewHomePaths(t)

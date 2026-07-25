@@ -4033,6 +4033,12 @@ func runDreamRuntimeLifecycleCases(t *testing.T) {
 				defer d.mu.Unlock()
 				return (d.dreamRuntime != nil) == tc.wantRuntime
 			})
+			d.mu.Lock()
+			dreamRuntime := d.dreamRuntime
+			d.mu.Unlock()
+			if tc.wantRuntime && !dreamRuntime.Enabled() {
+				t.Fatal("dream runtime Enabled() = false, want memory-backed scheduling for workspace role resolution")
+			}
 
 			cancel()
 			if err := <-errCh; err != nil {

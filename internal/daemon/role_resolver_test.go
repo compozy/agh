@@ -68,7 +68,7 @@ func TestRoleResolver(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve custom catalog agents without mutating their definitions", func(t *testing.T) {
+	t.Run("Should resolve custom catalog agents", func(t *testing.T) {
 		t.Parallel()
 
 		cfg := roleResolverConfig()
@@ -275,8 +275,8 @@ func TestRoleResolver(t *testing.T) {
 			resolvedB.Model != "global-model" || resolvedB.Provenance["model"] != "global" {
 			t.Fatalf("workspace provenance = a:%#v b:%#v", resolvedA, resolvedB)
 		}
-		if resolvedA.Provenance["agent"] != roleSourceDefault ||
-			resolvedB.Provenance["agent"] != roleSourceDefault {
+		if resolvedA.Provenance["agent"] != aghconfig.RoleFieldSourceDefault ||
+			resolvedB.Provenance["agent"] != aghconfig.RoleFieldSourceDefault {
 			t.Fatalf(
 				"agent provenance = a:%q b:%q, want default",
 				resolvedA.Provenance["agent"],
@@ -285,7 +285,7 @@ func TestRoleResolver(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return a disabled role without invoking a consumer", func(t *testing.T) {
+	t.Run("Should return a disabled role", func(t *testing.T) {
 		t.Parallel()
 
 		cfg := roleResolverConfig()

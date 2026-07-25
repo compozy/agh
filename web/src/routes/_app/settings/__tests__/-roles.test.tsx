@@ -1,14 +1,13 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildRolesViewModel, type RoleViewModel } from "@/systems/settings/lib/roles-view-model";
+import { buildRolesViewModel, type RoleViewModel } from "@/systems/settings";
 import {
   rolesStatusFixture,
   rolesStatusWithDiagnosticFixture,
   settingsRolesConfigFixture,
-} from "@/systems/settings/mocks/roles-fixtures";
+} from "@/systems/settings/mocks";
 
 const defaultRoles = buildRolesViewModel(rolesStatusFixture.roles, settingsRolesConfigFixture);
 const diagnosticRoles = buildRolesViewModel(
@@ -39,6 +38,7 @@ let pageState: {
   roles: RoleViewModel[];
   isDirty: boolean;
   isInvalid: boolean;
+  draftRevision: number;
   validationErrors: Record<string, string>;
   isSaving: boolean;
   saveError: string | null;
@@ -58,13 +58,7 @@ let pageState: {
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
-  return {
-    ...actual,
-    createFileRoute: () => (opts: { component: () => ReactNode }) => ({
-      component: opts.component,
-    }),
-    useNavigate: () => vi.fn(),
-  };
+  return { ...actual, useNavigate: () => vi.fn() };
 });
 
 vi.mock("@/systems/settings/hooks/use-settings-roles-page", () => ({
@@ -79,6 +73,7 @@ beforeEach(() => {
     roles: defaultRoles,
     isDirty: false,
     isInvalid: false,
+    draftRevision: 0,
     validationErrors: {},
     isSaving: false,
     saveError: null,
@@ -120,11 +115,28 @@ describe("RolesSettingsPage", () => {
     expect(pageState.handleRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("renders the server error with a retry action", () => {
+    pageState.error = new Error("roles service unavailable");
+    render(<RolesSettingsPage />);
+    expect(screen.getByTestId("settings-page-roles-error")).toHaveTextContent(
+      "roles service unavailable"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(pageState.handleRetry).toHaveBeenCalledTimes(1);
+  });
+
   it("renders six role panels in product order with builtin badges (UT-074)", () => {
     render(<RolesSettingsPage />);
 
     const groups = screen.getAllByTestId(/^settings-page-roles-group-/);
-    expect(groups).toHaveLength(6);
+    expect(groups.map(node => node.dataset.testid)).toEqual([
+      "settings-page-roles-group-coordinator",
+      "settings-page-roles-group-dream",
+      "settings-page-roles-group-checkpoint_summary",
+      "settings-page-roles-group-memory_extractor",
+      "settings-page-roles-group-auto_title",
+      "settings-page-roles-group-memory_controller",
+    ]);
     for (const role of ["coordinator", "dream", "checkpoint_summary"]) {
       expect(within(group(role)).getByText("BUILTIN")).toBeInTheDocument();
     }

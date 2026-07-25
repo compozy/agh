@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { openAppWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { waitForSeedSessionActive } from "../fixtures/runtime";
 import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
@@ -193,12 +194,13 @@ test("operator can create a provider/model override session and attach without l
 
   const createdSession = (await createResponse.json()) as SessionEnvelope;
   expect(createdSession.session.provider).toBe(overrideProvider);
+  await waitForSeedSessionActive(runtime, createdSession.session.id);
 
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(browserLifecycleSessionPath(createdSession.session.id));
   const sessionWin = sessionWindow(appPage, createdSession.session.id);
-  const sessionUi = sessionWindowSelectors(sessionWin);
+  const sessionUi = sessionWindowSelectors(sessionWin, appPage);
   await expect(sessionWin).toBeVisible();
   await expect(sessionWin.getByTestId("session-status-provider")).toHaveText(overrideProvider);
   await browserArtifacts.captureScreenshot("session-provider-created", appPage);
@@ -408,6 +410,8 @@ async function writeWorkspaceConfig(input: {
       `none_security = "local_transport"`,
       `[providers.${overrideProvider}.models]`,
       `default = "qa-browser-model"`,
+      `[providers.${overrideProvider}.models.reasoning]`,
+      `apply = "acp_option"`,
       `[[providers.${overrideProvider}.models.curated]]`,
       `id = "qa-browser-model"`,
       `display_name = "QA Browser Model"`,

@@ -64,7 +64,7 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		Agents:        src.Agents,
 		Limits:        src.Limits,
 		Session:       src.Session,
-		Roles:         cloneRolesConfig(&src.Roles),
+		Roles:         aghconfig.CloneRolesConfig(&src.Roles),
 		RoleSources:   aghconfig.CloneRoleFieldSources(src.RoleSources),
 		Permissions:   src.Permissions,
 		MCPServers:    cloneMCPServers(src.MCPServers),
@@ -116,29 +116,6 @@ func cloneWindowManagerConfig(src aghconfig.WindowManagerConfig) aghconfig.Windo
 func cloneMemoryConfig(src *aghconfig.MemoryConfig) aghconfig.MemoryConfig {
 	cloned := *src
 	cloned.Controller.Policy.AllowOrigins = append([]string(nil), src.Controller.Policy.AllowOrigins...)
-	return cloned
-}
-
-func cloneRolesConfig(src *aghconfig.RolesConfig) aghconfig.RolesConfig {
-	cloned := *src
-	cloned.Coordinator.FallbackChain = append(
-		[]aghconfig.RoleFallback(nil),
-		src.Coordinator.FallbackChain...,
-	)
-	cloned.Dream.FallbackChain = append([]aghconfig.RoleFallback(nil), src.Dream.FallbackChain...)
-	cloned.CheckpointSummary.FallbackChain = append(
-		[]aghconfig.RoleFallback(nil),
-		src.CheckpointSummary.FallbackChain...,
-	)
-	cloned.MemoryExtractor.FallbackChain = append(
-		[]aghconfig.RoleFallback(nil),
-		src.MemoryExtractor.FallbackChain...,
-	)
-	cloned.AutoTitle.FallbackChain = append([]aghconfig.RoleFallback(nil), src.AutoTitle.FallbackChain...)
-	cloned.MemoryController.FallbackChain = append(
-		[]aghconfig.RoleFallback(nil),
-		src.MemoryController.FallbackChain...,
-	)
 	return cloned
 }
 

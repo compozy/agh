@@ -47,6 +47,7 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 		t.Parallel()
 
 		role := fallbackTestRole(nil)
+		routeErr := errors.New("route rejected before acceptance")
 		var active atomic.Int32
 		var maximum atomic.Int32
 		var attempts []string
@@ -60,10 +61,10 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 				maximum.Store(current)
 			}
 			attempts = append(attempts, route.Provider)
-			return struct{}{}, false, errors.New("pre-acceptance failure")
+			return struct{}{}, false, routeErr
 		})
-		if err == nil {
-			t.Fatal("invokeRoleWithFallback() error = nil, want exhaustion")
+		if !errors.Is(err, routeErr) {
+			t.Fatalf("invokeRoleWithFallback() error = %v, want route rejection", err)
 		}
 		if want := []string{"primary", "secondary", "tertiary"}; !reflect.DeepEqual(attempts, want) {
 			t.Fatalf("attempts = %#v, want %#v", attempts, want)
@@ -122,16 +123,17 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 		recorder := &roleEventRecorder{}
 		role := fallbackTestRole(recorder)
 		role.Fallbacks = nil
+		primaryErr := errors.New("primary rejected")
 		attempts := 0
 		_, err := invokeRoleWithFallback(t.Context(), role, roleInvocationCorrelation{}, func(
 			_ context.Context,
 			_ roleAttemptRoute,
 		) (struct{}, bool, error) {
 			attempts++
-			return struct{}{}, false, errors.New("primary rejected")
+			return struct{}{}, false, primaryErr
 		})
-		if err == nil {
-			t.Fatal("invokeRoleWithFallback() error = nil, want primary failure")
+		if !errors.Is(err, primaryErr) {
+			t.Fatalf("invokeRoleWithFallback() error = %v, want primary rejection", err)
 		}
 		if attempts != 1 || recorder.count() != 0 {
 			t.Fatalf("attempts/events = %d/%d, want 1/0", attempts, recorder.count())
@@ -204,8 +206,9 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 			"",
 			aghconfig.RoleDream,
 		)
-		if err == nil {
-			t.Fatal("Resolve() error = nil, want missing agent")
+		var resolutionErr *RoleResolutionError
+		if !errors.As(err, &resolutionErr) || resolutionErr.Code != roleErrorAgentNotFound {
+			t.Fatalf("Resolve() error = %v, want role_agent_not_found", err)
 		}
 		event := recorder.single(t)
 		if event.Type != eventspkg.RoleResolveError || event.Outcome != string(eventspkg.OutcomeFailure) ||

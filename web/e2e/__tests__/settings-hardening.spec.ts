@@ -104,8 +104,13 @@ test("operator applies Memory, Network, Automation, and Observability settings w
   );
 
   await appPage.goto(runtime.url("/settings/providers"), { waitUntil: "domcontentloaded" });
-  await expect(appPage.getByTestId("settings-page-providers-card-codex")).toBeVisible();
-  await expect(appPage.getByTestId("settings-page-providers-card-codex-catalog")).toBeVisible();
+  const codexCard = appPage.getByTestId("settings-page-providers-card-codex");
+  await expect(codexCard).toBeVisible();
+  await codexCard.click();
+  const providerDetail = appPage.getByTestId("provider-detail-dialog");
+  await expect(providerDetail).toBeVisible();
+  await expect(providerDetail.getByRole("heading", { name: "codex" })).toBeVisible();
+  await expect(providerDetail.locator('[data-section="catalog"]')).toBeVisible();
 
   const parity = {
     http: {

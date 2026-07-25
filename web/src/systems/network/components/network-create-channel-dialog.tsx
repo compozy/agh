@@ -59,7 +59,10 @@ export function NetworkCreateChannelDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-fg sm:max-w-120"
+        className={[
+          "grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 text-fg",
+          "max-h-[min(var(--height-modal-tall),calc(100vh-2rem))] sm:max-w-120",
+        ].join(" ")}
         data-testid="network-create-channel-dialog"
       >
         <DialogHeader className="border-b border-line px-5 py-4">
@@ -71,8 +74,8 @@ export function NetworkCreateChannelDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-5 p-5">
+        <form className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]" onSubmit={handleSubmit}>
+          <div className="min-h-0 space-y-5 overflow-y-auto p-5">
             <Field>
               <FieldLabel htmlFor="network-channel-name">Channel name</FieldLabel>
               <FieldDescription>

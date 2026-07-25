@@ -28,11 +28,14 @@ func newCoordinatorRoleResolver(
 	cfg *aghconfig.Config,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	agents coordinatorAgentResolver,
-	eventWriters ...roleEventSummaryWriter,
 ) CoordinatorRoleResolver {
 	return &defaultCoordinatorRoleResolver{
-		roles: newRoleResolver(cfg, workspaceResolver, agents, eventWriters...),
+		roles: newRoleResolver(cfg, workspaceResolver, agents),
 	}
+}
+
+func coordinatorRoleResolverFor(roles *roleResolver) CoordinatorRoleResolver {
+	return &defaultCoordinatorRoleResolver{roles: roles}
 }
 
 func (r *defaultCoordinatorRoleResolver) ResolveCoordinatorRole(

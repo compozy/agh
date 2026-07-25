@@ -25,6 +25,33 @@ function readRepoGoPackage(...parts: string[]): string {
     .join("\n");
 }
 
+function tomlSectionBody(document: string, section: string): string {
+  const lines = document.split("\n");
+  const referenceHeading = `## \`[${section}]\``;
+  const headingIndex = lines.findIndex(line => line.trim() === referenceHeading);
+  if (headingIndex >= 0) {
+    const nextHeading = lines.findIndex(
+      (line, index) => index > headingIndex && line.trim().startsWith("## ")
+    );
+    return lines.slice(headingIndex + 1, nextHeading < 0 ? undefined : nextHeading).join("\n");
+  }
+
+  const body: string[] = [];
+  let inSection = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === `[${section}]`) {
+      inSection = true;
+      continue;
+    }
+    if (inSection && /^\[[^\]]+\]$/.test(trimmed)) {
+      inSection = false;
+    }
+    if (inSection) body.push(line);
+  }
+  return body.join("\n");
+}
+
 function listManualDocs(dir: string): ManualDoc[] {
   const docs: ManualDoc[] = [];
   for (const entry of readdirSync(dir)) {
@@ -297,8 +324,12 @@ describe("runtime docs truth", () => {
     expect(configDoc).toContain("[roles.memory_controller]");
     expect(configDoc).toContain("`dreaming-curator`");
     expect(configDoc).not.toContain("[memory.controller.llm]");
-    expect(configDoc).not.toContain("memory.dream.agent");
-    expect(configDoc).not.toContain("memory.extractor.model");
+    const memoryDreamReference = tomlSectionBody(configDoc, "memory.dream");
+    const memoryExtractorReference = tomlSectionBody(configDoc, "memory.extractor");
+    expect(memoryDreamReference).toContain("| Field");
+    expect(memoryExtractorReference).toContain("| Field");
+    expect(memoryDreamReference).not.toMatch(/^\s*(agent|enabled)\s*=/m);
+    expect(memoryExtractorReference).not.toMatch(/^\s*(model|enabled)\s*=/m);
     // [memory.v2] must never appear as a current-tense TOML config header.
     expect(configDoc).not.toMatch(/^\s*\[memory\.v2\]/m);
   });

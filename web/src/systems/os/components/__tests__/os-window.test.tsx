@@ -1,8 +1,8 @@
 // Suite: OS window runtime component
 // Invariant: the live OsWindow mounts safely in StrictMode and remains mounted across minimized/compact presentation.
 // Owning layer: the current OsWindow + react-rnd integration.
-import { render, screen } from "@testing-library/react";
-import { createRef, StrictMode } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { createRef, StrictMode, useState } from "react";
 import type { Rnd } from "react-rnd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,8 +17,16 @@ vi.mock("../../hooks/use-os-window", () => ({
   OS_WINDOW_DRAG_HANDLE_CLASS: "test-drag-handle",
   useOsWindow: vi.fn(),
 }));
+
+function TasksController() {
+  const [draft, setDraft] = useState("");
+  return (
+    <input aria-label="Task draft" onChange={event => setDraft(event.target.value)} value={draft} />
+  );
+}
+
 vi.mock("../../lib/app-registry", () => ({
-  getOsApp: () => ({ title: "Tasks", Controller: () => <div>Tasks controller</div> }),
+  getOsApp: () => ({ title: "Tasks", Controller: TasksController }),
   getOsAppMinimum: () => ({ width: 280, height: 180 }),
 }));
 vi.mock("../os-zoom-menu", () => ({
@@ -105,5 +113,23 @@ describe("OsWindow", () => {
     window = screen.getByTestId("os-window-window:tasks");
     expect(window.parentElement).toHaveStyle({ display: "none" });
     expect(window).toHaveAttribute("data-minimized");
+  });
+
+  it("Should preserve controller state across floating and compact presentations", () => {
+    model = { ...windowModel(windowState()), overlayHost: document.createElement("div") };
+    const view = render(<OsWindow windowId="window:tasks" />);
+    const draft = screen.getByRole("textbox", { name: "Task draft" });
+
+    fireEvent.change(draft, { target: { value: "Keep this task context" } });
+
+    presentation = "compact";
+    view.rerender(<OsWindow windowId="window:tasks" />);
+    expect(screen.getByRole("textbox", { name: "Task draft" })).toBe(draft);
+    expect(draft).toHaveValue("Keep this task context");
+
+    presentation = "floating";
+    view.rerender(<OsWindow windowId="window:tasks" />);
+    expect(screen.getByRole("textbox", { name: "Task draft" })).toBe(draft);
+    expect(draft).toHaveValue("Keep this task context");
   });
 });

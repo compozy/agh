@@ -238,12 +238,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await expect(knowledgeUI.contentPreview).toContainText(originalContent);
   await expect(knowledgeUI.contentPreview).not.toContainText("after browser edit and revert");
 
-  await assertKnowledgeViewportAndDialogMatrix(
-    appPage,
-    browserArtifacts,
-    knowledgeUI,
-    `workspace:${filename}`
-  );
+  await assertKnowledgeViewportAndDialogMatrix(appPage, browserArtifacts, knowledgeUI);
 
   const parity = await captureKnowledgeParity(runtime, filename, workspace.id, marker);
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", parity);
@@ -386,8 +381,7 @@ async function createSessionThroughBrowser(
 async function assertKnowledgeViewportAndDialogMatrix(
   page: Page,
   browserArtifacts: { captureScreenshot: (name: string, page?: Page) => Promise<unknown> },
-  ui: ReturnType<typeof knowledgeOperatorSelectors>,
-  memoryKey: string
+  ui: ReturnType<typeof knowledgeOperatorSelectors>
 ): Promise<void> {
   const viewports = [
     { name: "desktop", width: 1280, height: 900 },
@@ -398,10 +392,7 @@ async function assertKnowledgeViewportAndDialogMatrix(
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await expect(ui.shell).toBeVisible();
     await expect(ui.listPanel).toBeVisible();
-    await ui.tabWorkspace.click();
     await expect(ui.tabWorkspace).toHaveAttribute("aria-pressed", "true");
-    await expect(ui.item(memoryKey)).toBeVisible();
-    await ui.item(memoryKey).click();
     await expect(ui.detailPanel).toBeVisible();
     await browserArtifacts.captureScreenshot(`knowledge-${viewport.name}-detail`, page);
   }

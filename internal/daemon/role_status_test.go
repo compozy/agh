@@ -64,6 +64,41 @@ func TestRoleStatusProjection(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve global and workspace field provenance", func(t *testing.T) {
+		t.Parallel()
+
+		global := roleResolverConfig()
+		global.Roles.Dream.Model = "global-model"
+		global.RoleSources[aghconfig.RoleDream][roleFieldModel] = aghconfig.RoleFieldSourceGlobal
+		resolver := newRoleResolver(&global, nil, nil)
+		globalStatus, err := resolver.RoleStatus(t.Context(), "", string(aghconfig.RoleDream))
+		if err != nil {
+			t.Fatalf("RoleStatus(global dream) error = %v", err)
+		}
+		if got := globalStatus.Provenance[roleFieldModel]; got != aghconfig.RoleFieldSourceGlobal {
+			t.Fatalf("RoleStatus(global dream) model source = %q, want global", got)
+		}
+
+		workspace := global
+		workspace.RoleSources = aghconfig.CloneRoleFieldSources(global.RoleSources)
+		workspace.Roles.Dream.Model = "workspace-model"
+		workspace.RoleSources[aghconfig.RoleDream][roleFieldModel] = aghconfig.RoleFieldSourceWorkspace
+		resolver = newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]aghconfig.Config{
+			"ws-role-status": workspace,
+		}}, nil)
+		workspaceStatus, err := resolver.RoleStatus(
+			t.Context(),
+			"ws-role-status",
+			string(aghconfig.RoleDream),
+		)
+		if err != nil {
+			t.Fatalf("RoleStatus(workspace dream) error = %v", err)
+		}
+		if got := workspaceStatus.Provenance[roleFieldModel]; got != aghconfig.RoleFieldSourceWorkspace {
+			t.Fatalf("RoleStatus(workspace dream) model source = %q, want workspace", got)
+		}
+	})
+
 	t.Run("Should return the stable unknown role code", func(t *testing.T) {
 		t.Parallel()
 
@@ -90,7 +125,7 @@ func assertRoleStatusProvenance(t *testing.T, status contract.RoleStatus) {
 		{name: "reasoning_effort", present: status.ReasoningEffort != nil},
 		{name: "timeout", present: status.Timeout != nil},
 	} {
-		_, exists := status.Provenance[field.name]
+		source, exists := status.Provenance[field.name]
 		if exists != field.present {
 			t.Fatalf(
 				"RoleStatus(%s).Provenance[%s] exists = %t, want %t: %#v",
@@ -98,6 +133,16 @@ func assertRoleStatusProvenance(t *testing.T, status contract.RoleStatus) {
 				field.name,
 				exists,
 				field.present,
+				status.Provenance,
+			)
+		}
+		if exists && source != aghconfig.RoleFieldSourceDefault {
+			t.Fatalf(
+				"RoleStatus(%s).Provenance[%s] = %q, want %q: %#v",
+				status.Role,
+				field.name,
+				source,
+				aghconfig.RoleFieldSourceDefault,
 				status.Provenance,
 			)
 		}

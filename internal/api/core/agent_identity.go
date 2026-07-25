@@ -20,7 +20,7 @@ const (
 
 var (
 	errAgentIdentityUnavailable = errors.New("api: session service is not configured")
-	errCoordinatorRoleMissing   = errors.New("api: coordinator config service is not configured")
+	errCoordinatorRoleMissing   = errors.New("api: coordinator role resolver is not configured")
 )
 
 // StatusForAgentIdentityError maps agent identity failures to transport statuses.

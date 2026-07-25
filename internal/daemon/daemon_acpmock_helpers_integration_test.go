@@ -59,24 +59,7 @@ func createSessionHTTPFailure(
 ) (int, aghcontract.ErrorPayload) {
 	t.Helper()
 
-	body, err := json.Marshal(request)
-	if err != nil {
-		t.Fatalf("json.Marshal(create session request) error = %v", err)
-	}
-	httpRequest, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		harness.HTTPURL("/api/sessions"),
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		t.Fatalf("http.NewRequestWithContext(create session) error = %v", err)
-	}
-	httpRequest.Header.Set("Content-Type", "application/json")
-	response, err := harness.HTTPClient.Do(httpRequest)
-	if err != nil {
-		t.Fatalf("HTTP create session error = %v", err)
-	}
+	response := postSessionHTTP(t, ctx, harness, request)
 	var payload aghcontract.ErrorPayload
 	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
 	closeErr := response.Body.Close()
@@ -97,6 +80,26 @@ func createSessionHTTPAccepted(
 ) (int, aghcontract.SessionPayload) {
 	t.Helper()
 
+	response := postSessionHTTP(t, ctx, harness, request)
+	var payload aghcontract.SessionResponse
+	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
+	closeErr := response.Body.Close()
+	if decodeErr != nil {
+		t.Fatalf("decode HTTP accepted session error = %v", decodeErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("close HTTP accepted session body error = %v", closeErr)
+	}
+	return response.StatusCode, payload.Session
+}
+
+func postSessionHTTP(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	request aghcontract.CreateSessionRequest,
+) *http.Response {
+	t.Helper()
 	body, err := json.Marshal(request)
 	if err != nil {
 		t.Fatalf("json.Marshal(create session request) error = %v", err)
@@ -115,16 +118,7 @@ func createSessionHTTPAccepted(
 	if err != nil {
 		t.Fatalf("HTTP create session error = %v", err)
 	}
-	var payload aghcontract.SessionResponse
-	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
-	closeErr := response.Body.Close()
-	if decodeErr != nil {
-		t.Fatalf("decode HTTP accepted session error = %v", decodeErr)
-	}
-	if closeErr != nil {
-		t.Fatalf("close HTTP accepted session body error = %v", closeErr)
-	}
-	return response.StatusCode, payload.Session
+	return response
 }
 
 func providerModelListHTTP(

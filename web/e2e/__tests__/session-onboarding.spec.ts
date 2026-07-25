@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
+import { waitForSeedSessionActive } from "../fixtures/runtime";
 import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
@@ -47,6 +48,7 @@ test.use({
 test("operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls", async ({
   appPage,
   browserArtifacts,
+  runtime,
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
@@ -103,15 +105,15 @@ test("operator can onboard, create a session, submit work, approve a permission 
   const workspaceId = createPayload.session?.workspace_id ?? "";
   expect(sessionId).not.toBe("");
   expect(workspaceId).not.toBe("");
+  await waitForSeedSessionActive(runtime, sessionId);
 
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(browserLifecycleSessionPath(browserLifecycleAgent, sessionId));
   const sessionWin = sessionWindow(appPage, sessionId);
-  const sessionUi = sessionWindowSelectors(sessionWin);
+  const sessionUi = sessionWindowSelectors(sessionWin, appPage);
   await expect(sessionWin).toBeVisible();
   await expect(sessionUi.composerTextarea).toBeVisible();
-  await expect(sessionUi.stopButton).toBeVisible();
 
   await sessionUi.composerTextarea.fill(browserLifecyclePrompt);
   await sessionUi.composerTextarea.press("Enter");

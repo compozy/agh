@@ -73,9 +73,7 @@ export const networkOperatorTestIds = {
   inspectorToggle: "network-channel-inspector-toggle",
   messageList: "network-timeline",
   inspector: "network-inspector",
-  inspectorActivityTab: "network-inspector-tab-activity",
   inspectorMembersTab: "network-inspector-tab-members",
-  inspectorPanelActivity: "network-inspector-panel-activity",
   inspectorPanelMembers: "network-inspector-panel-members",
   inspectorPanelWork: "network-inspector-panel-work",
   inspectorWorkTab: "network-inspector-tab-work",
@@ -295,9 +293,7 @@ export interface NetworkOperatorSelectors {
   inspectorToggle: Locator;
   messageList: Locator;
   inspector: Locator;
-  inspectorActivityTab: Locator;
   inspectorMembersTab: Locator;
-  inspectorPanelActivity: Locator;
   inspectorPanelMembers: Locator;
   inspectorPanelWork: Locator;
   inspectorWorkTab: Locator;
@@ -554,7 +550,6 @@ export const settingsSkillsTestIds = {
   disabledList: "settings-page-skills-disabled-list",
   disabledMessage: "settings-page-skills-disabled-message",
   disabledSave: "settings-page-skills-disabled-save",
-  policyMessage: "settings-page-skills-policy-message",
   save: "settings-page-skills-save",
   policyRegistryInput: "settings-page-skills-marketplace-registry-input",
   policyBaseURLInput: "settings-page-skills-marketplace-base-url-input",
@@ -650,7 +645,6 @@ interface SettingsSkillsSelectors {
   disabledSave: Locator;
   disabledToggle(name: string): Locator;
   operationalLink: Locator;
-  policyMessage: Locator;
   policyBaseURLInput: Locator;
   policyRegistryInput: Locator;
   save: Locator;
@@ -1074,9 +1068,7 @@ export function networkOperatorSelectors(
     inspectorToggle: page.getByTestId(networkOperatorTestIds.inspectorToggle),
     messageList: page.getByTestId(networkOperatorTestIds.messageList),
     inspector: page.getByTestId(networkOperatorTestIds.inspector),
-    inspectorActivityTab: page.getByTestId(networkOperatorTestIds.inspectorActivityTab),
     inspectorMembersTab: page.getByTestId(networkOperatorTestIds.inspectorMembersTab),
-    inspectorPanelActivity: page.getByTestId(networkOperatorTestIds.inspectorPanelActivity),
     inspectorPanelMembers: page.getByTestId(networkOperatorTestIds.inspectorPanelMembers),
     inspectorPanelWork: page.getByTestId(networkOperatorTestIds.inspectorPanelWork),
     inspectorWorkTab: page.getByTestId(networkOperatorTestIds.inspectorWorkTab),
@@ -1199,7 +1191,8 @@ export function sandboxOperatorSelectors(
 }
 
 export function automationOperatorSelectors(
-  page: Pick<Page, "getByLabel" | "getByRole" | "getByTestId">
+  page: Pick<Page, "getByLabel" | "getByRole" | "getByTestId">,
+  portalRoot: Pick<Page, "getByTestId"> = page
 ): AutomationOperatorSelectors {
   const editorDialog = page.getByTestId(automationOperatorTestIds.automationEditorDialog);
 
@@ -1217,10 +1210,12 @@ export function automationOperatorSelectors(
     ),
     createJobButton: page.getByTestId(automationOperatorTestIds.createJobButton),
     createTriggerButton: page.getByTestId(automationOperatorTestIds.createTriggerButton),
-    deleteAutomationButton: page.getByTestId(automationOperatorTestIds.deleteAutomationButton),
+    deleteAutomationButton: portalRoot.getByTestId(
+      automationOperatorTestIds.deleteAutomationButton
+    ),
     detailOverflow: page.getByTestId(automationOperatorTestIds.detailOverflow),
     detailPanel: page.getByTestId(automationOperatorTestIds.automationDetailPanel),
-    editAutomationButton: page.getByTestId(automationOperatorTestIds.editAutomationButton),
+    editAutomationButton: portalRoot.getByTestId(automationOperatorTestIds.editAutomationButton),
     editorDialog,
     item: (id: string) => page.getByTestId(`automation-item-${id}`),
     itemLink: (id: string) => page.getByTestId(`automation-item-${id}`).getByRole("link"),
@@ -1272,7 +1267,9 @@ export function automationOperatorSelectors(
     triggerWebhookSecretValueInput: page.getByTestId(
       automationOperatorTestIds.triggerWebhookSecretValueInput
     ),
-    toggleAutomationButton: page.getByTestId(automationOperatorTestIds.toggleAutomationButton),
+    toggleAutomationButton: portalRoot.getByTestId(
+      automationOperatorTestIds.toggleAutomationButton
+    ),
     triggerJobButton: page.getByTestId(automationOperatorTestIds.triggerJobButton),
     triggerNameInput: page.getByTestId(automationOperatorTestIds.triggerNameInput),
     workspaceOnboarding: page.getByTestId(automationOperatorTestIds.workspaceOnboarding),
@@ -1394,7 +1391,6 @@ export function settingsOperatorSelectors(
       disabledToggle: (name: string) =>
         page.getByTestId(`settings-page-skills-disabled-toggle-${name}`),
       operationalLink: page.getByTestId(settingsSkillsTestIds.operationalLink),
-      policyMessage: page.getByTestId(settingsSkillsTestIds.policyMessage),
       policyRegistryInput: page.getByTestId(settingsSkillsTestIds.policyRegistryInput),
       policyBaseURLInput: page.getByTestId(settingsSkillsTestIds.policyBaseURLInput),
       save: page.getByTestId(settingsSkillsTestIds.save),

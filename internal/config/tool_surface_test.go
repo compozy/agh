@@ -297,6 +297,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueDuration,
 		},
 		{
+			name: "Should allow full roles section mutation",
+			path: "roles",
+			kind: ConfigValueTable,
+		},
+		{
 			name: "Should allow dream role model mutation",
 			path: "roles.dream.model",
 			kind: ConfigValueString,
@@ -576,6 +581,18 @@ func TestNormalizeToolConfigValue(t *testing.T) {
 	if !ok || len(values) != 2 || values[0] != "codex" || values[1] != "claude" {
 		t.Fatalf("NormalizeToolConfigValue(string slice) = %#v, want two strings", value)
 	}
+	tableValue, err := NormalizeToolConfigValue(ConfigValueTable, map[string]any{
+		"auto_title": map[string]any{
+			"fallback_chain": []any{map[string]any{"provider": "codex", "model": "gpt-5-mini"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NormalizeToolConfigValue(table) error = %v", err)
+	}
+	table, ok := tableValue.(map[string]any)
+	if !ok || table["auto_title"] == nil {
+		t.Fatalf("NormalizeToolConfigValue(table) = %#v, want normalized object", tableValue)
+	}
 
 	if _, err := NormalizeToolConfigValue(ConfigValueDuration, "not-a-duration"); err == nil {
 		t.Fatal("NormalizeToolConfigValue(invalid duration) error = nil, want non-nil")
@@ -594,6 +611,7 @@ func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {
 	}
 	cfg := DefaultWithHome(homePaths)
 	cfg.Defaults.Agent = "planner"
+	cfg.Roles.Coordinator.Enabled = true
 	cfg.Sandboxes["dev"] = SandboxProfile{
 		Backend: "local",
 		Env: map[string]string{
@@ -606,6 +624,17 @@ func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {
 	agent, ok := EntryByPath(entries, "defaults.agent")
 	if !ok || agent.Value != "planner" {
 		t.Fatalf("EntryByPath(defaults.agent) = %#v/%v, want planner", agent, ok)
+	}
+	coordinatorEnabled, ok := EntryByPath(entries, "roles.coordinator.enabled")
+	if !ok || coordinatorEnabled.Value != true {
+		t.Fatalf(
+			"EntryByPath(roles.coordinator.enabled) = %#v/%v, want true",
+			coordinatorEnabled,
+			ok,
+		)
+	}
+	if nested, exists := EntryByPath(entries, "roles.coordinator.roleconfig.enabled"); exists {
+		t.Fatalf("embedded coordinator path leaked as %#v", nested)
 	}
 	soulEnabled, ok := EntryByPath(entries, "agents.soul.enabled")
 	if !ok || soulEnabled.Value != true {

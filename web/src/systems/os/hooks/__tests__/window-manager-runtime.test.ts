@@ -1,11 +1,13 @@
 // Suite: window-manager runtime command admission
-// Invariant: presentation intent is retained only for a semantic command accepted by the shared
-// command serializer.
+// Invariant: accepted presentation intents stay visible until the serialized daemon command
+// confirms or rejects them.
 // Owning layer: the runtime → interaction-store command boundary.
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { executeWindowManagerCommand } from "../../adapters/window-manager-api";
+import type { OsWindowRoute } from "../../lib/os-types";
+import { createTileSnapTarget } from "../../lib/snap-targets";
 import { windowManagerKeys } from "../../lib/window-manager-query";
 import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
 import {
@@ -76,6 +78,32 @@ const SNAPSHOT: WindowManagerSnapshot = {
   overrides: {},
   updatedAt: "2026-07-22T00:00:00Z",
 };
+
+function snapshotWithAgentsRoute(
+  route: OsWindowRoute,
+  revision = SNAPSHOT.revision
+): WindowManagerSnapshot {
+  return {
+    ...SNAPSHOT,
+    revision,
+    desktops: SNAPSHOT.desktops.map(desktop =>
+      desktop.id === "desktop:one" ? { ...desktop, floating: ["app:agents"] } : desktop
+    ),
+    windows: {
+      "app:agents": {
+        id: "app:agents",
+        app: "agents",
+        instanceKey: null,
+        route,
+        placement: "floating",
+        desktopId: "desktop:one",
+        floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
+        minimized: false,
+        returnAnchor: null,
+      },
+    },
+  };
+}
 
 afterEach(() => {
   windowManagerStore.getState().actions.unbindClient();
@@ -209,6 +237,112 @@ describe("WindowManagerRuntime", () => {
       .mocked(executeWindowManagerCommand)
       .mock.calls.map(call => (call[3].payload as { window_id: string }).window_id);
     expect(windowIds).toEqual(["app:first", "app:second"]);
+    runtime.stop();
+  });
+
+  it("Should keep the latest route visible while older navigation commands settle", async () => {
+    const initialRoute = { pathname: "/agents", search: {} };
+    const releaseRoute = { pathname: "/agents", search: { q: "release" } };
+    const opsRoute = {
+      pathname: "/agents",
+      search: { q: "ops", category: "Engineering / Release" },
+    };
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:test"),
+      snapshotWithAgentsRoute(initialRoute)
+    );
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    let resolveFirst!: (result: Awaited<ReturnType<typeof executeWindowManagerCommand>>) => void;
+    let resolveSecond!: (result: Awaited<ReturnType<typeof executeWindowManagerCommand>>) => void;
+    vi.mocked(executeWindowManagerCommand)
+      .mockReturnValueOnce(new Promise(resolve => (resolveFirst = resolve)))
+      .mockReturnValueOnce(new Promise(resolve => (resolveSecond = resolve)));
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:agents",
+      focusOrder: ["app:agents"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const first = runtime.getState().navigateWindow("app:agents", releaseRoute);
+    const second = runtime.getState().navigateWindow("app:agents", opsRoute);
+
+    const routeWhileQueued = runtime.getState().windows["app:agents"]?.route;
+    await flushCommandQueue();
+    resolveFirst({
+      snapshot: snapshotWithAgentsRoute(releaseRoute, 8),
+      applied: true,
+      changes: {
+        desktopIds: [],
+        windowIds: ["app:agents"],
+        groupIds: [],
+        nodeIds: [],
+        clientIds: [],
+      },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    await expect(first.completion).resolves.toBe(true);
+
+    const routeAfterIntermediateResult = runtime.getState().windows["app:agents"]?.route;
+    await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2));
+    resolveSecond({
+      snapshot: snapshotWithAgentsRoute(opsRoute, 9),
+      applied: true,
+      changes: {
+        desktopIds: [],
+        windowIds: ["app:agents"],
+        groupIds: [],
+        nodeIds: [],
+        clientIds: [],
+      },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+
+    await expect(second.completion).resolves.toBe(true);
+    expect(routeWhileQueued).toEqual(opsRoute);
+    expect(routeAfterIntermediateResult).toEqual(opsRoute);
+    expect(runtime.getState().windows["app:agents"]?.route).toEqual(opsRoute);
+    runtime.stop();
+  });
+
+  it("Should restore the authoritative route when navigation is rejected", async () => {
+    const initialRoute = { pathname: "/agents", search: { q: "release" } };
+    const rejectedRoute = { pathname: "/agents", search: { q: "ops" } };
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:test"),
+      snapshotWithAgentsRoute(initialRoute)
+    );
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    vi.mocked(executeWindowManagerCommand).mockRejectedValueOnce(new Error("navigation rejected"));
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:agents",
+      focusOrder: ["app:agents"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const outcome = runtime.getState().navigateWindow("app:agents", rejectedRoute);
+
+    const optimisticRoute = runtime.getState().windows["app:agents"]?.route;
+    await expect(outcome.completion).resolves.toBe(false);
+    expect(optimisticRoute).toEqual(rejectedRoute);
+    expect(runtime.getState().windows["app:agents"]?.route).toEqual(initialRoute);
     runtime.stop();
   });
 
@@ -539,6 +673,72 @@ describe("WindowManagerRuntime", () => {
         }),
       })
     );
+    runtime.stop();
+  });
+
+  it("Should return the exact completion outcomes for gesture commands", async () => {
+    const queryClient = new QueryClient();
+    const snapshot = snapshotWithAgentsRoute({ pathname: "/agents", search: {} });
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: { ...snapshot, revision: 8 },
+      applied: false,
+      changes: {
+        desktopIds: [],
+        windowIds: [],
+        groupIds: [],
+        nodeIds: [],
+        clientIds: [],
+      },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:agents",
+      focusOrder: ["app:agents"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const outcome = runtime.applySnapTarget(
+      "app:agents",
+      createTileSnapTarget({ x: 0, y: 0, w: 1280, h: 800 }, "left", [0.5])
+    );
+
+    expect(outcome.accepted).toBe(true);
+    await expect(outcome.completion).resolves.toBe(false);
+    const floating = runtime
+      .getState()
+      .commitFloatingRect("app:agents", { x: 120, y: 90, w: 640, h: 480 });
+    expect(floating.accepted).toBe(true);
+    await expect(floating.completion).resolves.toBe(false);
+    expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2);
+    runtime.stop();
+  });
+
+  it("Should reject snap application without dispatch when its window is unknown", async () => {
+    const runtime = new WindowManagerRuntime(new QueryClient());
+
+    const outcome = runtime.applySnapTarget(
+      "app:missing",
+      createTileSnapTarget({ x: 0, y: 0, w: 1280, h: 800 }, "left", [0.5])
+    );
+
+    expect(outcome.accepted).toBe(false);
+    await expect(outcome.completion).resolves.toBe(false);
+    const floating = runtime
+      .getState()
+      .commitFloatingRect("app:missing", { x: 120, y: 90, w: 640, h: 480 });
+    expect(floating.accepted).toBe(false);
+    await expect(floating.completion).resolves.toBe(false);
+    expect(executeWindowManagerCommand).not.toHaveBeenCalled();
     runtime.stop();
   });
 });

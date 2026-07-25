@@ -157,11 +157,17 @@ describe("automation operator selectors", () => {
         ? editorDialog
         : (`locator:${testId}` as unknown as Locator)
     );
-    const selectors = automationOperatorSelectors({
-      getByLabel,
-      getByRole,
-      getByTestId,
-    });
+    const portalGetByTestId = vi.fn(
+      (testId: string) => `portal-locator:${testId}` as unknown as Locator
+    );
+    const selectors = automationOperatorSelectors(
+      {
+        getByLabel,
+        getByRole,
+        getByTestId,
+      },
+      { getByTestId: portalGetByTestId }
+    );
 
     expect(selectors.jobsShell).toBe(`locator:${automationOperatorTestIds.jobsShell}`);
     expect(selectors.automationSuggestionsCard).toBe(
@@ -190,7 +196,13 @@ describe("automation operator selectors", () => {
       `locator:${automationOperatorTestIds.automationDetailPanel}`
     );
     expect(selectors.editAutomationButton).toBe(
-      `locator:${automationOperatorTestIds.editAutomationButton}`
+      `portal-locator:${automationOperatorTestIds.editAutomationButton}`
+    );
+    expect(selectors.toggleAutomationButton).toBe(
+      `portal-locator:${automationOperatorTestIds.toggleAutomationButton}`
+    );
+    expect(selectors.deleteAutomationButton).toBe(
+      `portal-locator:${automationOperatorTestIds.deleteAutomationButton}`
     );
     expect(selectors.jobForm).toBe(`locator:${automationOperatorTestIds.automationJobForm}`);
     expect(selectors.jobNameInput).toBe(`locator:${automationOperatorTestIds.jobNameInput}`);
@@ -418,8 +430,6 @@ describe("settings operator selectors", () => {
     expect(selectors.skills.policyBaseURLInput).toBe(
       `locator:${settingsSkillsTestIds.policyBaseURLInput}`
     );
-    expect(selectors.skills.policyMessage).toBe(`locator:${settingsSkillsTestIds.policyMessage}`);
-
     expect(selectors.providers.page).toBe(`locator:${settingsProvidersTestIds.page}`);
     expect(selectors.providers.create).toBe(`locator:${settingsProvidersTestIds.create}`);
     expect(selectors.providers.editor).toBe(`locator:${settingsProvidersTestIds.editor}`);

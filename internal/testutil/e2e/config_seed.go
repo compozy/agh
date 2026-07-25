@@ -216,22 +216,7 @@ func cloneSessionConfig(cfg aghconfig.SessionConfig) *aghconfig.SessionConfig {
 }
 
 func cloneRolesConfig(cfg *aghconfig.RolesConfig) *aghconfig.RolesConfig {
-	cloned := *cfg
-	cloned.Coordinator.FallbackChain = append([]aghconfig.RoleFallback(nil), cfg.Coordinator.FallbackChain...)
-	cloned.Dream.FallbackChain = append([]aghconfig.RoleFallback(nil), cfg.Dream.FallbackChain...)
-	cloned.CheckpointSummary.FallbackChain = append(
-		[]aghconfig.RoleFallback(nil),
-		cfg.CheckpointSummary.FallbackChain...,
-	)
-	cloned.MemoryExtractor.FallbackChain = append(
-		[]aghconfig.RoleFallback(nil),
-		cfg.MemoryExtractor.FallbackChain...,
-	)
-	cloned.AutoTitle.FallbackChain = append([]aghconfig.RoleFallback(nil), cfg.AutoTitle.FallbackChain...)
-	cloned.MemoryController.FallbackChain = append(
-		[]aghconfig.RoleFallback(nil),
-		cfg.MemoryController.FallbackChain...,
-	)
+	cloned := aghconfig.CloneRolesConfig(cfg)
 	return &cloned
 }
 

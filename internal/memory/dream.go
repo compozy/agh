@@ -24,6 +24,8 @@ const (
 var (
 	// ErrLockUnavailable reports that a consolidation run could not obtain the lock.
 	ErrLockUnavailable = errors.New("memory: consolidation lock is unavailable")
+	// ErrDreamRoleDisabled reports that no effective workspace route permits a dream run.
+	ErrDreamRoleDisabled = errors.New("memory: dream role is disabled")
 )
 
 // SessionSpawner starts a one-shot consolidation session with the provided

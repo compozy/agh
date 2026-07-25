@@ -509,6 +509,7 @@ test("E2E-010 and E2E-018: peers converge topology while presentation stays clie
 }) => {
   const workspace = await prepareShell(appPage, runtime);
   const second = await openPeerPage(browser, runtime);
+  let lastRects: Record<string, unknown> = {};
   try {
     const firstWindow = await openDockApp(appPage, "Tasks", "tasks");
     const secondWindow = second.getByTestId("os-window-app:tasks");
@@ -583,13 +584,18 @@ test("E2E-010 and E2E-018: peers converge topology while presentation stays clie
           workspace.id,
           "app:tasks"
         );
-        return (
-          rectsClose(first, peer) &&
-          rectsClose(first, authoritative) &&
-          rectsClose(peer, authoritative)
-        );
+        lastRects = {
+          authoritative,
+          first,
+          peer,
+          converged:
+            rectsClose(first, peer) &&
+            rectsClose(first, authoritative) &&
+            rectsClose(peer, authoritative),
+        };
+        return lastRects;
       })
-      .toBe(true);
+      .toMatchObject({ converged: true });
   } finally {
     await second.context().close();
   }
