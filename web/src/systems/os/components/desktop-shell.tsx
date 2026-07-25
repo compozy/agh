@@ -257,9 +257,11 @@ function DesktopShellBody({ model, firstRun }: { model: DesktopShellModel; first
         onNetworkParticipationChange={model.sessionCreate.onNetworkParticipationChange}
         onOpenChange={model.sessionCreate.onOpenChange}
         onOpenProviderSettings={model.sessionCreate.openProviderSettings}
+        onPromptChange={model.sessionCreate.onPromptChange}
         onRuntimeChange={model.sessionCreate.onRuntimeChange}
         onSubmit={model.sessionCreate.submit}
         open={model.sessionCreate.open}
+        promptValue={model.sessionCreate.promptValue}
         providersError={model.sessionCreate.providersError}
         providersLoading={model.sessionCreate.providersLoading}
         runtimeModels={model.sessionCreate.runtimeModels}

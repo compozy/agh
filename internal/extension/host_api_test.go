@@ -113,13 +113,7 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 		t.Fatalf("sessions/create provider = %q, want %q", created.Provider, "fake-alt")
 	}
 
-	info, err := env.sessions.Status(testutil.Context(t), created.SessionID)
-	if err != nil {
-		t.Fatalf("sessions.Status(%q) error = %v", created.SessionID, err)
-	}
-	if info.State != session.StateActive {
-		t.Fatalf("created session state = %q, want %q", info.State, session.StateActive)
-	}
+	info := waitForHostAPISessionState(t, env.sessions, created.SessionID, session.StateActive)
 	if info.Provider != "fake-alt" {
 		t.Fatalf("created session provider = %q, want %q", info.Provider, "fake-alt")
 	}
@@ -138,6 +132,45 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "network_channel")
+}
+
+func TestHostAPIHandlerSessionsCreateUsesAtomicAcceptedPrompt(t *testing.T) {
+	t.Parallel()
+
+	sessions := &recordingHostAPISessionManager{}
+	handler := &HostAPIHandler{sessions: sessions}
+	raw := json.RawMessage(`{
+		"agent":"coder",
+		"provider":"codex",
+		"model":"gpt-5.6-sol",
+		"reasoning_effort":"high",
+		"workspace":"ws-alpha",
+		"prompt":"  Investigate the failing build  "
+	}`)
+
+	result, err := handler.handleSessionsCreate(testutil.Context(t), raw)
+	if err != nil {
+		t.Fatalf("handleSessionsCreate() error = %v", err)
+	}
+	if len(sessions.createCalls) != 0 {
+		t.Fatalf("Create() calls = %#v, want atomic accepted create only", sessions.createCalls)
+	}
+	if len(sessions.acceptedCreateCalls) != 1 {
+		t.Fatalf("CreateAccepted() calls = %#v, want one", sessions.acceptedCreateCalls)
+	}
+	accepted := sessions.acceptedCreateCalls[0]
+	if accepted.InitialPrompt != "Investigate the failing build" {
+		t.Fatalf("CreateAccepted() InitialPrompt = %q, want trimmed prompt", accepted.InitialPrompt)
+	}
+	if accepted.Session.Provider != "codex" || accepted.Session.Model != "gpt-5.6-sol" ||
+		accepted.Session.ReasoningEffort != "high" {
+		t.Fatalf("CreateAccepted() runtime = %#v", accepted.Session)
+	}
+	var created hostAPISessionCreateResult
+	decodeResult(t, result, &created)
+	if created.SessionID != "sess-accepted" || created.Provider != "codex" {
+		t.Fatalf("sessions/create result = %#v", created)
+	}
 }
 
 func TestDecodeHostAPIParamsRejectsUnknownFieldsByDefault(t *testing.T) {
@@ -5654,6 +5687,30 @@ func waitForHostAPIPromptsToSettle(
 	}
 }
 
+func waitForHostAPISessionState(
+	t testing.TB,
+	manager *session.Manager,
+	sessionID string,
+	want session.State,
+) *session.Info {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+	defer cancel()
+	for {
+		info, err := manager.Status(ctx, sessionID)
+		if err == nil && info.State == want {
+			return info
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for session %q state %q: last info=%#v error=%v", sessionID, want, info, err)
+			return nil
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}
+
 func (e *hostAPITestEnv) grant(extName string, actions []string, security []string) {
 	e.checker.Register(extName, SourceUser, &Manifest{
 		Actions:  ActionsConfig{Requires: append([]string(nil), actions...)},
@@ -5985,7 +6042,8 @@ func (s *hostAPISessionSource) List() []*session.Info {
 }
 
 type recordingHostAPISessionManager struct {
-	createCalls []session.CreateOpts
+	createCalls         []session.CreateOpts
+	acceptedCreateCalls []session.CreateAcceptedOpts
 }
 
 func (m *recordingHostAPISessionManager) Create(
@@ -6001,6 +6059,19 @@ func (m *recordingHostAPISessionManager) Create(
 		Workspace:   opts.Workspace,
 		Type:        opts.Type,
 		State:       session.StateActive,
+	}, nil
+}
+
+func (m *recordingHostAPISessionManager) CreateAccepted(
+	_ context.Context,
+	opts session.CreateAcceptedOpts,
+) (*session.Info, error) {
+	m.acceptedCreateCalls = append(m.acceptedCreateCalls, opts)
+	return &session.Info{
+		ID:        "sess-accepted",
+		AgentName: opts.Session.AgentName,
+		Provider:  opts.Session.Provider,
+		State:     session.StateStarting,
 	}, nil
 }
 

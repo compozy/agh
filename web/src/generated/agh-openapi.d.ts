@@ -46062,6 +46062,7 @@ export interface operations {
                   }
               )
             | null;
+          prompt?: string;
           provider?: string;
           /** @enum {string} */
           reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";

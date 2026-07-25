@@ -14,6 +14,7 @@ import {
   sessionRepairFixture,
   sessionTranscriptFixture,
 } from "./fixtures";
+import type { CreateSessionParams } from "../types";
 
 const sessionById = new Map(sessionFixtures.map(session => [session.id, session]));
 
@@ -56,31 +57,24 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({ session });
   }),
   aghApiMock.post("/api/sessions", async ({ request }) => {
-    const body = (await request.json()) as {
-      agent_name?: string;
-      name?: string;
-      workspace?: string;
-      workspace_path?: string;
-      network_participation?: {
-        mode?: string | null;
-        channel_id?: string | null;
-        channel_strategy?: string | null;
-      } | null;
-    };
+    // Use the adapter's generated request contract rather than a mirrored DTO.
+    const body: CreateSessionParams = await request.json();
 
     const workspaceId = body.workspace ?? primarySessionFixture.workspace_id ?? "";
     const participation = body.network_participation;
-    const channelId = participation?.channel_id?.trim() ?? "";
-    if (
-      participation?.mode === "live" &&
-      (participation.channel_strategy !== "named" || !channelId)
-    ) {
+    const namedLive =
+      participation?.mode === "live" && participation.channel_strategy === "named"
+        ? participation
+        : undefined;
+    const channelId = namedLive?.channel_id.trim() ?? "";
+    if (participation?.mode === "live" && (!namedLive || !channelId)) {
       return HttpResponse.json(
         { error: "Session Live participation requires a named channel." },
         { status: 422 }
       );
     }
 
+    // The durable 201 remains asynchronous; prompt dispatch belongs to the daemon.
     return HttpResponse.json(
       {
         session: {
@@ -88,6 +82,7 @@ export const handlers: HttpHandler[] = [
           id: `sess_${(body.name ?? body.agent_name ?? "story").replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`,
           name: body.name ?? primarySessionFixture.name,
           agent_name: body.agent_name ?? primarySessionFixture.agent_name,
+          state: "starting",
           workspace_id: workspaceId,
           workspace_path:
             body.workspace_path ?? body.workspace ?? primarySessionFixture.workspace_path,

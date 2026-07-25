@@ -3,7 +3,11 @@ import path from "node:path";
 
 import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
 import { waitForSeedSessionActive } from "../fixtures/runtime";
-import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
+import {
+  SESSION_CREATE_FIRST_MESSAGE,
+  sessionLifecycleSelectors,
+  sessionWindowSelectors,
+} from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -95,7 +99,8 @@ test("operator can onboard, create a session, submit work, approve a permission 
   const createResponsePromise = appPage.waitForResponse(
     response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
   );
-  await appPage.getByTestId("session-create-dialog-submit").click();
+  await appPage.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
+  await appPage.getByTestId("session-create-send").click();
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBeTruthy();
   const createPayload = (await createResponse.json()) as {

@@ -8,7 +8,11 @@ import { promisify } from "node:util";
 
 import { openAppWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { waitForSeedSessionActive } from "../fixtures/runtime";
-import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
+import {
+  SESSION_CREATE_FIRST_MESSAGE,
+  sessionLifecycleSelectors,
+  sessionWindowSelectors,
+} from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -172,7 +176,8 @@ test("operator can create a provider/model override session and attach without l
     response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
   );
 
-  await appPage.getByTestId("session-create-dialog-submit").click();
+  await appPage.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
+  await appPage.getByTestId("session-create-send").click();
 
   const createRequest = await createRequestPromise;
   const createResponse = await createResponsePromise;
@@ -289,7 +294,8 @@ test("operator persists an advertised model and non-empty reasoning effort on th
   const createResponsePromise = appPage.waitForResponse(
     response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
   );
-  await appPage.getByTestId("session-create-dialog-submit").click();
+  await appPage.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
+  await appPage.getByTestId("session-create-send").click();
 
   const createRequest = await createRequestPromise;
   const createResponse = await createResponsePromise;

@@ -45,7 +45,14 @@ stopping --> stopped: finalization complete`}
 Create a new session from the CLI:
 
 ```bash
-agh session new --agent general --cwd "$PWD" --name code-review
+agh session new \
+  --agent general \
+  --cwd "$PWD" \
+  --name code-review \
+  --provider codex \
+  --model gpt-5.6-sol \
+  --reasoning-effort high \
+  --prompt "Review the current changes and report correctness risks."
 ```
 
 Create the same session over HTTP:
@@ -56,7 +63,11 @@ curl -X POST http://localhost:2123/api/sessions \
   -d '{
     "agent_name": "general",
     "name": "code-review",
-    "workspace_path": "/absolute/path/to/repo"
+    "workspace_path": "/absolute/path/to/repo",
+    "provider": "codex",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "prompt": "Review the current changes and report correctness risks."
   }'
 ```
 
@@ -77,16 +88,26 @@ Behind that request, AGH:
 2. Creates `~/.agh/sessions/<session-id>/`.
 3. Opens `events.db` for the session.
 4. Persists `starting` metadata and the workspace catalog row.
-5. Returns HTTP/UDS `201 Created` with that durable session.
-6. Spawns the ACP subprocess and initializes the JSON-RPC connection in the background.
-7. Creates or loads the ACP session.
-8. Transitions the AGH session from `starting` to `active`.
+5. If `prompt` contains non-whitespace content, trims it and stages it in the session input queue.
+6. Returns HTTP/UDS `201 Created` with that durable session.
+7. Spawns the ACP subprocess and initializes the JSON-RPC connection in the background.
+8. Creates or loads the ACP session.
+9. Transitions the AGH session from `starting` to `active`.
+10. Dispatches the staged prompt as the normal first user turn.
 
-`agh session new` waits for step 8 by default so interactive callers receive an active session or a
+Prompt staging is part of durable admission. If the queue rejects the prompt, AGH removes the new
+session, its catalog row, and its session directory instead of returning `201`. Omitting `prompt`,
+sending an empty string, or sending only whitespace keeps create-only behavior and does not enqueue
+a turn. The selected provider, model, and reasoning effort are fixed for the session and apply before
+its first prompt is dispatched.
+
+`agh session new` waits for step 9 by default so interactive callers receive an active session or a
 startup error. Add `--no-wait` to return the durable `starting` record immediately. HTTP/UDS callers
 always receive the accepted record and should read session detail until it becomes `active` or
 durably `stopped`. A failed background start persists `failure.kind=startup_failure`; it does not
-delete the accepted session or its diagnostic evidence.
+delete the accepted session or its diagnostic evidence. A staged first prompt remains queued after
+startup failure and is dispatched once after an explicit resume activates the session. Deleting the
+session removes that queued input with the rest of the session state.
 
 ## Running an active session
 

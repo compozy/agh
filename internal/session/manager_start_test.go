@@ -3,7 +3,10 @@ package session
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +17,307 @@ import (
 	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
+
+func TestCreateAcceptedInitialPromptLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should stage the prompt before acceptance and dispatch it once after activation", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionCatalog(queueStore), WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+
+		startEntered := make(chan struct{})
+		releaseStart := make(chan struct{})
+		promptEntered := make(chan struct{})
+		var acceptedID string
+		var releaseOnce sync.Once
+		t.Cleanup(func() { releaseOnce.Do(func() { close(releaseStart) }) })
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			close(startEntered)
+			<-releaseStart
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-initial-prompt"), nil
+		}
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			close(promptEntered)
+			events := make(chan acp.AgentEvent, 2)
+			emitDonePromptEvents(events, acceptedID, req.TurnID)
+			close(events)
+			return events, nil
+		}
+
+		accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{
+				AgentName: "coder",
+				Workspace: h.workspaceID,
+			},
+			InitialPrompt: "  Investigate the failing build  ",
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		acceptedID = accepted.ID
+		select {
+		case <-startEntered:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for provider startup to begin")
+		}
+		if accepted.State != StateStarting {
+			t.Fatalf("CreateAccepted() State = %q, want %q", accepted.State, StateStarting)
+		}
+		summary, err := queueStore.SessionInputQueueSummary(testutil.Context(t), accepted.ID)
+		if err != nil {
+			t.Fatalf("SessionInputQueueSummary(starting) error = %v", err)
+		}
+		if summary.PendingActive != 1 || summary.PendingQueued != 1 {
+			t.Fatalf("SessionInputQueueSummary(starting) = %#v, want one queued prompt", summary)
+		}
+		queued, found, err := queueStore.PeekNextSessionInput(testutil.Context(t), accepted.ID)
+		if err != nil {
+			t.Fatalf("PeekNextSessionInput(starting) error = %v", err)
+		}
+		if !found || queued.Text != "Investigate the failing build" {
+			t.Fatalf("PeekNextSessionInput(starting) = %#v/%t, want trimmed prompt", queued, found)
+		}
+		select {
+		case <-promptEntered:
+			t.Fatal("initial prompt reached the driver while the session was starting")
+		default:
+		}
+
+		releaseOnce.Do(func() { close(releaseStart) })
+		select {
+		case <-promptEntered:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the staged prompt to reach the driver")
+		}
+		waitForCondition(t, "initial prompt completion", func() bool {
+			live, ok := h.manager.Get(accepted.ID)
+			return ok && live.Info().State == StateActive && !live.IsPrompting()
+		})
+		promptCalls := managerPromptCalls(h)
+		if len(promptCalls) != 1 || promptCalls[0].Message != "Investigate the failing build" {
+			t.Fatalf("prompt calls = %#v, want one trimmed initial prompt", promptCalls)
+		}
+		if err := h.manager.Stop(testutil.Context(t), accepted.ID); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	t.Run("Should preserve create-only behavior for a whitespace-only prompt", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionCatalog(queueStore), WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+
+		accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session:       CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+			InitialPrompt: "  \n\t  ",
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		if accepted.State != StateStarting {
+			t.Fatalf("CreateAccepted() State = %q, want %q", accepted.State, StateStarting)
+		}
+		waitForCondition(t, "whitespace-only create activation", func() bool {
+			live, ok := h.manager.Get(accepted.ID)
+			return ok && live.Info().State == StateActive
+		})
+		summary, err := queueStore.SessionInputQueueSummary(testutil.Context(t), accepted.ID)
+		if err != nil {
+			t.Fatalf("SessionInputQueueSummary() error = %v", err)
+		}
+		if summary.PendingActive != 0 || summary.PendingQueued != 0 || len(managerPromptCalls(h)) != 0 {
+			t.Fatalf("whitespace-only prompt state = %#v, calls=%#v", summary, managerPromptCalls(h))
+		}
+		if err := h.manager.Stop(testutil.Context(t), accepted.ID); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	t.Run("Should retain a staged prompt after startup failure and dispatch it once on resume", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionCatalog(queueStore), WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		startErr := errors.New("provider unavailable")
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if sequence == 1 {
+				return nil, startErr
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-resumed-prompt"), nil
+		}
+
+		accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session:       CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+			InitialPrompt: "Continue after recovery",
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		waitForCondition(t, "durable startup failure with queued prompt", func() bool {
+			info, statusErr := h.manager.Status(testutil.Context(t), accepted.ID)
+			_, stillRegistered := h.manager.Get(accepted.ID)
+			return statusErr == nil && info.State == StateStopped && !stillRegistered
+		})
+		summary, err := queueStore.SessionInputQueueSummary(testutil.Context(t), accepted.ID)
+		if err != nil {
+			t.Fatalf("SessionInputQueueSummary(stopped) error = %v", err)
+		}
+		if summary.PendingQueued != 1 || len(managerPromptCalls(h)) != 0 {
+			t.Fatalf("stopped prompt state = %#v, calls=%#v", summary, managerPromptCalls(h))
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), accepted.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		waitForCondition(t, "resumed initial prompt dispatch", func() bool {
+			matches := 0
+			for _, call := range managerPromptCalls(h) {
+				if strings.HasSuffix(call.Message, "User request:\n\nContinue after recovery") {
+					matches++
+				}
+			}
+			return matches == 1
+		})
+		waitForCondition(t, "resumed initial prompt completion", func() bool {
+			return !resumed.IsPrompting()
+		})
+		promptCalls := managerPromptCalls(h)
+		matches := 0
+		for _, call := range promptCalls {
+			if strings.HasSuffix(call.Message, "User request:\n\nContinue after recovery") {
+				matches++
+			}
+		}
+		if matches != 1 {
+			t.Fatalf("prompt calls = %#v, want initial prompt exactly once after resume", promptCalls)
+		}
+		if err := h.manager.Stop(testutil.Context(t), accepted.ID); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	t.Run("Should discard every accepted-session artifact when prompt queue admission fails", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := openManagerInputQueueStore(t)
+		h := newHarness(
+			t,
+			WithSessionCatalog(catalog),
+			WithSessionInputQueueStore(catalog),
+			WithSessionBusyInputConfig(aghconfig.SessionBusyInputConfig{
+				DefaultMode:  string(BusyInputModeQueue),
+				QueueCap:     10,
+				MaxTextBytes: 512,
+			}),
+		)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		const sessionID = "sess-prompt-admission-failure"
+
+		_, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{
+				DesiredSessionID: sessionID,
+				AgentName:        "coder",
+				Workspace:        h.workspaceID,
+			},
+			InitialPrompt: strings.Repeat("x", 513),
+		})
+		if err == nil || !strings.Contains(err.Error(), "max_text_bytes (512)") {
+			t.Fatalf("CreateAccepted() error = %v, want queue admission failure", err)
+		}
+		if _, ok := h.manager.Get(sessionID); ok {
+			t.Fatalf("Get(%q) found residue after prompt admission failure", sessionID)
+		}
+		sessionDir := filepath.Join(h.homePaths.SessionsDir, sessionID)
+		if _, statErr := os.Stat(sessionDir); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("session directory stat error = %v, want not exist", statErr)
+		}
+		listed, err := catalog.ListSessions(testutil.Context(t), store.SessionListQuery{WorkspaceID: h.workspaceID})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if len(listed) != 0 {
+			t.Fatalf("ListSessions() = %#v, want no catalog residue", listed)
+		}
+
+		retry, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{
+				DesiredSessionID: sessionID,
+				AgentName:        "coder",
+				Workspace:        h.workspaceID,
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted(retry) error = %v", err)
+		}
+		waitForCondition(t, "retry activation after prompt admission rollback", func() bool {
+			live, ok := h.manager.Get(retry.ID)
+			return ok && live.Info().State == StateActive
+		})
+		if err := h.manager.Stop(testutil.Context(t), retry.ID); err != nil {
+			t.Fatalf("Stop(retry) cleanup error = %v", err)
+		}
+	})
+
+	t.Run("Should retain a recoverable stopped session when catalog rollback cannot delete", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := openManagerInputQueueStore(t)
+		deleteErr := errors.New("catalog delete unavailable")
+		h := newHarness(
+			t,
+			WithSessionCatalog(deleteFailingSessionCatalog{SessionCatalog: catalog, err: deleteErr}),
+			WithSessionInputQueueStore(catalog),
+			WithSessionBusyInputConfig(aghconfig.SessionBusyInputConfig{
+				DefaultMode:  string(BusyInputModeQueue),
+				QueueCap:     10,
+				MaxTextBytes: 512,
+			}),
+		)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		const sessionID = "sess-prompt-admission-catalog-failure"
+
+		_, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{
+				DesiredSessionID: sessionID,
+				AgentName:        "coder",
+				Workspace:        h.workspaceID,
+			},
+			InitialPrompt: strings.Repeat("x", 513),
+		})
+		if !errors.Is(err, deleteErr) {
+			t.Fatalf("CreateAccepted() error = %v, want catalog delete failure", err)
+		}
+		if _, ok := h.manager.Get(sessionID); ok {
+			t.Fatalf("Get(%q) found a stranded starting session", sessionID)
+		}
+		if _, statErr := os.Stat(filepath.Join(h.homePaths.SessionsDir, sessionID)); statErr != nil {
+			t.Fatalf("session directory was not restored after catalog delete failure: %v", statErr)
+		}
+		info, statusErr := h.manager.Status(testutil.Context(t), sessionID)
+		if statusErr != nil {
+			t.Fatalf("Status(%q) error = %v", sessionID, statusErr)
+		}
+		if info.State != StateStopped || info.Failure == nil {
+			t.Fatalf("Status(%q) = %#v, want recoverable stopped failure", sessionID, info)
+		}
+	})
+}
+
+type deleteFailingSessionCatalog struct {
+	store.SessionCatalog
+	err error
+}
+
+func (c deleteFailingSessionCatalog) DeleteSession(context.Context, string) error {
+	return c.err
+}
 
 func TestCreateAcceptedPersistsStartingBeforeProviderStartupCompletes(t *testing.T) {
 	t.Parallel()
@@ -39,9 +343,11 @@ func testCreateAcceptedPersistsStarting(t *testing.T) {
 	}
 
 	startedAt := time.Now()
-	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
+	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		Session: CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		},
 	})
 	acceptanceLatency := time.Since(startedAt)
 	if err != nil {
@@ -90,9 +396,11 @@ func testCreateAcceptedRemainsStartingUntilCommitted(t *testing.T) {
 	}()
 	h := newHarness(t, WithNotifier(&blockingCreatedNotifier{created: created, release: release}))
 
-	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
+	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		Session: CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		},
 	})
 	if err != nil {
 		t.Fatalf("CreateAccepted() error = %v", err)
@@ -154,9 +462,11 @@ func testCreateAcceptedPersistsFailure(t *testing.T) {
 		return nil, startErr
 	}
 
-	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
+	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		Session: CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		},
 	})
 	if err != nil {
 		t.Fatalf("CreateAccepted() error = %v", err)
@@ -168,6 +478,13 @@ func testCreateAcceptedPersistsFailure(t *testing.T) {
 		info, statusErr := h.manager.Status(testutil.Context(t), accepted.ID)
 		return statusErr == nil && info.State == StateStopped && info.Failure != nil
 	})
+	if run := h.manager.sessionStartRun(accepted.ID); run != nil {
+		waitCtx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+		defer cancel()
+		if waitErr := waitForSessionStartRun(waitCtx, run); !errors.Is(waitErr, startErr) {
+			t.Fatalf("waitForSessionStartRun() error = %v, want provider failure", waitErr)
+		}
+	}
 	info, err := h.manager.Status(testutil.Context(t), accepted.ID)
 	if err != nil {
 		t.Fatalf("Status() error = %v", err)
@@ -194,9 +511,11 @@ func testStopJoinsAcceptedStartup(t *testing.T) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	})))
-	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
+	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		Session: CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		},
 	})
 	if err != nil {
 		t.Fatalf("CreateAccepted() error = %v", err)
@@ -237,9 +556,11 @@ func testDeleteJoinsAcceptedStartup(t *testing.T) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	})))
-	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
+	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		Session: CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		},
 	})
 	if err != nil {
 		t.Fatalf("CreateAccepted() error = %v", err)

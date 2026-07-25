@@ -145,6 +145,20 @@ func (m *Manager) stageSessionDelete(
 			return stagedSessionDelete{}, fmt.Errorf("session: read %q after stop for delete: %w", target, err)
 		}
 	}
+	return m.stageSessionDirectoryDelete(ctx, info)
+}
+
+func (m *Manager) stageSessionDirectoryDelete(
+	ctx context.Context,
+	info *Info,
+) (stagedSessionDelete, error) {
+	if info == nil {
+		return stagedSessionDelete{}, errors.New("session: deletion info is required")
+	}
+	target := strings.TrimSpace(info.ID)
+	if target == "" {
+		return stagedSessionDelete{}, errors.New("session: deletion id is required")
+	}
 
 	originalPath := filepath.Join(m.homePaths.SessionsDir, target)
 	if _, err := os.Stat(originalPath); err != nil {

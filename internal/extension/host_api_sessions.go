@@ -85,7 +85,7 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 		return nil, invalidParamsRPCError(errors.New("agent is required"))
 	}
 
-	sess, err := h.sessions.Create(ctx, session.CreateOpts{
+	createOpts := session.CreateOpts{
 		AgentName:            strings.TrimSpace(params.Agent),
 		Provider:             strings.TrimSpace(params.Provider),
 		Model:                strings.TrimSpace(params.Model),
@@ -93,21 +93,28 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 		Workspace:            strings.TrimSpace(params.Workspace),
 		NetworkParticipation: participation.CloneRequest(params.NetworkParticipation),
 		Type:                 session.SessionTypeSystem,
-	})
+	}
+	prompt := strings.TrimSpace(params.Prompt)
+	if prompt != "" {
+		acceptance, ok := h.sessions.(hostAPISessionAcceptanceManager)
+		if !ok {
+			return nil, errors.New("extension: session manager does not support durable acceptance")
+		}
+		info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{
+			Session:       createOpts,
+			InitialPrompt: prompt,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return hostAPISessionCreateResult{SessionID: info.ID, Provider: info.Provider}, nil
+	}
+
+	sess, err := h.sessions.Create(ctx, createOpts)
 	if err != nil {
 		return nil, err
 	}
-
-	if prompt := strings.TrimSpace(params.Prompt); prompt != "" {
-		if _, err := h.submitPrompt(ctx, sess.ID, prompt); err != nil {
-			return nil, err
-		}
-	}
-
-	return hostAPISessionCreateResult{
-		SessionID: sess.ID,
-		Provider:  sess.Info().Provider,
-	}, nil
+	return hostAPISessionCreateResult{SessionID: sess.ID, Provider: sess.Info().Provider}, nil
 }
 
 func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawMessage) (any, error) {

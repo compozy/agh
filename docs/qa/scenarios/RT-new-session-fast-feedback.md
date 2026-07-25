@@ -4,7 +4,7 @@ area: RT
 title: Start a new session with immediate truthful feedback
 persona: Bruno
 journey: J-17
-expected: Clicking New session gives visible feedback within 100 ms, navigates to one durable `starting` session within 250 ms, keeps the composer disabled until `active`, and surfaces a durable startup failure without duplicate creation; runtime-related failures link to runtime settings, while unrelated startup failures do not.
+expected: Clicking New session opens a first-message composer; Send gives visible feedback within 100 ms, atomically queues the prompt, navigates to one durable `starting` session within 250 ms, and surfaces a durable startup failure without duplicate creation; the queued prompt remains available for explicit resume and is never posted a second time by the web client.
 entry_points: web agent detail New session; web Agents Start session
 qa_status: untested
 bug_ids: BUG-20260713-cursor-model-startup-contract, BUG-20260713-new-session-modal-lingers, BUG-20260713-first-prompt-optimistic-stuck, BUG-20260713-stop-generation-local-stuck
@@ -43,3 +43,5 @@ verified.
 QA impact 2026-07-22: session admission is now durable and asynchronous, the Web polls `starting`
 at 500 ms, and startup failure has an explicit recovery pane. Reset to untested for a fresh timing
 and failure-path replay.
+
+QA impact 2026-07-25: first-message creation is now atomic: the `201 starting` session already owns the queued prompt, navigation remains immediate, and resume delivers a prompt retained across startup failure. Reset to untested; flag only.

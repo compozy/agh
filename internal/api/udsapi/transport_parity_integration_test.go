@@ -25,6 +25,7 @@ import (
 	apispec "github.com/compozy/agh/internal/api/spec"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
@@ -529,6 +530,7 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 		AgentName:     transportUDSAutomationAgent,
 		Provider:      provider,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
+		Prompt:        "Continue delegated task run",
 	}, &created); err != nil {
 		t.Fatalf("UDS create session error = %v", err)
 	}
@@ -538,6 +540,18 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 	if created.Session.Provider != provider {
 		t.Fatalf("UDS create provider = %q, want %q", created.Session.Provider, provider)
 	}
+	if created.Session.State != session.StateStarting {
+		t.Fatalf("UDS accepted create state = %q, want %q", created.Session.State, session.StateStarting)
+	}
+	created.Session = waitForTransportSessionActive(t, ctx, runtimeHarness, created.Session)
+	waitForTransportTranscriptText(
+		t,
+		ctx,
+		runtimeHarness,
+		created.Session.ID,
+		"Continue delegated task run",
+		"Delegated task session responded.",
+	)
 
 	var udsDetail aghcontract.SessionResponse
 	if err := runtimeHarness.UDSJSON(
@@ -1884,6 +1898,56 @@ func logEventTypes(events []aghcontract.LogEventPayload) []string {
 
 func joinTransportTranscript(messages []transcriptpkg.UIMessage) string {
 	return transcriptpkg.JoinUIMessageText(messages)
+}
+
+func waitForTransportTranscriptText(
+	t testing.TB,
+	ctx context.Context,
+	runtimeHarness *e2etest.RuntimeHarness,
+	sessionID string,
+	want ...string,
+) {
+	t.Helper()
+
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	var (
+		lastText string
+		lastErr  error
+	)
+	for {
+		page, err := runtimeHarness.SessionTranscript(waitCtx, sessionID)
+		if err == nil {
+			lastText = joinTransportTranscript(transcriptpkg.MessagesFromEntries(page.Entries))
+			matched := true
+			for _, expected := range want {
+				if !strings.Contains(lastText, expected) {
+					matched = false
+					break
+				}
+			}
+			if matched {
+				return
+			}
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-waitCtx.Done():
+			t.Fatalf(
+				"timed out waiting for session %q transcript text %q: %v; last error=%v transcript=%q",
+				sessionID,
+				want,
+				waitCtx.Err(),
+				lastErr,
+				lastText,
+			)
+		case <-ticker.C:
+		}
+	}
 }
 
 func transportMockFixturePath(t testing.TB, name string) string {

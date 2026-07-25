@@ -75,7 +75,8 @@ test("categorized agents surface on the fleet page and group inside the session-
   await categorizedItem.click();
   await expect(trigger).toContainText(categorizedAgent);
 
-  await appPage.getByTestId("session-create-dialog-cancel").click();
+  await appPage.keyboard.press("Escape");
+  await expect(appPage.getByTestId("session-create-dialog")).toHaveCount(0);
   await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
   await expect(agentsWin).toBeVisible();

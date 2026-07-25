@@ -13,6 +13,7 @@ import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { closeMCPAuthServer, startMCPAuthServer } from "../fixtures/mcp-auth-server";
 import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import {
+  SESSION_CREATE_FIRST_MESSAGE,
   marketplaceOperatorSelectors,
   sessionLifecycleSelectors,
   sessionWindowSelectors,
@@ -1097,7 +1098,8 @@ test.describe("Skills marketplace management", () => {
     const createResponsePromise = page.waitForResponse(
       response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
     );
-    await page.getByTestId("session-create-dialog-submit").click();
+    await page.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
+    await page.getByTestId("session-create-send").click();
     const createResponse = await createResponsePromise;
     expect(createResponse.ok()).toBe(true);
     const session = (await createResponse.json()) as SessionEnvelope;

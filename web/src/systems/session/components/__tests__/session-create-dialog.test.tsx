@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
@@ -96,6 +97,8 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
       channelId: "",
       channelStrategy: "",
     },
+    promptValue: "Draft the release notes.",
+    onPromptChange: vi.fn(),
     onAgentChange: vi.fn(),
     onRuntimeChange: vi.fn(),
     onNetworkParticipationChange: vi.fn(),
@@ -125,11 +128,6 @@ async function openRuntimePopup(user: ReturnType<typeof userEvent.setup>) {
 describe("SessionCreateDialog", () => {
   it("Should render the runtime selector wired to the selected provider", () => {
     renderDialog();
-
-    expect(screen.getByTestId("session-create-dialog").className).toContain(
-      "sm:max-w-(--width-modal-sm)"
-    );
-    expect(screen.getByTestId("session-create-dialog").className).not.toContain("sm:max-w-120");
 
     const trigger = screen.getByTestId("session-create-runtime-select");
     // The provider renders as its mark only; the selected identity reaches
@@ -162,7 +160,7 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-catalog-stale")).toHaveTextContent(
       "Some models are stale"
     );
-    expect(screen.getByTestId("session-create-dialog-submit")).toBeEnabled();
+    expect(screen.getByTestId("session-create-send")).toBeEnabled();
   });
 
   it("Should surface catalog source errors inside the selector while keeping it usable", async () => {
@@ -193,7 +191,7 @@ describe("SessionCreateDialog", () => {
     const onSubmit = vi.fn();
     render(<SessionCreateDialog {...makeProps({ onSubmit })} />);
 
-    fireEvent.click(screen.getByTestId("session-create-dialog-submit"));
+    fireEvent.click(screen.getByTestId("session-create-send"));
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
@@ -204,9 +202,9 @@ describe("SessionCreateDialog", () => {
       onSubmit,
     });
 
-    expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
+    expect(screen.getByTestId("session-create-send")).toBeDisabled();
     expect(screen.getByTestId("session-create-participation-channel")).toBeRequired();
-    fireEvent.click(screen.getByTestId("session-create-dialog-submit"));
+    fireEvent.click(screen.getByTestId("session-create-send"));
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -217,11 +215,8 @@ describe("SessionCreateDialog", () => {
       runtimeValue: { provider: "", model: "", reasoning_effort: "" },
     });
 
-    expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
+    expect(screen.getByTestId("session-create-send")).toBeDisabled();
     expect(screen.getByTestId("session-create-providers-empty")).toBeInTheDocument();
-    expect(screen.getByTestId("session-create-providers-empty").className).toContain(
-      "text-form-hint"
-    );
   });
 
   it("Should surface providersError when the workspace provider list fails to load", () => {
@@ -235,10 +230,14 @@ describe("SessionCreateDialog", () => {
   });
 
   it("Should surface submitError when creation fails", () => {
-    render(<SessionCreateDialog {...makeProps({ submitError: "Server rejected the session" })} />);
+    renderDialog({ submitError: "Server rejected the session" });
 
     expect(screen.getByTestId("session-create-submit-error")).toHaveTextContent(
       "Server rejected the session"
+    );
+    expect(screen.getByTestId("session-create-prompt")).toHaveAttribute(
+      "aria-describedby",
+      "session-create-submit-error"
     );
   });
 
@@ -248,7 +247,7 @@ describe("SessionCreateDialog", () => {
       runtimeValue: { provider: "missing-provider", model: "", reasoning_effort: "" },
     });
 
-    expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
+    expect(screen.getByTestId("session-create-send")).toBeDisabled();
   });
 
   it("Should block a non-catalog model and explain how to recover inline", () => {
@@ -261,7 +260,7 @@ describe("SessionCreateDialog", () => {
       },
     });
 
-    expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
+    expect(screen.getByTestId("session-create-send")).toBeDisabled();
     expect(screen.getByTestId("session-create-model-error")).toHaveTextContent(
       "not in the selected provider catalog"
     );
@@ -278,7 +277,7 @@ describe("SessionCreateDialog", () => {
 
     // The single-button trigger disables natively (not merely aria-disabled).
     expect(screen.getByTestId("session-create-runtime-select")).toBeDisabled();
-    expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
+    expect(screen.getByTestId("session-create-send")).toBeDisabled();
   });
 
   it("Should disable both pickers until a workspace is selected", () => {
@@ -321,8 +320,9 @@ describe("SessionCreateDialog", () => {
     const onOpenChange = vi.fn();
     render(<SessionCreateDialog {...makeProps({ isSubmitting: true, onOpenChange })} />);
 
-    expect(screen.getByRole("status")).toHaveTextContent("AGH durably accepts it");
-    expect(screen.getByTestId("session-create-dialog-submit")).toHaveTextContent("Saving session");
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-send")).toBeDisabled();
+    expect(screen.getByTestId("session-create-prompt")).toBeDisabled();
     fireEvent.click(getDialogBackdrop());
     expect(onOpenChange).not.toHaveBeenCalled();
   });
@@ -335,11 +335,95 @@ describe("SessionCreateDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("Should close via cancel button", () => {
-    const onOpenChange = vi.fn();
-    render(<SessionCreateDialog {...makeProps({ onOpenChange })} />);
+  it("Should keep the Send disc as the only creation action in the dialog", () => {
+    renderDialog();
 
-    fireEvent.click(screen.getByTestId("session-create-dialog-cancel"));
+    expect(screen.queryByRole("button", { name: /start session/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-create-dialog-cancel")).not.toBeInTheDocument();
+    const submitters = screen
+      .getAllByRole("button")
+      .filter(button => button.getAttribute("type") === "submit");
+    expect(submitters).toEqual([screen.getByTestId("session-create-send")]);
+  });
+
+  it("Should close via the header close button", () => {
+    const onOpenChange = vi.fn();
+    renderDialog({ onOpenChange });
+
+    fireEvent.click(screen.getByRole("button", { name: /close/i }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  describe("first-message composer", () => {
+    it("Should land focus on the message even though the composer renders last", async () => {
+      renderDialog({ promptValue: "" });
+
+      await waitFor(() => expect(screen.getByTestId("session-create-prompt")).toHaveFocus());
+    });
+
+    it("Should forward typed characters through onPromptChange", async () => {
+      const user = userEvent.setup();
+      const onPromptChange = vi.fn();
+      renderDialog({ onPromptChange, promptValue: "" });
+
+      await user.type(screen.getByTestId("session-create-prompt"), "hi");
+      expect(onPromptChange).toHaveBeenCalledWith("h");
+      expect(onPromptChange).toHaveBeenCalledWith("i");
+    });
+
+    it("Should send exactly once on Enter with a populated draft", () => {
+      const onSubmit = vi.fn();
+      renderDialog({ onSubmit });
+
+      fireEvent.keyDown(screen.getByTestId("session-create-prompt"), { key: "Enter" });
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    it("Should insert a newline instead of sending on Shift+Enter", async () => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn();
+
+      function ControlledPromptDialog() {
+        const [promptValue, setPromptValue] = useState("Draft the release notes.");
+        return (
+          <SessionCreateDialog
+            {...makeProps({ onSubmit, onPromptChange: setPromptValue, promptValue })}
+          />
+        );
+      }
+
+      render(
+        <UIProvider reducedMotion="always">
+          <ControlledPromptDialog />
+        </UIProvider>
+      );
+
+      const prompt = screen.getByTestId("session-create-prompt");
+      await user.click(prompt);
+      await user.keyboard("{Shift>}{Enter}{/Shift}");
+      expect(prompt).toHaveValue("Draft the release notes.\n");
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it("Should never send while an IME composition is active", () => {
+      const onSubmit = vi.fn();
+      renderDialog({ onSubmit });
+
+      fireEvent.keyDown(screen.getByTestId("session-create-prompt"), {
+        key: "Enter",
+        isComposing: true,
+      });
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it("Should refuse a whitespace-only draft from both Send and Enter", () => {
+      const onSubmit = vi.fn();
+      renderDialog({ onSubmit, promptValue: "   \n  " });
+
+      expect(screen.getByTestId("session-create-send")).toBeDisabled();
+      fireEvent.click(screen.getByTestId("session-create-send"));
+      fireEvent.keyDown(screen.getByTestId("session-create-prompt"), { key: "Enter" });
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
   });
 });

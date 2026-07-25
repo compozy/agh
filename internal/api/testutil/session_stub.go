@@ -2,6 +2,8 @@ package testutil
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"github.com/compozy/agh/internal/acp"
 	core "github.com/compozy/agh/internal/api/core"
@@ -13,7 +15,7 @@ import (
 
 type StubSessionManager struct {
 	CreateFn            func(context.Context, session.CreateOpts) (*session.Session, error)
-	CreateAcceptedFn    func(context.Context, session.CreateOpts) (*session.Info, error)
+	CreateAcceptedFn    func(context.Context, session.CreateAcceptedOpts) (*session.Info, error)
 	ListFn              func() []*session.Info
 	ListAllFn           func(context.Context) ([]*session.Info, error)
 	ListPageFn          func(context.Context, session.ListQuery) (session.ListPage, error)
@@ -56,11 +58,17 @@ func (s StubSessionManager) Create(ctx context.Context, opts session.CreateOpts)
 	return nil, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) CreateAccepted(ctx context.Context, opts session.CreateOpts) (*session.Info, error) {
+func (s StubSessionManager) CreateAccepted(
+	ctx context.Context,
+	opts session.CreateAcceptedOpts,
+) (*session.Info, error) {
 	if s.CreateAcceptedFn != nil {
 		return s.CreateAcceptedFn(ctx, opts)
 	}
-	created, err := s.Create(ctx, opts)
+	if strings.TrimSpace(opts.InitialPrompt) != "" {
+		return nil, errors.New("testutil: CreateAcceptedFn is required for an initial prompt")
+	}
+	created, err := s.Create(ctx, opts.Session)
 	if created == nil || err != nil {
 		return nil, err
 	}

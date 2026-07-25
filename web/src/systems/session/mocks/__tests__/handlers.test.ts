@@ -48,6 +48,24 @@ describe("session MSW handlers", () => {
     );
   });
 
+  it("Should return a durable starting record whether or not a first message is staged", async () => {
+    const createSession = async (body: Record<string, unknown>) => {
+      const response = await fetch(`${API}/api/sessions`, {
+        body: JSON.stringify({ agent_name: "codex", workspace: "workspace_local", ...body }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json()) as { session: { state: string } };
+      return { state: payload.session.state, status: response.status };
+    };
+
+    expect(await createSession({ prompt: "Draft the release notes." })).toEqual({
+      state: "starting",
+      status: 201,
+    });
+    expect(await createSession({})).toEqual({ state: "starting", status: 201 });
+  });
+
   it("Should resolve a valid named Live request to a workspace-owned bounded snapshot", async () => {
     const response = await fetch(`${API}/api/sessions`, {
       body: JSON.stringify({

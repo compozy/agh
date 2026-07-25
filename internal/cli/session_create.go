@@ -7,23 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newSessionCreateCommand(deps commandDeps) *cobra.Command {
-	var (
-		agentName       string
-		cwd             string
-		name            string
-		provider        string
-		model           string
-		reasoningEffort string
-		workspaceRef    string
-		noWait          bool
-		networkFlags    networkParticipationFlags
-	)
-
-	cmd := &cobra.Command{
-		Use:   sessionNewKey,
-		Short: "Create a new session",
-		Example: `  # Start a session in the current workspace using the configured default agent
+const sessionCreateExample = `  # Start a session in the current workspace using the configured default agent
   agh session new
 
   # Start a named session for a specific registered workspace and agent
@@ -32,8 +16,30 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
   # Override provider, model, and reasoning effort for this session only
   agh session new --provider codex --model gpt-5.6-sol --reasoning-effort max
 
+  # Create the session and dispatch its first prompt after runtime activation
+  agh session new --prompt "Inspect the failing build and propose a fix"
+
   # Auto-register an absolute workspace path before creating the session
-  agh session new --cwd "$PWD" --agent reviewer`,
+  agh session new --cwd "$PWD" --agent reviewer`
+
+func newSessionCreateCommand(deps commandDeps) *cobra.Command {
+	var (
+		agentName       string
+		cwd             string
+		name            string
+		provider        string
+		model           string
+		prompt          string
+		reasoningEffort string
+		workspaceRef    string
+		noWait          bool
+		networkFlags    networkParticipationFlags
+	)
+
+	cmd := &cobra.Command{
+		Use:     sessionNewKey,
+		Short:   "Create a new session",
+		Example: sessionCreateExample,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -54,6 +60,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 				Provider:             strings.TrimSpace(provider),
 				Model:                strings.TrimSpace(model),
 				ReasoningEffort:      contract.ReasoningEffort(strings.TrimSpace(reasoningEffort)),
+				Prompt:               strings.TrimSpace(prompt),
 				Name:                 name,
 				Workspace:            workspace,
 				WorkspacePath:        workspacePath,
@@ -79,6 +86,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	bindNamedNetworkParticipationFlags(cmd, &networkFlags)
 	cmd.Flags().StringVar(&provider, sessionProviderKey, "", "Optional provider override for this session")
 	cmd.Flags().StringVar(&model, "model", "", "Optional model override for this session")
+	cmd.Flags().StringVar(&prompt, "prompt", "", "Initial prompt to dispatch after the session becomes active")
 	cmd.Flags().BoolVar(&noWait, "no-wait", false, "Return after the durable starting session is accepted")
 	cmd.Flags().StringVar(
 		&reasoningEffort,

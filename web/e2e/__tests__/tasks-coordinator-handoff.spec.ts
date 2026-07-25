@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  SESSION_CREATE_FIRST_MESSAGE,
   sessionLifecycleSelectors,
   sessionWindowSelectors,
   tasksOperatorSelectors,
@@ -314,7 +315,8 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   const createResponsePromise = appPage.waitForResponse(response => {
     return response.request().method() === "POST" && response.url().endsWith("/api/sessions");
   });
-  await appPage.getByTestId("session-create-dialog-submit").click();
+  await appPage.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
+  await appPage.getByTestId("session-create-send").click();
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBeTruthy();
 

@@ -80,7 +80,10 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		)
 		return
 	}
-	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), opts)
+	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{
+		Session:       opts,
+		InitialPrompt: strings.TrimSpace(req.Prompt),
+	})
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return

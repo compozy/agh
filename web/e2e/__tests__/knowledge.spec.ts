@@ -10,6 +10,7 @@ import type { Page } from "@playwright/test";
 
 import { sessionWindow } from "../fixtures/os-navigation";
 import {
+  SESSION_CREATE_FIRST_MESSAGE,
   knowledgeOperatorSelectors,
   sessionLifecycleSelectors,
   sessionWindowSelectors,
@@ -365,7 +366,8 @@ async function createSessionThroughBrowser(
   const createResponsePromise = page.waitForResponse(
     response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
   );
-  await page.getByTestId("session-create-dialog-submit").click();
+  await page.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
+  await page.getByTestId("session-create-send").click();
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBe(true);
   const session = (await createResponse.json()) as SessionEnvelope;
