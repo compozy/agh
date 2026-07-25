@@ -1,8 +1,10 @@
-import { useRef, type ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithoutRef } from "react";
 
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button, cn, Input, NativeSelect, NativeSelectOption } from "@agh/ui";
+
+import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 
 import { REASONING_OPTIONS } from "../lib/roles-config";
 import { fallbackFieldId } from "../lib/roles-validation";
@@ -85,23 +87,17 @@ export function RoleFallbackEditor({
   className,
   ...rootProps
 }: RoleFallbackEditorProps) {
-  // Stable client-side row ids so React keys the editable rows without the array
-  // index. Local add appends an id and remove splices the id at that index, so
-  // ids stay aligned across edits; a length mismatch (on mount or when an
-  // external load changes the entry count) regenerates the ledger.
-  const rowIdsRef = useRef<number[]>([]);
-  const nextRowIdRef = useRef(0);
-  if (rowIdsRef.current.length !== entries.length) {
-    rowIdsRef.current = Array.from({ length: entries.length }, () => nextRowIdRef.current++);
-  }
-  const rowIds = rowIdsRef.current;
+  // Stable client-side row keys so React keys editable rows without the array
+  // index. Append/remove keep keys aligned; length mismatches (mount / external
+  // load) are normalized by useLocalRowKeys without mutating refs during render.
+  const rowKeys = useLocalRowKeys(entries, "fallback");
 
   const handleAddRoute = () => {
-    rowIdsRef.current = [...rowIdsRef.current, nextRowIdRef.current++];
+    rowKeys.append();
     onAdd();
   };
   const handleRemoveRoute = (index: number) => {
-    rowIdsRef.current = rowIdsRef.current.filter((_id, position) => position !== index);
+    rowKeys.remove(index);
     onRemove(index);
   };
 
@@ -140,7 +136,7 @@ export function RoleFallbackEditor({
             const reasoningErrorId = reasoningError ? `${reasoningId}-error` : undefined;
             return (
               <li
-                key={rowIds[index]}
+                key={rowKeys.keys[index]}
                 className="rounded-md border border-line bg-canvas-soft p-3"
                 data-testid={`${testId}-entry-${index}`}
               >

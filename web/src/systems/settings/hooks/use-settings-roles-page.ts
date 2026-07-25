@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type SetStateAction } from "react";
+import { useRef, useState, type SetStateAction } from "react";
 
 import {
   SettingsApiError,
@@ -76,7 +76,6 @@ export function useSettingsRolesPage() {
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
   const [numberErrors, setNumberErrors] = useState<NumberErrors>({});
   const [draftRevision, setDraftRevision] = useState(0);
-  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const fieldRefs = useRef(new Map<string, HTMLElement | null>());
 
   const draft = draftOverride === undefined ? (envelope?.config ?? null) : draftOverride;
@@ -109,15 +108,16 @@ export function useSettingsRolesPage() {
     }
   };
 
-  // Focus is an external-DOM effect: run it after the invalid draft has
-  // re-rendered (the affected fold opens on error, so the field is visible).
-  useEffect(() => {
-    if (!pendingFocusId) {
+  // Defer focus to the next microtask so the invalid field is mounted (the
+  // advanced fold opens from derived validationErrors) without a setState-in-effect.
+  const focusField = (id: string | null) => {
+    if (!id) {
       return;
     }
-    fieldRefs.current.get(pendingFocusId)?.focus();
-    setPendingFocusId(null);
-  }, [pendingFocusId]);
+    queueMicrotask(() => {
+      fieldRefs.current.get(id)?.focus();
+    });
+  };
 
   const setRoleField = (role: RoleName, field: string, value: string | number | boolean) =>
     setDraft(prev => (prev ? applyRoleFieldEdit(prev, role, field, value) : prev));
@@ -150,7 +150,7 @@ export function useSettingsRolesPage() {
     const errors = collectRoleValidationErrors(draft);
     const combined = { ...toRoleErrorMap(errors), ...filterActiveErrors(numberErrors) };
     if (Object.keys(combined).length > 0) {
-      setPendingFocusId(firstRoleFieldError(errors)?.id ?? Object.keys(combined)[0] ?? null);
+      focusField(firstRoleFieldError(errors)?.id ?? Object.keys(combined)[0] ?? null);
       return;
     }
     const body: SettingsUpdateRolesRequest = { config: draft };
