@@ -25,3 +25,15 @@ QA 2026-07-24: global/workspace overlays, strict removed-key rejection, bounded 
 QA impact 2026-07-24 (final review remediation): CLI and native config mutation now accept the
 complete structured `[roles]` table at global and workspace scope, including fallback chains. The
 next QA cycle owns this broader agent-manageable write path.
+
+QA impact 2026-07-25 (Roles panel redesign): routing is still configured through
+`PATCH /api/settings/roles`, but the Web path now writes provider, model and reasoning effort
+together from one `RuntimeSelector` (a model pick pins both provider and model) with a Clear
+override action for inherit. Split provider-only / model-only overrides remain expressible through
+`config.toml`, the CLI, and the API. The next QA cycle owns Web-versus-CLI parity for those partial
+routes.
+
+QA impact 2026-07-25 (deep-review remediation): disabled roles now return a disabled routing
+decision before catalog or provider resolution, structured JSON config writes preserve integer
+values, and direct ACP roles accept an empty model. Flag only; the next QA cycle owns live
+global/workspace and CLI/native-tool parity retesting.

@@ -99,9 +99,9 @@ func WithTiebreaker(tiebreaker Tiebreaker) Option {
 // configured tiebreaker fails. Only noop and reject are safe failure outcomes.
 func WithDefaultOpOnFail(op memcontract.Op) Option {
 	return func(c *Controller) {
-		switch op.Normalize() {
+		switch normalized := op.Normalize(); normalized {
 		case memcontract.OpNoop, memcontract.OpReject:
-			c.defaultOpOnFail = op.Normalize()
+			c.defaultOpOnFail = normalized
 		}
 	}
 }

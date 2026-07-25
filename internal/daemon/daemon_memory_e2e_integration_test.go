@@ -103,7 +103,7 @@ func TestDaemonE2ERolesLiveApplyChangesNextMemoryExtractorModel(t *testing.T) {
 
 		var childID string
 		waitForRuntimeCondition(t, "memory extractor uses live-applied model", 10*time.Second, func() bool {
-			for _, candidate := range readAutoTitleRoleSessions(t, ctx, harness) {
+			for _, candidate := range readWorkspaceRoleSessions(t, ctx, harness) {
 				if candidate.Lineage != nil && candidate.Lineage.SpawnRole == sessionpkg.SpawnRoleMemoryExtractor {
 					childID = candidate.ID
 				}
@@ -708,6 +708,7 @@ func configureRoleDreamE2E(cfg *aghconfig.Config, command string) {
 	cfg.Memory.Dream.Gates.MinRecallCount = 1
 	cfg.Memory.Dream.Gates.MinScore = 0.000001
 }
+
 func roleDreamMockCommand(t testing.TB, diagnosticsPath string) string {
 	t.Helper()
 	driverPath, err := acpmock.DefaultDriverPath()
@@ -743,10 +744,6 @@ func seedDreamEligibility(
 		"Remember the configurable background dream routing signal.",
 	)
 	session := createFixtureBackedSession(t, ctx, harness, agentName, "")
-	waitForRuntimeCondition(t, "dream eligibility session active", 10*time.Second, func() bool {
-		current, err := harness.GetSession(ctx, session.ID)
-		return err == nil && current.State == sessionpkg.StateActive
-	})
 	if _, err := harness.PromptSession(ctx, session.ID, "remember the background dream routing signal"); err != nil {
 		t.Fatalf("PromptSession(dream eligibility) error = %v", err)
 	}

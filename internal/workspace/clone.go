@@ -73,7 +73,7 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		Sandboxes:     cloneSandboxProfiles(src.Sandboxes),
 		Observability: src.Observability,
 		Log:           src.Log,
-		Memory:        cloneMemoryConfig(&src.Memory),
+		Memory:        aghconfig.CloneMemoryConfig(&src.Memory),
 		Skills: aghconfig.SkillsConfig{
 			Enabled:                 src.Skills.Enabled,
 			DisabledSkills:          append([]string(nil), src.Skills.DisabledSkills...),
@@ -110,12 +110,6 @@ func cloneWindowManagerConfig(src aghconfig.WindowManagerConfig) aghconfig.Windo
 	cloned := src
 	cloned.Snap.RepeatRatios = append([]float64(nil), src.Snap.RepeatRatios...)
 	cloned.Shortcuts = maps.Clone(src.Shortcuts)
-	return cloned
-}
-
-func cloneMemoryConfig(src *aghconfig.MemoryConfig) aghconfig.MemoryConfig {
-	cloned := *src
-	cloned.Controller.Policy.AllowOrigins = append([]string(nil), src.Controller.Policy.AllowOrigins...)
 	return cloned
 }
 

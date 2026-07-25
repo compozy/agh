@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 
-import { cn, Input, NativeSelect, NativeSelectOption, Switch } from "@agh/ui";
+import { cn, Input, Switch } from "@agh/ui";
 
-import { REASONING_OPTIONS, type RoleFieldDescriptor } from "../lib/roles-config";
+import type { RoleFieldDescriptor } from "../lib/roles-config";
+import { RoleEffectiveHint } from "./role-effective-hint";
 import { SettingsFieldRow } from "./settings-field-row";
 import { SettingsNumberInput } from "./settings-number-input";
 
@@ -20,18 +21,6 @@ interface RoleFieldControlProps {
   fieldRef?: (element: HTMLInputElement | null) => void;
   onValueChange: (value: string | number | boolean) => void;
   onValidityChange?: (message: string | null) => void;
-}
-
-/** Truthful effective-value hint for a routing field — null renders as unresolved. */
-function EffectiveHint({ effective }: { effective: string | null }) {
-  if (effective == null) {
-    return <span className="mt-0.5 block text-form-hint text-subtle">Resolves at invocation.</span>;
-  }
-  return (
-    <span className="mt-0.5 block text-form-hint text-subtle">
-      Effective <span className="font-mono text-muted">{effective}</span>
-    </span>
-  );
 }
 
 function renderControl({
@@ -69,22 +58,6 @@ function renderControl({
           onValidityChange={onValidityChange}
         />
       );
-    case "select":
-      return (
-        <NativeSelect
-          data-testid={`${testId}-input`}
-          value={String(value)}
-          disabled={disabled}
-          aria-invalid={error ? true : undefined}
-          onChange={event => onValueChange(event.target.value)}
-        >
-          {REASONING_OPTIONS.map(option => (
-            <NativeSelectOption key={option.value} value={option.value}>
-              {option.label}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      );
     default:
       return (
         <Input
@@ -100,13 +73,15 @@ function renderControl({
   }
 }
 
-/** One editable role field rendered as a settings row with an effective-value hint. */
+/** One editable role policy field rendered as a settings row. */
 export function RoleFieldControl(props: RoleFieldControlProps) {
   const { field, hasEffective, effective, error, testId } = props;
   const description = (
     <>
       {field.description ? <span>{field.description}</span> : null}
-      {hasEffective ? <EffectiveHint effective={effective} /> : null}
+      {hasEffective ? (
+        <RoleEffectiveHint effective={effective} emptyLabel="Resolves at invocation." />
+      ) : null}
     </>
   );
   return (

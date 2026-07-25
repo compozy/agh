@@ -9,12 +9,12 @@ const (
 	RoleFieldSourceDefault   = "default"
 	RoleFieldSourceGlobal    = "global"
 	RoleFieldSourceWorkspace = "workspace"
-	roleConfigFieldEnabled   = "enabled"
-	roleConfigFieldAgent     = "agent"
-	roleConfigFieldProvider  = "provider"
-	roleConfigFieldModel     = "model"
-	roleConfigFieldReasoning = "reasoning_effort"
-	roleConfigFieldFallbacks = "fallback_chain"
+	RoleFieldEnabled         = "enabled"
+	RoleFieldAgent           = "agent"
+	RoleFieldProvider        = "provider"
+	RoleFieldModel           = "model"
+	RoleFieldReasoning       = "reasoning_effort"
+	RoleFieldFallbacks       = "fallback_chain"
 )
 
 // RoleFieldSources records which config layer last wrote each routed role field.
@@ -46,14 +46,14 @@ func defaultRoleFieldSources() RoleFieldSources {
 	sources := make(RoleFieldSources, len(allRoleNames))
 	for _, role := range allRoleNames {
 		fields := []string{
-			roleConfigFieldEnabled,
-			roleConfigFieldProvider,
-			roleConfigFieldModel,
-			roleConfigFieldReasoning,
-			roleConfigFieldFallbacks,
+			RoleFieldEnabled,
+			RoleFieldProvider,
+			RoleFieldModel,
+			RoleFieldReasoning,
+			RoleFieldFallbacks,
 		}
 		if role != RoleMemoryController {
-			fields = append(fields, roleConfigFieldAgent)
+			fields = append(fields, RoleFieldAgent)
 		}
 		switch role {
 		case RoleCoordinator:
@@ -94,12 +94,12 @@ func (o rolesOverlay) recordSources(dst *Config, source string) {
 }
 
 func recordRoleOverlaySources(sources RoleFieldSources, role RoleName, overlay roleOverlay, source string) {
-	recordSource(sources, role, roleConfigFieldEnabled, source, overlay.Enabled != nil)
-	recordSource(sources, role, roleConfigFieldAgent, source, overlay.Agent != nil)
-	recordSource(sources, role, roleConfigFieldProvider, source, overlay.Provider != nil)
-	recordSource(sources, role, roleConfigFieldModel, source, overlay.Model != nil)
-	recordSource(sources, role, roleConfigFieldReasoning, source, overlay.ReasoningEffort != nil)
-	recordSource(sources, role, roleConfigFieldFallbacks, source, overlay.FallbackChain != nil)
+	recordSource(sources, role, RoleFieldEnabled, source, overlay.Enabled != nil)
+	recordSource(sources, role, RoleFieldAgent, source, overlay.Agent != nil)
+	recordSource(sources, role, RoleFieldProvider, source, overlay.Provider != nil)
+	recordSource(sources, role, RoleFieldModel, source, overlay.Model != nil)
+	recordSource(sources, role, RoleFieldReasoning, source, overlay.ReasoningEffort != nil)
+	recordSource(sources, role, RoleFieldFallbacks, source, overlay.FallbackChain != nil)
 }
 
 func recordMemoryControllerSources(
@@ -107,15 +107,15 @@ func recordMemoryControllerSources(
 	overlay memoryControllerRoleOverlay,
 	source string,
 ) {
-	recordSource(sources, RoleMemoryController, roleConfigFieldEnabled, source, overlay.Enabled != nil)
-	recordSource(sources, RoleMemoryController, roleConfigFieldProvider, source, overlay.Provider != nil)
-	recordSource(sources, RoleMemoryController, roleConfigFieldModel, source, overlay.Model != nil)
-	recordSource(sources, RoleMemoryController, roleConfigFieldReasoning, source, overlay.ReasoningEffort != nil)
+	recordSource(sources, RoleMemoryController, RoleFieldEnabled, source, overlay.Enabled != nil)
+	recordSource(sources, RoleMemoryController, RoleFieldProvider, source, overlay.Provider != nil)
+	recordSource(sources, RoleMemoryController, RoleFieldModel, source, overlay.Model != nil)
+	recordSource(sources, RoleMemoryController, RoleFieldReasoning, source, overlay.ReasoningEffort != nil)
 	recordSource(sources, RoleMemoryController, "timeout", source, overlay.Timeout != nil)
 	recordSource(sources, RoleMemoryController, "top_k", source, overlay.TopK != nil)
 	recordSource(sources, RoleMemoryController, "prompt_version", source, overlay.PromptVersion != nil)
 	recordSource(sources, RoleMemoryController, "max_tokens_out", source, overlay.MaxTokensOut != nil)
-	recordSource(sources, RoleMemoryController, roleConfigFieldFallbacks, source, overlay.FallbackChain != nil)
+	recordSource(sources, RoleMemoryController, RoleFieldFallbacks, source, overlay.FallbackChain != nil)
 }
 
 func recordSource(

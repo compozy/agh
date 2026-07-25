@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -53,16 +54,76 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 	case configSetFloatSlice:
 		return parseFloatSliceValue(trimmed)
 	case configSetTable:
-		var value map[string]any
-		if err := json.Unmarshal([]byte(trimmed), &value); err != nil {
-			return nil, fmt.Errorf("cli: parse object %q: %w", raw, err)
-		}
-		if value == nil {
-			return nil, errors.New("cli: config object must not be null")
-		}
-		return value, nil
+		return parseConfigSetTableValue(raw, trimmed)
 	default:
 		return nil, fmt.Errorf("cli: unsupported config value kind %d", kind)
+	}
+}
+
+func parseConfigSetTableValue(raw string, trimmed string) (map[string]any, error) {
+	decoder := json.NewDecoder(strings.NewReader(trimmed))
+	decoder.UseNumber()
+
+	var value map[string]any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, fmt.Errorf("cli: parse object %q: %w", raw, err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, fmt.Errorf("cli: parse object %q: multiple JSON values", raw)
+		}
+		return nil, fmt.Errorf("cli: parse object %q: %w", raw, err)
+	}
+	if value == nil {
+		return nil, errors.New("cli: config object must not be null")
+	}
+
+	normalized, err := normalizeConfigSetJSONValue(value)
+	if err != nil {
+		return nil, fmt.Errorf("cli: normalize object %q: %w", raw, err)
+	}
+	table, ok := normalized.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("cli: normalize object %q: expected object, got %T", raw, normalized)
+	}
+	return table, nil
+}
+
+func normalizeConfigSetJSONValue(value any) (any, error) {
+	switch typed := value.(type) {
+	case json.Number:
+		integer, err := typed.Int64()
+		if err == nil {
+			return integer, nil
+		}
+		floating, floatErr := typed.Float64()
+		if floatErr != nil {
+			return nil, fmt.Errorf("parse JSON number %q: %w", typed, floatErr)
+		}
+		return floating, nil
+	case map[string]any:
+		normalized := make(map[string]any, len(typed))
+		for key, child := range typed {
+			value, err := normalizeConfigSetJSONValue(child)
+			if err != nil {
+				return nil, fmt.Errorf("normalize key %q: %w", key, err)
+			}
+			normalized[key] = value
+		}
+		return normalized, nil
+	case []any:
+		normalized := make([]any, len(typed))
+		for index, child := range typed {
+			value, err := normalizeConfigSetJSONValue(child)
+			if err != nil {
+				return nil, fmt.Errorf("normalize item %d: %w", index, err)
+			}
+			normalized[index] = value
+		}
+		return normalized, nil
+	default:
+		return value, nil
 	}
 }
 

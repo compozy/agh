@@ -14,12 +14,12 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
-func TestBundledCoordinatorFallback(t *testing.T) {
+func TestBundledBuiltinSessionFallback(t *testing.T) {
 	t.Run("Should create a dream session without a materialized agent definition", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		configureBundledCoordinatorFallbackWorkspace(t, h)
+		configureBundledBuiltinFallbackWorkspace(t, h)
 		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: aghconfig.BuiltinDreamingCuratorAgentName,
 			Provider:  "claude",
@@ -42,7 +42,10 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 		if got, want := created.Type, SessionTypeDream; got != want {
 			t.Fatalf("Create().Type = %q, want %q", got, want)
 		}
-		if got := h.driver.startCalls[0].SystemPrompt; !strings.Contains(got, mustDreamBuiltin(t).Prompt) {
+		if got := h.driver.startCalls[0].SystemPrompt; !strings.Contains(
+			got,
+			mustBuiltinAgentDef(t, aghconfig.BuiltinDreamingCuratorAgentName).Prompt,
+		) {
 			t.Fatalf("startCalls[0].SystemPrompt = %q, want bundled dream prompt", got)
 		}
 	})
@@ -58,11 +61,23 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve normalized builtin identities for their session type", func(t *testing.T) {
+		t.Parallel()
+
+		def, ok := builtinSessionAgentDef("  DREAMING-CURATOR  ", SessionTypeDream)
+		if !ok {
+			t.Fatal("builtinSessionAgentDef(normalized dreaming-curator, dream) ok = false, want true")
+		}
+		if got, want := def.Name, aghconfig.BuiltinDreamingCuratorAgentName; got != want {
+			t.Fatalf("builtinSessionAgentDef().Name = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should create a coordinator session without a materialized agent definition", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		configureBundledCoordinatorFallbackWorkspace(t, h)
+		configureBundledBuiltinFallbackWorkspace(t, h)
 
 		created := createBundledCoordinatorSession(t, h)
 		t.Cleanup(func() {
@@ -85,7 +100,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 		}
 		if got := h.driver.startCalls[0].SystemPrompt; !strings.Contains(
 			got,
-			mustCoordinatorBuiltin(t).Prompt,
+			mustBuiltinAgentDef(t, aghconfig.BuiltinCoordinatorAgentName).Prompt,
 		) {
 			t.Fatalf("startCalls[0].SystemPrompt = %q, want bundled coordinator prompt", got)
 		}
@@ -95,7 +110,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		configureBundledCoordinatorFallbackWorkspace(t, h)
+		configureBundledBuiltinFallbackWorkspace(t, h)
 
 		ctx := testutil.Context(t)
 		created := createBundledCoordinatorSession(t, h)
@@ -121,7 +136,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 		}
 		if got := h.driver.startCalls[1].SystemPrompt; !strings.Contains(
 			got,
-			mustCoordinatorBuiltin(t).Prompt,
+			mustBuiltinAgentDef(t, aghconfig.BuiltinCoordinatorAgentName).Prompt,
 		) {
 			t.Fatalf("startCalls[1].SystemPrompt = %q, want bundled coordinator prompt", got)
 		}
@@ -133,7 +148,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 			t.Parallel()
 
 			h := newHarness(t)
-			configureBundledCoordinatorFallbackWorkspace(t, h)
+			configureBundledBuiltinFallbackWorkspace(t, h)
 
 			meta := validResumeMeta(h, "sess-coordinator-fallback")
 			meta.AgentName = aghconfig.BuiltinCoordinatorAgentName
@@ -152,7 +167,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		configureBundledCoordinatorFallbackWorkspace(t, h)
+		configureBundledBuiltinFallbackWorkspace(t, h)
 
 		meta := validResumeMeta(h, "sess-coordinator-repair")
 		meta.AgentName = aghconfig.BuiltinCoordinatorAgentName
@@ -203,7 +218,7 @@ func createBundledCoordinatorSession(t *testing.T, h *harness) *Session {
 	return created
 }
 
-func configureBundledCoordinatorFallbackWorkspace(t *testing.T, h *harness) {
+func configureBundledBuiltinFallbackWorkspace(t *testing.T, h *harness) {
 	t.Helper()
 
 	resolved, err := h.resolver.Resolve(context.Background(), h.workspaceID)
@@ -224,20 +239,11 @@ func configureBundledCoordinatorFallbackWorkspace(t *testing.T, h *harness) {
 	}
 }
 
-func mustCoordinatorBuiltin(t *testing.T) aghconfig.AgentDef {
+func mustBuiltinAgentDef(t *testing.T, name string) aghconfig.AgentDef {
 	t.Helper()
-	def, ok := aghconfig.BuiltinAgentDef(aghconfig.BuiltinCoordinatorAgentName)
+	def, ok := aghconfig.BuiltinAgentDef(name)
 	if !ok {
-		t.Fatal("BuiltinAgentDef(coordinator) ok = false, want true")
-	}
-	return def
-}
-
-func mustDreamBuiltin(t *testing.T) aghconfig.AgentDef {
-	t.Helper()
-	def, ok := aghconfig.BuiltinAgentDef(aghconfig.BuiltinDreamingCuratorAgentName)
-	if !ok {
-		t.Fatal("BuiltinAgentDef(dreaming-curator) ok = false, want true")
+		t.Fatalf("BuiltinAgentDef(%q) ok = false, want true", name)
 	}
 	return def
 }

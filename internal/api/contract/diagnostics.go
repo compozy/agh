@@ -117,6 +117,7 @@ const (
 	CodeReasoningEffortUnsupported    = diagnosticcontract.CodeReasoningEffortUnsupported
 	CodeReasoningOptionMissing        = diagnosticcontract.CodeReasoningOptionMissing
 	CodeRoleAgentNotFound             = diagnosticcontract.CodeRoleAgentNotFound
+	CodeRoleResolutionFailed          = diagnosticcontract.CodeRoleResolutionFailed
 	CodeRoleUnknown                   = diagnosticcontract.CodeRoleUnknown
 	CodeRetryChainTooDeep             = diagnosticcontract.CodeRetryChainTooDeep
 	CodeSchedulerReady                = diagnosticcontract.CodeSchedulerReady

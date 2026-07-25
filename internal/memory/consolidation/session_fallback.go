@@ -37,7 +37,7 @@ func createDreamSessionWithFallback(
 		attempt := index + 1
 		if route.BeforeFallback != nil {
 			if eventErr := route.BeforeFallback(ctx, attempt, fallback); eventErr != nil {
-				return nil, errors.Join(errors.Join(attemptErrors...), eventErr)
+				return nil, errors.Join(append(attemptErrors, eventErr)...)
 			}
 		}
 		created, err = create(fallback.Provider, fallback.Model, fallback.ReasoningEffort)

@@ -57,7 +57,7 @@ func (s *daemonCheckpointSummarizer) Summarize(
 		AgentName:   strings.TrimSpace(request.AgentName),
 	}
 	roleCtx := withRoleInvocationCorrelation(ctx, correlation)
-	role, err := s.roles.Resolve(roleCtx, request.WorkspaceRoot, aghconfig.RoleCheckpointSummary)
+	role, err := s.roles.Resolve(roleCtx, request.WorkspaceID, aghconfig.RoleCheckpointSummary)
 	if err != nil {
 		return "", fmt.Errorf("daemon: resolve checkpoint summary role: %w", err)
 	}

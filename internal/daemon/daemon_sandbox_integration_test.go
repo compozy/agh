@@ -446,17 +446,9 @@ func mustRunSandboxScenarioSession(
 	if err != nil {
 		t.Fatalf("CreateSession(%q) error = %v", name, err)
 	}
-	current := created
-	waitForRuntimeCondition(t, "sandbox session startup", 10*time.Second, func() bool {
-		resolved, getErr := harness.GetSession(ctx, created.ID)
-		if getErr != nil {
-			return false
-		}
-		current = resolved
-		return current.State == sessionpkg.StateActive || current.State == sessionpkg.StateStopped
-	})
-	if current.State != sessionpkg.StateActive {
-		t.Fatalf("sandbox session startup = %#v, want active", current)
+	current, err := harness.WaitForSessionActive(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("WaitForSessionActive(%q) error = %v", created.ID, err)
 	}
 
 	stream, err := harness.PromptSession(ctx, current.ID, message)

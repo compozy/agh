@@ -221,8 +221,7 @@ func cloneRolesConfig(cfg *aghconfig.RolesConfig) *aghconfig.RolesConfig {
 }
 
 func cloneMemoryConfig(cfg *aghconfig.MemoryConfig) *aghconfig.MemoryConfig {
-	cloned := *cfg
-	cloned.Controller.Policy.AllowOrigins = append([]string(nil), cfg.Controller.Policy.AllowOrigins...)
+	cloned := aghconfig.CloneMemoryConfig(cfg)
 	return &cloned
 }
 

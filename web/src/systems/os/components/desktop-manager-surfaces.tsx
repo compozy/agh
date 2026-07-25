@@ -35,6 +35,8 @@ function overviewState(input: {
 /** Management overview and honest daemon-connection feedback. */
 export interface DesktopManagerSurfacesProps {
   model: DesktopManagerSurfacesModel;
+  /** No workspace is bound, so there is no layout stream to report on. */
+  unbound?: boolean;
   onCreateDesktop: () => void;
   onSwitchDesktop: (desktopId: string) => void;
   onRenameDesktop: (desktopId: string, name: string) => void;
@@ -48,6 +50,7 @@ export interface DesktopManagerSurfacesProps {
 
 export function DesktopManagerSurfaces({
   model,
+  unbound = false,
   onCreateDesktop,
   onSwitchDesktop,
   onRenameDesktop,
@@ -97,7 +100,7 @@ export function DesktopManagerSurfaces({
         onRetry={onRetry}
         onResolveConflict={onResolveConflict}
       />
-      {model.hydration !== "pending" && model.connectionStatus !== "connected" ? (
+      {!unbound && model.hydration !== "pending" && model.connectionStatus !== "connected" ? (
         <div
           role="status"
           className={cn(

@@ -6,10 +6,6 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 )
 
-func cloneRolesConfig(source *aghconfig.RolesConfig) aghconfig.RolesConfig {
-	return aghconfig.CloneRolesConfig(source)
-}
-
 func diffRolesSettings(current *aghconfig.RolesConfig, desired *aghconfig.RolesConfig) []string {
 	var changed []string
 	changed = append(changed, diffCoordinatorRoleSettings(current.Coordinator, desired.Coordinator)...)
@@ -68,7 +64,7 @@ func diffRoleSettings(
 	if current.ReasoningEffort != desired.ReasoningEffort {
 		changed = append(changed, prefix+"reasoning_effort")
 	}
-	if !roleFallbacksEqual(current.FallbackChain, desired.FallbackChain) {
+	if !slices.Equal(current.FallbackChain, desired.FallbackChain) {
 		changed = append(changed, prefix+"fallback_chain")
 	}
 	return changed
@@ -79,21 +75,21 @@ func diffMemoryControllerRoleSettings(
 	desired aghconfig.MemoryControllerRoleConfig,
 ) []string {
 	prefix := "roles." + string(aghconfig.RoleMemoryController) + "."
-	changed := make([]string, 0, 9)
-	if current.Enabled != desired.Enabled {
-		changed = append(changed, prefix+"enabled")
-	}
-	if current.Provider != desired.Provider {
-		changed = append(changed, prefix+"provider")
-	}
-	if current.Model != desired.Model {
-		changed = append(changed, prefix+"model")
-	}
-	if current.ReasoningEffort != desired.ReasoningEffort {
-		changed = append(changed, prefix+"reasoning_effort")
-	}
+	changed := diffSharedRoleRouteFields(
+		prefix,
+		current.Enabled,
+		desired.Enabled,
+		current.Provider,
+		desired.Provider,
+		current.Model,
+		desired.Model,
+		current.ReasoningEffort,
+		desired.ReasoningEffort,
+		current.FallbackChain,
+		desired.FallbackChain,
+	)
 	if current.Timeout != desired.Timeout {
-		changed = append(changed, prefix+"timeout")
+		changed = append(changed, prefix+sectionsTimeoutKey)
 	}
 	if current.TopK != desired.TopK {
 		changed = append(changed, prefix+"top_k")
@@ -104,14 +100,39 @@ func diffMemoryControllerRoleSettings(
 	if current.MaxTokensOut != desired.MaxTokensOut {
 		changed = append(changed, prefix+"max_tokens_out")
 	}
-	if !roleFallbacksEqual(current.FallbackChain, desired.FallbackChain) {
-		changed = append(changed, prefix+"fallback_chain")
-	}
 	return changed
 }
 
-func roleFallbacksEqual(current, desired []aghconfig.RoleFallback) bool {
-	return slices.Equal(current, desired)
+func diffSharedRoleRouteFields(
+	prefix string,
+	currentEnabled bool,
+	desiredEnabled bool,
+	currentProvider string,
+	desiredProvider string,
+	currentModel string,
+	desiredModel string,
+	currentEffort string,
+	desiredEffort string,
+	currentFallbacks []aghconfig.RoleFallback,
+	desiredFallbacks []aghconfig.RoleFallback,
+) []string {
+	changed := make([]string, 0, 5)
+	if currentEnabled != desiredEnabled {
+		changed = append(changed, prefix+sectionsEnabledKey)
+	}
+	if currentProvider != desiredProvider {
+		changed = append(changed, prefix+sectionsProviderKey)
+	}
+	if currentModel != desiredModel {
+		changed = append(changed, prefix+sectionsModelKey)
+	}
+	if currentEffort != desiredEffort {
+		changed = append(changed, prefix+sectionsReasoningEffortKey)
+	}
+	if !slices.Equal(currentFallbacks, desiredFallbacks) {
+		changed = append(changed, prefix+sectionsFallbackChainKey)
+	}
+	return changed
 }
 
 func applyRolesSettings(editor *aghconfig.OverlayEditor, roles *aghconfig.RolesConfig) error {

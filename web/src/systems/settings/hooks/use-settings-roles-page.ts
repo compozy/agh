@@ -10,9 +10,12 @@ import {
 import {
   addFallbackEntry,
   applyRoleFieldEdit,
+  applyRoleRuntimeEdit,
+  clearRoleRuntime,
   removeFallbackEntry,
   ROLE_ORDER,
-  updateFallbackEntry,
+  setFallbackRuntime,
+  type RoleRuntimeValue,
 } from "../lib/roles-config";
 import { buildRolesViewModel, type RoleViewModel } from "../lib/roles-view-model";
 import {
@@ -20,12 +23,9 @@ import {
   firstRoleFieldError,
   toRoleErrorMap,
 } from "../lib/roles-validation";
-import type {
-  RoleFallbackEntry,
-  RoleName,
-  SettingsRolesConfig,
-  SettingsUpdateRolesRequest,
-} from "../types";
+import type { RoleName, SettingsRolesConfig, SettingsUpdateRolesRequest } from "../types";
+import { useRolesDisclosure, type RolesDisclosure } from "./use-roles-disclosure";
+import { useRolesRuntimeOptions, type RolesRuntimeOptions } from "./use-roles-runtime-options";
 import { useSettingsPage } from "./use-settings-page";
 
 type NumberErrors = Record<string, string | null>;
@@ -100,6 +100,9 @@ export function useSettingsRolesPage() {
   const roles: RoleViewModel[] =
     status && draft && !projectionUnavailable ? buildRolesViewModel(status.roles, draft) : [];
 
+  const runtimeOptions = useRolesRuntimeOptions();
+  const disclosure = useRolesDisclosure({ roles, validationErrors });
+
   const registerFieldRef = (id: string) => (element: HTMLElement | null) => {
     if (element) {
       fieldRefs.current.set(id, element);
@@ -121,16 +124,19 @@ export function useSettingsRolesPage() {
 
   const setRoleField = (role: RoleName, field: string, value: string | number | boolean) =>
     setDraft(prev => (prev ? applyRoleFieldEdit(prev, role, field, value) : prev));
+  const setRoleEnabled = (role: RoleName, enabled: boolean) =>
+    setRoleField(role, "enabled", enabled);
+  const setRoleAgent = (role: RoleName, agent: string) => setRoleField(role, "agent", agent);
+  const setRoleRuntime = (role: RoleName, value: RoleRuntimeValue) =>
+    setDraft(prev => (prev ? applyRoleRuntimeEdit(prev, role, value) : prev));
+  const clearRuntime = (role: RoleName) =>
+    setDraft(prev => (prev ? clearRoleRuntime(prev, role) : prev));
   const addFallback = (role: RoleName) =>
     setDraft(prev => (prev ? addFallbackEntry(prev, role) : prev));
   const removeFallback = (role: RoleName, index: number) =>
     setDraft(prev => (prev ? removeFallbackEntry(prev, role, index) : prev));
-  const updateFallback = (
-    role: RoleName,
-    index: number,
-    field: keyof RoleFallbackEntry,
-    value: string
-  ) => setDraft(prev => (prev ? updateFallbackEntry(prev, role, index, field, value) : prev));
+  const updateFallback = (role: RoleName, index: number, value: RoleRuntimeValue) =>
+    setDraft(prev => (prev ? setFallbackRuntime(prev, role, index, value) : prev));
 
   const setNumberFieldValidity = (id: string) => (message: string | null) =>
     setNumberErrors(prev => (prev[id] === message ? prev : { ...prev, [id]: message }));
@@ -169,6 +175,8 @@ export function useSettingsRolesPage() {
     isEmpty: projectionUnavailable,
     error: (statusQuery.error ?? configQuery.error) as Error | null,
     roles,
+    runtimeOptions,
+    disclosure,
     isDirty,
     isInvalid,
     draftRevision,
@@ -178,7 +186,11 @@ export function useSettingsRolesPage() {
     warnings: mutation.data?.warnings,
     lastAppliedLabel,
     restart: page.restart,
+    setRoleEnabled,
+    setRoleAgent,
     setRoleField,
+    setRoleRuntime,
+    clearRuntime,
     addFallback,
     removeFallback,
     updateFallback,
@@ -189,3 +201,6 @@ export function useSettingsRolesPage() {
     handleRetry,
   };
 }
+
+export type SettingsRolesPage = ReturnType<typeof useSettingsRolesPage>;
+export type { RolesDisclosure, RolesRuntimeOptions };

@@ -17,6 +17,7 @@ export type { CardProps, CardSize } from "./components/card";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Separator, type SeparatorProps } from "./components/separator";
+export { Slider } from "./components/slider";
 export { Skeleton, SkeletonRows, type SkeletonRowsProps } from "./components/skeleton";
 export { Spinner } from "./components/spinner";
 export {
@@ -170,6 +171,23 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./components/dropdown-menu";
+export {
+  Menubar,
+  MenubarCheckboxItem,
+  MenubarContent,
+  MenubarGroup,
+  MenubarItem,
+  MenubarLabel,
+  MenubarMenu,
+  MenubarRadioGroup,
+  MenubarRadioItem,
+  MenubarSeparator,
+  MenubarShortcut,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
+  MenubarTrigger,
+} from "./components/menubar";
 export { Switch } from "./components/switch";
 export { Toggle } from "./components/toggle";
 export { toggleVariants } from "./components/toggle-variants";

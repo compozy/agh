@@ -428,12 +428,31 @@ test("operator routes a background role, persists it across reload, and keeps bu
   await appPage.goto(runtime.url("/settings/roles"), { waitUntil: "domcontentloaded" });
 
   await expect(settingsUI.roles.page).toBeVisible({ timeout: 20_000 });
-  // Coordinator ships disabled — its OFF state is projected truthfully.
-  await expect(settingsUI.roles.badgeOff("coordinator")).toBeVisible();
+  // Coordinator ships disabled — the header switch projects that truthfully
+  // without expanding the row.
+  await expect(settingsUI.roles.enabledSwitch("coordinator")).toHaveAttribute(
+    "aria-checked",
+    "false"
+  );
+  // Nothing is pinned yet, so no route chip is invented for auto_title.
+  await expect(settingsUI.roles.routeSummary("auto_title")).toHaveCount(0);
 
-  const modelInput = settingsUI.roles.fieldInput("auto_title", "model");
-  await expect(modelInput).toHaveValue("");
-  await modelInput.fill(nextModel);
+  await settingsUI.roles.toggle("auto_title").click();
+  await settingsUI.roles.runtimeSelect("auto_title").click();
+  await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
+  // An inherit-mode role pins no provider, and a custom model id is never
+  // emitted without one — target a real provider through the rail first.
+  await appPage
+    .locator(
+      '[data-testid="runtime-selector-popup"] [role="radio"][data-rail]:not([data-rail="all"]):not([data-rail="fav"])'
+    )
+    .first()
+    .click();
+  await appPage.getByTestId("runtime-selector-search").fill(nextModel);
+  await appPage.getByTestId("runtime-selector-custom").click();
+  await appPage.keyboard.press("Escape");
+  await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
+  await expect(settingsUI.roles.runtimeSelect("auto_title")).toContainText(nextModel);
   await expect(settingsUI.roles.saveButton).toBeEnabled();
 
   const applyResponse = appPage.waitForResponse(
@@ -450,7 +469,7 @@ test("operator routes a background role, persists it across reload, and keeps bu
   await reloadDaemonServedPage(appPage, runtime, "/settings/roles", {
     readyTestId: "settings-page-roles",
   });
-  await expect(settingsUI.roles.fieldInput("auto_title", "model")).toHaveValue(nextModel);
+  await expect(settingsUI.roles.routeSummary("auto_title")).toContainText(nextModel);
 
   const section = await runtime.requestJSON<{ config: { auto_title: { model: string } } }>(
     "/api/settings/roles"

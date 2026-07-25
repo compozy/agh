@@ -18,6 +18,12 @@ export interface OnboardingDraftState {
   model: string;
   reasoning: ReasoningEffort | "";
   authMode: OnboardingAuthMode;
+  /**
+   * False while `authMode` is still the harness-derived default, true once the
+   * operator picks a mode. Changing provider re-arms the default by clearing it,
+   * which keeps the effective mode derived state instead of an effect.
+   */
+  authModeTouched: boolean;
   envVar: string;
   apiKey: string;
   workspaces: OnboardingWorkspaceDraft[];
@@ -38,12 +44,14 @@ const initialState: OnboardingDraftState = {
   model: "",
   reasoning: "",
   authMode: "native_cli",
+  authModeTouched: false,
   envVar: "",
   apiKey: "",
   workspaces: [],
 };
 
-const storageKey = "agh:onboarding:draft:v3";
+/** Bumped on every draft-shape change; drafts are never migrated. */
+export const ONBOARDING_DRAFT_STORAGE_KEY = "agh:onboarding:draft:v4";
 
 const draftStorage = createJSONStorage<OnboardingDraftState>(() => {
   if (typeof window === "undefined") {
@@ -69,7 +77,7 @@ export const useOnboardingDraftStore = create<OnboardingDraftStore>()(
       reset: () => set({ ...initialState }),
     }),
     {
-      name: storageKey,
+      name: ONBOARDING_DRAFT_STORAGE_KEY,
       storage: draftStorage,
       // The API key is intentionally NOT persisted — it lives only in memory.
       partialize: state => ({
@@ -79,6 +87,7 @@ export const useOnboardingDraftStore = create<OnboardingDraftStore>()(
         model: state.model,
         reasoning: state.reasoning,
         authMode: state.authMode,
+        authModeTouched: state.authModeTouched,
         envVar: state.envVar,
         apiKey: "",
         workspaces: state.workspaces,

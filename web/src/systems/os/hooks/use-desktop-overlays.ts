@@ -2,16 +2,26 @@ import { useState } from "react";
 
 import { useWindowManagerActions, useWindowManagerOverlay } from "./use-window-manager-store";
 
+/**
+ * One id per shell overlay, including one per menubar menu. Sharing a single
+ * slot is what keeps them mutually exclusive: opening the palette closes a
+ * menu, and hover-switching between menubar menus resolves through the
+ * race-safe functional update below regardless of which side fires first.
+ */
 export type DesktopOverlay =
+  | "agh-menu"
   | "workspace-menu"
   | "session-menu"
-  | "view-menu"
+  | "go-menu"
+  | "window-menu"
   | "help-menu"
   | "bell"
   | "palette"
   | "workspaces"
   | "desktops"
-  | "sessions";
+  | "sessions"
+  | "shortcuts"
+  | "about";
 
 type LocalDesktopOverlay = Exclude<DesktopOverlay, "desktops">;
 

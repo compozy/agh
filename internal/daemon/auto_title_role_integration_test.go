@@ -20,7 +20,7 @@ import (
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 )
 
-func TestAutoTitleRoleLiveToggleIntegration(t *testing.T) {
+func TestAutoTitleRoleIntegration(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should apply auto-title role toggles without a daemon restart", func(t *testing.T) {
@@ -44,34 +44,45 @@ func TestAutoTitleRoleLiveToggleIntegration(t *testing.T) {
 	})
 }
 
-func runAutoTitleRoleExhaustionIntegration(t *testing.T) {
+func startAutoTitleRoleHarness(
+	t *testing.T,
+	mutate func(*aghconfig.Config),
+) *e2etest.RuntimeHarness {
 	t.Helper()
-
 	acpmock.RequireDriver(t)
-
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
-			for _, provider := range []string{"unreachable-primary", "unreachable-fallback"} {
-				cfg.Providers[provider] = aghconfig.ProviderConfig{
-					Command:      "/missing/" + provider,
-					Harness:      aghconfig.ProviderHarnessACP,
-					AuthMode:     aghconfig.ProviderAuthModeNone,
-					NoneSecurity: aghconfig.ProviderNoneSecurityLocalTransport,
-				}
-			}
-			cfg.Roles.AutoTitle.Provider = "unreachable-primary"
-			cfg.Roles.AutoTitle.Model = "primary-model"
-			cfg.Roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
-				Provider: "unreachable-fallback",
-				Model:    "fallback-model",
-			}}
 			cfg.Roles.MemoryExtractor.Enabled = false
+			if mutate != nil {
+				mutate(cfg)
+			}
 		}},
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
 			FixtureAgent: "auto-title-agent",
 			AgentName:    "auto-title-agent",
 		}},
+	})
+}
+
+func runAutoTitleRoleExhaustionIntegration(t *testing.T) {
+	t.Helper()
+
+	harness := startAutoTitleRoleHarness(t, func(cfg *aghconfig.Config) {
+		for _, provider := range []string{"unreachable-primary", "unreachable-fallback"} {
+			cfg.Providers[provider] = aghconfig.ProviderConfig{
+				Command:      "/missing/" + provider,
+				Harness:      aghconfig.ProviderHarnessACP,
+				AuthMode:     aghconfig.ProviderAuthModeNone,
+				NoneSecurity: aghconfig.ProviderNoneSecurityLocalTransport,
+			}
+		}
+		cfg.Roles.AutoTitle.Provider = "unreachable-primary"
+		cfg.Roles.AutoTitle.Model = "primary-model"
+		cfg.Roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
+			Provider: "unreachable-fallback",
+			Model:    "fallback-model",
+		}}
 	})
 	registration, ok := harness.MockAgentRegistration("auto-title-agent")
 	if !ok {
@@ -87,12 +98,13 @@ func runAutoTitleRoleExhaustionIntegration(t *testing.T) {
 
 	logsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
 		"&type=role.fallback.used&limit=10"
+	sessionReader := openWorkspaceRoleSessionReader(t, ctx, harness)
 	waitForRuntimeCondition(t, "exhausted role cleanup", 10*time.Second, func() bool {
 		var logs aghcontract.LogsListResponse
 		if err := harness.UDSJSON(ctx, http.MethodGet, logsPath, nil, &logs); err != nil || len(logs.Events) != 1 {
 			return false
 		}
-		sessions := readAutoTitleRoleSessions(t, ctx, harness)
+		sessions := sessionReader()
 		return len(sessions) == 1 && sessions[0].ID == root.ID && sessions[0].State == string(sessionpkg.StateActive)
 	})
 
@@ -115,23 +127,13 @@ func runAutoTitleRoleExhaustionIntegration(t *testing.T) {
 func runAutoTitleRolePostAcceptanceFailureIntegration(t *testing.T) {
 	t.Helper()
 
-	acpmock.RequireDriver(t)
-
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
-			cfg.Roles.AutoTitle.Provider = acpmock.ProviderName
-			cfg.Roles.AutoTitle.Model = "primary-title-model"
-			cfg.Roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
-				Provider: acpmock.ProviderName,
-				Model:    "fallback-title-model",
-			}}
-			cfg.Roles.MemoryExtractor.Enabled = false
-		}},
-		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
-			FixtureAgent: "auto-title-agent",
-			AgentName:    "auto-title-agent",
-		}},
+	harness := startAutoTitleRoleHarness(t, func(cfg *aghconfig.Config) {
+		cfg.Roles.AutoTitle.Provider = acpmock.ProviderName
+		cfg.Roles.AutoTitle.Model = "primary-title-model"
+		cfg.Roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
+			Provider: acpmock.ProviderName,
+			Model:    "fallback-title-model",
+		}}
 	})
 	registration, ok := harness.MockAgentRegistration("auto-title-agent")
 	if !ok {
@@ -146,8 +148,9 @@ func runAutoTitleRolePostAcceptanceFailureIntegration(t *testing.T) {
 	}
 
 	var child store.SessionInfo
+	sessionReader := openWorkspaceRoleSessionReader(t, ctx, harness)
 	waitForRuntimeCondition(t, "accepted role child stopped", 10*time.Second, func() bool {
-		sessions := readAutoTitleRoleSessions(t, ctx, harness)
+		sessions := sessionReader()
 		active := 0
 		foundChild := false
 		for _, candidate := range sessions {
@@ -194,57 +197,59 @@ func runAutoTitleRolePostAcceptanceFailureIntegration(t *testing.T) {
 	}
 }
 
-func readAutoTitleRoleSessions(
+func readWorkspaceRoleSessions(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 ) []store.SessionInfo {
 	t.Helper()
+	return openWorkspaceRoleSessionReader(t, ctx, harness)()
+}
+
+func openWorkspaceRoleSessionReader(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) func() []store.SessionInfo {
+	t.Helper()
 
 	db, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
 	if err != nil {
-		t.Fatalf("OpenGlobalDB(auto-title role) error = %v", err)
+		t.Fatalf("OpenGlobalDB(workspace roles) error = %v", err)
 	}
-	sessions, listErr := db.ListSessions(ctx, store.SessionListQuery{
-		WorkspaceID: harness.WorkspaceID,
-		Limit:       100,
+	t.Cleanup(func() {
+		if closeErr := db.Close(context.Background()); closeErr != nil {
+			t.Errorf("Close(workspace roles global db) error = %v", closeErr)
+		}
 	})
-	closeErr := db.Close(ctx)
-	if listErr != nil {
-		t.Fatalf("ListSessions(auto-title role) error = %v", listErr)
+	return func() []store.SessionInfo {
+		sessions, listErr := db.ListSessions(ctx, store.SessionListQuery{
+			WorkspaceID: harness.WorkspaceID,
+			Limit:       100,
+		})
+		if listErr != nil {
+			t.Fatalf("ListSessions(workspace roles) error = %v", listErr)
+		}
+		return sessions
 	}
-	if closeErr != nil {
-		t.Fatalf("Close(auto-title role global db) error = %v", closeErr)
-	}
-	return sessions
 }
 
 func runAutoTitleRoleFallbackIntegration(t *testing.T) {
 	t.Helper()
 
-	acpmock.RequireDriver(t)
-
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
-			cfg.Providers["unreachable-role-provider"] = aghconfig.ProviderConfig{
-				Command:      "/missing/agh-role-provider",
-				Harness:      aghconfig.ProviderHarnessACP,
-				AuthMode:     aghconfig.ProviderAuthModeNone,
-				NoneSecurity: aghconfig.ProviderNoneSecurityLocalTransport,
-			}
-			cfg.Roles.AutoTitle.Provider = "unreachable-role-provider"
-			cfg.Roles.AutoTitle.Model = "unreachable-model"
-			cfg.Roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
-				Provider: acpmock.ProviderName,
-				Model:    "fallback-title-model",
-			}}
-			cfg.Roles.MemoryExtractor.Enabled = false
-		}},
-		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
-			FixtureAgent: "auto-title-agent",
-			AgentName:    "auto-title-agent",
-		}},
+	harness := startAutoTitleRoleHarness(t, func(cfg *aghconfig.Config) {
+		cfg.Providers["unreachable-role-provider"] = aghconfig.ProviderConfig{
+			Command:      "/missing/agh-role-provider",
+			Harness:      aghconfig.ProviderHarnessACP,
+			AuthMode:     aghconfig.ProviderAuthModeNone,
+			NoneSecurity: aghconfig.ProviderNoneSecurityLocalTransport,
+		}
+		cfg.Roles.AutoTitle.Provider = "unreachable-role-provider"
+		cfg.Roles.AutoTitle.Model = "unreachable-model"
+		cfg.Roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
+			Provider: acpmock.ProviderName,
+			Model:    "fallback-title-model",
+		}}
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -291,18 +296,8 @@ func runAutoTitleRoleFallbackIntegration(t *testing.T) {
 func runAutoTitleRoleLiveToggleIntegration(t *testing.T) {
 	t.Helper()
 
-	acpmock.RequireDriver(t)
-
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
-			cfg.Roles.AutoTitle.Enabled = false
-			cfg.Roles.MemoryExtractor.Enabled = false
-		}},
-		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
-			FixtureAgent: "auto-title-agent",
-			AgentName:    "auto-title-agent",
-		}},
+	harness := startAutoTitleRoleHarness(t, func(cfg *aghconfig.Config) {
+		cfg.Roles.AutoTitle.Enabled = false
 	})
 	registration, ok := harness.MockAgentRegistration("auto-title-agent")
 	if !ok {

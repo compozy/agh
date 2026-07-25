@@ -1,11 +1,11 @@
 ---
 title: "agh layout watch"
-description: "Watch the snapshot fence and later committed topology events"
+description: "Watch topology events and optional client presentation frames"
 ---
 
 ## agh layout watch
 
-Watch the snapshot fence and later committed topology events
+Watch topology events and optional client presentation frames
 
 ```
 agh layout watch [flags]
@@ -15,6 +15,7 @@ agh layout watch [flags]
 
 ```
       --after-revision uint   Resume strictly after this revision
+      --client string         Registered client ID for presentation frames
   -h, --help                  help for watch
       --workspace string      Workspace ID
 ```

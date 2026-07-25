@@ -33,7 +33,9 @@ export {
 } from "./roles-fixtures";
 export { handlers } from "./handlers";
 export {
+  settingsWindowManagerDesktopIds,
   settingsWindowManagerSectionFixture,
+  settingsWindowManagerSnapshotFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "./window-manager-fixtures";

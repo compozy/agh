@@ -1,5 +1,8 @@
 import { useDesktopDock } from "../hooks/use-desktop-dock";
 import type { ReactNode } from "react";
+
+import { cn } from "@agh/ui";
+
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { OsDockZone } from "./os-dock";
 import { OsDockTabBar } from "./os-dock-tab-bar";
@@ -10,7 +13,14 @@ export interface DesktopDockProps {
   sessionsOpen: boolean;
   onToggleSessions: () => void;
   pager: ReactNode;
+  /** First run: the dock is present but asleep until setup commits. */
+  dormant?: boolean;
 }
+
+/** Zone-level wake — the dock lifts back as one surface when setup finishes. */
+const DORMANT = "translate-y-1.5 opacity-50 saturate-50";
+const WAKE =
+  "transition-[opacity,filter,transform] duration-shell-slow ease-spring motion-reduce:transition-none";
 
 /**
  * The wired dock: floating renders the centered glass strip with proximity
@@ -24,15 +34,18 @@ export function DesktopDock({
   sessionsOpen,
   onToggleSessions,
   pager,
+  dormant = false,
 }: DesktopDockProps) {
   const { entries, presentation, magnify, handleSelect } = useDesktopDock(badges, {
     sessionsOpen,
     onToggleSessions,
   });
+  const dormancy = cn(WAKE, dormant && DORMANT);
 
   if (presentation === "compact") {
     return (
       <OsDockTabBar
+        className={dormancy}
         items={entries}
         leading={pager}
         onSelect={handleSelect}
@@ -43,6 +56,7 @@ export function DesktopDock({
 
   return (
     <OsDockZone
+      className={dormancy}
       items={entries}
       leading={pager}
       onSelect={handleSelect}

@@ -1,23 +1,50 @@
-import { KeyRound } from "lucide-react";
+import { Fragment } from "react";
+import { Check, KeyRound } from "lucide-react";
 
-import { cn, Eyebrow, Field, FieldLabel, Input, Spinner } from "@agh/ui";
+import { Eyebrow, Field, FieldLabel, Input, RadioCard, Spinner } from "@agh/ui";
 import { RuntimeSelector } from "@/systems/runtime";
 
 import type { OnboardingDefaultModelApi } from "../hooks/use-onboarding-default-model";
+import type { OnboardingModelFact } from "../lib/model-facts";
+import { ONBOARDING_SUMMARY_ID } from "../lib/onboarding-summary";
 import type { OnboardingAuthMode } from "../stores/use-onboarding-draft-store";
 
 const AUTH_OPTIONS: { mode: OnboardingAuthMode; title: string; description: string }[] = [
   {
     mode: "native_cli",
-    title: "Native CLI auth",
-    description: "Reuse the provider CLI already signed in on this machine.",
+    title: "Use the provider CLI",
+    description: "Reuse the sign-in already on this machine. Nothing to paste.",
   },
   {
     mode: "bound_secret",
-    title: "Provide an API key",
-    description: "Bind a key from an environment variable or paste it directly.",
+    title: "Use an API key",
+    description: "Bind a key from an environment variable, or paste one now.",
   },
 ];
+
+function ModelFacts({ facts }: { facts: OnboardingModelFact[] }) {
+  if (facts.length === 0) return null;
+  return (
+    <p
+      data-testid="onboarding-model-facts"
+      className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-form-hint text-faint"
+    >
+      {facts.map((fact, index) => (
+        <Fragment key={fact.id}>
+          {index > 0 ? (
+            <span aria-hidden="true" className="size-0.5 flex-none rounded-full bg-faint" />
+          ) : null}
+          <span>
+            {fact.value === null ? null : (
+              <span className="font-medium text-muted">{fact.value} </span>
+            )}
+            {fact.label}
+          </span>
+        </Fragment>
+      ))}
+    </p>
+  );
+}
 
 interface StepDefaultModelProps {
   model: OnboardingDefaultModelApi;
@@ -25,17 +52,17 @@ interface StepDefaultModelProps {
 
 export function StepDefaultModel({ model }: StepDefaultModelProps) {
   return (
-    <div className="flex flex-col gap-8" data-testid="onboarding-step-default-model">
+    <div className="mt-5.5 flex flex-col gap-5.5" data-testid="onboarding-step-default-model">
       <section>
-        <div id="onboarding-runtime-label" className="mb-3 flex items-center gap-2">
-          <Eyebrow className="text-subtle">Runtime</Eyebrow>
-        </div>
+        <Eyebrow id="onboarding-runtime-label" className="mb-2.5 block text-subtle">
+          Runtime
+        </Eyebrow>
         {model.providersLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted">
+          <div className="flex items-center gap-2 text-small-body text-muted">
             <Spinner /> Loading providers…
           </div>
         ) : model.providersError ? (
-          <p className="text-sm text-danger" role="alert">
+          <p className="text-small-body text-danger" role="alert">
             {model.providersError}
           </p>
         ) : (
@@ -53,63 +80,59 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
             triggerTestId="onboarding-runtime-select"
           />
         )}
+        <ModelFacts facts={model.facts} />
         {model.catalogError ? (
-          <p className="mt-2 text-xs text-danger" role="alert">
+          <p className="mt-2 text-form-hint text-danger" role="alert">
             {model.catalogError}
           </p>
         ) : null}
       </section>
 
       <section>
-        <div className="mb-3 flex items-center gap-2">
-          <Eyebrow className="text-subtle">Authentication</Eyebrow>
-        </div>
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <Eyebrow id="onboarding-auth-label" className="mb-2.5 block text-subtle">
+          How AGH signs in
+        </Eyebrow>
+        <div
+          role="radiogroup"
+          aria-labelledby="onboarding-auth-label"
+          className="grid grid-cols-1 gap-2.5 sm:grid-cols-2"
+        >
           {AUTH_OPTIONS.map(option => {
             const selected = option.mode === model.authMode;
             return (
-              <button
+              <RadioCard
                 key={option.mode}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => model.onAuthModeChange(option.mode)}
+                selected={selected}
+                onSelect={() => model.onAuthModeChange(option.mode)}
+                title={option.title}
+                titleClassName="min-w-0 flex-1"
+                description={option.description}
+                badge={
+                  <Check
+                    aria-hidden="true"
+                    className={selected ? "size-3.5 text-fg-strong" : "size-3.5 opacity-0"}
+                  />
+                }
+                className="p-3"
                 data-testid={`onboarding-auth-${option.mode}`}
-                className={cn(
-                  "flex gap-3 rounded-md bg-canvas-soft p-3.5 text-left ring-1 ring-inset ring-line transition-colors hover:bg-elevated",
-                  selected && "bg-surface-glaze ring-2 ring-accent"
-                )}
-              >
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "mt-0.5 size-4 flex-none rounded-full ring-2 ring-inset ring-line-strong",
-                    selected && "ring-4 ring-accent"
-                  )}
-                />
-                <span>
-                  <span className="block text-sm font-medium text-fg-strong">{option.title}</span>
-                  <span className="mt-0.5 block text-xs leading-5 text-subtle">
-                    {option.description}
-                  </span>
-                </span>
-              </button>
+              />
             );
           })}
         </div>
 
         {model.authMode === "bound_secret" ? (
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field>
               <FieldLabel>Environment variable</FieldLabel>
               <Input
                 value={model.envVar}
                 spellCheck={false}
+                autoComplete="off"
                 onChange={event => model.onEnvVarChange(event.currentTarget.value)}
                 placeholder="PROVIDER_API_KEY"
-                aria-invalid={
-                  model.configurationError ===
-                  "Enter the environment variable the provider expects."
-                }
+                aria-invalid={model.missingEnvVar}
+                aria-describedby={model.missingEnvVar ? ONBOARDING_SUMMARY_ID : undefined}
+                className="font-mono"
                 data-testid="onboarding-env-var"
               />
             </Field>
@@ -123,6 +146,7 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
                   type="password"
                   value={model.apiKey}
                   spellCheck={false}
+                  autoComplete="off"
                   onChange={event => model.onApiKeyChange(event.currentTarget.value)}
                   placeholder="sk-…"
                   className="pl-8"
@@ -131,11 +155,6 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
               </div>
             </Field>
           </div>
-        ) : null}
-        {model.configurationError ? (
-          <p className="mt-3 text-xs text-danger" role="alert">
-            {model.configurationError}
-          </p>
         ) : null}
       </section>
     </div>

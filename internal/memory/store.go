@@ -33,24 +33,24 @@ var (
 
 // Store manages memory files for the global and workspace scopes.
 type Store struct {
-	globalDir        string
-	workspaceDir     string
-	workspaceRoot    string
-	agentName        string
-	agentTier        memcontract.AgentTier
-	agentWorkspaceID string
-	maxIndexLines    int
-	maxIndexBytes    int
-	maxFileLines     int
-	maxFileBytes     int64
-	logger           *slog.Logger
-	catalog          *catalog
-	mu               *sync.Mutex
-	decisionMu       *sync.Mutex
-	mutationRevision *storeMutationRevision
-	recallSignals    recallSignalRecorderConfig
-	recallRecorders  *recallRecorderRegistry
-	decisionFactory  *decisionControllerFactoryState
+	globalDir                 string
+	workspaceDir              string
+	workspaceRoot             string
+	agentName                 string
+	agentTier                 memcontract.AgentTier
+	agentWorkspaceID          string
+	maxIndexLines             int
+	maxIndexBytes             int
+	maxFileLines              int
+	maxFileBytes              int64
+	logger                    *slog.Logger
+	catalog                   *catalog
+	mu                        *sync.Mutex
+	decisionMu                *sync.Mutex
+	mutationRevision          *storeMutationRevision
+	recallSignals             recallSignalRecorderConfig
+	recallRecorders           *recallRecorderRegistry
+	decisionControllerFactory *decisionControllerFactoryState
 }
 
 var _ memcontract.Backend = (*Store)(nil)

@@ -8,7 +8,8 @@ export const windowManagerSnapshotFixture: AghApiOkJsonResponseFor<
   "get",
   "/api/workspaces/{workspace_id}/window-manager"
 > = {
-  version: 1,
+  // SnapshotVersion (internal/windowmanager/types.go:9).
+  version: 2,
   workspace_id: storyDefaultWorkspaceId,
   revision: 12,
   desktops: [

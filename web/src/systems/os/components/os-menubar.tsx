@@ -1,37 +1,37 @@
 import { Bell, ChevronsUpDown, Settings } from "lucide-react";
 
-import { Icon, Logo } from "@agh/ui";
+import { Icon, Logo, Menubar, MenubarTrigger } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
 /**
- * The desktop menubar: AGH mark, workspace trigger, app menus, the approvals
- * bell, the ⌘K palette chip, and Settings. Glass shell chrome (the sanctioned
- * carve-out). The shell owns popovers, workspace switching, and palette
- * behavior; a control renders as a <button> only when a real callback is
- * supplied, otherwise as truthful presentation.
+ * The desktop menubar: AGH mark, workspace chip, app menus, the approvals bell,
+ * the ⌘K palette chip, and Settings. Glass shell chrome (the sanctioned
+ * carve-out).
  *
- * The mark uses the official `@agh/ui` `Logo` `symbol` at menubar chrome size.
+ * The mark, the workspace chip, and every app menu are menubar items, so one
+ * `role="menubar"` covers them all — arrow keys traverse the whole bar and
+ * hovering a sibling switches the open menu. The bell, the ⌘K chip, and the
+ * settings cog stay outside it: they are controls, not menus.
+ *
+ * The shell owns the menus themselves; a control renders as a real trigger only
+ * when a menu owner is supplied, otherwise as truthful presentation.
  */
 export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   /** Active workspace identity. */
   workspace: { name: string; monogram: string };
-  /** App menu labels. */
-  menus?: string[];
+  /** Composed `<MenubarMenu>` children rendered after the workspace chip. */
+  menus?: React.ReactNode;
   /** Approvals count from the bell aggregator; 0/undefined renders no badge. */
   notifications?: number;
   /** Non-interactive system status rendered before the approvals bell. */
   status?: React.ReactNode;
-  onLogoClick?: () => void;
-  onWorkspaceClick?: () => void;
-  onMenuClick?: (menu: string) => void;
-  onNotificationsClick?: () => void;
   onCommandClick?: () => void;
   onSettingsClick?: () => void;
-  /** Wraps the workspace trigger in a real popover/menu owner (shell wiring). */
-  wrapWorkspaceTrigger?: (trigger: React.ReactElement) => React.ReactNode;
-  /** Wraps one app-menu button in its dropdown owner (shell wiring). */
-  wrapMenuTrigger?: (menu: string, trigger: React.ReactElement) => React.ReactNode;
+  /** Renders the AGH mark inside its system-menu owner (shell wiring). */
+  logoMenu?: (trigger: React.ReactNode) => React.ReactNode;
+  /** Renders the workspace chip inside its menu owner (shell wiring). */
+  workspaceMenu?: (trigger: React.ReactNode) => React.ReactNode;
   /** Wraps the bell in its popover owner (shell wiring). */
   wrapBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
 }
@@ -42,7 +42,7 @@ const INTERACTIVE =
 interface ControlProps extends Omit<React.ComponentProps<"button">, "onClick" | "children"> {
   onClick?: () => void;
   children: React.ReactNode;
-  /** Hands the button to an overlay owner (popover/menu trigger `render`). */
+  /** Hands the button to an overlay owner (popover trigger `render`). */
   wrap?: (trigger: React.ReactElement) => React.ReactNode;
 }
 
@@ -72,6 +72,32 @@ function Control({ onClick, wrap, className, children, ...props }: ControlProps)
   );
 }
 
+interface MenuControlProps extends Omit<React.ComponentProps<"button">, "children"> {
+  children: React.ReactNode;
+  /** Renders the trigger inside its `MenubarMenu` owner (shell wiring). */
+  menu?: (trigger: React.ReactNode) => React.ReactNode;
+}
+
+/**
+ * A menubar item: a real `MenubarTrigger` when a menu owns it, else inert
+ * chrome. Chrome classes ride on the trigger itself so `MenubarTrigger`'s own
+ * defaults are merged away instead of stacking.
+ */
+function MenuControl({ menu, className, children, ...props }: MenuControlProps) {
+  if (!menu) {
+    return (
+      <span className={className} {...(props as React.ComponentProps<"span">)}>
+        {children}
+      </span>
+    );
+  }
+  return menu(
+    <MenubarTrigger className={cn(INTERACTIVE, className)} {...props}>
+      {children}
+    </MenubarTrigger>
+  );
+}
+
 function NotificationBadge({ count }: { count: number }) {
   return (
     <span className="absolute top-0.5 right-0 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-1 font-mono text-micro font-bold text-accent-ink">
@@ -82,21 +108,44 @@ function NotificationBadge({ count }: { count: number }) {
 
 export function OsMenuBar({
   workspace,
-  menus = ["Session", "View", "Help"],
+  menus,
   notifications,
   status,
-  onLogoClick,
-  onWorkspaceClick,
-  onMenuClick,
-  onNotificationsClick,
   onCommandClick,
   onSettingsClick,
-  wrapWorkspaceTrigger,
-  wrapMenuTrigger,
+  logoMenu,
+  workspaceMenu,
   wrapBellTrigger,
   className,
   ...props
 }: OsMenuBarProps) {
+  // Compact (<960px, `OS_COMPACT_BREAKPOINT`): the shell stops passing `menus`;
+  // every action stays reachable through the palette (US-019.EC-3).
+  const bar = (
+    <>
+      <MenuControl
+        data-slot="os-menubar-logo"
+        aria-label="AGH"
+        className="grid size-7 place-items-center rounded-menubar-control p-0"
+        menu={logoMenu}
+      >
+        <Logo variant="symbol" decorative className="size-menubar-logo" />
+      </MenuControl>
+      <MenuControl
+        data-slot="os-menubar-workspace"
+        className="flex h-7 items-center gap-menubar-workspace-gap rounded-md px-2"
+        menu={workspaceMenu}
+      >
+        <span className="grid size-workspace-avatar place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
+          {workspace.monogram}
+        </span>
+        <span className="text-small-body font-semibold text-fg-strong">{workspace.name}</span>
+        <Icon as={ChevronsUpDown} size="sm" className="text-subtle" />
+      </MenuControl>
+      {menus}
+    </>
+  );
+
   return (
     <header
       data-slot="os-menubar"
@@ -107,48 +156,15 @@ export function OsMenuBar({
       )}
       {...props}
     >
-      <div className="flex items-center gap-1">
-        <Control
-          data-slot="os-menubar-logo"
-          aria-label="AGH"
-          className="grid size-7 place-items-center rounded-menubar-control"
-          onClick={onLogoClick}
-        >
-          <Logo variant="symbol" decorative className="size-menubar-logo" />
-        </Control>
-        <Control
-          data-slot="os-menubar-workspace"
-          aria-haspopup={onWorkspaceClick || wrapWorkspaceTrigger ? "true" : undefined}
-          className="flex h-7 items-center gap-menubar-workspace-gap rounded-md px-2"
-          onClick={onWorkspaceClick}
-          wrap={wrapWorkspaceTrigger}
-        >
-          <span className="grid size-workspace-avatar place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
-            {workspace.monogram}
-          </span>
-          <span className="text-small-body font-semibold text-fg-strong">{workspace.name}</span>
-          <Icon as={ChevronsUpDown} size="sm" className="text-subtle" />
-        </Control>
-        {/* Compact (<960px, `OS_COMPACT_BREAKPOINT`): menus collapse; every
-            action stays reachable through the palette (US-019.EC-3). */}
-        <nav
-          data-slot="os-menubar-menus"
-          aria-label="Menus"
-          className="ml-1.5 hidden items-center min-[960px]:flex"
-        >
-          {menus.map(menu => (
-            <Control
-              key={menu}
-              data-menu={menu.toLowerCase()}
-              className="flex h-7 items-center rounded-md px-2.5 text-small-body text-muted"
-              onClick={onMenuClick ? () => onMenuClick(menu) : undefined}
-              wrap={wrapMenuTrigger ? trigger => wrapMenuTrigger(menu, trigger) : undefined}
-            >
-              {menu}
-            </Control>
-          ))}
-        </nav>
-      </div>
+      {logoMenu || workspaceMenu || menus ? (
+        <Menubar data-slot="os-menubar-menus" aria-label="System menus" className="gap-1">
+          {bar}
+        </Menubar>
+      ) : (
+        <div data-slot="os-menubar-menus" className="flex items-center gap-1">
+          {bar}
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         {status}
@@ -157,9 +173,8 @@ export function OsMenuBar({
           // The badge count reaches assistive tech through the label — the
           // visible badge alone would be stripped by a bare "Approvals" name.
           aria-label={notifications ? `Approvals, ${notifications} waiting` : "Approvals"}
-          aria-haspopup={onNotificationsClick || wrapBellTrigger ? "true" : undefined}
+          aria-haspopup={wrapBellTrigger ? "true" : undefined}
           className="relative grid size-7 place-items-center rounded-md text-muted"
-          onClick={onNotificationsClick}
           wrap={wrapBellTrigger}
         >
           <Icon as={Bell} size="lg" />

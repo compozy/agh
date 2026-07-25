@@ -161,9 +161,8 @@ func (e *forkedMemoryExtractor) Extract(
 	if !role.Enabled {
 		return nil, nil
 	}
-	agentName := role.AgentName
 	if role.Inherit {
-		agentName = strings.TrimSpace(turn.AgentID)
+		role.AgentName = strings.TrimSpace(turn.AgentID)
 	}
 	runCtx := context.WithoutCancel(ctx)
 	if e.deadline > 0 {
@@ -175,7 +174,6 @@ func (e *forkedMemoryExtractor) Extract(
 	if err != nil {
 		return nil, err
 	}
-	role.AgentName = agentName
 	child, err := e.spawnExtractorSession(runCtx, role, correlation, turn)
 	if child != nil {
 		defer e.stopChild(ctx, child.ID)

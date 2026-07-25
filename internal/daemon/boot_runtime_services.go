@@ -63,6 +63,7 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootRuntimeResourceGraph(state); err != nil {
 		return err
 	}
+	initializeRoleResolver(state)
 	return d.bootMemorySessionRuntime(ctx, state, cleanup)
 }
 

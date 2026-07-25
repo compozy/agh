@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useOnboardingDraftStore } from "../use-onboarding-draft-store";
-
-const STORAGE_KEY = "agh:onboarding:draft:v3";
+import {
+  ONBOARDING_DRAFT_STORAGE_KEY,
+  useOnboardingDraftStore,
+} from "../use-onboarding-draft-store";
 
 function persistedState(): Record<string, unknown> {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  const raw = window.localStorage.getItem(ONBOARDING_DRAFT_STORAGE_KEY);
   if (!raw) {
     return {};
   }
@@ -57,15 +58,26 @@ describe("useOnboardingDraftStore", () => {
     expect(useOnboardingDraftStore.getState().apiKey).toBe("sk-super-secret");
   });
 
+  it("persists whether the operator has overridden the harness auth default", () => {
+    expect(useOnboardingDraftStore.getState().authModeTouched).toBe(false);
+
+    useOnboardingDraftStore.getState().patch({ authMode: "bound_secret", authModeTouched: true });
+
+    expect(persistedState().authModeTouched).toBe(true);
+    expect(persistedState().authMode).toBe("bound_secret");
+  });
+
   it("resets to the initial draft", () => {
     const store = useOnboardingDraftStore.getState();
-    store.patch({ provider: "claude", model: "opus", apiKey: "x" });
+    store.patch({ provider: "claude", model: "opus", apiKey: "x", authModeTouched: true });
     store.addWorkspace({ path: "/a", name: "a" });
     store.reset();
     const state = useOnboardingDraftStore.getState();
     expect(state.provider).toBe("");
     expect(state.model).toBe("");
     expect(state.apiKey).toBe("");
+    expect(state.authMode).toBe("native_cli");
+    expect(state.authModeTouched).toBe(false);
     expect(state.workspaces).toEqual([]);
     expect(state.step).toBe(1);
   });

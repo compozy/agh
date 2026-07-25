@@ -1,161 +1,93 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 
-import type { OnboardingDefaultModelApi } from "../../hooks/use-onboarding-default-model";
-import type { OnboardingWorkspacesApi } from "../../hooks/use-onboarding-workspaces";
-import { StepDefaultModel } from "../step-default-model";
-import { StepWorkspaces } from "../step-workspaces";
-
-const noop = () => {};
-
-const baseModel: OnboardingDefaultModelApi = {
-  providersLoading: false,
-  providersError: null,
-  runtimeValue: { provider: "claude", model: "claude-opus-4-8", reasoning_effort: "high" },
-  runtimeProviders: [
-    { id: "claude", name: "Claude Code", harness: "acp", runtime_provider: "claude" },
-    { id: "codex", name: "Codex", harness: "acp", runtime_provider: "codex" },
-    { id: "gemini", name: "Gemini CLI", runtime_provider: "gemini" },
-    { id: "openclaw", name: "OpenClaw", runtime_provider: "openclaw" },
-  ],
-  runtimeModels: [
-    {
-      id: "claude-opus-4-8",
-      provider: "claude",
-      name: "Claude Opus 4.8",
-      efforts: ["low", "medium", "high", "xhigh", "max"],
-      availability: "live",
-      curated: true,
-      context_window: 1_000_000,
-      cost_input: 5,
-      cost_output: 25,
-      supports_tools: true,
-      reasoning_source: "catalog",
-    },
-    {
-      id: "claude-sonnet-5",
-      provider: "claude",
-      name: "Claude Sonnet 5",
-      efforts: ["low", "medium", "high", "xhigh", "max"],
-      availability: "live",
-      curated: true,
-      featured: true,
-      context_window: 1_000_000,
-      cost_input: 3,
-      cost_output: 15,
-      supports_tools: true,
-      reasoning_source: "catalog",
-    },
-  ],
-  authMode: "native_cli",
-  envVar: "",
-  apiKey: "",
-  catalogLoading: false,
-  catalogLoaded: true,
-  catalogRefreshing: false,
-  catalogError: null,
-  configurationError: null,
-  isValid: true,
-  isCommitting: false,
-  onRuntimeChange: noop,
-  onRefreshCatalog: noop,
-  onAuthModeChange: noop,
-  onEnvVarChange: noop,
-  onApiKeyChange: noop,
-  commit: async () => {},
-};
-
-const baseWorkspaces: OnboardingWorkspacesApi = {
-  currentPath: "/Users/operator/Dev",
-  parent: "/Users/operator",
-  home: "/Users/operator",
-  entries: [
-    { name: "compozy", path: "/Users/operator/Dev/compozy", is_dir: true },
-    { name: "infra", path: "/Users/operator/Dev/infra", is_dir: true },
-    { name: "notes", path: "/Users/operator/Dev/notes", is_dir: true },
-    { name: "README.md", path: "/Users/operator/Dev/README.md", is_dir: false },
-  ],
-  isBrowsing: false,
-  browseError: null,
-  workspaces: [{ path: "/Users/operator/Dev/compozy", name: "compozy" }],
-  isResolving: false,
-  isRemoving: false,
-  isCatalogLoading: false,
-  catalogError: null,
-  resolveError: null,
-  navigateTo: noop,
-  goToParent: noop,
-  goHome: noop,
-  addWorkspace: async () => {},
-  removeWorkspace: async () => {},
-  isAdded: (path: string) => path === "/Users/operator/Dev/compozy",
-  reloadCatalog: async () => {},
-};
+import { onboardingWizardFixture } from "../../mocks/setup-fixtures";
+import { OnboardingSetupFrame } from "../onboarding-setup-frame";
 
 const meta: Meta = {
   title: "systems/onboarding/components/Steps",
   parameters: { layout: "fullscreen" },
-  decorators: [
-    Story => (
-      <div className="min-h-dvh bg-canvas px-8 py-7">
-        <div className="mx-auto max-w-2xl">
-          <Story />
-        </div>
-      </div>
-    ),
-  ],
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const DefaultModelNativeCli: Story = {
-  render: () => <StepDefaultModel model={baseModel} />,
+  render: () => <OnboardingSetupFrame wizard={onboardingWizardFixture()} />,
 };
 
 export const DefaultModelApiKey: Story = {
   render: () => (
-    <StepDefaultModel
-      model={{ ...baseModel, authMode: "bound_secret", envVar: "ANTHROPIC_API_KEY" }}
+    <OnboardingSetupFrame
+      wizard={onboardingWizardFixture({
+        defaultModel: {
+          harness: "pi_acp",
+          providerName: "OpenRouter",
+          authMode: "bound_secret",
+          envVar: "OPENROUTER_API_KEY",
+        },
+      })}
     />
   ),
 };
 
 export const DefaultModelApiKeyMissingEnv: Story = {
   render: () => (
-    <StepDefaultModel
-      model={{
-        ...baseModel,
-        authMode: "bound_secret",
-        envVar: "",
-        configurationError: "Enter the environment variable the provider expects.",
-        isValid: false,
-      }}
+    <OnboardingSetupFrame
+      wizard={onboardingWizardFixture({
+        defaultModel: {
+          harness: "pi_acp",
+          providerName: "OpenRouter",
+          authMode: "bound_secret",
+          envVar: "",
+          missingEnvVar: true,
+          configurationError: "Enter the environment variable the provider expects.",
+          isValid: false,
+        },
+      })}
     />
   ),
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(body.getByTestId("onboarding-commit-error")).toHaveTextContent(
+      "Enter the environment variable the provider expects."
+    );
+    await expect(body.getByTestId("onboarding-continue")).toBeDisabled();
+  },
 };
 
 export const Workspaces: Story = {
-  render: () => <StepWorkspaces workspaces={baseWorkspaces} />,
+  render: () => (
+    <OnboardingSetupFrame wizard={onboardingWizardFixture({ wizard: { step: 2, maxStep: 2 } })} />
+  ),
 };
 
 export const WorkspacesEmpty: Story = {
-  render: () => <StepWorkspaces workspaces={{ ...baseWorkspaces, workspaces: [] }} />,
+  render: () => (
+    <OnboardingSetupFrame
+      wizard={onboardingWizardFixture({
+        wizard: { step: 2, maxStep: 2 },
+        workspaces: { workspaces: [] },
+      })}
+    />
+  ),
 };
 
 export const WorkspacesCatalogError: Story = {
   render: () => (
-    <StepWorkspaces
-      workspaces={{
-        ...baseWorkspaces,
-        catalogError: "Workspace catalog is unavailable. Check the daemon connection.",
-      }}
+    <OnboardingSetupFrame
+      wizard={onboardingWizardFixture({
+        wizard: { step: 2, maxStep: 2 },
+        workspaces: {
+          catalogError: "Workspace catalog is unavailable. Check the daemon connection.",
+        },
+      })}
     />
   ),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByRole("alert")).toHaveTextContent("Workspace catalog is unavailable");
-    await expect(canvas.getByRole("button", { name: "Retry" })).toBeEnabled();
-    await expect(canvas.getByRole("button", { name: "Remove compozy" })).toBeDisabled();
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(body.getByRole("alert")).toHaveTextContent("Workspace catalog is unavailable");
+    await expect(body.getByRole("button", { name: "Retry" })).toBeEnabled();
+    await expect(body.getByRole("button", { name: "Remove compozy" })).toBeDisabled();
   },
 };

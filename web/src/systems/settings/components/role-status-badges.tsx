@@ -5,13 +5,11 @@ import type { RoleBadge } from "../lib/roles-view-model";
 const BADGE_LABELS: Record<RoleBadge, string> = {
   builtin: "BUILTIN",
   inherit: "INHERIT",
-  off: "OFF",
 };
 
 const BADGE_TONE: Record<RoleBadge, PillTone> = {
   builtin: "neutral",
   inherit: "info",
-  off: "warning",
 };
 
 interface RoleStatusBadgesProps {
@@ -19,7 +17,7 @@ interface RoleStatusBadgesProps {
   "data-testid"?: string;
 }
 
-/** Compact `BUILTIN` / `INHERIT` / `OFF` pills projected from `RoleStatus`. */
+/** Compact `BUILTIN` / `INHERIT` pills projected from `RoleStatus`. */
 export function RoleStatusBadges({ badges, "data-testid": testId }: RoleStatusBadgesProps) {
   if (badges.length === 0) {
     return null;

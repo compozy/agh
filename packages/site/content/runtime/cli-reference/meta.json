@@ -37,6 +37,7 @@
         "---System---",
         "install",
         "config",
+        "roles",
         "update",
         "uninstall",
         "whoami",

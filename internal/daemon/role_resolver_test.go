@@ -43,7 +43,8 @@ func TestRoleResolver(t *testing.T) {
 			strings.TrimSpace(dream.AgentDef.Prompt) == "" {
 			t.Fatalf("Resolve(dream) = %#v, want embedded dreaming-curator", dream)
 		}
-		if dream.Provenance["agent"] != "default" || dream.Provenance["model"] != "default" {
+		if dream.Provenance["agent"] != aghconfig.RoleFieldSourceDefault ||
+			dream.Provenance["model"] != aghconfig.RoleFieldSourceDefault {
 			t.Fatalf("Resolve(dream) provenance = %#v, want default fields", dream.Provenance)
 		}
 
@@ -240,10 +241,7 @@ func TestRoleResolver(t *testing.T) {
 		resolver := newRoleResolver(&cfg, nil, nil)
 
 		_, err := resolver.Resolve(t.Context(), "", aghconfig.RoleDream)
-		if err == nil || !strings.Contains(
-			err.Error(),
-			`agent model is required when provider "model-required" has no default model`,
-		) {
+		if err == nil || !errors.Is(err, aghconfig.ErrRuntimeModelRequired) {
 			t.Fatalf("Resolve(dream) error = %v, want missing runtime model", err)
 		}
 	})
@@ -255,8 +253,12 @@ func TestRoleResolver(t *testing.T) {
 		global.Providers["mock"] = aghconfig.ProviderConfig{Command: "mock-acp"}
 		global.Roles.Dream.Provider = "mock"
 		global.Roles.Dream.Model = "global-model"
+		global.RoleSources[aghconfig.RoleDream][aghconfig.RoleFieldProvider] = aghconfig.RoleFieldSourceGlobal
+		global.RoleSources[aghconfig.RoleDream][aghconfig.RoleFieldModel] = aghconfig.RoleFieldSourceGlobal
 		workspaceA := global
 		workspaceA.Roles.Dream.Model = "workspace-model"
+		workspaceA.RoleSources = aghconfig.CloneRoleFieldSources(global.RoleSources)
+		workspaceA.RoleSources[aghconfig.RoleDream][aghconfig.RoleFieldModel] = aghconfig.RoleFieldSourceWorkspace
 		workspaceB := global
 		resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]aghconfig.Config{
 			"ws-a": workspaceA,
@@ -271,8 +273,9 @@ func TestRoleResolver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Resolve(ws-b) error = %v", err)
 		}
-		if resolvedA.Model != "workspace-model" || resolvedA.Provenance["model"] != "workspace" ||
-			resolvedB.Model != "global-model" || resolvedB.Provenance["model"] != "global" {
+		if resolvedA.Model != "workspace-model" ||
+			resolvedA.Provenance["model"] != aghconfig.RoleFieldSourceWorkspace ||
+			resolvedB.Model != "global-model" || resolvedB.Provenance["model"] != aghconfig.RoleFieldSourceGlobal {
 			t.Fatalf("workspace provenance = a:%#v b:%#v", resolvedA, resolvedB)
 		}
 		if resolvedA.Provenance["agent"] != aghconfig.RoleFieldSourceDefault ||
@@ -290,12 +293,37 @@ func TestRoleResolver(t *testing.T) {
 
 		cfg := roleResolverConfig()
 		cfg.Roles.Dream.Enabled = false
+		cfg.Roles.Dream.Agent = "missing-curator"
+		cfg.Roles.Dream.Provider = "model-required"
+		cfg.Providers["model-required"] = aghconfig.ProviderConfig{
+			Command: "pi-acp", Harness: aghconfig.ProviderHarnessPiACP,
+		}
 		resolved, err := newRoleResolver(&cfg, nil, nil).Resolve(t.Context(), "", aghconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("Resolve(dream) error = %v", err)
 		}
 		if resolved.Enabled {
 			t.Fatalf("Resolve(dream) Enabled = true, want false")
+		}
+		if resolved.AgentName != "" || resolved.Model != "" {
+			t.Fatalf("Resolve(dream) = %#v, want no resolved route for disabled role", resolved)
+		}
+	})
+
+	t.Run("Should allow direct ACP roles without a runtime model", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := roleResolverConfig()
+		cfg.Providers["direct-acp"] = aghconfig.ProviderConfig{
+			Command: "direct-agent acp", Harness: aghconfig.ProviderHarnessACP,
+		}
+		cfg.Roles.Dream.Provider = "direct-acp"
+		resolved, err := newRoleResolver(&cfg, nil, nil).Resolve(t.Context(), "", aghconfig.RoleDream)
+		if err != nil {
+			t.Fatalf("Resolve(dream) error = %v", err)
+		}
+		if resolved.Provider != "direct-acp" || resolved.Model != "" {
+			t.Fatalf("Resolve(dream) = %#v, want direct ACP provider without a model", resolved)
 		}
 	})
 }

@@ -17,7 +17,7 @@ test("boots against the daemon-served onboarding shell and captures a trace plus
   browserArtifacts,
   runtime,
 }) => {
-  await expect(appPage.getByTestId("onboarding-wizard")).toBeVisible();
+  await expect(appPage.getByTestId("onboarding-setup-panel")).toBeVisible();
 
   const manifest = await browserArtifacts.persist(appPage);
   expect(manifest.artifacts).toEqual(
@@ -49,7 +49,7 @@ test("boots when the optional view transition never invokes its update callback"
 
     await coldPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
 
-    await expect(coldPage.getByTestId("onboarding-wizard")).toBeVisible();
+    await expect(coldPage.getByTestId("onboarding-setup-panel")).toBeVisible();
   } finally {
     await coldPage.close();
   }
@@ -60,7 +60,7 @@ test("records harness scenario contract, viewport evidence, and HTTP UDS CLI par
   browserArtifacts,
   runtime,
 }) => {
-  await expect(appPage.getByTestId("onboarding-wizard")).toBeVisible();
+  await expect(appPage.getByTestId("onboarding-setup-panel")).toBeVisible();
 
   const harnessContract = e2eScenarioContracts.find(contract => contract.id === "TC-HARNESS-001");
   expect(harnessContract).toMatchObject({
@@ -90,7 +90,7 @@ test("records harness scenario contract, viewport evidence, and HTTP UDS CLI par
 
   const viewportEvidence = await captureViewportEvidence({
     assertVisible: async () => {
-      await expect(appPage.getByTestId("onboarding-wizard")).toBeVisible();
+      await expect(appPage.getByTestId("onboarding-setup-panel")).toBeVisible();
     },
     browserArtifacts,
     moduleName: "harness-smoke",
@@ -134,7 +134,7 @@ test("captures console and network diagnostics after a forced failure path", asy
   browserArtifacts,
   runtime,
 }) => {
-  await expect(appPage.getByTestId("onboarding-wizard")).toBeVisible();
+  await expect(appPage.getByTestId("onboarding-setup-panel")).toBeVisible();
 
   const failure = await appPage.evaluate(async () => {
     console.error("agh-playwright-forced-console-error");

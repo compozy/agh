@@ -10,87 +10,97 @@ interface StepWorkspacesProps {
   workspaces: OnboardingWorkspacesApi;
 }
 
+/**
+ * Browse on the left, confirm on the right: the two columns close flush at a
+ * fixed split height so the panel keeps one shape while folders come and go.
+ */
 export function StepWorkspaces({ workspaces }: StepWorkspacesProps) {
   const selected = workspaces.workspaces;
 
   return (
-    <div className="flex flex-col gap-6" data-testid="onboarding-step-workspaces">
-      <section className="flex flex-col gap-3">
-        <Eyebrow className="text-subtle">Browse for a folder</Eyebrow>
-        <DirectoryBrowser workspaces={workspaces} />
-        {workspaces.resolveError ? (
-          <p className="text-sm text-danger" role="alert" data-testid="onboarding-resolve-error">
-            {workspaces.resolveError}
-          </p>
-        ) : null}
-      </section>
+    <div className="mt-5" data-testid="onboarding-step-workspaces">
+      <div className="grid h-setup-split grid-cols-[1.12fr_1fr] gap-4.5 max-md:h-auto max-md:grid-cols-1 max-md:gap-5">
+        <section className="flex min-h-0 flex-col">
+          <Eyebrow className="mb-2.5 block text-subtle">Browse for a folder</Eyebrow>
+          <DirectoryBrowser workspaces={workspaces} />
+          {workspaces.resolveError ? (
+            <p
+              className="mt-2 text-form-hint text-danger"
+              role="alert"
+              data-testid="onboarding-resolve-error"
+            >
+              {workspaces.resolveError}
+            </p>
+          ) : null}
+        </section>
 
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <Eyebrow className="text-subtle">Selected workspaces</Eyebrow>
-          <span className="text-xs text-faint tabular-nums">
-            {selected.length} folder{selected.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        {workspaces.catalogError ? (
-          <Alert role="alert" variant="warning">
-            <AlertDescription className="flex items-center justify-between gap-3">
-              <span>{workspaces.catalogError}</span>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={workspaces.isCatalogLoading}
-                onClick={() => void workspaces.reloadCatalog()}
-              >
-                Retry
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {selected.length === 0 ? (
-          <p className="rounded-md border border-dashed border-line px-4 py-5 text-center text-sm text-faint">
-            No folders yet. Browse above and add at least one workspace to continue.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {selected.map(workspace => (
-              <li
-                key={workspace.path}
-                className="flex items-center gap-3 rounded-md bg-canvas-soft px-3 py-2.5 ring-1 ring-inset ring-line"
-                data-testid="onboarding-selected-workspace"
-              >
-                <span className="grid size-8 flex-none place-items-center rounded bg-elevated text-warning">
-                  <Folder className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-fg-strong">
-                    {workspace.name}
-                  </span>
-                  <span className="block truncate font-mono text-xs text-subtle">
-                    {workspace.path}
-                  </span>
-                </span>
+        <section className="flex min-h-0 flex-col">
+          <div className="flex items-baseline justify-between gap-2.5">
+            <Eyebrow className="text-subtle">Selected workspaces</Eyebrow>
+            <span className="text-micro text-faint tabular-nums">
+              {selected.length} folder{selected.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          {workspaces.catalogError ? (
+            <Alert role="alert" variant="warning" className="mt-2.5">
+              <AlertDescription className="flex items-center justify-between gap-3">
+                <span>{workspaces.catalogError}</span>
                 <Button
+                  type="button"
+                  size="sm"
                   variant="ghost"
-                  size="icon-sm"
-                  disabled={
-                    workspaces.isRemoving ||
-                    workspaces.isCatalogLoading ||
-                    workspaces.catalogError !== null
-                  }
-                  onClick={() => void workspaces.removeWorkspace(workspace.path)}
-                  aria-label={`Remove ${workspace.name}`}
+                  disabled={workspaces.isCatalogLoading}
+                  onClick={() => void workspaces.reloadCatalog()}
                 >
-                  <X className="size-3.5" />
+                  Retry
                 </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {selected.length === 0 ? (
+            <p className="mt-2.5 grid flex-1 place-items-center rounded-md border border-dashed border-line px-4 py-4 text-center text-small-body leading-5 text-faint max-md:min-h-24">
+              Nothing yet. Pick a folder on the left to add your first workspace.
+            </p>
+          ) : (
+            <ul className="mt-2.5 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto max-md:max-h-50">
+              {selected.map(workspace => (
+                <li
+                  key={workspace.path}
+                  className="flex flex-none items-center gap-2.5 rounded-md bg-canvas-soft px-2.5 py-2 ring-1 ring-inset ring-line"
+                  data-testid="onboarding-selected-workspace"
+                >
+                  <span className="grid size-7 flex-none place-items-center rounded-sm bg-elevated text-warning">
+                    <Folder className="size-3.5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-small-body font-medium text-fg-strong">
+                      {workspace.name}
+                    </span>
+                    <span className="block truncate font-mono text-micro text-subtle">
+                      {workspace.path}
+                    </span>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={
+                      workspaces.isRemoving ||
+                      workspaces.isCatalogLoading ||
+                      workspaces.catalogError !== null
+                    }
+                    onClick={() => void workspaces.removeWorkspace(workspace.path)}
+                    aria-label={`Remove ${workspace.name}`}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
 
-      <OnboardingNetworkMention className="border-t border-line pt-4" />
+      <OnboardingNetworkMention className="mt-4.5 border-t border-line pt-3.5" />
     </div>
   );
 }

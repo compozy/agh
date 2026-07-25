@@ -331,6 +331,19 @@ func TestMemoryV2ConfigValidationCoversOptionalBranches(t *testing.T) {
 		}
 	})
 
+	t.Run("Should require an enabled memory controller role for LLM mode", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(homePaths)
+		cfg.Memory.Controller.Mode = "llm"
+		cfg.Roles.MemoryController.Enabled = false
+
+		err := cfg.Validate()
+		if err == nil || !strings.Contains(err.Error(), "roles.memory_controller.enabled") {
+			t.Fatalf("Config.Validate() error = %v, want memory controller role requirement", err)
+		}
+	})
+
 	tests := []struct {
 		name  string
 		patch func(*MemoryConfig)

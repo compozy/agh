@@ -910,7 +910,7 @@ test("E2E-019: raw layout validate rejects invalid topology and apply commits at
   ).toHaveAttribute("aria-current", "page");
 });
 
-test("E2E-022: menubar operates workspaces, sessions, Desktops, help, logo, and settings", async ({
+test("E2E-022: menubar traverses five menus and operates workspaces, sessions, Desktops, shortcuts, About, and settings", async ({
   appPage,
   runtime,
 }) => {
@@ -930,7 +930,16 @@ test("E2E-022: menubar operates workspaces, sessions, Desktops, help, logo, and 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
   await appPage.keyboard.press("Escape");
 
-  await openMenu(appPage, "View");
+  // One menubar: arrow keys traverse it and hovering a sibling switches menus.
+  await openMenu(appPage, "Session");
+  await appPage.keyboard.press("ArrowRight");
+  await expect(appPage.getByTestId("os-menu-go")).toBeVisible();
+  await appPage.getByRole("menuitem", { name: "Help", exact: true }).hover();
+  await expect(appPage.getByTestId("os-menu-help")).toBeVisible();
+  await expect(appPage.getByTestId("os-menu-go")).toHaveCount(0);
+  await appPage.keyboard.press("Escape");
+
+  await openMenu(appPage, "Window");
   await appPage.getByTestId("os-menu-desktops-overview").click();
   const desktops = appPage.locator('[data-slot="desktops-overview"]');
   await expect(desktops).toBeVisible();
@@ -938,7 +947,7 @@ test("E2E-022: menubar operates workspaces, sessions, Desktops, help, logo, and 
   await expect(desktops.getByRole("button", { name: "Current desktop Desktop 1" })).toBeVisible();
   await appPage.keyboard.press("Escape");
 
-  await openMenu(appPage, "View");
+  await openMenu(appPage, "Go");
   await appPage.getByTestId("os-menu-workspaces-overview").click();
   const workspaces = appPage.getByTestId("os-workspaces-overview");
   await expect(workspaces).toBeVisible();
@@ -958,11 +967,23 @@ test("E2E-022: menubar operates workspaces, sessions, Desktops, help, logo, and 
   await appPage.keyboard.press("Escape");
 
   await openMenu(appPage, "Help");
-  await expect(appPage.getByTestId("os-help-shortcuts")).toBeVisible();
+  await appPage.getByTestId("os-menu-shortcuts").click();
+  const shortcuts = appPage.getByTestId("os-shortcuts-dialog");
+  await expect(shortcuts).toBeVisible();
+  // Every registry action is listed, bound or not.
+  await expect(shortcuts.getByTestId("os-shortcut-row-window.close")).toContainText("⌘W");
+  await expect(shortcuts.getByTestId("os-shortcut-row-window.tile.top")).toBeVisible();
   await appPage.keyboard.press("Escape");
+  await expect(shortcuts).toHaveCount(0);
 
-  await appPage.getByRole("button", { name: "AGH" }).click();
-  await expect(appPage.getByTestId("os-window-app:dashboard")).toBeVisible();
+  await openMenu(appPage, "AGH");
+  await appPage.getByTestId("os-menu-about").click();
+  const about = appPage.getByTestId("os-about-dialog");
+  await expect(about).toBeVisible();
+  await expect(about.getByTestId("os-about-row-pid")).not.toBeEmpty();
+  await appPage.keyboard.press("Escape");
+  await expect(about).toHaveCount(0);
+
   await appPage.getByRole("button", { name: "Settings" }).click();
   await expect(appPage.getByTestId("os-window-app:settings")).toBeVisible();
 });
@@ -1414,7 +1435,7 @@ test("E2E-013: appearance preferences stay client-local while minimize remains a
   const workspace = await prepareShell(appPage, runtime);
   await openDockApp(appPage, "Tasks", "tasks");
 
-  await openMenu(appPage, "View");
+  await openMenu(appPage, "AGH");
   await appPage.getByTestId("os-menu-appearance").click();
   await expect(appPage.getByTestId("os-appearance-pane")).toBeVisible();
   const revisionBeforePreferences = (await windowManagerSnapshot(runtime, workspace.id)).revision;
@@ -2257,7 +2278,10 @@ async function addSecondWorkspace(runtime: BrowserRuntime): Promise<WorkspacePay
   return await runtime.resolveWorkspace(rootDir);
 }
 
-async function openMenu(page: Page, name: "Session" | "View" | "Help"): Promise<void> {
-  await page.getByRole("button", { name, exact: true }).click();
+type MenubarMenu = "AGH" | "Session" | "Go" | "Window" | "Help";
+
+/** Menubar triggers are `role="menuitem"` inside the shell's single menubar. */
+async function openMenu(page: Page, name: MenubarMenu): Promise<void> {
+  await page.getByRole("menuitem", { name, exact: true }).click();
   await expect(page.getByTestId(`os-menu-${name.toLowerCase()}`)).toBeVisible();
 }

@@ -86,14 +86,12 @@ func (g *forkedAutoTitleGenerator) Generate(
 	if !role.Enabled {
 		return "", errAutoTitleRoleDisabled
 	}
-	agentName := role.AgentName
 	if role.Inherit {
-		agentName = strings.TrimSpace(request.AgentName)
+		role.AgentName = strings.TrimSpace(request.AgentName)
 	}
 	runCtx, cancelRun := autoTitleRunContext(ctx, g.deadline)
 	defer cancelRun()
 	prompt := renderAutoTitlePrompt(request)
-	role.AgentName = agentName
 	child, err := invokeRoleWithFallback(runCtx, role, correlation, func(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
@@ -145,7 +143,7 @@ func autoTitleRunContext(ctx context.Context, deadline time.Duration) (context.C
 	if deadline > 0 {
 		return context.WithTimeout(ctx, deadline)
 	}
-	return context.WithCancel(ctx)
+	return ctx, func() {}
 }
 
 func (g *forkedAutoTitleGenerator) stopAutoTitleSession(

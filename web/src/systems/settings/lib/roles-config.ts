@@ -50,53 +50,9 @@ export interface RoleFieldDescriptor {
   mono?: boolean;
 }
 
-const ENABLED_FIELD: RoleFieldDescriptor = {
-  key: "enabled",
-  label: "Enabled",
-  description: "Turn this background role on or off.",
-  kind: "switch",
-};
-const AGENT_FIELD: RoleFieldDescriptor = {
-  key: "agent",
-  label: "Agent",
-  description: "Route to a catalog agent, or leave empty for the role default.",
-  kind: "text",
-  placeholder: "role default",
-  mono: true,
-};
-const PROVIDER_FIELD: RoleFieldDescriptor = {
-  key: "provider",
-  label: "Provider",
-  description: "Provider override; empty inherits the agent or default provider.",
-  kind: "text",
-  placeholder: "inherit",
-  mono: true,
-};
-const MODEL_FIELD: RoleFieldDescriptor = {
-  key: "model",
-  label: "Model",
-  description: "Model override; empty inherits the provider or agent default.",
-  kind: "text",
-  placeholder: "inherit",
-  mono: true,
-};
-const REASONING_FIELD: RoleFieldDescriptor = {
-  key: "reasoning_effort",
-  label: "Reasoning effort",
-  description: "Effort override; empty inherits the provider or agent default.",
-  kind: "select",
-};
-
-const ROUTING_FIELDS: readonly RoleFieldDescriptor[] = [
-  ENABLED_FIELD,
-  AGENT_FIELD,
-  PROVIDER_FIELD,
-  MODEL_FIELD,
-  REASONING_FIELD,
-];
+const NO_FIELDS: readonly RoleFieldDescriptor[] = [];
 
 const COORDINATOR_FIELDS: readonly RoleFieldDescriptor[] = [
-  ...ROUTING_FIELDS,
   {
     key: "ttl",
     label: "Session TTL",
@@ -122,10 +78,6 @@ const COORDINATOR_FIELDS: readonly RoleFieldDescriptor[] = [
 ];
 
 const MEMORY_CONTROLLER_FIELDS: readonly RoleFieldDescriptor[] = [
-  ENABLED_FIELD,
-  PROVIDER_FIELD,
-  MODEL_FIELD,
-  REASONING_FIELD,
   {
     key: "timeout",
     label: "Timeout",
@@ -134,6 +86,9 @@ const MEMORY_CONTROLLER_FIELDS: readonly RoleFieldDescriptor[] = [
     placeholder: "250ms",
     mono: true,
   },
+];
+
+const MEMORY_CONTROLLER_ADVANCED_FIELDS: readonly RoleFieldDescriptor[] = [
   {
     key: "top_k",
     label: "Top K",
@@ -145,14 +100,38 @@ const MEMORY_CONTROLLER_FIELDS: readonly RoleFieldDescriptor[] = [
   { key: "max_tokens_out", label: "Max output tokens", kind: "number", min: 1 },
 ];
 
-/** Editable scalar fields per role (routing + role-specific policy). */
+/**
+ * Editable policy fields per role. Routing (`enabled`, `agent`, `provider`,
+ * `model`, `reasoning_effort`) is not listed here — it is owned by the role
+ * header switch, the agent picker, and the runtime selector.
+ */
 export const ROLE_FIELDS: Record<RoleName, readonly RoleFieldDescriptor[]> = {
   coordinator: COORDINATOR_FIELDS,
-  dream: ROUTING_FIELDS,
-  checkpoint_summary: ROUTING_FIELDS,
-  memory_extractor: ROUTING_FIELDS,
-  auto_title: ROUTING_FIELDS,
+  dream: NO_FIELDS,
+  checkpoint_summary: NO_FIELDS,
+  memory_extractor: NO_FIELDS,
+  auto_title: NO_FIELDS,
   memory_controller: MEMORY_CONTROLLER_FIELDS,
+};
+
+/** Operator-grade fields that live inside the role's Advanced fold. */
+export const ROLE_ADVANCED_FIELDS: Record<RoleName, readonly RoleFieldDescriptor[]> = {
+  coordinator: NO_FIELDS,
+  dream: NO_FIELDS,
+  checkpoint_summary: NO_FIELDS,
+  memory_extractor: NO_FIELDS,
+  auto_title: NO_FIELDS,
+  memory_controller: MEMORY_CONTROLLER_ADVANCED_FIELDS,
+};
+
+/** Roles that carry an `agent` key; the in-process controller has no session identity. */
+export const ROLE_SUPPORTS_AGENT: Record<RoleName, boolean> = {
+  coordinator: true,
+  dream: true,
+  checkpoint_summary: true,
+  memory_extractor: true,
+  auto_title: true,
+  memory_controller: false,
 };
 
 const REASONING_VALUES = [
@@ -192,6 +171,44 @@ export function applyRoleFieldEdit(
   } as SettingsRolesConfig;
 }
 
+/** The three routing keys the runtime selector owns as one decision. */
+export interface RoleRuntimeValue {
+  provider: string;
+  model: string;
+  reasoning_effort: string;
+}
+
+export const EMPTY_ROLE_RUNTIME: RoleRuntimeValue = {
+  provider: "",
+  model: "",
+  reasoning_effort: "",
+};
+
+/**
+ * Write provider, model and reasoning effort together. The runtime selector
+ * resolves them as one route, so they are never left half-applied.
+ */
+export function applyRoleRuntimeEdit(
+  config: SettingsRolesConfig,
+  role: RoleName,
+  value: RoleRuntimeValue
+): SettingsRolesConfig {
+  return {
+    ...config,
+    [role]: {
+      ...config[role],
+      provider: value.provider,
+      model: value.model,
+      reasoning_effort: value.reasoning_effort,
+    },
+  } as SettingsRolesConfig;
+}
+
+/** Clear the route so the role inherits again. */
+export function clearRoleRuntime(config: SettingsRolesConfig, role: RoleName): SettingsRolesConfig {
+  return applyRoleRuntimeEdit(config, role, EMPTY_ROLE_RUNTIME);
+}
+
 export function emptyFallbackEntry(): RoleFallbackEntry {
   return { provider: "", model: "", reasoning_effort: "" };
 }
@@ -226,15 +243,15 @@ export function removeFallbackEntry(
   );
 }
 
-export function updateFallbackEntry(
+/** Replace one fallback route wholesale — the selector emits all three keys. */
+export function setFallbackRuntime(
   config: SettingsRolesConfig,
   role: RoleName,
   index: number,
-  field: keyof RoleFallbackEntry,
-  value: string
+  value: RoleRuntimeValue
 ): SettingsRolesConfig {
   const chain = config[role].fallback_chain.map((entry, entryIndex) =>
-    entryIndex === index ? { ...entry, [field]: value } : entry
+    entryIndex === index ? { ...entry, ...value } : entry
   );
   return applyRoleFallbackChain(config, role, chain);
 }

@@ -29,42 +29,8 @@ func (d *Daemon) initializeDreamRuntime(state *bootState, sessions SessionManage
 		consolidation.NewSessionSpawner(
 			sessions,
 			state.workspaceResolver,
-			state.cfg.Memory.Enabled,
-			func(ctx context.Context, workspaceID string) (consolidation.SessionRoute, error) {
-				correlation := roleInvocationCorrelation{
-					WorkspaceID: strings.TrimSpace(workspaceID),
-					Event: store.EventCorrelation{
-						SchedulerReason: "dream-consolidation",
-						ActorKind:       string(taskpkg.ActorKindDaemon),
-						ActorID:         "dream-runtime",
-					},
-				}
-				roleCtx := withRoleInvocationCorrelation(ctx, correlation)
-				resolved, err := roles.Resolve(roleCtx, workspaceID, aghconfig.RoleDream)
-				if err != nil {
-					return consolidation.SessionRoute{}, fmt.Errorf("resolve dream role: %w", err)
-				}
-				return consolidation.SessionRoute{
-					Enabled:         resolved.Enabled,
-					AgentName:       resolved.AgentName,
-					Provider:        resolved.Provider,
-					Model:           resolved.Model,
-					ReasoningEffort: resolved.ReasoningEffort,
-					Fallbacks:       append([]aghconfig.RoleFallback(nil), resolved.Fallbacks...),
-					BeforeFallback: func(
-						fallbackCtx context.Context,
-						attempt int,
-						fallback aghconfig.RoleFallback,
-					) error {
-						return recordRoleFallbackEvent(fallbackCtx, resolved, correlation, attempt, roleAttemptRoute{
-							AgentName:       resolved.AgentName,
-							Provider:        fallback.Provider,
-							Model:           fallback.Model,
-							ReasoningEffort: fallback.ReasoningEffort,
-						})
-					},
-				}, nil
-			},
+			true,
+			dreamSessionRouteResolver(roles),
 		),
 		state.cfg.Memory.Dream.CheckInterval,
 		state.logger,
@@ -72,4 +38,41 @@ func (d *Daemon) initializeDreamRuntime(state *bootState, sessions SessionManage
 			return memory.NewConsolidationLock(lockPath).LastConsolidatedAt()
 		},
 	)
+}
+
+func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteResolver {
+	return func(ctx context.Context, workspaceID string) (consolidation.SessionRoute, error) {
+		correlation := roleInvocationCorrelation{
+			WorkspaceID: strings.TrimSpace(workspaceID),
+			Event: store.EventCorrelation{
+				SchedulerReason: "dream-consolidation",
+				ActorKind:       string(taskpkg.ActorKindDaemon),
+				ActorID:         "dream-runtime",
+			},
+		}
+		resolved, err := roles.Resolve(
+			withRoleInvocationCorrelation(ctx, correlation),
+			workspaceID,
+			aghconfig.RoleDream,
+		)
+		if err != nil {
+			return consolidation.SessionRoute{}, fmt.Errorf("resolve dream role: %w", err)
+		}
+		return consolidation.SessionRoute{
+			Enabled:         resolved.Enabled,
+			AgentName:       resolved.AgentName,
+			Provider:        resolved.Provider,
+			Model:           resolved.Model,
+			ReasoningEffort: resolved.ReasoningEffort,
+			Fallbacks:       append([]aghconfig.RoleFallback(nil), resolved.Fallbacks...),
+			BeforeFallback: func(fallbackCtx context.Context, attempt int, fallback aghconfig.RoleFallback) error {
+				return recordRoleFallbackEvent(fallbackCtx, resolved, correlation, attempt, roleAttemptRoute{
+					AgentName:       resolved.AgentName,
+					Provider:        fallback.Provider,
+					Model:           fallback.Model,
+					ReasoningEffort: fallback.ReasoningEffort,
+				})
+			},
+		}, nil
+	}
 }

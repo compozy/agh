@@ -59,6 +59,29 @@ func (m *Manager) prepareProviderForStart(
 	resolved aghconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, error) {
+	opts, secretBindings, err := m.prepareProviderStartPolicies(ctx, resolved, opts)
+	if err != nil {
+		return acp.StartOpts{}, err
+	}
+	if session != nil {
+		session.addProviderSecretRedactions(secretBindings.redactionCleanups)
+	}
+	if resolved.Harness == aghconfig.ProviderHarnessPiACP &&
+		resolved.AuthMode == aghconfig.ProviderAuthModeBoundSecret {
+		runtimeDir, err := m.materializePiRuntime(session, resolved, secretBindings.injectedTargetEnvs)
+		if err != nil {
+			return acp.StartOpts{}, err
+		}
+		opts.Env = setSessionStartEnvValue(opts.Env, "PI_CODING_AGENT_DIR", runtimeDir)
+	}
+	return opts, nil
+}
+
+func (m *Manager) prepareProviderStartPolicies(
+	ctx context.Context,
+	resolved aghconfig.ResolvedAgent,
+	opts acp.StartOpts,
+) (acp.StartOpts, providerSecretBindings, error) {
 	opts.Env = setProviderStartEnv(opts.Env, resolved)
 
 	var err error
@@ -70,7 +93,7 @@ func (m *Manager) prepareProviderForStart(
 			opts.Env,
 		)
 		if err != nil {
-			return acp.StartOpts{}, fmt.Errorf("session: apply provider home policy: %w", err)
+			return acp.StartOpts{}, providerSecretBindings{}, fmt.Errorf("session: apply provider home policy: %w", err)
 		}
 	}
 	if resolved.Harness == aghconfig.ProviderHarnessPiACP &&
@@ -82,35 +105,23 @@ func (m *Manager) prepareProviderForStart(
 			opts.Env,
 		)
 		if err != nil {
-			return acp.StartOpts{}, fmt.Errorf("session: apply pi auth directory policy: %w", err)
+			return acp.StartOpts{}, providerSecretBindings{}, fmt.Errorf(
+				"session: apply pi auth directory policy: %w",
+				err,
+			)
 		}
 	}
 	secretBindings, err := m.injectProviderSecrets(ctx, resolved, opts.Env)
 	if err != nil {
-		return acp.StartOpts{}, err
+		return acp.StartOpts{}, providerSecretBindings{}, err
 	}
 	opts.Env = secretBindings.env
-	if session != nil {
-		session.addProviderSecretRedactions(secretBindings.redactionCleanups)
-	}
-	if resolved.Harness == aghconfig.ProviderHarnessPiACP &&
-		resolved.AuthMode == aghconfig.ProviderAuthModeBoundSecret {
-		runtimeDir, err := m.materializePiRuntime(
-			session,
-			resolved,
-			secretBindings.injectedTargetEnvs,
-		)
-		if err != nil {
-			return acp.StartOpts{}, err
-		}
-		opts.Env = setSessionStartEnvValue(opts.Env, "PI_CODING_AGENT_DIR", runtimeDir)
-	}
 	opts.ProviderName = strings.TrimSpace(resolved.Provider)
 	providerConfig := providerConfigFromResolvedAgent(resolved)
 	opts.ProviderConfig = &providerConfig
 	probeEnv := providerProbeEnvForStart(m, resolved, opts.Env)
 	opts.ProviderAuthEnv = &probeEnv
-	return opts, nil
+	return opts, secretBindings, nil
 }
 
 func setProviderStartEnv(env []string, resolved aghconfig.ResolvedAgent) []string {

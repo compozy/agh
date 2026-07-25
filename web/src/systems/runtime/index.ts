@@ -16,6 +16,7 @@ export {
   type RuntimeConnectionTone,
 } from "./components/connection-indicator.logic";
 export {
+  reasoningEffortLabel,
   runtimeModelKey,
   RuntimeSelector,
   type RuntimeAvailability,

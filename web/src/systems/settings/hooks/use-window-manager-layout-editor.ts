@@ -10,10 +10,12 @@ import {
   windowManagerLayoutReviewOptions,
 } from "../lib/window-manager-layout-query";
 import type {
+  WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
   WindowManagerLayoutPreview,
   WindowManagerLayoutState,
   WindowManagerLayoutValidation,
+  WindowManagerNormalizedRect,
 } from "../lib/window-manager-layout-types";
 
 interface ReviewedLayout {
@@ -26,12 +28,26 @@ export function useWindowManagerLayoutEditor(
   initial: WindowManagerLayoutState
 ) {
   const queryClient = useQueryClient();
-  const [revision, setRevision] = useState(initial.revision);
-  const [baseline, setBaseline] = useState(initial.document);
-  const [draft, setDraft] = useState(initial.document);
+  // The daemon's own state, not a copy of it: the layout query shares the OS
+  // snapshot cache, which the window-manager stream writes whenever any client
+  // moves a window. Snapshotting it into local state (or remounting on every
+  // revision) is what used to throw the draft away mid-gesture.
+  const { revision, document: baseline } = initial;
+  const [draft, setDraft] = useState(baseline);
   const [importError, setImportError] = useState<string | null>(null);
+  const baselineFingerprint = windowManagerLayoutFingerprint(baseline);
   const currentFingerprint = windowManagerLayoutFingerprint(draft);
-  const dirty = currentFingerprint !== windowManagerLayoutFingerprint(baseline);
+  const [syncedFingerprint, setSyncedFingerprint] = useState(baselineFingerprint);
+
+  if (syncedFingerprint !== baselineFingerprint) {
+    // The workspace moved underneath the editor. Adopt it when there is nothing
+    // to lose; otherwise keep the edits — the review query is keyed by revision,
+    // so Apply re-arms only after the daemon has checked them against the new one.
+    if (currentFingerprint === syncedFingerprint) setDraft(baseline);
+    setSyncedFingerprint(baselineFingerprint);
+  }
+
+  const dirty = currentFingerprint !== baselineFingerprint;
 
   const updateDraft = (next: WindowManagerLayoutDocument) => {
     setDraft(next);
@@ -52,9 +68,10 @@ export function useWindowManagerLayoutEditor(
       const result = await applyWindowManagerLayout(workspaceId, revision, candidate);
       return { candidate, result };
     },
-    onSuccess: async ({ candidate, result }) => {
-      setRevision(result.revision);
-      setBaseline(candidate);
+    // Refetching is the whole reconciliation: the snapshot comes back at the new
+    // revision carrying the applied document, so the baseline and the draft meet
+    // and `dirty` falls to false without a second source of truth.
+    onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: windowManagerKeys.snapshot(workspaceId),
       });
@@ -74,35 +91,34 @@ export function useWindowManagerLayoutEditor(
     }
   };
 
-  const setGroupRoot = (
-    desktopIndex: number,
-    groupIndex: number,
-    root: WindowManagerLayoutDocument["desktops"][number]["groups"][number]["root"]
-  ) => {
-    const desktops = structuredClone(draft.desktops);
-    const group = desktops[desktopIndex]?.groups[groupIndex];
-    if (!group) return;
-    group.root = root;
-    updateDraft({ ...draft, desktops });
+  /** Whole-desktop swap: the canvas already produced an immutable next desktop. */
+  const setDesktop = (index: number, next: WindowManagerLayoutDesktop) => {
+    updateDraft({
+      ...draft,
+      desktops: draft.desktops.map((desktop, position) => (position === index ? next : desktop)),
+    });
   };
 
-  const setGroupFrame = (
-    desktopIndex: number,
-    groupIndex: number,
-    key: "x" | "y" | "w" | "h",
-    value: number
-  ) => {
-    const desktops = structuredClone(draft.desktops);
-    const group = desktops[desktopIndex]?.groups[groupIndex];
-    if (!group) return;
-    group.frame[key] = value;
-    updateDraft({ ...draft, desktops });
+  const setDesktopName = (index: number, name: string) => {
+    const desktop = draft.desktops[index];
+    if (!desktop) return;
+    setDesktop(index, { ...desktop, name });
+  };
+
+  const setFloatingRect = (windowId: string, floatingRect: WindowManagerNormalizedRect) => {
+    const window = draft.windows[windowId];
+    if (!window) return;
+    updateDraft({
+      ...draft,
+      windows: { ...draft.windows, [windowId]: { ...window, floatingRect } },
+    });
   };
 
   return {
     apply,
     dirty,
     draft,
+    exportDocument: () => structuredClone(draft),
     importDocument,
     importError,
     mutationError: review.error ?? apply.error,
@@ -111,8 +127,9 @@ export function useWindowManagerLayoutEditor(
     reviewed,
     reviewCurrent,
     revision,
-    setGroupFrame,
-    setGroupRoot,
+    setDesktop,
+    setDesktopName,
+    setFloatingRect,
     updateDraft,
     validation,
   };

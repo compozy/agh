@@ -114,10 +114,18 @@ export function buildWindowManagerProjections(
   return projections;
 }
 
-/** Maps every authoritative window to the same floor used by its interactive frame. */
-export function buildWindowManagerMinimums(snapshot: WindowManagerSnapshot): WindowMinimums {
+/**
+ * Maps every authoritative window to the same floor used by its interactive
+ * frame. Typed against the shape it reads rather than the whole snapshot, so the
+ * settings editor can pass a layout document and get identical minimums — the
+ * projector's `minimum-unmet` and `adaptive-stack` diagnostics only mean
+ * something if both surfaces measure against the same floor.
+ */
+export function buildWindowManagerMinimums(source: {
+  windows: Readonly<Record<string, { id: string; app: string }>>;
+}): WindowMinimums {
   return Object.fromEntries(
-    Object.values(snapshot.windows).map(window => {
+    Object.values(source.windows).map(window => {
       const app = osAppId(window.app);
       const minimum = app === null ? OS_WINDOW_CONSERVATIVE_MINIMUM : getOsAppMinimum(app);
       return [window.id, { width: minimum.width, height: minimum.height }];

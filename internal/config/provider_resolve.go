@@ -6,6 +6,21 @@ import (
 	"strings"
 )
 
+// ErrRuntimeModelRequired identifies providers that cannot resolve a model.
+var ErrRuntimeModelRequired = errors.New("runtime model required")
+
+type runtimeModelRequiredError struct {
+	provider string
+}
+
+func (e runtimeModelRequiredError) Error() string {
+	return fmt.Sprintf("agent model is required when provider %q has no default model", e.provider)
+}
+
+func (e runtimeModelRequiredError) Is(target error) bool {
+	return target == ErrRuntimeModelRequired
+}
+
 // ResolveProvider resolves a provider using the built-in registry and config overrides.
 func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 	providerName := CanonicalProviderName(name)
@@ -140,10 +155,7 @@ func resolveAgentModelRuntime(
 		modelSource = ""
 	}
 	if model == "" && provider.RequiresRuntimeModel() {
-		return "", "", "", "", fmt.Errorf(
-			"agent model is required when provider %q has no default model",
-			providerName,
-		)
+		return "", "", "", "", runtimeModelRequiredError{provider: providerName}
 	}
 
 	reasoningEffort := strings.TrimSpace(agent.ReasoningEffort)

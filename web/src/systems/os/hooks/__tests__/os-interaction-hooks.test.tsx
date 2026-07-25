@@ -20,6 +20,7 @@ import {
   useOsZoomMenu,
 } from "../use-os-zoom-menu";
 import { useOsWindow } from "../use-os-window";
+import { useOsWindowCommands } from "../use-os-window-commands";
 import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
 import { windowManagerStore } from "../../stores/window-manager-store";
@@ -438,6 +439,28 @@ describe("useOsShortcuts", () => {
     expect(liveShell.controller.undoLayout).toHaveBeenCalledOnce();
     input.remove();
   });
+
+  it("Should dispatch nothing while disabled, so first-run setup blocks the whole set", () => {
+    const { wrapper, controller } = createShell();
+    const handlers: OsShortcutHandlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onDesktops: vi.fn(),
+      onEscape: vi.fn(),
+    };
+    renderHook(() => useOsShortcuts(handlers, { enabled: false }), { wrapper });
+
+    fireEvent.keyDown(document, { key: "k", code: "KeyK", metaKey: true });
+    fireEvent.keyDown(document, { key: "n", code: "KeyN", metaKey: true });
+    fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true });
+    fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
+
+    expect(handlers.onPalette).not.toHaveBeenCalled();
+    expect(handlers.onNewSession).not.toHaveBeenCalled();
+    expect(handlers.onDesktops).not.toHaveBeenCalled();
+    expect(handlers.onEscape).not.toHaveBeenCalled();
+    expect(controller.undoLayout).not.toHaveBeenCalled();
+  });
 });
 
 describe("useOsZoomMenu", () => {
@@ -534,5 +557,96 @@ describe("useOsWinLayer", () => {
       height: 700,
       origin: { x: 24, y: 52 },
     });
+  });
+});
+
+describe("useOsWindowCommands", () => {
+  it("Should route focused-window lifecycle through the coordinator when the client is live", async () => {
+    const shell = createShell();
+    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
+
+    expect(result.current.commandsAvailable).toBe(true);
+    const actions = result.current.focusedWindowActions;
+    if (actions === null) throw new Error("a focused live window must expose lifecycle actions");
+    await act(async () => actions.close());
+    expect(shell.state.closeWindow).toHaveBeenCalledWith("window:primary");
+    await act(async () => actions.minimize());
+    expect(shell.state.minimizeWindow).toHaveBeenCalledWith("window:primary");
+    expect(actions.zoom).not.toBeNull();
+    // The fixture window is already floating, so there is nothing to convert.
+    expect(actions.makeFloating).toBeNull();
+  });
+
+  it("Should withhold every window command while the client is not live", () => {
+    const shell = createShell({ live: false });
+    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
+
+    expect(result.current.commandsAvailable).toBe(false);
+    expect(result.current.focusedWindowActions).toBeNull();
+    expect(result.current.placementCommands).toHaveLength(0);
+    expect(result.current.arrangeCommands).toHaveLength(0);
+    expect(result.current.canToggleFloating).toBe(false);
+    expect(result.current.canBalanceLayout).toBe(false);
+    expect(result.current.canEditLayoutHistory).toBe(false);
+    expect(result.current.canFocusDirection).toBe(false);
+    expect(result.current.canSwitchDesktop).toBe(false);
+  });
+
+  it("Should offer arrange presets only while a visible peer exists", () => {
+    const withPeer = renderHook(() => useOsWindowCommands(), { wrapper: createShell().wrapper });
+    expect(withPeer.result.current.arrangeCommands.length).toBeGreaterThan(0);
+
+    const alone = renderHook(() => useOsWindowCommands(), {
+      wrapper: createShell({ withPeer: false }).wrapper,
+    });
+    expect(alone.result.current.arrangeCommands).toHaveLength(0);
+    expect(alone.result.current.placementCommands.length).toBeGreaterThan(0);
+  });
+
+  it("Should enable desktop switching only past a second desktop", () => {
+    const shell = createShell();
+    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
+    expect(result.current.canSwitchDesktop).toBe(false);
+
+    act(() =>
+      shell.setRuntimeState({
+        desktops: [
+          {
+            id: "desktop:main",
+            name: "Main",
+            order: 0,
+            purpose: "standard",
+            focusOwner: null,
+            groups: [],
+            floating: [],
+          },
+          {
+            id: "desktop:second",
+            name: "Second",
+            order: 1,
+            purpose: "standard",
+            focusOwner: null,
+            groups: [],
+            floating: [],
+          },
+        ],
+      })
+    );
+    expect(result.current.canSwitchDesktop).toBe(true);
+    act(() => result.current.switchDesktop("next"));
+    expect(shell.controller.switchDesktopDirection).toHaveBeenCalledWith("next");
+  });
+
+  it("Should resolve shortcut glyphs from the live window-manager config", () => {
+    const shell = createShell();
+    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
+    expect(result.current.shortcutLabels["window.close"]).toBe("⌘W");
+
+    act(() =>
+      shell.setRuntimeState({
+        windowManagerConfig: { ...CONFIG, shortcuts: { "window.close": "control+shift+KeyW" } },
+      })
+    );
+    expect(result.current.shortcutLabels["window.close"]).toBe("⌃⇧W");
   });
 });

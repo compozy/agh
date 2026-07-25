@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/config/lifecycle"
@@ -50,7 +51,7 @@ func (s *service) updateRolesSection(
 	if req.Roles == nil {
 		return MutationResult{}, validationError(errors.New("settings: roles section payload is required"))
 	}
-	desired := cloneRolesConfig(req.Roles)
+	desired := aghconfig.CloneRolesConfig(req.Roles)
 	if err := desired.Validate("roles", &loaded.config); err != nil {
 		return MutationResult{}, validationError(err)
 	}
@@ -205,38 +206,14 @@ func (s *service) loadGlobalSectionUpdate(
 	scope ScopeKind,
 	workspaceID string,
 ) (aghconfig.Config, aghconfig.WriteTarget, error) {
-	normalizedScope, normalizedWorkspaceID, err := s.normalizeReadScope(scope, workspaceID)
+	loaded, err := s.loadScopedSectionUpdate(ctx, section, scope, workspaceID, ScopeGlobal)
 	if err != nil {
-		return aghconfig.Config{}, aghconfig.WriteTarget{}, fmt.Errorf("settings: update section %q: %w", section, err)
+		return aghconfig.Config{}, aghconfig.WriteTarget{}, err
 	}
-	if normalizedScope != ScopeGlobal {
-		return aghconfig.Config{}, aghconfig.WriteTarget{}, conflictError(
-			fmt.Errorf("settings: section %q does not support workspace scope", section),
-		)
-	}
-
-	cfg, _, err := s.loadConfig(ctx, normalizedScope, normalizedWorkspaceID)
-	if err != nil {
-		return aghconfig.Config{}, aghconfig.WriteTarget{}, fmt.Errorf(
-			"settings: load section %q config: %w",
-			section,
-			err,
-		)
-	}
-
-	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
-	if err != nil {
-		return aghconfig.Config{}, aghconfig.WriteTarget{}, fmt.Errorf(
-			"settings: resolve section %q write target: %w",
-			section,
-			err,
-		)
-	}
-
-	return cfg, target, nil
+	return loaded.config, loaded.target, nil
 }
 
-type rolesSectionUpdate struct {
+type scopedSectionUpdate struct {
 	config        aghconfig.Config
 	target        aghconfig.WriteTarget
 	scope         ScopeKind
@@ -244,54 +221,71 @@ type rolesSectionUpdate struct {
 	workspaceRoot string
 }
 
-func (s *service) loadRolesSectionUpdate(
+func (s *service) loadScopedSectionUpdate(
 	ctx context.Context,
+	section SectionName,
 	scope ScopeKind,
 	workspaceID string,
-) (rolesSectionUpdate, error) {
+	allowedScopes ...ScopeKind,
+) (scopedSectionUpdate, error) {
 	normalizedScope, normalizedWorkspaceID, err := s.normalizeReadScope(scope, workspaceID)
 	if err != nil {
-		return rolesSectionUpdate{}, err
+		return scopedSectionUpdate{}, fmt.Errorf("settings: update section %q: %w", section, err)
 	}
-	if normalizedScope != ScopeGlobal && normalizedScope != ScopeWorkspace {
-		return rolesSectionUpdate{}, conflictError(
-			fmt.Errorf("settings: section %q does not support %s scope", SectionRoles, normalizedScope),
+	supported := slices.Contains(allowedScopes, normalizedScope)
+	if !supported {
+		if len(allowedScopes) == 1 && allowedScopes[0] == ScopeGlobal {
+			return scopedSectionUpdate{}, conflictError(
+				fmt.Errorf("settings: section %q does not support workspace scope", section),
+			)
+		}
+		return scopedSectionUpdate{}, conflictError(
+			fmt.Errorf("settings: section %q does not support %s scope", section, normalizedScope),
 		)
 	}
+
 	cfg, resolved, err := s.loadConfig(ctx, normalizedScope, normalizedWorkspaceID)
 	if err != nil {
-		return rolesSectionUpdate{}, fmt.Errorf(
+		return scopedSectionUpdate{}, fmt.Errorf(
 			"settings: load section %q config: %w",
-			SectionRoles,
+			section,
 			err,
 		)
 	}
+
 	writeScope := aghconfig.WriteScopeGlobal
 	workspaceRoot := ""
 	if normalizedScope == ScopeWorkspace {
 		if resolved == nil {
-			return rolesSectionUpdate{}, errors.New(
-				"settings: resolved workspace is required for roles update",
-			)
+			return scopedSectionUpdate{}, errors.New("settings: resolved workspace is required for section update")
 		}
 		writeScope = aghconfig.WriteScopeWorkspace
 		workspaceRoot = resolved.RootDir
 	}
 	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, writeScope)
 	if err != nil {
-		return rolesSectionUpdate{}, fmt.Errorf(
+		return scopedSectionUpdate{}, fmt.Errorf(
 			"settings: resolve section %q write target: %w",
-			SectionRoles,
+			section,
 			err,
 		)
 	}
-	return rolesSectionUpdate{
+
+	return scopedSectionUpdate{
 		config:        cfg,
 		target:        target,
 		scope:         normalizedScope,
 		workspaceID:   normalizedWorkspaceID,
 		workspaceRoot: workspaceRoot,
 	}, nil
+}
+
+func (s *service) loadRolesSectionUpdate(
+	ctx context.Context,
+	scope ScopeKind,
+	workspaceID string,
+) (scopedSectionUpdate, error) {
+	return s.loadScopedSectionUpdate(ctx, SectionRoles, scope, workspaceID, ScopeGlobal, ScopeWorkspace)
 }
 
 func (s *service) updateConfigSection(

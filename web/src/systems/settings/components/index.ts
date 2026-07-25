@@ -37,8 +37,8 @@ export type { SettingsChoiceGroupProps, SettingsChoiceOption } from "./settings-
 export { SettingsTile, SettingsTiles } from "./settings-tiles";
 export type { SettingsTileProps } from "./settings-tiles";
 export { SettingsAdvancedFold, SettingsProvChip } from "./settings-advanced-fold";
-export { RoleSettingsGroup } from "./role-settings-group";
-export type { RoleSettingsGroupProps } from "./role-settings-group";
+export { RoleList } from "./role-list";
+export type { RoleListProps } from "./role-list";
 export {
   SettingsHeroBoard,
   type SettingsHeroBoardProps,
@@ -67,4 +67,5 @@ export { SettingsSaveBar } from "./settings-save-bar";
 export { SettingsSourceBadge } from "./settings-source-badge";
 export type { SettingsSource } from "./settings-source-badge";
 export { WindowManagerConfigEditor } from "./window-manager-config-editor";
-export { WindowManagerLayoutDocumentEditor } from "./window-manager-layout-document-editor";
+export { LayoutStage } from "./layouts/layout-stage";
+export { LayoutProfileGrid } from "./layouts/layout-profile-grid";

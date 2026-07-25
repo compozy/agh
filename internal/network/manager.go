@@ -328,6 +328,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	m.closed = true
+	// Cancel managed context before Leave so waiters observe shutdown first.
 	m.cancel()
 	sessionIDs := make([]string, 0, len(m.sessions))
 	for sessionID := range m.sessions {

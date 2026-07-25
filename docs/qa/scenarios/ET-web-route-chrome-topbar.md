@@ -18,8 +18,8 @@ overlaps: ET-web-catalog-navigation; ET-web-tasks-mode-url; ET-web-jobs-triggers
 
 Added by Route Chrome alignment (2026-07-17). Flag only — retest in the next QA cycle.
 
-Verify against `docs/design/opendesign/os/pagehead-redesign.html` (§02–§05) and
-`docs/design/opendesign/os/OS-V2-DELIVERY.md` (unified window head).
+Verify against `docs/design/opendesign/os/pagehead-redesign.html` (§02–§05), which owns the
+unified window head contract.
 
 QA impact 2026-07-20: OS Shell Task 08 absorbed PageHead into the window head — 44px identity,
 optional 38px strip, window-local drill-in crumbs (no `agh /` workspace prefix), document

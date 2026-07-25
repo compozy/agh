@@ -3,17 +3,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import {
-  providerNeedsAuth,
-  useRuntimeModelCatalog,
-  type RuntimeCatalogProvider,
-} from "@/systems/model-catalog";
+import { useRuntimeModelCatalog, type RuntimeCatalogProvider } from "@/systems/model-catalog";
 import type {
   RuntimeModelOption,
   RuntimeProviderOption,
   RuntimeSelectorValue,
 } from "@/systems/runtime";
-import { useSettingsProviders, type SettingsProviderEntry } from "@/systems/settings";
+import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
 import type { SessionProviderOption } from "@/systems/workspace";
 import { useWorkspace } from "@/systems/workspace";
 
@@ -29,19 +25,6 @@ function describeError(fallback: string, error: unknown): string {
     return error.message;
   }
   return fallback;
-}
-
-function settingsProviderToOption(provider: SettingsProviderEntry): RuntimeProviderOption {
-  const displayName = provider.settings.display_name?.trim();
-  const harness = provider.settings.harness?.trim();
-  const runtimeProvider = provider.settings.runtime_provider?.trim();
-  return {
-    id: provider.name,
-    name: displayName || provider.name,
-    ...(harness ? { harness } : {}),
-    ...(runtimeProvider ? { runtime_provider: runtimeProvider } : {}),
-    needs_auth: providerNeedsAuth(provider.auth_status?.state),
-  };
 }
 
 function workspaceProviderToOption(provider: SessionProviderOption): RuntimeProviderOption {

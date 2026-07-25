@@ -143,6 +143,21 @@ list contains global records plus records scoped to that workspace; writes canno
 workspace. HTTP profile mutations require a loopback listener, while UDS exposes the same request
 and response contract.
 
+The CLI covers the same records:
+
+```bash
+agh layout-profile list --workspace <workspace-id> -o json
+agh layout-profile get <profile-id> --workspace <workspace-id> -o json
+agh layout-profile put <profile-id> --workspace <workspace-id> \
+  --scope workspace|global --file profile.json --expected-version <n> -o json
+agh layout-profile delete <profile-id> --workspace <workspace-id> --expected-version <n> -o json
+```
+
+`--expected-version 0` creates; a non-zero value replaces or deletes that exact version and fails on
+a concurrent write. `--scope` defaults to `workspace`. `get` filters the visible list, because there
+is no per-profile read route; the list is complete and unpaginated, and it never contains another
+workspace's records.
+
 Pass `--client <stable-client-id>` in the CLI, or an optional registered `client_id` over HTTP/UDS,
 to bind the stream to one presentation view. Its initial
 snapshot contains that client fence; later client frames carry only that ID and a strictly newer

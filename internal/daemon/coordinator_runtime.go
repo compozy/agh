@@ -66,7 +66,7 @@ type coordinatorRuntime struct {
 	mu             sync.Mutex
 	store          coordinatorTaskStore
 	sessions       coordinatorSessionManager
-	config         CoordinatorRoleResolver
+	roles          CoordinatorRoleResolver
 	hooks          coordinatorHookDispatcher
 	contextOverlay taskSessionContextOverlay
 	roleEvents     roleEventSummaryWriter
@@ -101,7 +101,7 @@ func newCoordinatorRuntime(
 	ctx context.Context,
 	store coordinatorTaskStore,
 	sessions coordinatorSessionManager,
-	config CoordinatorRoleResolver,
+	roles CoordinatorRoleResolver,
 	hooks coordinatorHookDispatcher,
 	logger *slog.Logger,
 	now func() time.Time,
@@ -116,8 +116,8 @@ func newCoordinatorRuntime(
 	if sessions == nil {
 		return nil, errors.New("daemon: coordinator runtime requires session manager")
 	}
-	if config == nil {
-		return nil, errors.New("daemon: coordinator runtime requires config resolver")
+	if roles == nil {
+		return nil, errors.New("daemon: coordinator runtime requires role resolver")
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -131,7 +131,7 @@ func newCoordinatorRuntime(
 		cancel:       cancel,
 		store:        store,
 		sessions:     sessions,
-		config:       config,
+		roles:        roles,
 		hooks:        hooks,
 		logger:       logger,
 		now:          now,
@@ -337,7 +337,7 @@ func (r *coordinatorRuntime) bootstrapRun(
 		},
 	}
 	ctx = withRoleInvocationCorrelation(ctx, correlation)
-	cfg, err := r.config.ResolveCoordinatorRole(ctx, preflight.WorkspaceID)
+	cfg, err := r.roles.ResolveCoordinatorRole(ctx, preflight.WorkspaceID)
 	if err != nil {
 		r.dispatchFailed(ctx, preflight, nil, reason, err)
 		return nil, false, fmt.Errorf("daemon: resolve coordinator role: %w", err)

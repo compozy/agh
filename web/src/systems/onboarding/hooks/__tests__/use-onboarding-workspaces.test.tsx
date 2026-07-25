@@ -7,7 +7,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkspacePayload } from "@/systems/workspace";
 
-import { useOnboardingDraftStore } from "../../stores/use-onboarding-draft-store";
+import {
+  ONBOARDING_DRAFT_STORAGE_KEY,
+  useOnboardingDraftStore,
+} from "../../stores/use-onboarding-draft-store";
 import { useOnboardingWorkspaces } from "../use-onboarding-workspaces";
 
 const mocks = vi.hoisted(() => ({
@@ -52,7 +55,6 @@ vi.mock("../use-directory-browser", () => ({
 }));
 
 const now = "2026-05-27T00:00:00Z";
-const onboardingDraftStorageKey = "agh:onboarding:draft:v3";
 
 function workspace(overrides: Partial<WorkspacePayload> = {}): WorkspacePayload {
   return {
@@ -127,7 +129,7 @@ describe("useOnboardingWorkspaces", () => {
       workspaceId: "ws_current_daemon",
     };
     window.localStorage.setItem(
-      onboardingDraftStorageKey,
+      ONBOARDING_DRAFT_STORAGE_KEY,
       JSON.stringify({ state: { workspaces: [currentWorkspace] }, version: 0 })
     );
     await act(async () => {
@@ -171,7 +173,7 @@ describe("useOnboardingWorkspaces", () => {
       workspaceId: "ws_previous_daemon",
     };
     window.localStorage.setItem(
-      onboardingDraftStorageKey,
+      ONBOARDING_DRAFT_STORAGE_KEY,
       JSON.stringify({ state: { workspaces: [staleWorkspace] }, version: 0 })
     );
     await act(async () => {

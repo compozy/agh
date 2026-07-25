@@ -97,28 +97,23 @@ func TestSeedConfigPersistsRolesOverlay(t *testing.T) {
 
 	t.Run("Should persist role mutations in seeded config", func(t *testing.T) {
 		t.Parallel()
-		runSeedConfigPersistsRolesOverlay(t)
+
+		homePaths := NewHomePaths(t)
+		SeedConfig(t, homePaths, ConfigSeedOptions{
+			Mutate: func(cfg *aghconfig.Config) {
+				cfg.Roles.Dream.Model = "routed-dream-model"
+				cfg.Roles.AutoTitle.Enabled = false
+			},
+		})
+
+		loaded, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if loaded.Roles.Dream.Model != "routed-dream-model" || loaded.Roles.AutoTitle.Enabled {
+			t.Fatalf("LoadForHome().Roles = %#v, want routed dream and disabled auto-title", loaded.Roles)
+		}
 	})
-}
-
-func runSeedConfigPersistsRolesOverlay(t *testing.T) {
-	t.Helper()
-
-	homePaths := NewHomePaths(t)
-	SeedConfig(t, homePaths, ConfigSeedOptions{
-		Mutate: func(cfg *aghconfig.Config) {
-			cfg.Roles.Dream.Model = "routed-dream-model"
-			cfg.Roles.AutoTitle.Enabled = false
-		},
-	})
-
-	loaded, err := aghconfig.LoadForHome(homePaths)
-	if err != nil {
-		t.Fatalf("LoadForHome() error = %v", err)
-	}
-	if loaded.Roles.Dream.Model != "routed-dream-model" || loaded.Roles.AutoTitle.Enabled {
-		t.Fatalf("LoadForHome().Roles = %#v, want routed dream and disabled auto-title", loaded.Roles)
-	}
 }
 
 func TestSeedConfigPersistsMemoryOverlay(t *testing.T) {

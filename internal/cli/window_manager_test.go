@@ -1301,7 +1301,15 @@ type windowManagerCommandStub struct {
 	) (contract.WindowManagerClientView, error)
 	unregisterClientFn func(context.Context, string, string) error
 	exportLayoutFn     func(context.Context, string) (contract.WindowManagerLayoutDocument, error)
-	validateLayoutFn   func(
+	listProfilesFn     func(context.Context, string) (contract.ResourcesResponse, error)
+	putProfileFn       func(
+		context.Context,
+		string,
+		string,
+		contract.PutResourceRequest,
+	) (contract.ResourceResponse, error)
+	deleteProfileFn  func(context.Context, string, string, contract.DeleteResourceRequest) error
+	validateLayoutFn func(
 		context.Context,
 		string,
 		contract.WindowManagerLayoutValidationRequest,
@@ -1420,6 +1428,40 @@ func (s *windowManagerCommandStub) ApplyWindowManagerLayout(
 		return contract.WindowManagerResult{}, errors.New("unexpected ApplyWindowManagerLayout call")
 	}
 	return s.applyLayoutFn(ctx, workspace, request)
+}
+
+func (s *windowManagerCommandStub) ListWindowManagerLayoutProfiles(
+	ctx context.Context,
+	workspace string,
+) (contract.ResourcesResponse, error) {
+	if s.listProfilesFn == nil {
+		return contract.ResourcesResponse{}, errors.New("unexpected ListWindowManagerLayoutProfiles call")
+	}
+	return s.listProfilesFn(ctx, workspace)
+}
+
+func (s *windowManagerCommandStub) PutWindowManagerLayoutProfile(
+	ctx context.Context,
+	workspace string,
+	profileID string,
+	request contract.PutResourceRequest,
+) (contract.ResourceResponse, error) {
+	if s.putProfileFn == nil {
+		return contract.ResourceResponse{}, errors.New("unexpected PutWindowManagerLayoutProfile call")
+	}
+	return s.putProfileFn(ctx, workspace, profileID, request)
+}
+
+func (s *windowManagerCommandStub) DeleteWindowManagerLayoutProfile(
+	ctx context.Context,
+	workspace string,
+	profileID string,
+	request contract.DeleteResourceRequest,
+) error {
+	if s.deleteProfileFn == nil {
+		return errors.New("unexpected DeleteWindowManagerLayoutProfile call")
+	}
+	return s.deleteProfileFn(ctx, workspace, profileID, request)
 }
 
 func (s *windowManagerCommandStub) WatchWindowManager(
