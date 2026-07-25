@@ -15,7 +15,9 @@ func (d *Daemon) configureMemoryController(state *bootState, sessions SessionMan
 	invoker, ok := sessions.(transientModelInvoker)
 	if !ok {
 		if state.logger != nil {
-			state.logger.Warn("daemon: memory controller tiebreaker skipped; session manager lacks transient model invoker")
+			state.logger.Warn(
+				"daemon: memory controller tiebreaker skipped; session manager lacks transient model invoker",
+			)
 		}
 		return
 	}

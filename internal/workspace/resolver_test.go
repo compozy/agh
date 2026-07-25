@@ -1011,9 +1011,34 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
-		writeAgentDef(t, filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, aghconfig.BuiltinCoordinatorAgentName, agentDefinitionFile), aghconfig.BuiltinCoordinatorAgentName, "shadowed-coordinator")
-		writeAgentDef(t, filepath.Join(homePaths.AgentsDir, aghconfig.BuiltinDreamingCuratorAgentName, agentDefinitionFile), aghconfig.BuiltinDreamingCuratorAgentName, "shadowed-curator")
-		writeAgentDef(t, filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "alias", agentDefinitionFile), aghconfig.BuiltinCoordinatorAgentName, "aliased-coordinator")
+		writeAgentDef(
+			t,
+			filepath.Join(
+				root,
+				aghconfig.DirName,
+				aghconfig.AgentsDirName,
+				aghconfig.BuiltinCoordinatorAgentName,
+				agentDefinitionFile,
+			),
+			aghconfig.BuiltinCoordinatorAgentName,
+			"shadowed-coordinator",
+		)
+		writeAgentDef(
+			t,
+			filepath.Join(
+				homePaths.AgentsDir,
+				aghconfig.BuiltinDreamingCuratorAgentName,
+				agentDefinitionFile,
+			),
+			aghconfig.BuiltinDreamingCuratorAgentName,
+			"shadowed-curator",
+		)
+		writeAgentDef(
+			t,
+			filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "alias", agentDefinitionFile),
+			aghconfig.BuiltinCoordinatorAgentName,
+			"aliased-coordinator",
+		)
 
 		store := newMockWorkspaceStore(Workspace{ID: "ws_reserved_agents", RootDir: root, Name: "repo"})
 		loader := &countingConfigLoader{cfg: validConfig(homePaths)}

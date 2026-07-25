@@ -111,7 +111,11 @@ func coordinatorInvocationRole(
 	}
 }
 
-func (r *coordinatorRuntime) stopCoordinatorSessionWithCause(ctx context.Context, sessionID string, detail string) error {
+func (r *coordinatorRuntime) stopCoordinatorSessionWithCause(
+	ctx context.Context,
+	sessionID string,
+	detail string,
+) error {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return errors.New("daemon: accepted coordinator session returned no cleanup identity")

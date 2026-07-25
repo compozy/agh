@@ -50,7 +50,11 @@ func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteRes
 				ActorID:         "dream-runtime",
 			},
 		}
-		resolved, err := roles.Resolve(withRoleInvocationCorrelation(ctx, correlation), workspaceID, aghconfig.RoleDream)
+		resolved, err := roles.Resolve(
+			withRoleInvocationCorrelation(ctx, correlation),
+			workspaceID,
+			aghconfig.RoleDream,
+		)
 		if err != nil {
 			return consolidation.SessionRoute{}, fmt.Errorf("resolve dream role: %w", err)
 		}

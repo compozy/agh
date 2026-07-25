@@ -273,7 +273,8 @@ func TestRoleResolver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Resolve(ws-b) error = %v", err)
 		}
-		if resolvedA.Model != "workspace-model" || resolvedA.Provenance["model"] != aghconfig.RoleFieldSourceWorkspace ||
+		if resolvedA.Model != "workspace-model" ||
+			resolvedA.Provenance["model"] != aghconfig.RoleFieldSourceWorkspace ||
 			resolvedB.Model != "global-model" || resolvedB.Provenance["model"] != aghconfig.RoleFieldSourceGlobal {
 			t.Fatalf("workspace provenance = a:%#v b:%#v", resolvedA, resolvedB)
 		}

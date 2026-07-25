@@ -32,7 +32,7 @@ func (c DreamConfig) Validate() error {
 
 // Validate ensures the controller configuration is internally consistent.
 func (c *MemoryControllerConfig) Validate() error {
-	mode, err := validateEnum("memory.controller.mode", c.Mode, configHybridKey, "rules", "llm")
+	mode, err := validateEnum("memory.controller.mode", c.Mode, configHybridKey, "rules", configLLMKey)
 	if err != nil {
 		return err
 	}

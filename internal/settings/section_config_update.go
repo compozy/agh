@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/config/lifecycle"
@@ -231,13 +232,7 @@ func (s *service) loadScopedSectionUpdate(
 	if err != nil {
 		return scopedSectionUpdate{}, fmt.Errorf("settings: update section %q: %w", section, err)
 	}
-	supported := false
-	for _, allowedScope := range allowedScopes {
-		if normalizedScope == allowedScope {
-			supported = true
-			break
-		}
-	}
+	supported := slices.Contains(allowedScopes, normalizedScope)
 	if !supported {
 		if len(allowedScopes) == 1 && allowedScopes[0] == ScopeGlobal {
 			return scopedSectionUpdate{}, conflictError(

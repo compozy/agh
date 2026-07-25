@@ -15,7 +15,7 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 	if err := c.Memory.Validate(); err != nil {
 		return err
 	}
-	if c.Memory.Controller.Mode == "llm" && !c.Roles.MemoryController.Enabled {
+	if c.Memory.Controller.Mode == configLLMKey && !c.Roles.MemoryController.Enabled {
 		return errors.New(`roles.memory_controller.enabled must be true when memory.controller.mode is "llm"`)
 	}
 	if err := c.Agents.Validate(); err != nil {

@@ -105,7 +105,10 @@ func (m *Manager) prepareProviderStartPolicies(
 			opts.Env,
 		)
 		if err != nil {
-			return acp.StartOpts{}, providerSecretBindings{}, fmt.Errorf("session: apply pi auth directory policy: %w", err)
+			return acp.StartOpts{}, providerSecretBindings{}, fmt.Errorf(
+				"session: apply pi auth directory policy: %w",
+				err,
+			)
 		}
 	}
 	secretBindings, err := m.injectProviderSecrets(ctx, resolved, opts.Env)

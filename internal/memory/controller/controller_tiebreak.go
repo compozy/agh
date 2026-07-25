@@ -62,20 +62,42 @@ func (c *Controller) applyTiebreakerResult(
 		decision, err = c.addDecision(candidate, trace)
 	case memcontract.OpUpdate:
 		if target == nil {
-			return memcontract.Decision{}, errors.New("memory controller: update tiebreaker result requires a valid target_id")
+			return memcontract.Decision{}, errors.New(
+				"memory controller: update tiebreaker result requires a valid target_id",
+			)
 		}
 		decision, err = c.updateDecision(candidate, *target, trace)
 	case memcontract.OpDelete:
 		if target == nil {
-			return memcontract.Decision{}, errors.New("memory controller: delete tiebreaker result requires a valid target_id")
+			return memcontract.Decision{}, errors.New(
+				"memory controller: delete tiebreaker result requires a valid target_id",
+			)
 		}
-		decision, err = c.decision(candidate, memcontract.OpDelete, []Target{*target}, target.TargetFilename, "", trace, result.Reason, target)
+		decision, err = c.decision(
+			candidate,
+			memcontract.OpDelete,
+			[]Target{*target},
+			target.TargetFilename,
+			"",
+			trace,
+			result.Reason,
+			target,
+		)
 	case memcontract.OpNoop:
 		selected := targets
 		if target != nil {
 			selected = []Target{*target}
 		}
-		decision, err = c.decision(candidate, memcontract.OpNoop, selected, targetFilename(candidate), "", trace, result.Reason, target)
+		decision, err = c.decision(
+			candidate,
+			memcontract.OpNoop,
+			selected,
+			targetFilename(candidate),
+			"",
+			trace,
+			result.Reason,
+			target,
+		)
 	case memcontract.OpReject:
 		decision, err = c.decision(candidate, memcontract.OpReject, nil, "", "", trace, result.Reason, nil)
 	default:

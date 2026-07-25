@@ -486,7 +486,10 @@ func testNewSessionSpawnerUsesResolvedBuiltInDreamingCurator(t *testing.T) {
 
 func TestNewSessionSpawnerResolvesExplicitAliasWorkspace(t *testing.T) {
 	t.Parallel()
-	t.Run("Should resolve an explicit workspace alias before spawning", testNewSessionSpawnerResolvesExplicitAliasWorkspace)
+	t.Run(
+		"Should resolve an explicit workspace alias before spawning",
+		testNewSessionSpawnerResolvesExplicitAliasWorkspace,
+	)
 }
 
 func testNewSessionSpawnerResolvesExplicitAliasWorkspace(t *testing.T) {
@@ -572,7 +575,10 @@ func TestNewSessionSpawnerRejectsAWorkspaceDisabledDreamRole(t *testing.T) {
 
 func TestIsPathLikeWorkspaceRefRecognizesSlashSeparatedRefs(t *testing.T) {
 	t.Parallel()
-	t.Run("Should recognize slash-separated workspace references", testIsPathLikeWorkspaceRefRecognizesSlashSeparatedRefs)
+	t.Run(
+		"Should recognize slash-separated workspace references",
+		testIsPathLikeWorkspaceRefRecognizesSlashSeparatedRefs,
+	)
 }
 
 func testIsPathLikeWorkspaceRefRecognizesSlashSeparatedRefs(t *testing.T) {

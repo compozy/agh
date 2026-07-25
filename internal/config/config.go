@@ -13,6 +13,7 @@ const (
 	configExtractorKey                       = "extractor"
 	configExtractorModePostMessage           = "post_message"
 	configHybridKey                          = "hybrid"
+	configLLMKey                             = "llm"
 	configJsonlKey                           = "jsonl"
 	configExtractorQueueCoalesceMaxPath      = "memory.extractor.queue.coalesce_max"
 	configMemoryRecallWeightsBm25UnicodePath = "memory.recall.weights.bm25_unicode"
