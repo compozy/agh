@@ -80,7 +80,6 @@ export function RolesSettingsPage() {
 
   return (
     <SettingsPageFrame
-      wide
       slug="roles"
       description="Choose how each background role is routed."
       restart={page.restart}
@@ -92,6 +91,7 @@ export function RolesSettingsPage() {
           onReset={page.handleReset}
         />
       }
+      width="wide"
     >
       {page.roles.map(vm => (
         <RoleSettingsGroup

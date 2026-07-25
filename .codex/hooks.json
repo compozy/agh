@@ -12,6 +12,18 @@
                     }
                 ]
             }
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "node \".agents/skills/impeccable/scripts/hook.mjs\"",
+                        "timeout": 30,
+                        "statusMessage": "Design deep pass"
+                    }
+                ]
+            }
         ]
     }
 }
