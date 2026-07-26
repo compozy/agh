@@ -77,8 +77,17 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
   return {
     open: true,
     onOpenChange: vi.fn(),
+    mode: "advanced",
+    onModeChange: vi.fn(),
     agents,
     workspace,
+    workspaces: [{ id: workspace.id, name: workspace.name, root_dir: workspace.root_dir }],
+    workspaceId: workspace.id,
+    onWorkspaceChange: vi.fn(),
+    sessionName: "",
+    onSessionNameChange: vi.fn(),
+    workspacePath: "",
+    onWorkspacePathChange: vi.fn(),
     selectedAgentName: "claude-agent",
     runtimeValue: { provider: "claude", model: "", reasoning_effort: "" },
     runtimeProviders,
@@ -126,6 +135,57 @@ async function openRuntimePopup(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("SessionCreateDialog", () => {
+  it("Should show identity fields and the composer without Advanced fields in Simple", () => {
+    renderDialog({ mode: "simple" });
+
+    expect(screen.getByTestId("session-create-agent-select")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-workspace-select")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-name-input")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-composer")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-runtime-select")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-send")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-create-workspace-path-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-create-participation-mode")).not.toBeInTheDocument();
+  });
+
+  it("Should reveal the launch overrides in Advanced without hiding the Simple fields", () => {
+    renderDialog({ mode: "advanced" });
+
+    expect(screen.getByTestId("session-create-agent-select")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-workspace-select")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-name-input")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-runtime-select")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-workspace-path-input")).toBeInTheDocument();
+  });
+
+  it("Should report the mode through the shared toolbar", async () => {
+    const user = userEvent.setup();
+    const onModeChange = vi.fn();
+    renderDialog({ mode: "simple", onModeChange });
+
+    expect(screen.getByTestId("session-create-mode-simple")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await user.click(screen.getByTestId("session-create-mode-advanced"));
+    expect(onModeChange).toHaveBeenCalledWith("advanced");
+  });
+
+  it("Should expose exactly one close route", () => {
+    renderDialog();
+    const host = screen.getByTestId("session-create-dialog");
+    expect(host.querySelectorAll('[data-slot="entity-dialog-header-close"]')).toHaveLength(1);
+  });
+
+  it("Should report the session name and workspace selection to the owner", async () => {
+    const user = userEvent.setup();
+    const onSessionNameChange = vi.fn();
+    renderDialog({ mode: "simple", onSessionNameChange });
+
+    await user.type(screen.getByTestId("session-create-name-input"), "A");
+    expect(onSessionNameChange).toHaveBeenCalledWith("A");
+  });
+
   it("Should render the runtime selector wired to the selected provider", () => {
     renderDialog();
 
@@ -155,6 +215,10 @@ describe("SessionCreateDialog", () => {
   it("Should surface a stale catalog notice inside the selector without blocking submit", async () => {
     const user = userEvent.setup();
     renderDialog({ runtimeModels, catalogStale: true });
+
+    // Catalog state belongs to the selector, not the dialog chrome: no banner
+    // appears until the popup that owns the catalog is opened.
+    expect(screen.queryByTestId("session-create-catalog-stale")).not.toBeInTheDocument();
 
     await openRuntimePopup(user);
     expect(screen.getByTestId("session-create-catalog-stale")).toHaveTextContent(
@@ -283,6 +347,7 @@ describe("SessionCreateDialog", () => {
   it("Should disable both pickers until a workspace is selected", () => {
     renderDialog({
       workspace: undefined,
+      workspaceId: null,
       selectedAgentName: "claude-agent",
       runtimeValue: { provider: "claude", model: "", reasoning_effort: "" },
     });
@@ -323,6 +388,9 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.getByTestId("session-create-send")).toBeDisabled();
     expect(screen.getByTestId("session-create-prompt")).toBeDisabled();
+    const pending = screen.getByTestId("session-create-pending-status");
+    expect(pending).toHaveAttribute("role", "status");
+    expect(pending).toHaveTextContent("AGH durably accepts it");
     fireEvent.click(getDialogBackdrop());
     expect(onOpenChange).not.toHaveBeenCalled();
   });

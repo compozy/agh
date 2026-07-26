@@ -1,39 +1,45 @@
-import { ArrowLeft, ArrowRight, Check, ChevronRight, Settings2, Waypoints } from "lucide-react";
-import { useId, useState } from "react";
+import { Link2 } from "lucide-react";
 
-import { Button, Dialog, DialogContent, DialogTitle, Eyebrow, FormSection, Spinner } from "@agh/ui";
+import {
+  Alert,
+  AlertDescription,
+  Dialog,
+  DialogContent,
+  dialogShellClass,
+  EntityDialogBody,
+  EntityDialogFooter,
+  EntityDialogHeader,
+  EntityModeToolbar,
+  ImmutableIdentity,
+  type EntityMode,
+} from "@agh/ui";
+
+import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 
 import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
-import {
-  describeBridgeRoutingPolicy,
-  findBridgeProviderByKey,
-  isBridgeProviderSelectable,
-} from "../lib/bridge-formatters";
+import { findBridgeProviderByKey, isBridgeProviderSelectable } from "../lib/bridge-formatters";
+import { missingRequiredBridgeSecretSlots } from "../lib/bridge-secret-slot-submission";
 import type { BridgeCreateDraft, BridgeProvider } from "../types";
-import { BridgeCreateProviderStep } from "./bridge-create-provider-step";
-import {
-  BridgeCreateRuntimeMissingProvider,
-  BridgeCreateRuntimeStep,
-} from "./bridge-create-runtime-step";
-import { BridgeDeliveryFields, BridgeRoutingFields } from "./bridge-delivery-fields";
+import { BridgeCreateAdvancedSection } from "./bridge-create-advanced-section";
+import { BridgeCreateSecretSlots } from "./bridge-create-secret-slots";
+import { BridgeCreateSimpleSection } from "./bridge-create-simple-section";
 import {
   BridgeManifestHandoff,
   type BridgeManifestCommittedState,
 } from "./bridge-manifest-handoff";
 
-type WizardStep = "provider" | "runtime" | "delivery";
-
-interface WizardStepDescriptor {
-  id: WizardStep;
-  label: string;
-  testId: string;
+/**
+ * Phase-two state after `POST /api/bridges` committed: the bridge exists, so the
+ * dialog can no longer be cancelled back into nothing, and unbound slots have to
+ * be retried against a real id.
+ */
+export interface BridgeSecretRecoveryState {
+  bridgeId: string;
+  bound: string[];
+  failures: Record<string, string>;
+  /** The provider captured with the committed bridge; the mutable draft cannot replace it. */
+  provider: BridgeProvider;
 }
-
-const WIZARD_STEPS: readonly WizardStepDescriptor[] = [
-  { id: "provider", label: "Provider", testId: "bridge-wizard-step-provider" },
-  { id: "runtime", label: "Runtime", testId: "bridge-wizard-step-runtime" },
-  { id: "delivery", label: "Delivery", testId: "bridge-wizard-step-delivery" },
-] as const;
 
 interface BridgeCreateDialogProps {
   activeWorkspaceId?: string | null;
@@ -41,112 +47,15 @@ interface BridgeCreateDialogProps {
   draft: BridgeCreateDraft;
   isPending: boolean;
   manifestState?: BridgeManifestCommittedState | null;
+  mode?: EntityMode;
+  onModeChange?: (mode: EntityMode) => void;
   onDraftChange: (draft: BridgeCreateDraft) => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: () => void;
   open: boolean;
   providers: BridgeProvider[];
+  secretRecovery?: BridgeSecretRecoveryState | null;
   supportsManifest?: boolean;
-}
-
-function stepStatus(index: number, currentIndex: number): "complete" | "current" | "pending" {
-  if (index < currentIndex) return "complete";
-  if (index === currentIndex) return "current";
-  return "pending";
-}
-
-function stepBadgeClass(status: "complete" | "current" | "pending"): string {
-  const base =
-    "inline-flex size-5 shrink-0 items-center justify-center rounded-full text-fg-strong transition-colors duration-base ease-out";
-  if (status === "complete") return `${base} bg-success-tint text-success`;
-  if (status === "current") return `${base} bg-surface-glaze text-fg-strong`;
-  return `${base} bg-canvas-soft text-subtle`;
-}
-
-function BridgeWizardStepNav({ currentIndex }: { currentIndex: number }) {
-  return (
-    <nav
-      aria-label="Bridge create steps"
-      className="grid min-w-0 grid-cols-3 items-center gap-1 border-b border-line bg-canvas-tint px-3 py-2.5 text-eyebrow sm:flex sm:gap-2 sm:px-5"
-      data-testid="bridge-wizard-stepper"
-    >
-      {WIZARD_STEPS.map((item, index) => {
-        const status = stepStatus(index, currentIndex);
-        return (
-          <span
-            aria-current={status === "current" ? "step" : undefined}
-            className="flex min-w-0 items-center justify-center gap-1.5 sm:justify-start sm:gap-2"
-            data-status={status}
-            data-testid={item.testId}
-            key={item.id}
-          >
-            <span
-              aria-hidden="true"
-              className={stepBadgeClass(status)}
-              data-slot="bridge-wizard-step-badge"
-            >
-              {status === "complete" ? (
-                <Check height={11} strokeWidth={2} width={11} />
-              ) : (
-                <span className="font-mono text-eyebrow">{index + 1}</span>
-              )}
-            </span>
-            <Eyebrow
-              className={`min-w-0 truncate ${status === "current" ? "text-fg-strong" : "text-muted"}`}
-            >
-              {item.label}
-            </Eyebrow>
-            {index < WIZARD_STEPS.length - 1 ? (
-              <ChevronRight
-                aria-hidden="true"
-                className="ml-1 hidden shrink-0 text-faint sm:block"
-                height={12}
-                strokeWidth={1.75}
-                width={12}
-              />
-            ) : null}
-          </span>
-        );
-      })}
-    </nav>
-  );
-}
-
-function BridgeDeliveryStep({
-  draft,
-  onDraftChange,
-}: {
-  draft: BridgeCreateDraft;
-  onDraftChange: (draft: BridgeCreateDraft) => void;
-}) {
-  return (
-    <>
-      <FormSection
-        data-testid="bridge-wizard-section-routing"
-        description={describeBridgeRoutingPolicy(draft.routingPolicy)}
-        icon={Waypoints}
-        title="Routing policy"
-      >
-        <BridgeRoutingFields
-          onChange={routingPolicy => onDraftChange({ ...draft, routingPolicy })}
-          testIdPrefix="bridge"
-          value={draft.routingPolicy}
-        />
-      </FormSection>
-      <FormSection
-        data-testid="bridge-wizard-section-delivery"
-        description="These defaults are applied when resolving outbound delivery targets."
-        icon={Settings2}
-        title="Delivery defaults"
-      >
-        <BridgeDeliveryFields
-          onChange={deliveryDefaults => onDraftChange({ ...draft, deliveryDefaults })}
-          testIdPrefix="bridge"
-          value={draft.deliveryDefaults}
-        />
-      </FormSection>
-    </>
-  );
 }
 
 export function BridgeCreateDialog({
@@ -155,32 +64,43 @@ export function BridgeCreateDialog({
   draft,
   isPending,
   manifestState,
+  mode = "simple",
+  onModeChange,
   onDraftChange,
   onOpenChange,
   onSubmit,
   open,
   providers,
+  secretRecovery = null,
   supportsManifest = false,
 }: BridgeCreateDialogProps) {
-  const titleId = useId();
-  const [step, setStep] = useState<WizardStep>("provider");
   const committedManifestState = supportsManifest ? manifestState : null;
-  const selectedProvider = findBridgeProviderByKey(providers, draft.selectedProviderKey);
+  const selectedProvider =
+    secretRecovery?.provider ?? findBridgeProviderByKey(providers, draft.selectedProviderKey);
   const providerConfigError = parseBridgeProviderConfig(draft.providerConfigText).error;
-  const stepValidity: Record<WizardStep, boolean> = {
-    provider: Boolean(selectedProvider && isBridgeProviderSelectable(selectedProvider)),
-    runtime: Boolean(draft.displayName.trim() && !providerConfigError),
-    delivery: true,
-  };
-  const currentIndex = WIZARD_STEPS.findIndex(item => item.id === step);
-  const previousStep = currentIndex > 0 ? WIZARD_STEPS[currentIndex - 1] : undefined;
-  const nextStep =
-    currentIndex < WIZARD_STEPS.length - 1 ? WIZARD_STEPS[currentIndex + 1] : undefined;
-  const canSubmit = Object.values(stepValidity).every(Boolean);
+  const providerSelectable = Boolean(
+    selectedProvider && isBridgeProviderSelectable(selectedProvider)
+  );
+  // A manifest provider hands the credentials over only after the remote app is
+  // created from the manifest, so its slots cannot gate the create call.
+  const missingRequiredSlots = supportsManifest
+    ? []
+    : missingRequiredBridgeSecretSlots(selectedProvider?.secret_slots, draft.secretSlotValues);
+  const scopeReady = draft.scope === "global" || Boolean(activeWorkspaceId);
+  const canSubmit =
+    providerSelectable &&
+    scopeReady &&
+    Boolean(draft.displayName.trim()) &&
+    !providerConfigError &&
+    missingRequiredSlots.length === 0;
+
+  const workspaceOptions: WorkspaceCommandSelectOption[] =
+    activeWorkspaceId && activeWorkspaceName
+      ? [{ id: activeWorkspaceId, name: activeWorkspaceName }]
+      : [];
 
   const handleOpenChange = (next: boolean) => {
     if (!next && isPending) return;
-    if (!next) setStep("provider");
     onOpenChange(next);
   };
 
@@ -192,143 +112,170 @@ export function BridgeCreateDialog({
         !draft.displayName.trim() || draft.displayName.trim() === selectedProvider?.display_name
           ? (provider?.display_name ?? draft.displayName)
           : draft.displayName,
+      // Never carry a value typed for one provider's slot into another's.
+      secretSlotValues: {},
       selectedProviderKey: key,
     });
   };
 
+  if (committedManifestState) {
+    return (
+      <Dialog onOpenChange={handleOpenChange} open={open}>
+        <DialogContent
+          className={`grid-rows-[auto_minmax(0,1fr)] text-fg ${dialogShellClass("lg")}`}
+          data-testid="bridge-create-dialog"
+          showCloseButton={false}
+          unframed
+        >
+          <EntityDialogHeader
+            description="Create the Slack app from this manifest, then bind its credentials from the bridge detail."
+            eyebrow="Catalog · Bridge"
+            icon={Link2}
+            onClose={() => handleOpenChange(false)}
+            title="Set up Slack app"
+          />
+          <EntityDialogBody>
+            <BridgeManifestHandoff state={committedManifestState} />
+          </EntityDialogBody>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  const recoveryFailures = secretRecovery?.failures ?? {};
+  const failedSlotNames = Object.keys(recoveryFailures);
+  const recoveryReady = failedSlotNames.every(
+    name => (draft.secretSlotValues[name]?.trim().length ?? 0) > 0
+  );
+
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
-        aria-labelledby={titleId}
-        className={
-          committedManifestState
-            ? "w-(--width-modal-lg) min-w-0 max-w-[calc(100vw-2rem)] grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr] max-h-[min(var(--height-modal-tall),calc(100vh-2rem))] sm:max-w-(--width-modal-lg)"
-            : "w-(--width-modal-lg) min-w-0 max-w-[calc(100vw-2rem)] grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_1fr_auto] max-h-[min(var(--height-modal-tall),calc(100vh-2rem))] sm:max-w-(--width-modal-lg)"
-        }
+        className={`grid-rows-[auto_auto_minmax(0,1fr)_auto] text-fg ${dialogShellClass("lg")}`}
         data-testid="bridge-create-dialog"
         showCloseButton={false}
         unframed
       >
-        <header
-          className="flex min-w-0 items-center justify-between gap-3 border-b border-line px-3 py-3 sm:px-5 sm:py-3.5"
-          data-slot="bridge-wizard-head"
-        >
-          <DialogTitle
-            className="text-modal-title font-medium tracking-modal-title text-fg-strong"
-            data-testid="bridge-wizard-title"
-            id={titleId}
-          >
-            {committedManifestState ? "Set up Slack app" : "Create bridge"}
-          </DialogTitle>
-          <span className="min-w-0 truncate font-mono text-form-label text-muted">
-            {committedManifestState?.bridgeId ?? selectedProvider?.display_name}
-          </span>
-        </header>
+        <EntityDialogHeader
+          description={
+            <>
+              A bridge connects a chat platform to your agents.{" "}
+              <b className="font-medium text-muted">Its identity is permanent</b> — provider and
+              account are fixed at creation; secrets stay write-only.
+            </>
+          }
+          eyebrow="Catalog · Bridge"
+          icon={Link2}
+          onClose={isPending ? undefined : () => handleOpenChange(false)}
+          title="Create bridge"
+        />
 
-        {committedManifestState ? (
-          <div className="min-h-0 min-w-0 overflow-y-auto p-3 sm:p-5">
-            <BridgeManifestHandoff state={committedManifestState} />
-          </div>
-        ) : (
-          <>
-            <BridgeWizardStepNav currentIndex={currentIndex} />
-            <div
-              className="flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto p-3 sm:p-5"
-              data-testid="bridge-wizard-body"
-            >
-              {step === "provider" ? (
-                <BridgeCreateProviderStep
-                  onSelect={selectProvider}
-                  providers={providers}
-                  selectedProviderKey={draft.selectedProviderKey}
-                  supportsManifest={supportsManifest}
-                />
-              ) : null}
-              {step === "runtime" && selectedProvider ? (
-                <BridgeCreateRuntimeStep
-                  activeWorkspaceId={activeWorkspaceId}
-                  activeWorkspaceName={activeWorkspaceName}
-                  draft={draft}
-                  onDraftChange={onDraftChange}
-                  provider={selectedProvider}
-                  providerConfigError={providerConfigError}
-                />
-              ) : null}
-              {step === "runtime" && !selectedProvider ? (
-                <BridgeCreateRuntimeMissingProvider />
-              ) : null}
-              {step === "delivery" ? (
-                <BridgeDeliveryStep draft={draft} onDraftChange={onDraftChange} />
-              ) : null}
-            </div>
-            <footer
-              className="flex min-w-0 flex-wrap items-center gap-2 border-t border-line bg-canvas-soft px-3 py-3 sm:gap-3 sm:px-5 sm:py-3.5"
-              data-slot="bridge-wizard-footer"
-            >
-              <span
-                className="shrink-0 font-mono text-form-label text-muted"
-                data-testid="bridge-wizard-progress"
-              >
-                Step {currentIndex + 1} of {WIZARD_STEPS.length}
-              </span>
-              <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
-                <Button
-                  data-testid="bridge-wizard-cancel"
-                  disabled={isPending}
-                  onClick={() => handleOpenChange(false)}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                {previousStep ? (
-                  <Button
-                    data-testid="bridge-wizard-back"
-                    onClick={() => setStep(previousStep.id)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <ArrowLeft aria-hidden="true" className="size-3" />
-                    Back
-                  </Button>
-                ) : null}
-                {nextStep ? (
-                  <Button
-                    data-testid="bridge-wizard-next"
-                    disabled={!stepValidity[step]}
-                    onClick={() => setStep(nextStep.id)}
-                    size="sm"
-                    type="button"
-                  >
-                    Continue
-                    <ArrowRight aria-hidden="true" className="size-3" />
-                  </Button>
-                ) : (
-                  <Button
-                    data-testid="submit-bridge-create"
-                    disabled={!canSubmit || isPending}
-                    onClick={onSubmit}
-                    size="sm"
-                    type="button"
-                  >
-                    {isPending ? (
-                      <>
-                        <Spinner className="size-3" />
-                        Creating…
-                      </>
-                    ) : supportsManifest ? (
-                      "Create and continue"
-                    ) : (
-                      "Create bridge"
-                    )}
-                  </Button>
-                )}
-              </div>
-            </footer>
-          </>
-        )}
+        <EntityModeToolbar
+          mode={mode}
+          onModeChange={onModeChange ?? (() => undefined)}
+          testIdPrefix="bridge-create"
+          trailing={
+            <ScopeSelector
+              disabled={isPending || Boolean(secretRecovery)}
+              onScopeChange={scope => onDraftChange({ ...draft, scope })}
+              onWorkspaceChange={() => undefined}
+              scope={draft.scope}
+              testIdPrefix="bridge-create"
+              workspaceDisabled={!activeWorkspaceId}
+              workspaceId={activeWorkspaceId ?? null}
+              workspaces={workspaceOptions}
+            />
+          }
+          trailingLabel="Scope"
+        />
+
+        <EntityDialogBody className="flex flex-col">
+          {secretRecovery ? (
+            <>
+              <Alert data-testid="bridge-create-secret-recovery" variant="danger">
+                <AlertDescription>
+                  The bridge was created, but {failedSlotNames.length}{" "}
+                  {failedSlotNames.length === 1 ? "credential" : "credentials"} could not be bound.
+                  Re-enter {failedSlotNames.join(", ")} and retry — the earlier values were not
+                  stored and are never shown again.
+                </AlertDescription>
+              </Alert>
+              <ImmutableIdentity
+                hint="Provider and account are fixed for this bridge."
+                rows={[
+                  { label: "Bridge", mono: true, value: secretRecovery.bridgeId },
+                  { label: "Platform", mono: true, value: selectedProvider?.platform ?? "—" },
+                  {
+                    label: "Extension",
+                    mono: true,
+                    value: selectedProvider?.extension_name ?? "—",
+                  },
+                ]}
+              />
+            </>
+          ) : (
+            <BridgeCreateSimpleSection
+              draft={draft}
+              onDraftChange={onDraftChange}
+              onSelectProvider={selectProvider}
+              providerSelectionDisabled={isPending}
+              providers={providers}
+              supportsManifest={supportsManifest}
+            />
+          )}
+
+          <BridgeCreateSecretSlots
+            bound={secretRecovery?.bound}
+            bridgeId={secretRecovery?.bridgeId ?? null}
+            deferredHint={
+              supportsManifest
+                ? "Slack issues these after the app is installed. Leave them empty now and bind them from the bridge detail."
+                : undefined
+            }
+            failures={recoveryFailures}
+            onValueChange={(name, value) =>
+              onDraftChange({
+                ...draft,
+                secretSlotValues: { ...draft.secretSlotValues, [name]: value },
+              })
+            }
+            saving={isPending}
+            slots={selectedProvider?.secret_slots}
+            values={draft.secretSlotValues}
+          />
+
+          {mode === "advanced" && !secretRecovery ? (
+            <BridgeCreateAdvancedSection
+              draft={draft}
+              onDraftChange={onDraftChange}
+              provider={selectedProvider}
+              providerConfigError={providerConfigError}
+            />
+          ) : null}
+        </EntityDialogBody>
+
+        <EntityDialogFooter
+          cancelDisabled={isPending}
+          cancelLabel={secretRecovery ? "Open bridge" : "Cancel"}
+          cancelTestId="bridge-wizard-cancel"
+          hint={
+            secretRecovery
+              ? "The bridge already exists — retrying only writes the missing credentials."
+              : "Provider and account are fixed after creation — create a new bridge to change them."
+          }
+          isSaving={isPending}
+          onCancel={() => handleOpenChange(false)}
+          primaryDisabled={secretRecovery ? isPending || !recoveryReady : !canSubmit || isPending}
+          primaryLabel={
+            secretRecovery
+              ? "Retry secret binding"
+              : supportsManifest
+                ? "Create and continue"
+                : "Create bridge"
+          }
+          primaryTestId="submit-bridge-create"
+          onPrimary={onSubmit}
+        />
       </DialogContent>
     </Dialog>
   );

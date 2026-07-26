@@ -89,7 +89,8 @@ export const CreateDialog: Story = {
 };
 
 /**
- * Test delivery dialog opened from the bridge detail route.
+ * Delivery test reached from the detail route — it opens the editor in Advanced
+ * rather than a standalone dialog (D2).
  */
 export const TestDelivery: Story = {
   args: {},
@@ -103,7 +104,7 @@ export const TestDelivery: Story = {
     const button = canvas.getByTestId("open-test-delivery-btn");
     await userEvent.click(button);
     await expect(
-      within(document.body).findByTestId("bridge-test-delivery-dialog")
+      within(document.body).findByTestId("bridge-delivery-test-panel")
     ).resolves.toBeDefined();
   },
 };

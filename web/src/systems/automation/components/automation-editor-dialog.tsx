@@ -2,18 +2,13 @@ import type { LucideIcon } from "lucide-react";
 import { CalendarClock, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  Eyebrow,
-} from "@agh/ui";
+import { Dialog, DialogContent, EntityDialogHeader, dialogShellClass } from "@agh/ui";
 
 import type { AutomationDialogHandle } from "../lib/dialog-handle";
 import type { WorkspaceOption } from "../lib/trigger-preview";
 import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../types";
+import type { AgentPayload } from "@/systems/agent";
+
 import { AutomationJobForm } from "./automation-job-form";
 import { AutomationTriggerForm } from "./automation-trigger-form";
 
@@ -40,19 +35,25 @@ type AutomationDialogEditorState =
 
 interface AutomationEditorDialogProps {
   activeWorkspaceId?: string | null;
+  /** Agent catalog for the target selector. */
+  agents?: AgentPayload[];
+  /** Initial loading state for the agent target catalog. */
+  agentsLoading?: boolean;
+  /** Agent target catalog failure, preserved by the selector. */
+  agentsError?: string | null;
   editor: AutomationDialogEditorState | null;
   handle?: AutomationDialogHandle;
   workspaces?: ReadonlyArray<WorkspaceOption>;
 }
 
-interface EditorHeaderCopy {
+interface AutomationHeaderCopy {
   icon: LucideIcon;
   eyebrow: string;
   title: string;
   description: ReactNode;
 }
 
-function jobHeaderCopy(mode: "create" | "edit"): EditorHeaderCopy {
+function jobHeaderCopy(mode: "create" | "edit"): AutomationHeaderCopy {
   return {
     icon: CalendarClock,
     eyebrow: "Automation · Job",
@@ -66,7 +67,7 @@ function jobHeaderCopy(mode: "create" | "edit"): EditorHeaderCopy {
   };
 }
 
-function triggerHeaderCopy(mode: "create" | "edit"): EditorHeaderCopy {
+function triggerHeaderCopy(mode: "create" | "edit"): AutomationHeaderCopy {
   return {
     icon: Zap,
     eyebrow: "Automation · Trigger",
@@ -80,11 +81,15 @@ function triggerHeaderCopy(mode: "create" | "edit"): EditorHeaderCopy {
   };
 }
 
-const WIDE_CONTENT_CLASS =
-  "text-fg grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] w-(--width-modal-xl) max-w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)] h-(--height-modal-xl) max-h-[calc(100vh-2rem)]";
+const WIDE_CONTENT_CLASS = `text-fg grid-rows-[auto_minmax(0,1fr)] ${dialogShellClass("lg", {
+  fill: true,
+})}`;
 
 export function AutomationEditorDialog({
   activeWorkspaceId,
+  agents,
+  agentsLoading,
+  agentsError,
   editor,
   handle,
   workspaces,
@@ -106,14 +111,17 @@ export function AutomationEditorDialog({
           className={WIDE_CONTENT_CLASS}
           data-testid="automation-editor-dialog"
         >
-          <EditorHeader
-            copy={
-              editor.kind === "jobs" ? jobHeaderCopy(editor.mode) : triggerHeaderCopy(editor.mode)
-            }
+          <EntityDialogHeader
+            {...(editor.kind === "jobs"
+              ? jobHeaderCopy(editor.mode)
+              : triggerHeaderCopy(editor.mode))}
           />
           {editor.kind === "jobs" ? (
             <AutomationJobForm
               activeWorkspaceId={activeWorkspaceId}
+              agents={agents}
+              agentsError={agentsError}
+              agentsLoading={agentsLoading}
               draft={editor.draft}
               isPending={editor.isPending}
               mode={editor.mode}
@@ -125,6 +133,9 @@ export function AutomationEditorDialog({
           ) : (
             <AutomationTriggerForm
               activeWorkspaceId={activeWorkspaceId}
+              agents={agents}
+              agentsError={agentsError}
+              agentsLoading={agentsLoading}
               draft={editor.draft}
               isPending={editor.isPending}
               mode={editor.mode}
@@ -138,23 +149,5 @@ export function AutomationEditorDialog({
         </DialogContent>
       ) : null}
     </Dialog>
-  );
-}
-
-function EditorHeader({ copy }: { copy: EditorHeaderCopy }) {
-  const Icon = copy.icon;
-  return (
-    <DialogHeader variant="ruled">
-      <div className="flex items-start gap-4">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-tint text-accent-strong ring-1 ring-accent-dim ring-inset">
-          <Icon aria-hidden="true" className="size-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <Eyebrow className="text-accent-strong">{copy.eyebrow}</Eyebrow>
-          <DialogTitle className="mt-1">{copy.title}</DialogTitle>
-          <DialogDescription className="mt-1">{copy.description}</DialogDescription>
-        </div>
-      </div>
-    </DialogHeader>
   );
 }

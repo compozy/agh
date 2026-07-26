@@ -1,7 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Bot, ShieldCheck } from "lucide-react";
+import { Bot, Clock, ShieldCheck } from "lucide-react";
 
-import { FormSection, Input, Label, Textarea } from "@agh/ui";
+import {
+  Field,
+  FieldDescription,
+  FieldHeader,
+  FieldLabel,
+  FormSection,
+  HelpTip,
+  Input,
+  Textarea,
+} from "@agh/ui";
 
 const meta: Meta<typeof FormSection> = {
   title: "components/custom/FormSection",
@@ -11,7 +20,7 @@ const meta: Meta<typeof FormSection> = {
     docs: {
       description: {
         component:
-          "Editable-surface container — 18/20 padding (comfortable) or 14/16 (compact), --radius-lg corners, --canvas-soft background, no border. Head is 13/510/-0.008em with optional leading icon and right-aligned 11 px eyebrow.",
+          "One titled block of a modal body or settings form. Follows `.sec` (modal-system.css:221): a hairline rule and 22 px top padding, no card surface and no horizontal padding of its own, so fields align with the body gutter instead of stepping 16 px further in. Title is 12.5/600/-0.012em. Explanatory prose lives in `help`; `description` is reserved for runtime truth.",
       },
     },
   },
@@ -27,39 +36,64 @@ const meta: Meta<typeof FormSection> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Comfortable density — the default for full-page forms. */
-export const Comfortable: Story = {
-  args: {},
-  render: () => (
-    <FormSection title="Scope" icon={ShieldCheck} rightLabel="Required">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="scope">Visibility</Label>
-        <Input id="scope" placeholder="workspace" />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="notes">Notes</Label>
-        <Textarea id="notes" placeholder="Optional context for the operator" />
-      </div>
-    </FormSection>
-  ),
-};
-
-/** Compact density — for dialog hosts and OptionCard wrappers. */
-export const Compact: Story = {
+/** Explanatory prose sits behind the `(?)`, keeping the default read quiet. */
+export const WithHelp: Story = {
   args: {},
   render: () => (
     <FormSection
-      title="Owner"
-      size="compact"
-      icon={Bot}
-      description="Who runs this task when no override is set."
+      help="Sessions launched from this definition inherit the visibility you pick here."
+      icon={ShieldCheck}
+      rightLabel="Required"
+      title="Scope"
     >
-      <Input placeholder="agent_session" />
+      <Field>
+        <FieldHeader>
+          <FieldLabel htmlFor="scope">Visibility</FieldLabel>
+          <HelpTip label="About visibility">
+            A workspace agent is reachable only inside that project; a global agent is reachable
+            everywhere.
+          </HelpTip>
+        </FieldHeader>
+        <Input id="scope" placeholder="workspace" />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="notes">Notes</FieldLabel>
+        <Textarea id="notes" placeholder="Context this agent should carry into every session" />
+      </Field>
     </FormSection>
   ),
 };
 
-/** No icon / no right label — verifies head spacing collapses cleanly. */
+/** `description` carries what the runtime will do — never an explanation. */
+export const WithRuntimeTruth: Story = {
+  args: {},
+  render: () => (
+    <FormSection description="Project runtime defaults will be used." icon={Bot} title="Runtime">
+      <Field>
+        <FieldLabel htmlFor="model">Model</FieldLabel>
+        <Input id="model" placeholder="Select model" />
+        <FieldDescription>Backed by the live provider catalog.</FieldDescription>
+      </Field>
+    </FormSection>
+  ),
+};
+
+/** Stacked sections — the first drops its rule, the rest carry a hairline. */
+export const Stacked: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-col">
+      <FormSection help="What this job is called in the catalog." icon={Bot} title="The definition">
+        <Input placeholder="daily-code-review" />
+      </FormSection>
+      <FormSection help="All times evaluate in UTC." icon={Clock} title="On this schedule">
+        <Input className="font-mono" placeholder="0 9 * * *" />
+      </FormSection>
+    </div>
+  ),
+};
+
+/** No icon, no help, no right label — verifies the head collapses cleanly. */
 export const HeadOnly: Story = {
   args: {},
   render: () => (

@@ -1,25 +1,19 @@
+import { Play } from "lucide-react";
 import { useRef, type FormEvent } from "react";
 
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  Field,
-  FieldDescription,
+  dialogShellClass,
+  EntityDialogBody,
+  EntityDialogHeader,
+  EntityModeToolbar,
   FieldError,
-  FieldLabel,
+  type EntityMode,
 } from "@agh/ui";
 
+import type { AgentPayload } from "@/systems/agent";
 import {
-  AgentCommandSelect,
-  AgentIcon,
-  resolveAgentRuntimeValue,
-  type AgentPayload,
-} from "@/systems/agent";
-import {
-  NetworkParticipationFields,
   isNetworkParticipationDraftValid,
   type NetworkParticipationDraft,
 } from "@/systems/network";
@@ -29,16 +23,27 @@ import {
   type RuntimeProviderOption,
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
-import type { WorkspacePayload } from "@/systems/workspace";
+import type { WorkspaceCommandSelectOption, WorkspacePayload } from "@/systems/workspace";
 
 import { validateSessionModelSelection } from "../lib/session-model-selection";
+import { SessionCreateAdvancedSection } from "./session-create-advanced-section";
 import { SessionCreatePromptComposer } from "./session-create-prompt-composer";
+import { SessionCreateSimpleSection } from "./session-create-simple-section";
 
 export interface SessionCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  mode: EntityMode;
+  onModeChange: (mode: EntityMode) => void;
   agents: AgentPayload[];
   workspace: WorkspacePayload | undefined;
+  workspaces: WorkspaceCommandSelectOption[];
+  workspaceId: string | null;
+  onWorkspaceChange: (workspaceId: string) => void;
+  sessionName: string;
+  onSessionNameChange: (next: string) => void;
+  workspacePath: string;
+  onWorkspacePathChange: (next: string) => void;
   selectedAgentName: string;
   runtimeValue: RuntimeSelectorValue;
   runtimeProviders: RuntimeProviderOption[];
@@ -68,8 +73,17 @@ export interface SessionCreateDialogProps {
 function SessionCreateDialog({
   open,
   onOpenChange,
+  mode,
+  onModeChange,
   agents,
   workspace,
+  workspaces,
+  workspaceId,
+  onWorkspaceChange,
+  sessionName,
+  onSessionNameChange,
+  workspacePath,
+  onWorkspacePathChange,
   selectedAgentName,
   runtimeValue,
   runtimeProviders,
@@ -95,14 +109,9 @@ function SessionCreateDialog({
   isSubmitting,
   submitError,
 }: SessionCreateDialogProps) {
-  // Base UI otherwise focuses the first selectable control.
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const trimmedSelectedAgentName = selectedAgentName.trim();
   const workspaceSelected = workspace !== undefined;
-  const activeAgent = workspaceSelected
-    ? agents.find(agent => agent.name === trimmedSelectedAgentName)
-    : undefined;
-  const activeAgentProvider = resolveAgentRuntimeValue(activeAgent).provider;
   const hasAgents = agents.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
   const hasSelectedProvider = runtimeProviders.some(option => option.id === runtimeValue.provider);
@@ -114,11 +123,6 @@ function SessionCreateDialog({
     catalogLoaded,
     catalogError,
   });
-  const agentPlaceholder = !workspaceSelected
-    ? "Select a workspace first"
-    : hasAgents
-      ? "Select an agent"
-      : "No agents available";
   const canSubmit =
     !isSubmitting &&
     !providersLoading &&
@@ -151,56 +155,56 @@ function SessionCreateDialog({
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
-        // Keep Live participation and inline errors reachable on short viewports.
-        className="max-h-[calc(100dvh-4rem)] text-fg sm:max-w-(--width-modal-sm)"
+        className={`grid-rows-[auto_auto_minmax(0,1fr)] text-fg ${dialogShellClass("sm")}`}
         data-testid="session-create-dialog"
         initialFocus={promptRef}
-        showCloseButton={!isSubmitting}
+        showCloseButton={false}
         unframed
       >
-        <DialogHeader variant="ruled">
-          <DialogTitle>Start a new session</DialogTitle>
-          <DialogDescription>
-            {workspaceSelected
-              ? `Write the first message for a new session in ${workspace.name}. AGH sends it as soon as the runtime starts.`
-              : "Choose an active workspace before starting a session."}
-          </DialogDescription>
-        </DialogHeader>
+        <EntityDialogHeader
+          description={
+            workspaceSelected ? (
+              <>
+                Launch an agent in a workspace.{" "}
+                <b className="font-medium text-muted">This starts a run</b> — it does not create or
+                edit a definition.
+              </>
+            ) : (
+              "Choose an active workspace before starting a session."
+            )
+          }
+          eyebrow="Operate · Session"
+          icon={Play}
+          onClose={isSubmitting ? undefined : () => handleOpenChange(false)}
+          title="Start session"
+        />
 
-        <form className="min-h-0 overflow-y-auto" onSubmit={handleSubmit}>
-          <div className="space-y-5 p-5">
-            <Field>
-              <FieldLabel htmlFor="session-create-agent">Agent</FieldLabel>
-              <FieldDescription>
-                The agent owns the instructions, tools, and provider for this session.
-              </FieldDescription>
-              <AgentCommandSelect
-                agents={agents}
-                value={workspaceSelected ? trimmedSelectedAgentName || null : null}
-                onChange={next => onAgentChange(next ?? "")}
-                disabled={!workspaceSelected || !hasAgents || isSubmitting}
-                triggerId="session-create-agent"
-                triggerTestId="session-create-agent-select"
-                placeholder={agentPlaceholder}
-              />
-              {activeAgent && activeAgentProvider.length > 0 ? (
-                <div
-                  className="mt-1 flex items-center gap-1.5 text-form-hint text-subtle"
-                  data-testid="session-create-agent-default"
-                >
-                  <AgentIcon className="size-3 text-subtle" provider={activeAgentProvider} />
-                  <span>Effective provider: {activeAgentProvider}</span>
-                </div>
-              ) : null}
-            </Field>
+        <EntityModeToolbar mode={mode} onModeChange={onModeChange} testIdPrefix="session-create" />
 
-            <NetworkParticipationFields
-              allowedStrategies={["named"]}
-              disabled={isSubmitting}
-              onChange={onNetworkParticipationChange}
-              testIdPrefix="session-create-participation"
-              value={networkParticipation}
+        <form className="contents" onSubmit={handleSubmit}>
+          <EntityDialogBody className="flex flex-col">
+            <SessionCreateSimpleSection
+              agents={agents}
+              isSubmitting={isSubmitting}
+              onAgentChange={onAgentChange}
+              onSessionNameChange={onSessionNameChange}
+              onWorkspaceChange={onWorkspaceChange}
+              selectedAgentName={selectedAgentName}
+              sessionName={sessionName}
+              workspaceId={workspaceId}
+              workspaceSelected={workspaceSelected}
+              workspaces={workspaces}
             />
+
+            {mode === "advanced" ? (
+              <SessionCreateAdvancedSection
+                isSubmitting={isSubmitting}
+                networkParticipation={networkParticipation}
+                onNetworkParticipationChange={onNetworkParticipationChange}
+                onWorkspacePathChange={onWorkspacePathChange}
+                workspacePath={workspacePath}
+              />
+            ) : null}
 
             <SessionCreatePromptComposer
               canSubmit={canSubmit}
@@ -212,31 +216,31 @@ function SessionCreateDialog({
               onSubmitDraft={submitIfAllowed}
               runtimeControl={
                 <RuntimeSelector
-                  value={runtimeValue}
-                  onChange={onRuntimeChange}
-                  providers={runtimeProviders}
-                  models={runtimeModels}
-                  variant="composer"
-                  loading={catalogLoading}
                   catalogLoaded={catalogLoaded}
-                  refreshing={catalogRefreshing}
-                  onRefreshCatalog={onCatalogRefresh}
-                  onOpenProviderSettings={onOpenProviderSettings}
                   catalogStatus={
                     <CatalogStatusLine
+                      error={catalogError}
                       loading={catalogLoading}
+                      optionCount={runtimeModels.length}
+                      refreshError={catalogRefreshError}
                       refreshing={catalogRefreshing}
                       stale={catalogStale}
-                      error={catalogError}
-                      refreshError={catalogRefreshError}
-                      optionCount={runtimeModels.length}
                     />
                   }
                   disabled={
                     !workspaceSelected || providersLoading || !hasProviderOptions || isSubmitting
                   }
+                  loading={catalogLoading}
+                  models={runtimeModels}
+                  onChange={onRuntimeChange}
+                  onOpenProviderSettings={onOpenProviderSettings}
+                  onRefreshCatalog={onCatalogRefresh}
+                  providers={runtimeProviders}
+                  refreshing={catalogRefreshing}
                   triggerId="session-create-runtime"
                   triggerTestId="session-create-runtime-select"
+                  value={runtimeValue}
+                  variant="composer"
                 />
               }
               value={promptValue}
@@ -275,8 +279,8 @@ function SessionCreateDialog({
                 data-testid="session-create-pending-status"
                 role="status"
               >
-                Starting the session. It opens as soon as AGH accepts it; the first message is sent
-                when the runtime starts.
+                Starting the session. It opens as soon as AGH durably accepts it; the first message
+                is sent when the runtime starts.
               </p>
             ) : null}
 
@@ -290,7 +294,7 @@ function SessionCreateDialog({
                 {submitError}
               </p>
             ) : null}
-          </div>
+          </EntityDialogBody>
         </form>
       </DialogContent>
     </Dialog>

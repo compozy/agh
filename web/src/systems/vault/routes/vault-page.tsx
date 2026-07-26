@@ -7,21 +7,14 @@ import {
   Button,
   ConfirmDialog,
   Empty,
-  Input,
   ListingPage,
   ListingToolbar,
   Skeleton,
   useTopbarSlot,
 } from "@agh/ui";
 
-import {
-  useVaultPage,
-  type VaultDraft,
-  type VaultEditorState,
-  type VaultLastAction,
-  type VaultRouteSearch,
-} from "../hooks/use-vault-page";
-import { SettingsEditorDialog, SettingsFieldRow } from "@/systems/settings";
+import { useVaultPage, type VaultLastAction, type VaultRouteSearch } from "../hooks/use-vault-page";
+import { VaultEditor } from "../components/vault-editor";
 import { VaultListFilters } from "../components/vault-list-filters";
 import { VaultSecretSheet } from "../components/vault-secret-sheet";
 import { VaultSecretsList } from "../components/vault-secrets-list";
@@ -192,6 +185,7 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
         onChange={page.updateDraft}
         onClose={page.closeEditor}
         onSave={page.saveEditor}
+        refExists={page.editorRefExists}
       />
 
       <VaultDeleteDialog
@@ -202,101 +196,6 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
         target={page.deleteTarget.mode === "open" ? page.deleteTarget.secret : null}
       />
     </ListingPage>
-  );
-}
-
-interface VaultEditorProps {
-  editor: VaultEditorState;
-  isSaving: boolean;
-  canSave: boolean;
-  error: string | null;
-  onChange: (updater: (draft: VaultDraft) => VaultDraft) => void;
-  onClose: () => void;
-  onSave: () => void;
-}
-
-function VaultEditor({
-  editor,
-  isSaving,
-  canSave,
-  error,
-  onChange,
-  onClose,
-  onSave,
-}: VaultEditorProps) {
-  if (editor.mode === "closed") {
-    return null;
-  }
-
-  const draft = editor.draft;
-  const refError =
-    draft.ref.trim() && !draft.ref.trim().startsWith("vault:")
-      ? "Vault refs must start with vault:."
-      : null;
-
-  return (
-    <SettingsEditorDialog
-      open
-      mode="create"
-      title="New vault secret"
-      slug="vault"
-      description="Stores a write-only secret value and returns redacted metadata."
-      error={error ?? refError}
-      canSave={canSave && !refError}
-      isSaving={isSaving}
-      saveLabel="Store secret"
-      onSave={onSave}
-      onOpenChange={next => {
-        if (!next) onClose();
-      }}
-    >
-      <SettingsFieldRow
-        label="Ref"
-        description="Daemon-owned vault reference."
-        error={refError}
-        data-testid="settings-vault-editor-ref"
-        control={
-          <Input
-            className="w-[min(100%,28rem)] font-mono"
-            value={draft.ref}
-            onChange={event => onChange(current => ({ ...current, ref: event.target.value }))}
-            placeholder="vault:sessions/sess_123/github-token"
-            data-testid="settings-vault-editor-ref-input"
-          />
-        }
-      />
-      <SettingsFieldRow
-        label="Kind"
-        description="Metadata label returned on public Vault surfaces."
-        data-testid="settings-vault-editor-kind"
-        control={
-          <Input
-            className="w-48 font-mono"
-            value={draft.kind}
-            onChange={event => onChange(current => ({ ...current, kind: event.target.value }))}
-            placeholder="api_key"
-            data-testid="settings-vault-editor-kind-input"
-          />
-        }
-      />
-      <SettingsFieldRow
-        label="Secret value"
-        description="Write-only payload. The daemon never returns this value."
-        data-testid="settings-vault-editor-secret-value"
-        control={
-          <Input
-            className="w-[min(100%,28rem)] font-mono"
-            type="password"
-            value={draft.secretValue}
-            onChange={event =>
-              onChange(current => ({ ...current, secretValue: event.target.value }))
-            }
-            placeholder="Stored without plaintext readback"
-            data-testid="settings-vault-editor-secret-value-input"
-          />
-        }
-      />
-    </SettingsEditorDialog>
   );
 }
 

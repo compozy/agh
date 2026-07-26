@@ -350,10 +350,8 @@
   /* Forms / dialog body sizing. */
   --height-editor-footer: 52px;
   --width-detail-inspector-inline: 320px;
-  /* Key/value + form label gutters — ContextBox + MetadataList converge on 140;
-     FieldRow keeps the wider 180 form-label column. */
+  /* Key/value gutter — ContextBox + MetadataList converge on 140. */
   --width-kv-label: 140px;
-  --width-form-label-col: 180px;
 
   /* Table cell width ladder — recurring max-width cells across detail panels. */
   --width-table-cell-sm: 224px;

@@ -2,11 +2,11 @@ import { AlertCircle, Repeat2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { Empty, Spinner, useTopbarSlot } from "@agh/ui";
-import { LoopConfigureSheet, useLoop, useLoopConfig } from "@/systems/loops";
+import { LoopConfigureDialog, useLoop, useLoopConfig } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 /**
- * The no-fork Configure surface (design §4.7): a right-side sheet over a dimmed backdrop that
+ * The no-fork Configure surface (design §4.7): a dialog over a dimmed backdrop that
  * writes the per-loop `loop_config` store. Opened from the detail Configure action (task 19);
  * closing or saving returns to the loop detail. Structural edits route to the fork editor.
  */
@@ -77,7 +77,7 @@ export function LoopConfigureLocation({ name }: { name: string }) {
   }
 
   return (
-    <LoopConfigureSheet
+    <LoopConfigureDialog
       key={name}
       open
       workspaceId={workspaceId}

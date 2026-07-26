@@ -1,37 +1,28 @@
+import { useState } from "react";
+import { Cable } from "lucide-react";
+
 import {
   Alert,
   AlertDescription,
   Button,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Eyebrow,
-  RadioCard,
-  Spinner,
+  dialogShellClass,
+  EntityDialogBody,
+  EntityDialogFooter,
+  EntityDialogHeader,
+  EntityModeToolbar,
+  type EntityMode,
 } from "@agh/ui";
-import { AlertCircle } from "lucide-react";
 
-import {
-  withTransport,
-  type MCPDraft,
-  type MCPDraftErrors,
-  type MCPTransport,
-} from "../lib/mcp-editor-model";
+import type { MCPDraft, MCPDraftErrors } from "../lib/mcp-editor-model";
 import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "../types";
 
-import { MCPEditorRemoteSection } from "./mcp-editor-remote-section";
+import { MCPEditorConnectionSection } from "./mcp-editor-connection-section";
+import { MCPEditorOAuthSection } from "./mcp-editor-oauth-section";
+import { MCPEditorProcessSection } from "./mcp-editor-stdio-section";
 import type { MCPVaultInventory } from "./mcp-secret-binding";
-import { MCPEditorStdioSection } from "./mcp-editor-stdio-section";
 import { SettingsSourceBadge } from "./settings-source-badge";
-
-const TRANSPORTS: { value: MCPTransport; description: string }[] = [
-  { value: "stdio", description: "Local subprocess" },
-  { value: "http", description: "Remote HTTP endpoint" },
-  { value: "sse", description: "Remote SSE endpoint" },
-];
 
 export interface MCPServerEditorProps {
   open: boolean;
@@ -47,6 +38,9 @@ export interface MCPServerEditorProps {
   target: SettingsMCPServerTarget;
   availableTargets: SettingsMCPServerTarget[];
   entry: SettingsMCPServerEntry | null;
+  /** Runtime status line for the toolbar trailing slot. */
+  statusLabel?: string;
+  initialTier?: EntityMode;
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
   onTargetChange: (target: SettingsMCPServerTarget) => void;
   onClose: () => void;
@@ -54,6 +48,13 @@ export interface MCPServerEditorProps {
   onRemove?: () => void;
 }
 
+/**
+ * MCP server editor on the shared entity-dialog shell.
+ *
+ * It keeps its own `Dialog` rather than routing through `SettingsEditorDialog`:
+ * the mode toolbar and the transport-dependent body are not part of that shell's
+ * contract, and nesting them would produce two competing chromes.
+ */
 export function MCPServerEditor({
   open,
   mode,
@@ -68,19 +69,19 @@ export function MCPServerEditor({
   target,
   availableTargets,
   entry,
+  statusLabel,
+  initialTier = "simple",
   onChange,
   onTargetChange,
   onClose,
   onSave,
   onRemove,
 }: MCPServerEditorProps) {
+  const [tier, setTier] = useState<EntityMode>(initialTier);
   if (!open) return null;
 
   const isCreate = mode === "create";
-  const title = isCreate ? "Add MCP server" : `Edit ${draft.name}`;
-  const description = isCreate
-    ? "Saving writes a full replacement of the named definition in the selected target."
-    : "Saving replaces the complete server definition in the selected target.";
+  const isRemote = draft.transport !== "stdio";
 
   return (
     <Dialog
@@ -90,89 +91,110 @@ export function MCPServerEditor({
       }}
     >
       <DialogContent
-        className="grid w-[calc(100%-2rem)] max-w-xl gap-4 sm:max-w-3xl"
-        unframed
-        data-testid="settings-mcp-servers-editor"
+        className={`grid-rows-[auto_auto_minmax(0,1fr)_auto] text-fg ${dialogShellClass("md")}`}
         data-mode={mode}
+        data-testid="settings-mcp-servers-editor"
         data-transport={draft.transport}
+        showCloseButton={false}
+        unframed
       >
-        <DialogHeader variant="ruled">
-          <Eyebrow className="text-muted">MCP server · {scope}</Eyebrow>
-          <DialogTitle data-testid="settings-mcp-servers-editor-title">{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-          {entry ? (
-            <div className="pt-1">
-              <SettingsSourceBadge
-                data-testid="settings-mcp-servers-editor-source"
-                source={entry.source_metadata.effective_source}
-                shadowed={entry.source_metadata.shadowed_sources ?? []}
-              />
-            </div>
-          ) : null}
-        </DialogHeader>
-
-        <div
-          className="flex max-h-[62vh] flex-col gap-4 overflow-y-auto px-5 py-4"
-          data-testid="settings-mcp-servers-editor-body"
-        >
-          <div>
-            <Eyebrow className="mb-1.5 block text-muted">Transport</Eyebrow>
-            <div
-              className="grid grid-cols-3 gap-2"
-              role="radiogroup"
-              aria-label="Transport"
-              data-testid="settings-mcp-servers-editor-transport"
-            >
-              {TRANSPORTS.map(option => (
-                <RadioCard
-                  key={option.value}
-                  selected={draft.transport === option.value}
-                  title={option.value}
-                  description={option.description}
-                  onSelect={() => onChange(current => withTransport(current, option.value))}
-                  data-testid={`settings-mcp-servers-editor-transport-${option.value}`}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {draft.transport === "stdio" ? (
-              <MCPEditorStdioSection
-                draft={draft}
-                errors={errors}
-                vaultInventory={vaultInventory}
-                isCreate={isCreate}
-                target={target}
-                availableTargets={availableTargets}
-                onChange={onChange}
-                onTargetChange={onTargetChange}
-              />
+        <EntityDialogHeader
+          description={
+            isCreate ? (
+              <>
+                An MCP server gives agents extra{" "}
+                <b className="font-medium text-muted">tools and resources</b> — a local process or a
+                remote endpoint. Environment secrets stay write-only.
+              </>
             ) : (
-              <MCPEditorRemoteSection
-                draft={draft}
-                errors={errors}
-                vaultInventory={vaultInventory}
-                isCreate={isCreate}
-                target={target}
-                availableTargets={availableTargets}
-                onChange={onChange}
-                onTargetChange={onTargetChange}
-              />
-            )}
-          </div>
+              <>
+                Update the connection and rotate write-only environment secrets.{" "}
+                <b className="font-medium text-muted">The route identity stays fixed.</b>
+              </>
+            )
+          }
+          eyebrow="System · MCP server"
+          icon={Cable}
+          onClose={isSaving ? undefined : onClose}
+          title={
+            <span data-testid="settings-mcp-servers-editor-title">
+              {isCreate ? "Add MCP server" : `Edit ${draft.name}`}
+            </span>
+          }
+        />
+
+        <EntityModeToolbar
+          mode={tier}
+          onModeChange={setTier}
+          testIdPrefix="settings-mcp-servers-editor"
+          trailing={
+            <span className="flex min-w-0 flex-wrap items-center gap-2">
+              {/* The write target is owned by the caller, so scope is reported,
+                  not chosen — but it must stay visible in both modes. */}
+              <span
+                className="font-mono text-form-label text-muted"
+                data-testid="settings-mcp-servers-editor-scope"
+              >
+                MCP server · {scope}
+              </span>
+              {statusLabel ? (
+                <span
+                  className="font-mono text-form-label text-muted"
+                  data-testid="settings-mcp-servers-editor-status"
+                >
+                  {statusLabel}
+                </span>
+              ) : null}
+              {entry ? (
+                <SettingsSourceBadge
+                  data-testid="settings-mcp-servers-editor-source"
+                  shadowed={entry.source_metadata.shadowed_sources ?? []}
+                  source={entry.source_metadata.effective_source}
+                />
+              ) : null}
+            </span>
+          }
+        />
+
+        <EntityDialogBody className="flex flex-col" data-testid="settings-mcp-servers-editor-body">
+          <MCPEditorConnectionSection
+            availableTargets={availableTargets}
+            draft={draft}
+            errors={errors}
+            isCreate={isCreate}
+            onChange={onChange}
+            onTargetChange={onTargetChange}
+            scope={scope}
+            target={target}
+          />
+
+          {tier === "advanced" && !isRemote ? (
+            <MCPEditorProcessSection
+              draft={draft}
+              errors={errors}
+              onChange={onChange}
+              vaultInventory={vaultInventory}
+            />
+          ) : null}
+
+          {tier === "advanced" && isRemote ? (
+            <MCPEditorOAuthSection
+              errors={errors}
+              oauth={draft.oauth}
+              onChange={oauth => onChange(current => ({ ...current, oauth }))}
+              vaultInventory={vaultInventory}
+            />
+          ) : null}
 
           {saveError ? (
-            <Alert variant="danger" data-testid="settings-mcp-servers-editor-error">
-              <AlertCircle className="mt-0.5 size-3 shrink-0" />
-              <AlertDescription className="text-xs">{saveError}</AlertDescription>
+            <Alert data-testid="settings-mcp-servers-editor-error" variant="danger">
+              <AlertDescription>{saveError}</AlertDescription>
             </Alert>
           ) : null}
           {!saveError && warnings && warnings.length > 0 ? (
-            <Alert variant="warning" data-testid="settings-mcp-servers-editor-warnings">
-              <AlertCircle className="mt-0.5 size-3 shrink-0" />
+            <Alert data-testid="settings-mcp-servers-editor-warnings" variant="warning">
               <AlertDescription>
-                <ul className="flex flex-col gap-1 text-xs">
+                <ul className="flex flex-col gap-1">
                   {warnings.map(warning => (
                     <li key={warning}>{warning}</li>
                   ))}
@@ -180,47 +202,34 @@ export function MCPServerEditor({
               </AlertDescription>
             </Alert>
           ) : null}
-        </div>
+        </EntityDialogBody>
 
-        <DialogFooter variant="ruled">
-          {!isCreate && onRemove ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              className="mr-auto"
-              onClick={onRemove}
-              disabled={isSaving}
-              data-testid="settings-mcp-servers-editor-remove"
-            >
-              Remove server
-            </Button>
-          ) : (
-            <span className="mr-auto text-caption text-muted">
-              Plaintext secrets are write-only.
-            </span>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            disabled={isSaving}
-            data-testid="settings-mcp-servers-editor-cancel"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={onSave}
-            disabled={!isValid || isSaving}
-            data-testid="settings-mcp-servers-editor-save"
-          >
-            {isSaving ? <Spinner className="size-3" /> : null}
-            {isSaving ? "Saving..." : "Save changes"}
-          </Button>
-        </DialogFooter>
+        <EntityDialogFooter
+          cancelDisabled={isSaving}
+          cancelTestId="settings-mcp-servers-editor-cancel"
+          hint={
+            !isCreate && onRemove ? (
+              <Button
+                data-testid="settings-mcp-servers-editor-remove"
+                disabled={isSaving}
+                onClick={onRemove}
+                size="sm"
+                type="button"
+                variant="destructive"
+              >
+                Remove server
+              </Button>
+            ) : (
+              "Secret values are never returned after save — only presence."
+            )
+          }
+          isSaving={isSaving}
+          onCancel={onClose}
+          onPrimary={onSave}
+          primaryDisabled={!isValid || isSaving}
+          primaryLabel={isSaving ? "Saving..." : isCreate ? "Add server" : "Save changes"}
+          primaryTestId="settings-mcp-servers-editor-save"
+        />
       </DialogContent>
     </Dialog>
   );

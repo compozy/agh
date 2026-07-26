@@ -1,3 +1,4 @@
+import { agentFixtures } from "@/systems/agent/mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render as renderTestingLibrary, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -44,6 +45,7 @@ function JobEditorHarness({
   return (
     <AutomationEditorDialog
       activeWorkspaceId="ws_test"
+      agents={agentFixtures}
       editor={{
         draft,
         isPending: false,
@@ -74,6 +76,7 @@ function TriggerEditorHarness({
   return (
     <AutomationEditorDialog
       activeWorkspaceId="ws_test"
+      agents={agentFixtures}
       editor={{
         draft,
         isPending: false,
@@ -143,6 +146,10 @@ describe("AutomationEditorDialog", () => {
     const header = dialog.querySelector('[data-slot="dialog-header"]');
     expect(header).not.toBeNull();
     expect(header).toHaveAttribute("data-variant", "ruled");
+    // The header is the shared entity primitive, not a local definition:
+    // its accent icon well only exists in `EntityDialogHeader`.
+    expect(header?.querySelector('[data-slot="entity-dialog-header"]')).not.toBeNull();
+    expect(header?.querySelector('[data-slot="entity-dialog-header-icon"]')).not.toBeNull();
 
     expect(within(header as HTMLElement).getByText("Automation · Job")).toBeInTheDocument();
     expect(within(header as HTMLElement).getByText("Create job")).toBeInTheDocument();
@@ -163,9 +170,8 @@ describe("AutomationEditorDialog", () => {
     });
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
 
-    fireEvent.change(screen.getByTestId("job-agent-input"), {
-      target: { value: "writer" },
-    });
+    fireEvent.click(screen.getByTestId("job-agent-input"));
+    fireEvent.click(screen.getByTestId(`agent-command-item-${agentFixtures[0].name}`));
     fireEvent.change(screen.getByTestId("job-prompt-input"), {
       target: { value: "Summarize the latest commits." },
     });
@@ -176,7 +182,7 @@ describe("AutomationEditorDialog", () => {
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
-        agent_name: "writer",
+        agent_name: agentFixtures[0].name,
         name: "nightly-docs",
         prompt: "Summarize the latest commits.",
       })
@@ -194,6 +200,61 @@ describe("AutomationEditorDialog", () => {
     expect(within(header as HTMLElement).getByText("Create trigger")).toBeInTheDocument();
     expect(screen.getByTestId("automation-trigger-form")).toBeInTheDocument();
     expect(screen.queryByTestId("automation-job-form")).not.toBeInTheDocument();
+  });
+
+  it("Should preserve the agent catalog loading state through the job target selector", () => {
+    render(
+      <AutomationEditorDialog
+        activeWorkspaceId="ws_test"
+        agents={[]}
+        agentsLoading
+        editor={{
+          draft: createAutomationJobDraft("ws_test"),
+          isPending: false,
+          kind: "jobs",
+          mode: "create",
+          onCancel: vi.fn(),
+          onChange: vi.fn(),
+          onSubmit: vi.fn(),
+        }}
+        workspaces={WORKSPACES}
+      />
+    );
+
+    const selector = screen.getByTestId("job-agent-input");
+    expect(selector).toBeDisabled();
+    expect(selector).toHaveTextContent("Loading agents…");
+    expect(selector).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("Should preserve an agent catalog error through the trigger target selector", async () => {
+    const user = userEvent.setup();
+    render(
+      <AutomationEditorDialog
+        activeWorkspaceId="ws_test"
+        agents={[]}
+        agentsError="Agent catalog is unavailable."
+        editor={{
+          draft: createAutomationTriggerDraft("ws_test"),
+          isPending: false,
+          kind: "triggers",
+          mode: "create",
+          onCancel: vi.fn(),
+          onChange: vi.fn(),
+          onSubmit: vi.fn(),
+        }}
+        workspaces={WORKSPACES}
+      />
+    );
+
+    const selector = screen.getByTestId("trigger-agent-input");
+    expect(selector).toHaveTextContent("Unable to load agents");
+    expect(selector).toHaveAttribute("aria-invalid", "true");
+
+    await user.click(selector);
+    expect(screen.getByTestId("agent-command-empty")).toHaveTextContent(
+      "Agent catalog is unavailable."
+    );
   });
 
   it("Should render the Edit trigger title for the triggers edit mode", () => {

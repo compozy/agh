@@ -2,16 +2,16 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { StorySurface } from "@/storybook/story-layout";
 
-import { LoopConfigureSheet } from "../configure/loop-configure-sheet";
+import { LoopConfigureDialog } from "../configure/loop-configure-dialog";
 import {
   loopConfigFixture,
   loopDetailByName,
   loopEffectiveConfigFixture,
 } from "../../mocks/fixtures";
 
-const meta: Meta<typeof LoopConfigureSheet> = {
-  title: "systems/loops/components/LoopConfigureSheet",
-  component: LoopConfigureSheet,
+const meta: Meta<typeof LoopConfigureDialog> = {
+  title: "systems/loops/components/LoopConfigureDialog",
+  component: LoopConfigureDialog,
   parameters: { layout: "fullscreen" },
 };
 
@@ -23,12 +23,12 @@ const watchLoop = loopDetailByName.get("reviews-watch")!;
 
 const noop = () => {};
 
-/** The full configure sheet: command check + command field, locked agent-judge, human gate,
+/** The full configure modal: command check + command field, locked agent-judge, human gate,
  *  re-attempt cards, and the 6 clamped limit overrides seeded from a stored config. */
 export const Delivery: Story = {
   render: () => (
     <StorySurface className="h-[880px] p-0">
-      <LoopConfigureSheet
+      <LoopConfigureDialog
         open
         workspaceId="ws_default"
         loop={deliveryLoop}
@@ -46,7 +46,7 @@ export const Delivery: Story = {
 export const InheritedDefaults: Story = {
   render: () => (
     <StorySurface className="h-[880px] p-0">
-      <LoopConfigureSheet
+      <LoopConfigureDialog
         open
         workspaceId="ws_default"
         loop={deliveryLoop}
@@ -63,7 +63,7 @@ export const InheritedDefaults: Story = {
 export const WatchNoChecks: Story = {
   render: () => (
     <StorySurface className="h-[880px] p-0">
-      <LoopConfigureSheet
+      <LoopConfigureDialog
         open
         workspaceId="ws_default"
         loop={watchLoop}

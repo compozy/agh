@@ -246,7 +246,12 @@ export function formatBridgeProviderConfig(value: unknown): string {
 export function fingerprintBridgeProviderConfig(
   value: BridgeProviderConfig | null | undefined
 ): string {
-  return JSON.stringify(sortJSONValue(value ?? null));
+  return stableBridgeJSON(value ?? null);
+}
+
+/** Canonical key-sorted JSON serialization for bridge comparison and fingerprints. */
+export function stableBridgeJSON(value: unknown): string {
+  return JSON.stringify(sortJSONValue(value)) ?? "null";
 }
 
 function sortJSONValue(value: unknown): unknown {

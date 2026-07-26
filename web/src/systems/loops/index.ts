@@ -359,7 +359,7 @@ export { LoopRunOverrides } from "./components/run-form/loop-run-overrides";
 export { LoopRunPreview } from "./components/run-form/loop-run-preview";
 
 // Configure sheet
-export { LoopConfigureSheet } from "./components/configure/loop-configure-sheet";
+export { LoopConfigureDialog } from "./components/configure/loop-configure-dialog";
 
 // Run page
 export { GoalTurnTimeline } from "./components/run-page/goal-turn-timeline";

@@ -242,12 +242,11 @@ test("Should call distinct dry-run and send-test endpoints and render the delive
   await openBridgeDetail(page, runtime, bridge.id);
   const ui = bridgeOperatorSelectors(page);
 
+  // D2: one entry point opens the editor in Advanced, where both verbs live.
   await expect(ui.openTestDeliveryButton).toBeVisible();
-  await expect(ui.openSendTestButton).toBeEnabled();
   await ui.openTestDeliveryButton.click();
-  await expect(
-    ui.testDeliveryDialog.getByRole("heading", { name: "Check delivery target" })
-  ).toBeVisible();
+  await expect(ui.deliveryTestPanel).toBeVisible();
+  await expect(ui.editModeAdvanced).toHaveAttribute("aria-pressed", "true");
   await ui.testDeliveryMessage.fill("Dry-run browser preview");
   await ui.testDeliveryModeSelect.selectOption("direct-send");
   await ui.testDeliveryPeerInput.fill("preview-peer");
@@ -262,10 +261,7 @@ test("Should call distinct dry-run and send-test endpoints and render the delive
     target: { bridge_instance_id: bridge.id, peer_id: "preview-peer" },
   });
 
-  await ui.testDeliveryDialog.getByRole("button", { name: "Close" }).click();
-  await expect(ui.testDeliveryDialog).toBeHidden();
-  await ui.openSendTestButton.click();
-  await expect(ui.sendTestDialog.getByRole("heading", { name: "Send test message" })).toBeVisible();
+  // The real send reuses the same panel and target draft — no second surface.
   await ui.testDeliveryMessage.fill("Real browser provider ping");
   await ui.testDeliveryModeSelect.selectOption("direct-send");
   await ui.testDeliveryPeerInput.fill("real-peer");

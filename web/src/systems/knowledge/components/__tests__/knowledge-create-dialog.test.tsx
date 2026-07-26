@@ -23,12 +23,21 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeCreate
 }
 
 describe("KnowledgeCreateDialog", () => {
-  it("Should render a 2-col RadioCard grid for the Type picker", () => {
+  it("Should present the knowledge form and its type choices", () => {
+    renderDialog();
+    expect(screen.getByRole("heading", { name: "Create knowledge entry" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Knowledge type" })).toBeInTheDocument();
+  });
+
+  it("Should expose a close action", () => {
+    renderDialog();
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+  });
+
+  it("Should render the available type choices for the Type picker", () => {
     renderDialog();
     const grid = screen.getByTestId("knowledge-create-type-grid");
     expect(grid).toHaveAttribute("role", "radiogroup");
-    expect(grid.className).toMatch(/grid-cols-1/);
-    expect(grid.className).toMatch(/sm:grid-cols-2/);
     const cards = within(grid).getAllByRole("radio");
     expect(cards).toHaveLength(4);
     expect(screen.getByTestId("knowledge-create-type-user")).toBeInTheDocument();

@@ -23,7 +23,6 @@ export function AgentSettingsBasicsSection({
     <FormSection
       data-testid="agent-settings-basics"
       icon={Bot}
-      size="compact"
       title="Basics"
       description="Identity fields for this agent definition."
     >

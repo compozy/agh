@@ -216,6 +216,8 @@ test("operator can replace a builtin provider with a config overlay and delete i
   await settingsUI.providers.editorCommandInput.fill(
     browserSettingsOperatorFlowScenario.providers.overlayCommand
   );
+  // Runtime and model overrides live in the Advanced tier of the provider editor.
+  await settingsUI.providers.editorModeAdvanced.click();
   await settingsUI.providers.editorModelInput.fill(
     browserSettingsOperatorFlowScenario.providers.overlayModel
   );

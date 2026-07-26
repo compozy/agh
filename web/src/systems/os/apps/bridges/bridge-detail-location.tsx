@@ -1,4 +1,4 @@
-import { BridgeDetailPanel, BridgeEditDialog, BridgeTestDeliveryDialog } from "@/systems/bridges";
+import { BridgeDetailPanel, BridgeEditDialog } from "@/systems/bridges";
 import { useBridgeDetailPage } from "./use-bridge-detail-page";
 
 export function BridgeDetailLocation({ id }: { id: string }) {
@@ -8,8 +8,6 @@ export function BridgeDetailLocation({ id }: { id: string }) {
     <>
       <BridgeDetailPanel {...page.detailPanelProps} />
       <BridgeEditDialog {...page.editDialogProps} />
-      <BridgeTestDeliveryDialog {...page.testDeliveryDialogProps} />
-      <BridgeTestDeliveryDialog {...page.sendTestDialogProps} />
     </>
   );
 }

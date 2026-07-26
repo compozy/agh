@@ -65,6 +65,7 @@ export function createNetworkChannelDraft(): NetworkCreateChannelDraft {
     channelName: "",
     purpose: "",
     selectedAgentNames: [],
+    fanoutPolicy: "capability_match",
   };
 }
 

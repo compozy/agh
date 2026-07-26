@@ -9,6 +9,7 @@ import { useActiveWorkspace } from "../use-active-workspace";
 import { useActiveWorkspaceStore } from "../use-active-workspace-store";
 import {
   useDeleteWorkspace,
+  useCreateWorkspace,
   useResolveWorkspace,
   useWorkspace,
   useWorkspaces,
@@ -22,6 +23,7 @@ import {
 
 vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
   deleteWorkspace: vi.fn(),
+  createWorkspace: vi.fn(),
   fetchWorkspace: vi.fn(),
   fetchWorkspaces: vi.fn(),
   resolveWorkspace: vi.fn(),
@@ -29,6 +31,7 @@ vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
 
 import {
   deleteWorkspace,
+  createWorkspace,
   fetchWorkspace,
   fetchWorkspaces,
   resolveWorkspace,
@@ -174,6 +177,29 @@ describe("workspace hooks", () => {
     expect(resolveWorkspace).toHaveBeenCalledWith({ path: "/workspace/alpha" });
     expect(queryClient.getQueryData(workspaceKeys.list())).toEqual([resolvedWorkspace]);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() });
+  });
+
+  it("reconciles created workspaces by identity without duplicating the registry", async () => {
+    const existingWorkspace = makeWorkspace({ name: "previous" });
+    const createdWorkspace = makeWorkspace({ name: "updated" });
+    vi.mocked(createWorkspace).mockResolvedValue(createdWorkspace);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData(workspaceKeys.list(), [existingWorkspace]);
+
+    const { result } = renderHook(() => useCreateWorkspace(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    result.current.mutate({ root_dir: createdWorkspace.root_dir });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(queryClient.getQueryData(workspaceKeys.list())).toEqual([createdWorkspace]);
   });
 
   it("removes deleted workspaces from cached registry data", async () => {

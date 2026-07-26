@@ -5,24 +5,28 @@ import { describe, expect, it } from "vitest";
 import { FormSection } from "../form-section";
 
 describe("FormSection", () => {
-  it("Should default to comfortable density", () => {
-    const { container } = render(
-      <FormSection title="Scope">
-        <span>body</span>
+  it("Should move explanatory prose behind a named help trigger", () => {
+    render(
+      <FormSection help="Where sessions using this profile execute." title="Where does it run?">
+        body
       </FormSection>
     );
-    const root = container.querySelector<HTMLElement>('[data-slot="form-section"]');
-    expect(root?.dataset.size).toBe("comfortable");
+    // The prose is reachable but not resident: a `(?)` button carries it so the
+    // default read of the section stays quiet.
+    expect(screen.getByRole("button", { name: "About where does it run" })).toBeInTheDocument();
+    expect(
+      screen.queryByText("Where sessions using this profile execute.")
+    ).not.toBeInTheDocument();
   });
 
-  it("Should switch to compact density via prop", () => {
-    const { container } = render(
-      <FormSection title="Scope" size="compact">
-        <span>body</span>
+  it("Should keep runtime truth visible instead of hiding it in the trigger", () => {
+    render(
+      <FormSection description="Project runtime defaults will be used." title="Runtime">
+        body
       </FormSection>
     );
-    const root = container.querySelector<HTMLElement>('[data-slot="form-section"]');
-    expect(root?.dataset.size).toBe("compact");
+    expect(screen.getByText("Project runtime defaults will be used.")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("Should render an optional icon + right eyebrow", () => {

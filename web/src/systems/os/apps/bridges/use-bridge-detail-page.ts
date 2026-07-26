@@ -1,12 +1,14 @@
 import { useDeferredValue, useState } from "react";
 import { toast } from "sonner";
 
+import type { EntityMode } from "@agh/ui";
+
 import {
-  buildBridgeSecretBindingRequest,
   buildBridgeUpdateRequest,
   bridgeListFilterForScope,
   createBridgeUpdateDraft,
   fingerprintBridgeProviderConfig,
+  isBridgeUpdateDraftDirty,
   useBridge,
   useBridgeHealthStream,
   useBridgeProviders,
@@ -14,10 +16,8 @@ import {
   useBridgeSecretBindings,
   useBridgeTargets,
   useBridges,
-  useDeleteBridgeSecretBinding,
   useDisableBridge,
   useEnableBridge,
-  usePutBridgeSecretBinding,
   useRestartBridge,
   useResolveBridgeTarget,
   useUpdateBridge,
@@ -25,18 +25,19 @@ import {
 import type { BridgeResolveTargetResponse, BridgeUpdateDraft } from "@/systems/bridges";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { useBridgeDeliveryTests } from "@/hooks/routes/use-bridge-delivery-tests";
+import { useBridgeSecretRotations } from "./use-bridge-secret-rotations";
 import { useBridgeSetupFlow } from "@/hooks/routes/use-bridge-setup-flow";
-
-function bridgeSecretDraftKey(bridgeID: string, bindingName: string) {
-  return `${bridgeID}:${bindingName}`;
-}
 
 function useBridgeDetailPage(bridgeId: string) {
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
 
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
+  const [editMode, setEditMode] = useState<EntityMode>("simple");
   const [editDraft, setEditDraft] = useState<BridgeUpdateDraft>(() => createBridgeUpdateDraft());
-  const [secretInputValues, setSecretInputValues] = useState<Record<string, string>>({});
+  // The draft as loaded, so the PATCH gate can require a real change.
+  const [pristineEditDraft, setPristineEditDraft] = useState<BridgeUpdateDraft>(() =>
+    createBridgeUpdateDraft()
+  );
   const [restartRequiredByID, setRestartRequiredByID] = useState<Record<string, true>>({});
   const [targetSearchQuery, setTargetSearchQuery] = useState("");
   const [targetResolveInput, setTargetResolveInput] = useState("");
@@ -55,8 +56,6 @@ function useBridgeDetailPage(bridgeId: string) {
   });
   const providersQuery = useBridgeProviders();
   const updateBridgeMutation = useUpdateBridge();
-  const putBridgeSecretBindingMutation = usePutBridgeSecretBinding();
-  const deleteBridgeSecretBindingMutation = useDeleteBridgeSecretBinding();
   const enableBridgeMutation = useEnableBridge();
   const disableBridgeMutation = useDisableBridge();
   const restartBridgeMutation = useRestartBridge();
@@ -100,25 +99,22 @@ function useBridgeDetailPage(bridgeId: string) {
     health: selectedHealth,
     provider: selectedBridgeProvider,
   });
-  // Strip `${bridgeId}:` prefixes so the panel sees bare binding names.
-  let selectedSecretInputMap: Record<string, string> = {};
-  if (selectedBridge) {
-    const inputEntries = new Map<string, string>();
-    for (const [key, value] of Object.entries(secretInputValues)) {
-      const prefix = `${selectedBridge.id}:`;
-      if (!key.startsWith(prefix)) continue;
-      inputEntries.set(key.slice(prefix.length), value);
-    }
-    selectedSecretInputMap = Object.fromEntries(inputEntries.entries());
-  }
+  const secrets = useBridgeSecretRotations({
+    bindings: selectedSecretBindings,
+    bridge: selectedBridge,
+    onCredentialChanged: bridgeId => {
+      setupFlow.clearEvidence();
+      markRestartRequired(bridgeId);
+    },
+    provider: selectedBridgeProvider,
+  });
   const restartRequired =
     selectedBridge != null ? Boolean(restartRequiredByID[selectedBridge.id]) : false;
   const isLifecyclePending =
     enableBridgeMutation.isPending ||
     disableBridgeMutation.isPending ||
     restartBridgeMutation.isPending;
-  const isSecretBindingPending =
-    putBridgeSecretBindingMutation.isPending || deleteBridgeSecretBindingMutation.isPending;
+  const isSecretBindingPending = secrets.isPending;
 
   // Only the primary detail query is fatal; route/secret failures stay sectional.
   const detailError = bridgeDetailQuery.error ?? null;
@@ -147,19 +143,32 @@ function useBridgeDetailPage(bridgeId: string) {
     });
   };
 
-  const openEditDialog = () => {
+  const openEditDialog = (mode: EntityMode = "simple") => {
     if (!selectedBridge) {
       return;
     }
 
-    setEditDraft(createBridgeUpdateDraft(selectedBridge));
+    const loaded = createBridgeUpdateDraft(selectedBridge);
+    setEditDraft(loaded);
+    setPristineEditDraft(loaded);
+    setEditMode(mode);
+    deliveryTests.resetDraft();
     setEditDialogOpen(true);
   };
+
+  /** D2: the delivery test is reachable only through the editor's Advanced tier. */
+  const openDeliveryTest = () => openEditDialog("advanced");
 
   const handleEditDialogOpenChange = (open: boolean) => {
     setEditDialogOpen(open);
   };
 
+  /**
+   * One primary action commits both halves of an edit: the PATCH for mutable
+   * fields and a binding PUT per rotated slot. Secrets cannot ride the PATCH —
+   * `UpdateBridgeRequest` has no secret field — so they are written separately
+   * but never behind a second, competing button.
+   */
   const handleUpdateBridge = async () => {
     if (!selectedBridge) {
       return;
@@ -168,6 +177,15 @@ function useBridgeDetailPage(bridgeId: string) {
     const requestResult = buildBridgeUpdateRequest(editDraft);
     if (!requestResult.ok) {
       toast.error(requestResult.error);
+      return;
+    }
+
+    if (!(await secrets.commitPending())) {
+      return;
+    }
+
+    if (!isBridgeUpdateDraftDirty(editDraft, pristineEditDraft)) {
+      setEditDialogOpen(false);
       return;
     }
 
@@ -190,76 +208,6 @@ function useBridgeDetailPage(bridgeId: string) {
       toast.success(`Updated bridge ${result.bridge.display_name}. Restart to apply changes.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update bridge");
-    }
-  };
-
-  const handleSecretInputChange = (bindingName: string, value: string) => {
-    if (!selectedBridge) {
-      return;
-    }
-
-    setSecretInputValues(current => ({
-      ...current,
-      [bridgeSecretDraftKey(selectedBridge.id, bindingName)]: value,
-    }));
-  };
-
-  const handleSaveSecretBinding = async (bindingName: string) => {
-    if (!selectedBridge) {
-      return;
-    }
-
-    const secretValue = selectedSecretInputMap[bindingName] ?? "";
-    const requestResult = buildBridgeSecretBindingRequest(
-      selectedBridge.id,
-      bindingName,
-      secretValue,
-      bindingName
-    );
-    if (!requestResult.ok) {
-      toast.error(requestResult.error);
-      return;
-    }
-
-    try {
-      const binding = await putBridgeSecretBindingMutation.mutateAsync({
-        bindingName,
-        data: requestResult.data,
-        id: selectedBridge.id,
-      });
-
-      setSecretInputValues(current => ({
-        ...current,
-        [bridgeSecretDraftKey(selectedBridge.id, binding.binding_name)]: "",
-      }));
-      setupFlow.clearEvidence();
-      markRestartRequired(selectedBridge.id);
-      toast.success(`Updated secret binding ${bindingName} for ${selectedBridge.display_name}.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update bridge secret");
-    }
-  };
-
-  const handleDeleteSecretBinding = async (bindingName: string) => {
-    if (!selectedBridge) {
-      return;
-    }
-
-    try {
-      await deleteBridgeSecretBindingMutation.mutateAsync({
-        bindingName,
-        id: selectedBridge.id,
-      });
-
-      setSecretInputValues(current => ({
-        ...current,
-        [bridgeSecretDraftKey(selectedBridge.id, bindingName)]: "",
-      }));
-      setupFlow.clearEvidence();
-      markRestartRequired(selectedBridge.id);
-      toast.success(`Deleted secret binding ${bindingName} for ${selectedBridge.display_name}.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete bridge secret");
     }
   };
 
@@ -375,20 +323,19 @@ function useBridgeDetailPage(bridgeId: string) {
       resolveResult: targetResolveResult,
       response: bridgeTargetsQuery.data,
     },
-    onDeleteSecretBinding: handleDeleteSecretBinding,
+    onDeleteSecretBinding: secrets.remove,
     onDisableBridge: handleDisableBridge,
     onEnableBridge: handleEnableBridge,
-    onOpenEdit: openEditDialog,
-    onOpenSendTest: deliveryTests.openSendTest,
-    onOpenTestDelivery: deliveryTests.openDryRun,
+    onOpenEdit: () => openEditDialog("simple"),
+    onOpenDeliveryTest: openDeliveryTest,
     onRestartBridge: handleRestartBridge,
-    onSaveSecretBinding: handleSaveSecretBinding,
-    onSecretDraftChange: handleSecretInputChange,
+    onSaveSecretBinding: secrets.save,
+    onSecretDraftChange: secrets.setDraft,
     provider: selectedBridgeProvider,
     restartRequired,
     routes: bridgeRoutesQuery.data ?? [],
     secretBindings: selectedSecretBindings,
-    secretInputValues: selectedSecretInputMap,
+    secretInputValues: secrets.draftsByName,
     setup: {
       isLifecyclePending,
       isRegistering: setupFlow.isRegistering,
@@ -406,21 +353,41 @@ function useBridgeDetailPage(bridgeId: string) {
   const editDialogProps = {
     allowProviderDefaultDmPolicy: selectedBridge?.dm_policy == null,
     bridgeName: selectedBridge?.display_name,
+    deliveryTest: deliveryTests.panelProps,
     draft: editDraft,
-    isPending: updateBridgeMutation.isPending,
+    hasPendingSecretRotation: secrets.hasPending,
+    identity: selectedBridge
+      ? {
+          extensionName: selectedBridge.extension_name,
+          platform: selectedBridge.platform,
+          scope: selectedBridge.scope,
+          workspaceId: selectedBridge.workspace_id ?? null,
+        }
+      : undefined,
+    isPending: updateBridgeMutation.isPending || secrets.isPending,
+    mode: editMode,
     onDraftChange: setEditDraft,
+    onModeChange: setEditMode,
     onOpenChange: handleEditDialogOpenChange,
     onSubmit: handleUpdateBridge,
     open: isEditDialogOpen,
+    pristineDraft: pristineEditDraft,
     provider: selectedBridgeProvider,
+    rotation: {
+      kind: "managed" as const,
+      onRotationEditingChange: secrets.setEditing,
+      onRotationValueChange: secrets.setDraft,
+      rotations: secrets.rotations,
+    },
+    statusLabel: selectedBridge
+      ? `${selectedBridge.enabled ? "enabled" : "disabled"} · ${selectedBridge.platform}`
+      : undefined,
   };
 
   return {
     detailPanelProps,
     editDialogProps,
     selectedBridge,
-    sendTestDialogProps: deliveryTests.sendTestDialogProps,
-    testDeliveryDialogProps: deliveryTests.dryRunDialogProps,
   };
 }
 

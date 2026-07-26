@@ -51,7 +51,7 @@ export function ToolApprovalGrantSetDialog({
             onSubmit();
           }}
         >
-          <DialogHeader className="gap-2 border-b border-line px-5 py-4" variant="ruled">
+          <DialogHeader variant="ruled">
             <DialogTitle>Set a broader decision</DialogTitle>
             <DialogDescription>
               Remember a native-tool decision beyond one exact input. The workspace tool policy

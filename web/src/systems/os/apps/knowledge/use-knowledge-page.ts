@@ -301,12 +301,12 @@ function useKnowledgePage() {
     const memoryKey = knowledgeMemoryKey(memory);
     resetEditMutation();
     setActionTargetKey(memoryKey);
+    // `name` and `type` are create-only identity: they key retrieval, so the edit
+    // path renders them through `ImmutableIdentity` and omits them from the PATCH.
     const body: MemoryEditRequest = {
       content: input.content,
       description: input.description,
       scope: memory.scope,
-      type: memory.type,
-      name: memory.name,
       workspace_id: memory.workspace_id,
       agent_name: memory.agent_name,
       agent_tier: memory.agent_tier,

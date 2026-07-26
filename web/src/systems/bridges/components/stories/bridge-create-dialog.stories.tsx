@@ -2,8 +2,10 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
+import type { EntityMode } from "@agh/ui";
+
 import { storyDefaultWorkspaceId, storyDefaultWorkspaceName } from "@/storybook/fintech-scenario";
-import { createBridgeCreateDraft } from "@/systems/bridges";
+import { createBridgeCreateDraft, type BridgeSecretRecoveryState } from "@/systems/bridges";
 import { bridgeProvidersFixture, slackBridgeManifestFixture } from "@/systems/bridges/mocks";
 
 import { BridgeCreateDialog } from "../bridge-create-dialog";
@@ -19,7 +21,7 @@ const meta: Meta<typeof BridgeCreateDialog> = {
     docs: {
       description: {
         component:
-          "Creates a bridge through provider, runtime, and delivery steps, then presents a committed Slack manifest handoff when supported.",
+          "Creates a bridge on the shared entity-dialog shell. Simple carries the provider, identity, and the provider-declared credential slots; Advanced adds routing, delivery, and provider config. Secrets are bound after the bridge exists — they never enter the create body.",
       },
     },
   },
@@ -29,15 +31,20 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function BridgeCreateDialogHarness({
+  initialMode = "simple",
   manifestState,
+  secretRecovery,
   supportsManifest = false,
+  providers = bridgeProvidersFixture,
 }: {
+  initialMode?: EntityMode;
   manifestState?: BridgeManifestCommittedState;
+  secretRecovery?: BridgeSecretRecoveryState | null;
   supportsManifest?: boolean;
+  providers?: typeof bridgeProvidersFixture;
 }) {
-  const [draft, setDraft] = useState(
-    createBridgeCreateDraft(bridgeProvidersFixture, storyDefaultWorkspaceId)
-  );
+  const [draft, setDraft] = useState(createBridgeCreateDraft(providers, storyDefaultWorkspaceId));
+  const [mode, setMode] = useState<EntityMode>(initialMode);
 
   return (
     <BridgeCreateDialog
@@ -46,47 +53,89 @@ function BridgeCreateDialogHarness({
       draft={draft}
       isPending={false}
       manifestState={manifestState}
+      mode={mode}
       onDraftChange={setDraft}
+      onModeChange={setMode}
       onOpenChange={() => undefined}
       onSubmit={() => undefined}
       open
-      providers={bridgeProvidersFixture}
+      providers={providers}
+      secretRecovery={secretRecovery ?? null}
       supportsManifest={supportsManifest}
     />
   );
 }
 
-/** Shows provider selection before any bridge has been persisted. */
+/** Simple tier: provider choice, identity, and the declared credential slots. */
 export const Default: Story = {
   args: {},
-  render: () => <BridgeCreateDialogHarness supportsManifest />,
+  render: () => <BridgeCreateDialogHarness />,
 };
 
-/** Advances to provider-owned runtime configuration. */
-export const RuntimeStep: Story = {
+/** Advanced tier: DM policy, routing, delivery defaults, and provider config. */
+export const Advanced: Story = {
+  args: {},
+  render: () => <BridgeCreateDialogHarness initialMode="advanced" />,
+};
+
+/** A provider that declares no credential slots at all. */
+export const NoSecretSlots: Story = {
+  args: {},
+  render: () => (
+    <BridgeCreateDialogHarness
+      providers={bridgeProvidersFixture.map(provider => ({ ...provider, secret_slots: [] }))}
+    />
+  ),
+};
+
+/** Required and optional slots side by side, so the gating is visible. */
+export const MixedSlotRequirements: Story = {
+  args: {},
+  render: () => (
+    <BridgeCreateDialogHarness
+      providers={bridgeProvidersFixture.map(provider => ({
+        ...provider,
+        secret_slots: [
+          { description: "Bot token", name: "bot_token", required: true },
+          { description: "Socket-mode app token", name: "app_token", required: false },
+        ],
+      }))}
+    />
+  ),
+};
+
+/** Switching provider clears every slot draft — a typed value never travels. */
+export const ProviderSwitchClearsSlots: Story = {
   args: {},
   tags: ["play-fn"],
-  render: () => <BridgeCreateDialogHarness supportsManifest />,
+  render: () => <BridgeCreateDialogHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement.ownerDocument.body);
-    await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
-    await expect(canvas.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 2 of 3");
-    await expect(canvas.getByTestId("bridge-display-name-input")).toBeInTheDocument();
+    const radios = await canvas.findAllByRole("radio");
+    await userEvent.click(radios[radios.length - 1]);
+    await expect(canvas.getByTestId("bridge-create-section-credentials")).toBeInTheDocument();
   },
 };
 
-/** Shows routing, delivery target defaults, and the optional progress override. */
-export const DeliveryStep: Story = {
+/** Phase two failed for one slot: the bridge exists, the plaintext does not. */
+export const SecretBindingRecovery: Story = {
   args: {},
-  tags: ["play-fn"],
+  render: () => (
+    <BridgeCreateDialogHarness
+      secretRecovery={{
+        bridgeId: "brg_launch_room",
+        bound: ["signing_secret"],
+        failures: { bot_token: "Vault is unavailable. The value was not stored." },
+        provider: bridgeProvidersFixture[0],
+      }}
+    />
+  ),
+};
+
+/** Manifest providers issue credentials later, so slots never gate the create. */
+export const SlackDeferredCredentials: Story = {
+  args: {},
   render: () => <BridgeCreateDialogHarness supportsManifest />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement.ownerDocument.body);
-    await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
-    await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
-    await expect(canvas.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 3 of 3");
-    await expect(canvas.getByTestId("bridge-delivery-progress-mode-select")).toBeInTheDocument();
-  },
 };
 
 /** Shows the deterministic post-create Slack manifest handoff. */

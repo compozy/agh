@@ -205,8 +205,9 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   await expect(bridgeUI.activeRoutesMetric).toContainText("0");
   await browserArtifacts.captureScreenshot("bridge-operator-enabled", appPage);
 
+  // D2: the delivery test lives in the editor's Advanced tier, not a dialog.
   await bridgeUI.openTestDeliveryButton.click();
-  await expect(bridgeUI.testDeliveryDialog).toBeVisible();
+  await expect(bridgeUI.deliveryTestPanel).toBeVisible();
 
   await bridgeUI.testDeliveryMessage.fill(browserBridgeOperatorFlowScenario.testDelivery.message);
   await bridgeUI.testDeliveryModeSelect.selectOption(
@@ -234,8 +235,8 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   );
   await browserArtifacts.captureScreenshot("bridge-test-delivery-result", appPage);
 
-  await bridgeUI.testDeliveryDialog.getByRole("button", { name: "Close" }).click();
-  await expect(bridgeUI.testDeliveryDialog).toBeHidden();
+  await bridgeUI.editDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(bridgeUI.deliveryTestPanel).toBeHidden();
 
   const ingress = await triggerBrowserBridgeIngress(runtime, seeded);
   expect(ingress.transcript).toContain(browserBridgeOperatorFlowScenario.ingress.assistant);

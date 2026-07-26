@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { KeyRound } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SettingsEditorDialog } from "../settings-editor-dialog";
@@ -7,6 +8,9 @@ function baseProps() {
   return {
     open: true,
     mode: "create" as const,
+    icon: KeyRound,
+    eyebrow: "System · Widgets",
+    size: "sm" as const,
     title: "New widget",
     slug: "widgets",
     canSave: true,
@@ -82,5 +86,35 @@ describe("SettingsEditorDialog", () => {
     expect(props.onSave).toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("settings-widgets-editor-cancel"));
     expect(props.onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("Should expose the editor title and eyebrow through the dialog", () => {
+    render(
+      <SettingsEditorDialog {...baseProps()}>
+        <div />
+      </SettingsEditorDialog>
+    );
+    expect(screen.getByRole("dialog", { name: "New widget" })).toBeInTheDocument();
+    expect(screen.getByText("System · Widgets")).toBeInTheDocument();
+  });
+
+  it("Should render the footer consequence hint", () => {
+    const props = { ...baseProps(), hint: "Stored write-only; AGH returns presence only." };
+    render(
+      <SettingsEditorDialog {...props}>
+        <div />
+      </SettingsEditorDialog>
+    );
+    expect(screen.getByText("Stored write-only; AGH returns presence only.")).toBeVisible();
+  });
+
+  it("Should omit the feedback region entirely when there is nothing to report", () => {
+    render(
+      <SettingsEditorDialog {...baseProps()}>
+        <div />
+      </SettingsEditorDialog>
+    );
+    // An always-present wrapper would open a dead grid row between body and footer.
+    expect(screen.queryByTestId("settings-widgets-editor-feedback")).not.toBeInTheDocument();
   });
 });

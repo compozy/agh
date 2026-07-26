@@ -105,8 +105,10 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
     void navigate({ to: "/tasks/$id", params: { id } });
   };
 
+  // The editor layers over this location, so the active tab rides along and
+  // dismissal returns to the tab the operator was reading.
   const openEdit = () => {
-    void navigate({ to: "/tasks/$id/edit", params: { id: taskId } });
+    void navigate({ to: "/tasks/$id/edit", params: { id: taskId }, search: { tab: search.tab } });
   };
 
   const backToTasks = () => {

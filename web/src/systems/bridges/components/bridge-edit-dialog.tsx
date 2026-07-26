@@ -1,223 +1,253 @@
+import { Link2 } from "lucide-react";
+
 import {
-  Button,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  dialogShellClass,
+  EntityDialogBody,
+  EntityDialogFooter,
+  EntityDialogHeader,
+  EntityModeToolbar,
   Field,
   FieldContent,
   FieldDescription,
-  FieldGroup,
-  FieldSet,
+  FieldLabel,
   FieldTitle,
+  FormSection,
+  ImmutableIdentity,
   Input,
-  MetadataList,
   NativeSelect,
   NativeSelectOption,
-  Pill,
-  Section,
-  Spinner,
-  Textarea,
+  RequiredMark,
+  type EntityMode,
 } from "@agh/ui";
 
 import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
-import {
-  describeBridgeDmPolicy,
-  describeBridgeProviderConfigSchema,
-  describeBridgeRoutingPolicy,
-} from "../lib/bridge-formatters";
+import { describeBridgeDmPolicy } from "../lib/bridge-formatters";
+import { isBridgeUpdateDraftDirty } from "../lib/bridge-update-dirty";
 import type { BridgeProvider, BridgeUpdateDraft } from "../types";
-import { BridgeDeliveryFields, BridgeRoutingFields } from "./bridge-delivery-fields";
+import {
+  BridgeDeliveryTestPanel,
+  type BridgeDeliveryTestPanelProps,
+} from "./bridge-delivery-test-panel";
+import {
+  BridgeEditAdvancedSection,
+  type BridgeSecretRotation,
+} from "./bridge-edit-advanced-section";
 
 interface BridgeEditDialogProps {
   allowProviderDefaultDmPolicy: boolean;
   bridgeName?: string;
+  /** Immutable identity reported by the read path. */
+  identity?: {
+    platform?: string;
+    extensionName?: string;
+    scope?: string;
+    workspaceId?: string | null;
+  };
+  /** Runtime status line rendered in the toolbar trailing slot. */
+  statusLabel?: string;
   draft: BridgeUpdateDraft;
+  /** The draft as loaded, so submit can require a real change. */
+  pristineDraft: BridgeUpdateDraft;
   isPending: boolean;
+  mode?: EntityMode;
+  onModeChange: (mode: EntityMode) => void;
   onDraftChange: (draft: BridgeUpdateDraft) => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: () => void;
   open: boolean;
   provider?: BridgeProvider;
+  rotation: BridgeEditDialogRotationProps;
+  /** A typed rotation is a real change even when no PATCH field moved. */
+  hasPendingSecretRotation?: boolean;
+  deliveryTest?: Omit<BridgeDeliveryTestPanelProps, "bridgeName">;
 }
 
+type BridgeEditDialogRotationProps =
+  | {
+      kind: "none";
+    }
+  | {
+      kind: "managed";
+      rotations: readonly BridgeSecretRotation[];
+      onRotationEditingChange: (name: string, editing: boolean) => void;
+      onRotationValueChange: (name: string, value: string) => void;
+    };
+
+/**
+ * Bridge editor on the shared entity-dialog shell.
+ *
+ * Platform, extension, and scope render as immutable identity because
+ * `UpdateBridgeRequest` omits them entirely. The delivery test lives in
+ * Advanced (D2) as the single entry point — the standalone dialog is deleted.
+ */
 export function BridgeEditDialog({
   allowProviderDefaultDmPolicy,
   bridgeName,
+  identity,
+  statusLabel,
   draft,
+  pristineDraft,
   isPending,
+  mode = "simple",
+  onModeChange,
   onDraftChange,
   onOpenChange,
   onSubmit,
   open,
   provider,
+  rotation,
+  hasPendingSecretRotation = false,
+  deliveryTest,
 }: BridgeEditDialogProps) {
+  const rotations = rotation.kind === "managed" ? rotation.rotations : [];
   const providerConfigError = parseBridgeProviderConfig(draft.providerConfigText).error;
-  const canSubmit = Boolean(draft.displayName.trim() && !providerConfigError);
+  // PATCH rejects an empty patch (`HasChanges`), so the primary stays inert
+  // until a mutable field actually differs from what was loaded.
+  const isDirty = isBridgeUpdateDraftDirty(draft, pristineDraft) || hasPendingSecretRotation;
+  const canSubmit = Boolean(draft.displayName.trim()) && !providerConfigError && isDirty;
+
+  const identityRows = identity
+    ? [
+        ...(identity.platform ? [{ label: "Platform", mono: true, value: identity.platform }] : []),
+        ...(identity.extensionName
+          ? [{ label: "Extension", mono: true, value: identity.extensionName }]
+          : []),
+        ...(identity.scope ? [{ label: "Scope", mono: true, value: identity.scope }] : []),
+        ...(identity.workspaceId
+          ? [{ label: "Workspace", mono: true, value: identity.workspaceId }]
+          : []),
+      ]
+    : [];
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="gap-0 p-0 text-fg sm:max-w-3xl" showCloseButton={false} unframed>
-        <div
-          className="flex max-h-[min(80vh,var(--height-modal-tall))] flex-col"
-          data-testid="bridge-edit-dialog"
-        >
-          <DialogHeader variant="ruled">
-            <DialogTitle>Edit bridge</DialogTitle>
-            <DialogDescription>
-              Update mutable settings for {bridgeName ?? "the selected bridge"}, then restart the
-              runtime to apply provider-owned changes.
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent
+        className={`grid-rows-[auto_auto_minmax(0,1fr)_auto] text-fg ${dialogShellClass("md")}`}
+        data-testid="bridge-edit-dialog"
+        showCloseButton={false}
+        unframed
+      >
+        <EntityDialogHeader
+          description={
+            <>
+              Update delivery behavior and rotate credentials.{" "}
+              <b className="font-medium text-muted">Identity stays fixed</b> and stored secrets are
+              never displayed.
+            </>
+          }
+          eyebrow="Catalog · Bridge"
+          icon={Link2}
+          onClose={isPending ? undefined : () => onOpenChange(false)}
+          title={bridgeName ? `Edit ${bridgeName}` : "Edit bridge"}
+        />
 
-          <div className="flex-1 overflow-y-auto p-5">
-            <FieldSet className="gap-6">
-              <FieldGroup className="grid gap-4 lg:grid-cols-2">
-                <Field>
-                  <FieldContent>
-                    <FieldTitle>Display name</FieldTitle>
-                    <FieldDescription>
-                      Operator-visible label for the bridge instance.
-                    </FieldDescription>
-                  </FieldContent>
-                  <Input
-                    aria-label="Bridge display name"
-                    data-testid="bridge-edit-display-name-input"
-                    onChange={event => onDraftChange({ ...draft, displayName: event.target.value })}
-                    placeholder="Support bridge"
-                    value={draft.displayName}
-                  />
-                </Field>
+        <EntityModeToolbar
+          mode={mode}
+          onModeChange={onModeChange}
+          testIdPrefix="bridge-edit"
+          trailing={
+            statusLabel ? (
+              <span
+                className="font-mono text-form-label text-muted"
+                data-testid="bridge-edit-status"
+              >
+                {statusLabel}
+              </span>
+            ) : null
+          }
+        />
 
-                <Field>
-                  <FieldContent>
-                    <FieldTitle>DM policy</FieldTitle>
-                    <FieldDescription>
-                      {describeBridgeDmPolicy(draft.dmPolicy === "" ? undefined : draft.dmPolicy)}
-                    </FieldDescription>
-                  </FieldContent>
-                  <NativeSelect
-                    aria-label="Direct message policy"
-                    data-testid="bridge-edit-dm-policy-select"
-                    onChange={event =>
-                      onDraftChange({
-                        ...draft,
-                        dmPolicy: event.target.value as BridgeUpdateDraft["dmPolicy"],
-                      })
-                    }
-                    value={draft.dmPolicy}
-                  >
-                    {allowProviderDefaultDmPolicy ? (
-                      <NativeSelectOption value="">Use provider default</NativeSelectOption>
-                    ) : null}
-                    <NativeSelectOption value="open">Open</NativeSelectOption>
-                    <NativeSelectOption value="allowlist">Allowlist</NativeSelectOption>
-                    <NativeSelectOption value="pairing">Pairing</NativeSelectOption>
-                  </NativeSelect>
-                </Field>
-              </FieldGroup>
+        <EntityDialogBody className="flex flex-col">
+          {identityRows.length > 0 ? (
+            <ImmutableIdentity
+              hint="Provider and account are fixed for this bridge — create a new bridge to change them."
+              rows={identityRows}
+            />
+          ) : null}
 
-              <Section label="Provider runtime">
-                <p className="text-small-body text-muted">
-                  Provider-owned settings remain separate from generic delivery defaults.
-                </p>
-                <MetadataList className="mt-3">
-                  <MetadataList.Row
-                    className="rounded-md border border-line bg-canvas-soft px-4 py-3"
-                    label="Config schema"
-                    termProps={{ className: "mb-2 text-muted" }}
-                    valueProps={{ className: "text-small-body text-fg" }}
-                  >
-                    {describeBridgeProviderConfigSchema(provider?.config_schema)}
-                  </MetadataList.Row>
-                  {provider?.secret_slots?.length ? (
-                    <div className="mt-3 flex items-center gap-2">
-                      <Pill mono>{provider.secret_slots.length}</Pill>
-                      <p className="text-xs text-muted">
-                        Secret slots are managed inline from the detail panel.
-                      </p>
-                    </div>
-                  ) : null}
-                </MetadataList>
-                <Field className="mt-4">
-                  <FieldContent>
-                    <FieldTitle>Provider config</FieldTitle>
-                    <FieldDescription>
-                      Enter a JSON object for provider-specific settings such as tenant identifiers,
-                      webhook URLs, or provider mode flags.
-                    </FieldDescription>
-                  </FieldContent>
-                  <Textarea
-                    aria-invalid={Boolean(providerConfigError)}
-                    aria-label="Provider configuration JSON"
-                    className="min-h-32 font-mono text-xs"
-                    data-testid="bridge-edit-provider-config-input"
-                    onChange={event =>
-                      onDraftChange({ ...draft, providerConfigText: event.target.value })
-                    }
-                    placeholder={`{\n  "mode": "bot"\n}`}
-                    spellCheck={false}
-                    value={draft.providerConfigText}
-                  />
-                  {providerConfigError ? (
-                    <p
-                      className="text-small-body text-danger"
-                      data-testid="bridge-edit-provider-config-error"
-                    >
-                      {providerConfigError}
-                    </p>
-                  ) : null}
-                </Field>
-              </Section>
+          <FormSection
+            data-testid="bridge-edit-section-identity"
+            description="How this bridge appears in lists and receipts."
+            icon={Link2}
+            title="Identity"
+          >
+            <Field>
+              <FieldLabel htmlFor="bridge-edit-display-name-input">
+                Display name
+                <RequiredMark />
+              </FieldLabel>
+              <Input
+                data-testid="bridge-edit-display-name-input"
+                id="bridge-edit-display-name-input"
+                onChange={event => onDraftChange({ ...draft, displayName: event.target.value })}
+                placeholder="Support operations"
+                value={draft.displayName}
+              />
+            </Field>
 
-              <Section label="Routing policy">
-                <p className="mb-3 text-small-body text-muted">
-                  {describeBridgeRoutingPolicy(draft.routingPolicy)}
-                </p>
-                <BridgeRoutingFields
-                  onChange={routingPolicy => onDraftChange({ ...draft, routingPolicy })}
-                  testIdPrefix="bridge-edit"
-                  value={draft.routingPolicy}
-                />
-              </Section>
+            <Field>
+              <FieldContent>
+                <FieldTitle>DM policy</FieldTitle>
+                <FieldDescription>
+                  {describeBridgeDmPolicy(draft.dmPolicy === "" ? undefined : draft.dmPolicy)}
+                </FieldDescription>
+              </FieldContent>
+              <NativeSelect
+                aria-label="Direct message policy"
+                data-testid="bridge-edit-dm-policy-select"
+                onChange={event =>
+                  onDraftChange({
+                    ...draft,
+                    dmPolicy: event.target.value as BridgeUpdateDraft["dmPolicy"],
+                  })
+                }
+                value={draft.dmPolicy}
+              >
+                {allowProviderDefaultDmPolicy ? (
+                  <NativeSelectOption value="">Use provider default</NativeSelectOption>
+                ) : null}
+                <NativeSelectOption value="open">Open</NativeSelectOption>
+                <NativeSelectOption value="allowlist">Allowlist</NativeSelectOption>
+                <NativeSelectOption value="pairing">Pairing</NativeSelectOption>
+              </NativeSelect>
+            </Field>
+          </FormSection>
 
-              <Section label="Delivery defaults">
-                <p className="mb-3 text-small-body text-muted">
-                  These defaults are applied when resolving outbound delivery targets.
-                </p>
-                <BridgeDeliveryFields
-                  onChange={deliveryDefaults => onDraftChange({ ...draft, deliveryDefaults })}
-                  testIdPrefix="bridge-edit"
-                  value={draft.deliveryDefaults}
-                />
-              </Section>
-            </FieldSet>
-          </div>
+          {mode === "advanced" ? (
+            <>
+              <BridgeEditAdvancedSection
+                draft={draft}
+                onDraftChange={onDraftChange}
+                onRotationEditingChange={
+                  rotation.kind === "managed" ? rotation.onRotationEditingChange : undefined
+                }
+                onRotationValueChange={
+                  rotation.kind === "managed" ? rotation.onRotationValueChange : undefined
+                }
+                provider={provider}
+                providerConfigError={providerConfigError}
+                rotations={rotations ?? []}
+              />
+              {deliveryTest ? (
+                <BridgeDeliveryTestPanel {...deliveryTest} bridgeName={bridgeName} />
+              ) : null}
+            </>
+          ) : null}
+        </EntityDialogBody>
 
-          <DialogFooter variant="ruled">
-            <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
-              Cancel
-            </Button>
-            <Button
-              data-testid="submit-bridge-edit"
-              disabled={!canSubmit || isPending}
-              onClick={onSubmit}
-              size="sm"
-              type="button"
-            >
-              {isPending ? (
-                <>
-                  <Spinner className="size-3" />
-                  Saving…
-                </>
-              ) : (
-                "Save changes"
-              )}
-            </Button>
-          </DialogFooter>
-        </div>
+        <EntityDialogFooter
+          cancelDisabled={isPending}
+          cancelTestId="bridge-edit-cancel"
+          hint="Only changed mutable fields are sent."
+          isSaving={isPending}
+          onCancel={() => onOpenChange(false)}
+          onPrimary={onSubmit}
+          primaryDisabled={!canSubmit || isPending}
+          primaryLabel={isPending ? "Saving…" : "Save changes"}
+          primaryTestId="submit-bridge-edit"
+        />
       </DialogContent>
     </Dialog>
   );

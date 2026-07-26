@@ -44,7 +44,7 @@ describe("agent-create-draft reasoning effort validation", () => {
 
     const validation = validateAgentCreateDraft(draft, context);
     expect(validation.fields.provider).toBeUndefined();
-    expect(validation.stepValidity.runtime).toBe(true);
+    expect(validation.simpleValid).toBe(true);
 
     const params = buildCreateAgentParams(draft, null, context);
     expect(params).not.toBeNull();
@@ -57,7 +57,7 @@ describe("agent-create-draft reasoning effort validation", () => {
     const validation = validateAgentCreateDraft(baseDraft("ultra"), context);
 
     expect(validation.fields.reasoningEffort).toBe("Choose a valid reasoning effort.");
-    expect(validation.stepValidity.runtime).toBe(false);
+    expect(validation.simpleValid).toBe(false);
     expect(validation.canSubmit).toBe(false);
   });
 
@@ -68,7 +68,7 @@ describe("agent-create-draft reasoning effort validation", () => {
   it("Should accept the canonical empty effort as provider default and omit it from the request", () => {
     const validation = validateAgentCreateDraft(baseDraft(""), context);
     expect(validation.fields.reasoningEffort).toBeUndefined();
-    expect(validation.stepValidity.runtime).toBe(true);
+    expect(validation.simpleValid).toBe(true);
 
     const params = buildCreateAgentParams(baseDraft(""), null, context);
     expect(params).not.toBeNull();
@@ -78,6 +78,45 @@ describe("agent-create-draft reasoning effort validation", () => {
   it("Should carry a canonical reasoning effort through to the built request", () => {
     const params = buildCreateAgentParams(baseDraft("high"), null, context);
     expect(params?.agent.reasoning_effort).toBe("high");
+  });
+});
+
+describe("agent-create-draft disclosure tiers", () => {
+  it("Should isolate an advanced-only failure from the Simple tier so submit can reveal it", () => {
+    const validation = validateAgentCreateDraft({ ...baseDraft(""), tools: ["  "] }, context);
+
+    expect(validation.fields.tools).toBe("Tool entries cannot be blank.");
+    expect(validation.advancedValid).toBe(false);
+    expect(validation.simpleValid).toBe(true);
+    expect(validation.canSubmit).toBe(false);
+  });
+
+  it("Should fail the Simple tier for an invalid category path, which Simple now renders", () => {
+    const validation = validateAgentCreateDraft(
+      { ...baseDraft(""), categoryPath: "operations//incident" },
+      context
+    );
+
+    expect(validation.fields.categoryPath).toBe("Category path cannot contain blank segments.");
+    expect(validation.simpleValid).toBe(false);
+    expect(validation.canSubmit).toBe(false);
+  });
+
+  it("Should split the mono category path into contract segments at the adapter boundary", () => {
+    const params = buildCreateAgentParams(
+      { ...baseDraft(""), categoryPath: " operations / incident " },
+      null,
+      context
+    );
+
+    expect(params?.agent.category_path).toEqual(["operations", "incident"]);
+  });
+
+  it("Should never emit an mcp_servers field, which the create payload cannot accept", () => {
+    const params = buildCreateAgentParams(baseDraft("high"), null, context);
+
+    expect(params?.agent).not.toHaveProperty("mcp_servers");
+    expect(JSON.stringify(params)).not.toContain("mcp");
   });
 });
 

@@ -23,6 +23,14 @@ interface ReliabilitySectionShellProps {
   badge: string;
   children: ReactNode;
   defaultOpen: boolean;
+  /**
+   * Controlled disclosure. The automation editors swap their whole body for the
+   * live preview, which unmounts this shell — they hold the open state above
+   * that swap so returning from the preview does not collapse the section
+   * someone was editing.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   testId: string;
   title: string;
 }
@@ -32,10 +40,14 @@ export function ReliabilitySectionShell({
   badge,
   children,
   defaultOpen,
+  open: controlledOpen,
+  onOpenChange,
   testId,
   title,
 }: ReliabilitySectionShellProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   return (
     <Collapsible className="mt-5 border-t border-line-soft pt-1" onOpenChange={setOpen} open={open}>

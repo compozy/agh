@@ -683,7 +683,10 @@ func TestResolveWorkspaceRefValidatesInputs(t *testing.T) {
 
 func TestNewSessionSpawnerReturnsNoRecentWorkspacesWhenSessionsAreOld(t *testing.T) {
 	t.Parallel()
-	t.Run("Should reject a run with no recent workspaces", testNewSessionSpawnerReturnsNoRecentWorkspacesWhenSessionsAreOld)
+	t.Run(
+		"Should reject a run with no recent workspaces",
+		testNewSessionSpawnerReturnsNoRecentWorkspacesWhenSessionsAreOld,
+	)
 }
 
 func testNewSessionSpawnerReturnsNoRecentWorkspacesWhenSessionsAreOld(t *testing.T) {

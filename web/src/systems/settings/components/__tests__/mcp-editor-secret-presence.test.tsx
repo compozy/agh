@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { emptyDraft } from "../../lib/mcp-editor-model";
 import { MCPEditorOAuthSection } from "../mcp-editor-oauth-section";
-import { MCPEditorStdioSection } from "../mcp-editor-stdio-section";
+import { MCPEditorProcessSection } from "../mcp-editor-stdio-section";
 import { MCPSecretBindingControl } from "../mcp-secret-binding";
 
 const SELECTABLE_VAULT_REF = "vault:mcp/ws/ws-platform/shared/QA_TYPED_TOKEN";
@@ -11,7 +11,7 @@ const SELECTABLE_VAULT_REF = "vault:mcp/ws/ws-platform/shared/QA_TYPED_TOKEN";
 describe("MCP editor configured secret presence", () => {
   it("Should offer preservation for a configured stdio secret without rendering a binding", () => {
     render(
-      <MCPEditorStdioSection
+      <MCPEditorProcessSection
         draft={{
           ...emptyDraft("stdio"),
           secretEnv: [
@@ -23,11 +23,7 @@ describe("MCP editor configured secret presence", () => {
         }}
         errors={{}}
         vaultInventory={{ status: "ready", refs: [SELECTABLE_VAULT_REF] }}
-        isCreate={false}
-        target="config"
-        availableTargets={["config"]}
         onChange={() => undefined}
-        onTargetChange={() => undefined}
       />
     );
 
@@ -94,7 +90,7 @@ describe("MCP editor configured secret presence", () => {
 describe("MCP editor stdio secret binding errors", () => {
   it("Should surface a per-row binding error and mark the key input invalid", () => {
     render(
-      <MCPEditorStdioSection
+      <MCPEditorProcessSection
         draft={{
           ...emptyDraft("stdio"),
           secretEnv: [
@@ -106,11 +102,7 @@ describe("MCP editor stdio secret binding errors", () => {
         }}
         errors={{ secretEnv: { 0: "Enter a value or select a Vault reference" } }}
         vaultInventory={{ status: "ready", refs: [] }}
-        isCreate
-        target="config"
-        availableTargets={["config"]}
         onChange={() => undefined}
-        onTargetChange={() => undefined}
       />
     );
 

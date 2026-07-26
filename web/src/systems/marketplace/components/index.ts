@@ -28,8 +28,6 @@ export {
   createInitialMCPBindings,
 } from "./mcp-install-model";
 export type { MCPEnvField, MCPFieldBinding } from "./mcp-install-model";
-export { MCPSecretField } from "./mcp-secret-field";
-export type { MCPSecretFieldProps } from "./mcp-secret-field";
 export {
   MARKETPLACE_KIND_LABEL,
   MARKETPLACE_KIND_ORDER,

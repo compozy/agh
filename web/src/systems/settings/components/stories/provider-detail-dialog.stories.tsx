@@ -5,7 +5,12 @@ import { useState } from "react";
 import { fn } from "storybook/test";
 
 import { StorySurface } from "@/storybook/story-layout";
-import type { ProviderDraft, SettingsProviderEntry } from "@/systems/settings";
+import type { ProviderDraft } from "@/systems/settings";
+import {
+  emptyProviderDraft,
+  providerDraftFromEntry,
+  withProviderAuthMode,
+} from "@/systems/settings/lib/provider-draft";
 import { settingsProviderFixtures } from "@/systems/settings/mocks";
 
 import { ProviderDetailDialog } from "../provider-detail-dialog";
@@ -13,6 +18,36 @@ import type { ProviderInspectorState } from "@/systems/settings/hooks/use-settin
 
 const claude = settingsProviderFixtures[0]!;
 const openrouter = settingsProviderFixtures.find(entry => entry.name === "openrouter")!;
+
+/**
+ * Vault-bound twin of the OpenRouter fixture: only a `vault:` ref can hold a
+ * value AGH wrote, so rotation is reachable only from this shape.
+ */
+const openrouterVaultBound = {
+  ...openrouter,
+  settings: {
+    ...openrouter.settings,
+    credential_slots: [
+      {
+        name: "api_key",
+        target_env: "OPENROUTER_API_KEY",
+        secret_ref: "vault:providers/openrouter/api-key",
+        kind: "api_key",
+        required: true,
+      },
+    ],
+  },
+  credentials: [
+    {
+      name: "api_key",
+      target_env: "OPENROUTER_API_KEY",
+      secret_ref: "vault:providers/openrouter/api-key",
+      kind: "api_key",
+      required: true,
+      present: true,
+    },
+  ],
+};
 
 const freshHandlers = [
   aghApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
@@ -53,30 +88,28 @@ interface HarnessProps {
   initialState: ProviderInspectorState;
 }
 
-function draftFor(entry: SettingsProviderEntry): ProviderDraft {
+function createDraft(overrides: Partial<ProviderDraft> = {}): ProviderDraft {
+  return { ...emptyProviderDraft(), ...overrides };
+}
+
+function boundSecretCreateDraft(): ProviderDraft {
+  const seeded = withProviderAuthMode(
+    createDraft({ name: "openai", display_name: "OpenAI", command: "codex" }),
+    "bound_secret"
+  );
   return {
-    name: entry.name,
-    command: entry.settings.command ?? "",
-    display_name: entry.settings.display_name ?? "",
-    model_default: entry.settings.models?.default ?? "",
-    curated_models: (entry.settings.models?.curated ?? [])
-      .map(model => model.id)
-      .filter(Boolean)
-      .join("\n"),
-    target_env: entry.settings.credential_slots?.[0]?.target_env ?? "",
-    harness: entry.settings.harness ?? "acp",
-    runtime_provider: entry.settings.runtime_provider ?? "",
-    transport: entry.settings.transport ?? "",
-    base_url: entry.settings.base_url ?? "",
-    auth_mode: entry.settings.auth_mode ?? "native_cli",
-    env_policy: entry.settings.env_policy ?? "filtered",
-    home_policy: entry.settings.home_policy ?? "operator",
-    auth_status_command: entry.settings.auth_status_command ?? "",
-    auth_login_command: entry.settings.auth_login_command ?? "",
-    secret_ref: entry.settings.credential_slots?.[0]?.secret_ref ?? "",
-    secret_value: "",
-    credential_slots: (entry.settings.credential_slots ?? []).map(slot => ({ ...slot })),
-    credential_secret_values: (entry.settings.credential_slots ?? []).map(() => ""),
+    ...seeded,
+    credential_slots: [
+      {
+        key: "credential-slot-story",
+        name: "api_key",
+        target_env: "OPENAI_API_KEY",
+        secret_ref: "vault:providers/openai/api-key",
+        kind: "api_key",
+        required: true,
+      },
+    ],
+    credential_secret_values: [""],
   };
 }
 
@@ -87,40 +120,14 @@ function Harness({ initialState }: HarnessProps) {
 
   return (
     <StorySurface className="min-h-160 bg-canvas p-6">
-      <p className="text-xs text-subtle">
-        Sheet harness — toggle Inspect/Edit via the footer buttons.
-      </p>
       <ProviderDetailDialog
-        open={state.mode !== "closed"}
-        mode={state.mode === "closed" ? "inspect" : state.mode}
-        entry={entry}
-        draft={draft}
-        existingNames={settingsProviderFixtures.map(p => p.name)}
-        error={null}
-        warnings={undefined}
         canSave={true}
-        isSaving={false}
+        draft={draft}
+        entry={entry}
+        error={null}
         isDeleting={false}
-        onOpenChange={next => {
-          if (!next) setState({ mode: "closed" });
-        }}
-        onDraftChange={updater => {
-          setState(current => {
-            if (current.mode !== "edit" && current.mode !== "create") return current;
-            return { ...current, draft: updater(current.draft) };
-          });
-        }}
-        onSwitchToEdit={() => {
-          setState(current => {
-            if (current.mode !== "inspect") return current;
-            return {
-              mode: "edit",
-              entry: current.entry,
-              draft: draftFor(current.entry),
-              cameFrom: "inspect",
-            };
-          });
-        }}
+        isSaving={false}
+        mode={state.mode === "closed" ? "inspect" : state.mode}
         onCancelEdit={() => {
           setState(current => {
             if (current.mode === "edit" && current.cameFrom === "inspect") {
@@ -129,9 +136,31 @@ function Harness({ initialState }: HarnessProps) {
             return { mode: "closed" };
           });
         }}
-        onSave={fn()}
-        onRequestDelete={fn()}
+        onDraftChange={updater => {
+          setState(current => {
+            if (current.mode !== "edit" && current.mode !== "create") return current;
+            return { ...current, draft: updater(current.draft) };
+          });
+        }}
+        onOpenChange={next => {
+          if (!next) setState({ mode: "closed" });
+        }}
         onRefreshCatalog={fn()}
+        onRequestDelete={fn()}
+        onSave={fn()}
+        onSwitchToEdit={() => {
+          setState(current => {
+            if (current.mode !== "inspect") return current;
+            return {
+              mode: "edit",
+              entry: current.entry,
+              draft: providerDraftFromEntry(current.entry),
+              cameFrom: "inspect",
+            };
+          });
+        }}
+        open={state.mode !== "closed"}
+        warnings={undefined}
       />
     </StorySurface>
   );
@@ -146,7 +175,7 @@ const meta: Meta<typeof ProviderDetailDialog> = {
     docs: {
       description: {
         component:
-          "Unified right-side Sheet that hosts both Inspect (read-only) and Edit (form) modes for a provider. The Sheet replaces the previous Details Sheet + Edit Dialog split — one shell, single visual rhythm, mode switch via the footer.",
+          "Provider inspect, edit, and create on one dialog host (D1(b)). The body follows the designed provider-sheet grammar: SettingsFieldRow rows, auth-ownership RadioCards, and credential slots that exist only under bound_secret.",
       },
     },
   },
@@ -172,28 +201,48 @@ export const EditMode: Story = {
       initialState={{
         mode: "edit",
         entry: claude,
-        draft: draftFor(claude),
+        draft: providerDraftFromEntry(claude),
         cameFrom: "inspect",
       }}
     />
   ),
 };
 
-export const CreateMode: Story = {
+/** Rotation-only credential state: presence is reported, the value is never read back. */
+export const EditBoundSecretRotate: Story = {
+  args: {},
+  render: () => (
+    <Harness
+      initialState={{
+        mode: "edit",
+        entry: openrouterVaultBound,
+        draft: providerDraftFromEntry(openrouterVaultBound),
+        cameFrom: "inspect",
+      }}
+    />
+  ),
+};
+
+export const CreateNativeCli: Story = {
   args: {},
   render: () => (
     <Harness
       initialState={{
         mode: "create",
-        draft: {
-          ...draftFor(claude),
-          name: "",
-          command: "",
-          display_name: "",
-          model_default: "",
-          curated_models: "",
-        },
+        draft: createDraft({
+          name: "codex",
+          display_name: "Codex",
+          command: "codex",
+          auth_login_command: "codex login",
+          auth_status_command: "codex auth status",
+        }),
       }}
     />
   ),
+};
+
+/** The auth gate: credential slots exist only under `bound_secret`. */
+export const CreateBoundSecret: Story = {
+  args: {},
+  render: () => <Harness initialState={{ mode: "create", draft: boundSecretCreateDraft() }} />,
 };

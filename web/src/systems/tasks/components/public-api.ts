@@ -18,9 +18,11 @@ export type { TasksKanbanBoardProps } from "./tasks-kanban-board";
 export { TasksEmptyState } from "./tasks-empty-state";
 export type { TasksEmptyStateProps } from "./tasks-empty-state";
 export { TaskEditorModal } from "./task-editor-modal";
-export type { TaskEditorModalMode, TaskEditorModalProps } from "./task-editor-modal";
-export { TaskEditorSurface } from "./task-editor-surface";
-export type { TaskEditorSurfaceMode, TaskEditorSurfaceProps } from "./task-editor-surface";
+export type {
+  TaskEditorModalMode,
+  TaskEditorModalProps,
+  TaskEditorModalStatus,
+} from "./task-editor-modal";
 
 // Task detail
 export { TaskPageActions, TaskPageOverflow, TaskPageStatus } from "./task-page-head";

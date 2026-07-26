@@ -9,12 +9,13 @@ export type {
 
 // Adapters
 export {
+  createWorkspace,
   deleteWorkspace,
   fetchWorkspace,
   fetchWorkspaces,
   resolveWorkspace,
 } from "./adapters/workspace-api";
-export type { ResolveWorkspaceParams } from "./adapters/workspace-api";
+export type { CreateWorkspaceParams, ResolveWorkspaceParams } from "./adapters/workspace-api";
 
 // Query infrastructure
 export { isHomeWorkspace, splitHomeWorkspace } from "./lib/home-workspace";
@@ -33,6 +34,7 @@ export {
 export { useUserHomeDir } from "./hooks/use-user-home-dir";
 export { resetUserHomeDirStore, useUserHomeDirStore } from "./hooks/use-user-home-dir-store";
 export {
+  useCreateWorkspace,
   useDeleteWorkspace,
   useResolveWorkspace,
   useWorkspace,
@@ -59,3 +61,11 @@ export {
   type WorkspaceCommandSelectProps,
 } from "./components/workspace-command-select";
 export { WorkspaceOnboarding, WorkspaceSetupDialog } from "./components/workspace-setup";
+export type { WorkspaceSetupModel } from "./components/workspace-setup";
+export { useWorkspaceSetupContent } from "./hooks/use-workspace-setup-content";
+export type { WorkspaceSetupContent } from "./hooks/use-workspace-setup-content";
+export type {
+  WorkspaceSetupCollection,
+  WorkspaceSetupDefaultsModel,
+  WorkspaceSetupSandboxOption,
+} from "./lib/workspace-setup-defaults";

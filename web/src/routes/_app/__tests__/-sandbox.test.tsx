@@ -1,9 +1,10 @@
 import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SettingsSandboxEntry } from "@/systems/settings";
-import { SandboxPage } from "@/systems/sandbox";
+import { emptySandboxDraft, SandboxPage } from "@/systems/sandbox";
 
 type RestartNotice = {
   isVisible: boolean;
@@ -252,27 +253,20 @@ describe("SandboxPage", () => {
     expect(screen.getByTestId("sandbox-page-card-builtin-local-delete")).toBeDisabled();
   });
 
-  it("renders the create dialog with the required hint", () => {
+  it("renders the create dialog with an editable name and the selected backend", () => {
     pageState = makeState({
-      editor: {
-        mode: "create",
-        draft: {
-          name: "",
-          backend: "local",
-          sync_mode: "",
-          persistence: "",
-          runtime_root: "",
-          preserved: {},
-        },
-      },
+      editor: { mode: "create", draft: emptySandboxDraft() },
     });
     render(<SandboxPage />);
     expect(screen.getByTestId("settings-sandbox-editor-title")).toHaveTextContent(
-      "New sandbox profile"
+      "Create sandbox profile"
     );
     expect(screen.queryByTestId("settings-modal-editor-title")).toBeNull();
-    expect(screen.getByTestId("sandbox-editor-name-input")).not.toBeDisabled();
-    expect(screen.getByTestId("sandbox-editor-backend-input")).toHaveValue("local");
+    expect(screen.getByTestId("sandbox-editor-name")).not.toBeDisabled();
+    expect(screen.getByTestId("sandbox-editor-backend-local")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
   });
 
   it("mounts the sandbox shell under ListingPage", () => {
@@ -302,24 +296,59 @@ describe("SandboxPage", () => {
     expect(pageState.closeInspect).toHaveBeenCalledTimes(1);
   });
 
-  it("renders preserved-fields notice when nested profile keys exist", () => {
+  it("hydrates nested profile keys into the Advanced tier instead of hiding them", async () => {
+    const user = userEvent.setup();
     pageState = makeState({
       editor: {
         mode: "edit",
         name: "local",
         draft: {
+          ...emptySandboxDraft(),
           name: "local",
-          backend: "local",
-          sync_mode: "",
-          persistence: "",
-          runtime_root: "",
-          preserved: { network: { required: true } },
+          network: { allow_outbound: true, allow_list: ["api.github.com"] },
+          secretEnv: [{ key: "GITHUB_TOKEN", value: "vault:sandbox/github" }],
         },
         entry: localEnv,
       },
     });
     render(<SandboxPage />);
-    expect(screen.getByTestId("sandbox-editor-preserved")).toHaveTextContent("network");
+
+    await user.click(screen.getByTestId("sandbox-editor-mode-advanced"));
+
+    expect(screen.getByTestId("sandbox-editor-allow-outbound")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByTestId("sandbox-editor-allow-list")).toHaveValue("api.github.com");
+    expect(screen.getByTestId("sandbox-editor-secret-env")).toHaveValue(
+      "GITHUB_TOKEN=vault:sandbox/github"
+    );
+  });
+
+  it("blocks the save when a secret_env row carries a literal value instead of a reference", async () => {
+    const user = userEvent.setup();
+    pageState = makeState({
+      editor: {
+        mode: "edit",
+        name: "local",
+        draft: {
+          ...emptySandboxDraft(),
+          name: "local",
+          secretEnv: [{ key: "GITHUB_TOKEN", value: "ghp_liveTokenValue" }],
+        },
+        entry: localEnv,
+      },
+    });
+    render(<SandboxPage />);
+
+    expect(screen.getByTestId("settings-sandbox-editor-save")).toBeDisabled();
+
+    await user.click(screen.getByTestId("sandbox-editor-mode-advanced"));
+
+    expect(screen.getByTestId("sandbox-editor-secret-env-error")).toHaveTextContent(
+      "never a literal value"
+    );
+    expect(screen.getByTestId("settings-sandbox-editor-save")).toBeDisabled();
   });
 
   it("surfaces usage warnings in the delete dialog when a profile is referenced", () => {

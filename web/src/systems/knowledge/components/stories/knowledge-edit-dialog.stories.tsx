@@ -20,11 +20,18 @@ const initialContent = [
   "Lead with the fact pattern, then the decision, then the next concrete action.",
 ].join("\n");
 
+const identity = {
+  filename: "operator-style.md",
+  name: "operator-style",
+  type: "user",
+} as const;
+
+/** Resting edit state: locked identity above the two editable fields. */
 export const Default: Story = {
   args: {},
   render: () => (
     <KnowledgeEditDialog
-      filename="operator-style.md"
+      {...identity}
       initialContent={initialContent}
       initialDescription="Northstar guidance for concise, accountable operator communication."
       isPending={false}
@@ -36,11 +43,12 @@ export const Default: Story = {
   ),
 };
 
+/** Saving: the primary action swaps to a spinner and blocks duplicate submits. */
 export const PendingSave: Story = {
   args: {},
   render: () => (
     <KnowledgeEditDialog
-      filename="operator-style.md"
+      {...identity}
       initialContent={initialContent}
       initialDescription=""
       isPending
@@ -52,12 +60,13 @@ export const PendingSave: Story = {
   ),
 };
 
+/** Save error: the draft is retained and the failure is reported above the footer. */
 export const RejectedByPolicy: Story = {
   args: {},
   render: () => (
     <KnowledgeEditDialog
+      {...identity}
       error="Edit rejected by policy: invisible Unicode in content"
-      filename="operator-style.md"
       initialContent={initialContent}
       initialDescription=""
       isPending={false}
@@ -69,6 +78,23 @@ export const RejectedByPolicy: Story = {
   ),
 };
 
+/** VC-05 capture target: the immutable name/type identity block. */
+export const ImmutableIdentityLock: Story = {
+  args: {},
+  render: () => (
+    <KnowledgeEditDialog
+      {...identity}
+      initialContent={initialContent}
+      initialDescription="Northstar guidance for concise, accountable operator communication."
+      isPending={false}
+      onConfirm={async () => {}}
+      onOpenChange={() => undefined}
+      open
+      scope="workspace"
+    />
+  ),
+};
+
 export const ConfirmSubmits: Story = {
   args: {},
   tags: ["play-fn"],
@@ -76,7 +102,7 @@ export const ConfirmSubmits: Story = {
     const onConfirm = fn();
     return (
       <KnowledgeEditDialog
-        filename="operator-style.md"
+        {...identity}
         initialContent={initialContent}
         initialDescription="Northstar guidance"
         isPending={false}

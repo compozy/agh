@@ -1,5 +1,5 @@
-import { UIProvider } from "@agh/ui";
-import { render, screen } from "@testing-library/react";
+import { dialogShellClass, UIProvider } from "@agh/ui";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,8 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeEditDi
     open: true,
     onOpenChange: vi.fn(),
     filename: "user.md",
+    name: "operator-style",
+    type: "user",
     scope: "global",
     initialContent: "# Initial content",
     initialDescription: "initial description",
@@ -42,9 +44,36 @@ describe("KnowledgeEditDialog", () => {
     );
   });
 
+  it("Should host the editor on the shared sm modal token", () => {
+    renderDialog();
+    const host = screen.getByTestId("knowledge-edit-dialog");
+    for (const token of dialogShellClass("sm").split(" ")) {
+      expect(host.className).toContain(token);
+    }
+    expect(host.className).not.toMatch(/max-w-2xl/);
+  });
+
+  it("Should lock name and type behind ImmutableIdentity instead of an editable control", () => {
+    renderDialog();
+    const identity = screen.getByTestId("knowledge-edit-identity");
+    expect(within(identity).getByText("operator-style")).toBeInTheDocument();
+    expect(within(identity).getByText("user")).toBeInTheDocument();
+    // A disabled input is forbidden as a data display, so neither field may exist
+    // as a form control on the edit surface at all.
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Type")).not.toBeInTheDocument();
+  });
+
   it("Should disable the confirm button until content changes", () => {
     renderDialog();
     expect(screen.getByTestId("confirm-edit-memory-btn")).toBeDisabled();
+  });
+
+  it("Should enable the confirm button for a description-only edit", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.type(screen.getByTestId("knowledge-edit-description"), " revised");
+    expect(screen.getByTestId("confirm-edit-memory-btn")).toBeEnabled();
   });
 
   it("Should call onConfirm with the edited content and trimmed description", async () => {

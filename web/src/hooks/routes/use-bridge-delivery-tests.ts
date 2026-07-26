@@ -11,18 +11,21 @@ import {
   type SendBridgeTestResponse,
   type TestBridgeDeliveryResponse,
 } from "@/systems/bridges";
+
 function optionalMessage(value: string): string | undefined {
   const normalized = value.trim();
   return normalized === "" ? undefined : normalized;
 }
 
+/**
+ * Delivery checks for one bridge, folded into edit-Advanced (D2).
+ *
+ * Both intents share a single target draft: the dry run and the real send are
+ * two verbs against the same target, and two independent drafts let them drift
+ * apart without the operator noticing.
+ */
 export function useBridgeDeliveryTests(bridge: BridgeSummary | undefined) {
-  const [isDryRunOpen, setDryRunOpen] = useState(false);
-  const [isSendTestOpen, setSendTestOpen] = useState(false);
-  const [dryRunDraft, setDryRunDraft] = useState<BridgeTestDeliveryDraft>(() =>
-    createBridgeTestDeliveryDraft()
-  );
-  const [sendTestDraft, setSendTestDraft] = useState<BridgeTestDeliveryDraft>(() =>
+  const [draft, setDraft] = useState<BridgeTestDeliveryDraft>(() =>
     createBridgeTestDeliveryDraft()
   );
   const [dryRunResult, setDryRunResult] = useState<TestBridgeDeliveryResponse | null>(null);
@@ -31,16 +34,11 @@ export function useBridgeDeliveryTests(bridge: BridgeSummary | undefined) {
   const dryRunMutation = useTestBridgeDelivery();
   const sendTestMutation = useSendBridgeTest();
 
-  const openDryRun = () => {
-    setDryRunDraft(createBridgeTestDeliveryDraft(bridge));
+  /** Seeds the target from the bridge whenever the editor is opened. */
+  const resetDraft = () => {
+    setDraft(createBridgeTestDeliveryDraft(bridge));
     setDryRunResult(null);
-    setDryRunOpen(true);
-  };
-
-  const openSendTest = () => {
-    setSendTestDraft(createBridgeTestDeliveryDraft(bridge));
     setSendTestResult(null);
-    setSendTestOpen(true);
   };
 
   const submitDryRun = async () => {
@@ -50,10 +48,10 @@ export function useBridgeDeliveryTests(bridge: BridgeSummary | undefined) {
       const result = await dryRunMutation.mutateAsync({
         id: bridge.id,
         data: {
-          message: optionalMessage(dryRunDraft.message),
+          message: optionalMessage(draft.message),
           target: {
             bridge_instance_id: bridge.id,
-            ...compactBridgeDeliveryDefaults(dryRunDraft.target),
+            ...compactBridgeDeliveryDefaults(draft.target),
           },
         },
       });
@@ -71,7 +69,7 @@ export function useBridgeDeliveryTests(bridge: BridgeSummary | undefined) {
       return;
     }
 
-    const message = sendTestDraft.message.trim();
+    const message = draft.message.trim();
     if (message === "") {
       toast.error("Enter a message before sending a real bridge test.");
       return;
@@ -84,7 +82,7 @@ export function useBridgeDeliveryTests(bridge: BridgeSummary | undefined) {
           message,
           target: {
             bridge_instance_id: bridge.id,
-            ...compactBridgeDeliveryDefaults(sendTestDraft.target),
+            ...compactBridgeDeliveryDefaults(draft.target),
           },
         },
       });
@@ -96,29 +94,17 @@ export function useBridgeDeliveryTests(bridge: BridgeSummary | undefined) {
   };
 
   return {
-    dryRunDialogProps: {
-      bridgeName: bridge?.display_name,
-      draft: dryRunDraft,
-      intent: "dry-run" as const,
-      isPending: dryRunMutation.isPending,
-      onDraftChange: setDryRunDraft,
-      onOpenChange: setDryRunOpen,
-      onSubmit: submitDryRun,
-      open: isDryRunOpen,
-      result: dryRunResult,
-    },
-    openDryRun,
-    openSendTest,
-    sendTestDialogProps: {
-      bridgeName: bridge?.display_name,
-      draft: sendTestDraft,
-      intent: "send-test" as const,
-      isPending: sendTestMutation.isPending,
-      onDraftChange: setSendTestDraft,
-      onOpenChange: setSendTestOpen,
-      onSubmit: submitSendTest,
-      open: isSendTestOpen,
-      result: sendTestResult,
+    resetDraft,
+    panelProps: {
+      bridgeEnabled: Boolean(bridge?.enabled),
+      draft,
+      dryRunResult,
+      isDryRunPending: dryRunMutation.isPending,
+      isSendTestPending: sendTestMutation.isPending,
+      onDraftChange: setDraft,
+      onDryRun: submitDryRun,
+      onSendTest: submitSendTest,
+      sendTestResult,
     },
   };
 }

@@ -414,12 +414,14 @@ function KnowledgeDetailPanel({
           initialContent={content ?? ""}
           initialDescription={memory.description ?? ""}
           isPending={isEditPending}
+          name={memory.name}
           onConfirm={handleConfirmEdit}
           onOpenChange={open =>
             setKnowledgeDialogOpen(setDialogState, memoryIdentity, "editOpen", open)
           }
           open={editOpen}
           scope={resolvedScope}
+          type={memory.type}
         />
       ) : null}
     </div>

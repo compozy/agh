@@ -24,6 +24,10 @@ export interface AgentCommandSelectProps {
    */
   clearLabel?: string;
   disabled?: boolean;
+  /** The query is loading its first catalog page; existing cached agents stay selectable. */
+  loading?: boolean;
+  /** The catalog could not load; its message remains visible in the command empty state. */
+  error?: string | null;
   triggerTestId?: string;
   triggerId?: string;
   className?: string;
@@ -50,6 +54,8 @@ export function AgentCommandSelect({
   placeholder = "Select an agent",
   clearLabel,
   disabled,
+  loading = false,
+  error,
   triggerTestId,
   triggerId,
   className,
@@ -57,6 +63,9 @@ export function AgentCommandSelect({
   const [open, setOpen] = useState(false);
   const selectedName = value?.trim() ? value : null;
   const selectedAgent = agents.find(agent => agent.name === selectedName) ?? null;
+  const catalogError = error?.trim() || null;
+  const hasCatalogItems = agents.length > 0;
+  const catalogStatus = catalogError ? "Unavailable" : loading ? "Loading" : null;
   const isSelected = (agent: AgentPayload) => agent.name === selectedName;
   const handleSelect = (agent: AgentPayload) => {
     onChange(agent.name);
@@ -73,8 +82,10 @@ export function AgentCommandSelect({
         id={triggerId}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-busy={loading || undefined}
+        aria-invalid={catalogError ? true : undefined}
         data-testid={triggerTestId}
-        disabled={disabled}
+        disabled={disabled || (loading && !hasCatalogItems)}
         className={className}
         selected={Boolean(selectedAgent)}
       >
@@ -95,11 +106,25 @@ export function AgentCommandSelect({
                 {formatCategoryLabel(selectedAgent.category_path)}
               </Eyebrow>
             ) : null}
+            {catalogStatus ? (
+              <Eyebrow
+                className={catalogError ? "ml-auto text-danger" : "ml-auto text-muted"}
+                data-testid="agent-command-select-catalog-status"
+              >
+                {catalogStatus}
+              </Eyebrow>
+            ) : null}
           </span>
         ) : selectedName ? (
           <UnknownAgentValue name={selectedName} />
         ) : (
-          <span className="truncate text-muted">{clearLabel ?? placeholder}</span>
+          <span className={catalogError ? "truncate text-danger" : "truncate text-muted"}>
+            {catalogError
+              ? "Unable to load agents"
+              : loading
+                ? "Loading agents…"
+                : (clearLabel ?? placeholder)}
+          </span>
         )}
       </CommandSelectTrigger>
       <CommandSelectShell
@@ -109,6 +134,7 @@ export function AgentCommandSelect({
       >
         <AgentCommandList
           agents={agents}
+          emptyState={catalogError ?? (loading ? "Loading agents…" : undefined)}
           isSelected={isSelected}
           onSelect={handleSelect}
           leadingItems={

@@ -93,7 +93,6 @@ export function AgentSettingsRuntimeSection({
     <FormSection
       data-testid="agent-settings-runtime"
       icon={Settings2}
-      size="compact"
       title="Runtime"
       description="Provider and optional overrides for new sessions."
     >

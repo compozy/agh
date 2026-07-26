@@ -393,10 +393,26 @@ describe("useKnowledgePage", () => {
         content: "next body",
         description: "tightened",
         scope: "global",
-        type: "reference",
-        name: "Operator Playbook 0425",
       }),
     });
+  });
+
+  it("Should omit the immutable name and type from the edit request", async () => {
+    const { result } = renderHook(() => useKnowledgePage());
+
+    await waitFor(() => {
+      expect(result.current.selectedMemory).toBeTruthy();
+    });
+
+    const memory = result.current.selectedMemory;
+    if (!memory) throw new Error("expected a selected memory");
+    await act(async () => {
+      await result.current.handleEdit(memory, { content: "next body" });
+    });
+
+    const [params] = editMutateAsync.mock.calls.at(-1) ?? [];
+    expect(params?.body).not.toHaveProperty("name");
+    expect(params?.body).not.toHaveProperty("type");
   });
 
   it("Should write a new memory using the active selector and select the created filename", async () => {

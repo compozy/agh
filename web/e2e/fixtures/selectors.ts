@@ -160,11 +160,10 @@ export const bridgeOperatorTestIds = {
   bridgeManifestOpenBridge: "bridge-manifest-open-bridge",
   bridgeMetricActiveRoutes: "bridge-metric-active-routes",
   bridgeRestartRequired: "bridge-restart-required",
-  bridgeSendTestDialog: "bridge-send-test-dialog",
+  bridgeDeliveryTestPanel: "bridge-delivery-test-panel",
   bridgeSendTestResult: "bridge-send-test-result",
   bridgeSetupChecklist: "bridge-setup-checklist",
   bridgeSearchInput: "bridge-search-input",
-  bridgeTestDeliveryDialog: "bridge-test-delivery-dialog",
   bridgeTestDeliveryResult: "bridge-test-delivery-result",
   createBridgeDeliveryModeSelect: "bridge-delivery-mode-select",
   createBridgeDeliveryPeerInput: "bridge-delivery-peer-input",
@@ -181,7 +180,7 @@ export const bridgeOperatorTestIds = {
   disableBridgeButton: "disable-bridge-btn",
   editBridgeButton: "edit-bridge-btn",
   enableBridgeButton: "enable-bridge-btn",
-  openSendTestButton: "open-send-test-btn",
+  bridgeEditModeAdvanced: "bridge-edit-mode-advanced",
   openTestDeliveryButton: "open-test-delivery-btn",
   restartBridgeButton: "restart-bridge-btn",
   submitBridgeEdit: "submit-bridge-edit",
@@ -413,7 +412,7 @@ export interface BridgeOperatorSelectors {
   manifestHandoff: Locator;
   manifestJson: Locator;
   manifestOpenBridge: Locator;
-  openSendTestButton: Locator;
+  editModeAdvanced: Locator;
   openTestDeliveryButton: Locator;
   providerCard(providerKey: string): Locator;
   restartBridgeButton: Locator;
@@ -424,7 +423,7 @@ export interface BridgeOperatorSelectors {
   secretBinding(bindingName: string): Locator;
   secretCheck(bindingName: string, check: string): Locator;
   secretEnvInput(bindingName: string): Locator;
-  sendTestDialog: Locator;
+  deliveryTestPanel: Locator;
   sendTestResult: Locator;
   setupChecklist: Locator;
   setupItem(id: string): Locator;
@@ -432,7 +431,6 @@ export interface BridgeOperatorSelectors {
   submitBridgeEdit: Locator;
   submitSendTest: Locator;
   submitTestDelivery: Locator;
-  testDeliveryDialog: Locator;
   testDeliveryMessage: Locator;
   testDeliveryModeSelect: Locator;
   testDeliveryPeerInput: Locator;
@@ -579,6 +577,8 @@ export const settingsProvidersTestIds = {
   editorNameInput: "settings-providers-editor-name-input",
   editorCommandInput: "settings-providers-editor-command-input",
   editorModelInput: "settings-providers-editor-model-input",
+  editorModeSimple: "settings-providers-editor-mode-simple",
+  editorModeAdvanced: "settings-providers-editor-mode-advanced",
   editorSave: "provider-detail-save",
   deleteDialog: "settings-providers-delete",
   deleteConfirm: "settings-providers-delete-confirm",
@@ -685,6 +685,8 @@ interface SettingsProvidersSelectors {
   editorDelete: Locator;
   editorCommandInput: Locator;
   editorModelInput: Locator;
+  editorModeAdvanced: Locator;
+  editorModeSimple: Locator;
   editorNameInput: Locator;
   editorSave: Locator;
   list: Locator;
@@ -1333,7 +1335,7 @@ export function bridgeOperatorSelectors(
     manifestHandoff: page.getByTestId(bridgeOperatorTestIds.bridgeManifestHandoff),
     manifestJson: page.getByTestId(bridgeOperatorTestIds.bridgeManifestJson),
     manifestOpenBridge: page.getByTestId(bridgeOperatorTestIds.bridgeManifestOpenBridge),
-    openSendTestButton: page.getByTestId(bridgeOperatorTestIds.openSendTestButton),
+    editModeAdvanced: page.getByTestId(bridgeOperatorTestIds.bridgeEditModeAdvanced),
     openTestDeliveryButton: page.getByTestId(bridgeOperatorTestIds.openTestDeliveryButton),
     providerCard: (providerKey: string) => page.getByTestId(`bridge-provider-card-${providerKey}`),
     restartBridgeButton: page.getByTestId(bridgeOperatorTestIds.restartBridgeButton),
@@ -1347,7 +1349,7 @@ export function bridgeOperatorSelectors(
       page.getByTestId(`bridge-secret-check-${bindingName}-${check}`),
     secretEnvInput: (bindingName: string) =>
       page.getByTestId(`bridge-secret-env-input-${bindingName}`),
-    sendTestDialog: page.getByTestId(bridgeOperatorTestIds.bridgeSendTestDialog),
+    deliveryTestPanel: page.getByTestId(bridgeOperatorTestIds.bridgeDeliveryTestPanel),
     sendTestResult: page.getByTestId(bridgeOperatorTestIds.bridgeSendTestResult),
     setupChecklist: page.getByTestId(bridgeOperatorTestIds.bridgeSetupChecklist),
     setupItem: (id: string) => page.getByTestId(`bridge-setup-item-${id}`),
@@ -1355,7 +1357,6 @@ export function bridgeOperatorSelectors(
     submitBridgeEdit: page.getByTestId(bridgeOperatorTestIds.submitBridgeEdit),
     submitSendTest: page.getByTestId(bridgeOperatorTestIds.submitSendTest),
     submitTestDelivery: page.getByTestId(bridgeOperatorTestIds.submitTestDelivery),
-    testDeliveryDialog: page.getByTestId(bridgeOperatorTestIds.bridgeTestDeliveryDialog),
     testDeliveryMessage: page.getByTestId(bridgeOperatorTestIds.testDeliveryMessage),
     testDeliveryModeSelect: page.getByTestId(bridgeOperatorTestIds.testDeliveryModeSelect),
     testDeliveryPeerInput: page.getByTestId(bridgeOperatorTestIds.testDeliveryPeerInput),
@@ -1439,6 +1440,8 @@ export function settingsOperatorSelectors(
       editorNameInput: page.getByTestId(settingsProvidersTestIds.editorNameInput),
       editorCommandInput: page.getByTestId(settingsProvidersTestIds.editorCommandInput),
       editorModelInput: page.getByTestId(settingsProvidersTestIds.editorModelInput),
+      editorModeSimple: page.getByTestId(settingsProvidersTestIds.editorModeSimple),
+      editorModeAdvanced: page.getByTestId(settingsProvidersTestIds.editorModeAdvanced),
       editorSave: page.getByTestId(settingsProvidersTestIds.editorSave),
       deleteDialog: page.getByTestId(settingsProvidersTestIds.deleteDialog),
       deleteConfirm: page.getByTestId(settingsProvidersTestIds.deleteConfirm),

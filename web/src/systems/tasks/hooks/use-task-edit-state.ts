@@ -11,10 +11,11 @@ import {
   type TaskEditorDraft,
 } from "@/systems/tasks/lib/task-editor";
 
-export function useTaskEditState(
-  id: string | undefined,
-  onNavigate: (location: { pathname: string; search: Record<string, unknown> }) => void
-) {
+/**
+ * Edit-form state for one task. `onSaved` runs after the update lands so the
+ * host owns dismissal — the hook never encodes a location.
+ */
+export function useTaskEditState(id: string | undefined, onSaved: () => void) {
   const detailQuery = useTask(id ?? "", { enabled: Boolean(id) });
   const profileQuery = useTaskExecutionProfile(id ?? "", { enabled: Boolean(id) });
   const updateMutation = useUpdateTask();
@@ -43,7 +44,7 @@ export function useTaskEditState(
     try {
       await updateMutation.mutateAsync({ id, data: buildUpdateTaskRequest(nextDraft) });
       toast.success("Task updated.");
-      onNavigate({ pathname: `/tasks/${encodeURIComponent(id)}`, search: {} });
+      onSaved();
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update task");

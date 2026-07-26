@@ -308,10 +308,10 @@ function QuietNote() {
     >
       <span>
         <code className="font-mono text-inline-code">daytona</code>,{" "}
-        <code className="font-mono text-inline-code">network</code>, and{" "}
-        <code className="font-mono text-inline-code">env</code> sub-fields are edited via{" "}
-        <code className="font-mono text-inline-code">agh config set</code> and preserved on dialog
-        saves.
+        <code className="font-mono text-inline-code">network</code>,{" "}
+        <code className="font-mono text-inline-code">env</code>, and{" "}
+        <code className="font-mono text-inline-code">secret_env</code> are edited in the profile
+        editor&apos;s Advanced tier. This sheet inspects; it never writes.
       </span>
     </p>
   );

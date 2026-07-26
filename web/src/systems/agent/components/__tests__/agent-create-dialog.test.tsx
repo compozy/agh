@@ -67,6 +67,7 @@ function makeProps(overrides: Partial<AgentCreateDialogProps> = {}): AgentCreate
     submitError: null,
     isSubmitting: false,
     hasActiveWorkspace: true,
+    workspaceId: "ws_alpha",
     workspaceName: "alpha",
     ...overrides,
   };
@@ -87,62 +88,130 @@ function renderStatefulDialog(props: Partial<AgentCreateDialogProps> = {}) {
   );
 }
 
-async function reachRuntimeStep() {
-  const user = userEvent.setup();
-  await user.type(screen.getByTestId("agent-create-name"), "release-captain");
-  await user.click(screen.getByTestId("agent-create-next"));
-  return user;
-}
-
-async function reachAccessStep() {
-  const user = await reachRuntimeStep();
-  // Open the unified selector and pick a Codex model; selecting the row adopts
-  // codex as the runtime provider (the rail is filter-only). The selector trigger
-  // is a single button carrying id="agent-create-runtime-trigger" (distinct from
-  // the step's data-testid="agent-create-runtime").
-  await user.click(document.querySelector<HTMLElement>("#agent-create-runtime-trigger")!);
-  await screen.findByTestId("runtime-selector-popup");
-  await user.click(
-    document.querySelector<HTMLElement>('[data-provider="codex"][data-model="gpt-5.6-sol"]')!
-  );
-  await user.click(screen.getByTestId("agent-create-next"));
-  await user.type(screen.getByTestId("agent-create-prompt"), "Own release readiness.");
-  await user.click(screen.getByTestId("agent-create-next"));
-  return user;
-}
-
 describe("AgentCreateDialog", () => {
-  it("Should block wizard progress until basics are valid", async () => {
+  it("Should present a create-only editor with no wizard chrome left", () => {
+    renderStatefulDialog();
+
+    expect(screen.getByRole("dialog", { name: "Create agent" })).toBeInTheDocument();
+    expect(screen.queryByTestId("agent-create-stepper")).toBeNull();
+    expect(screen.queryByTestId("agent-create-progress")).toBeNull();
+    expect(screen.queryByTestId("agent-create-next")).toBeNull();
+    expect(screen.queryByTestId("agent-create-back")).toBeNull();
+  });
+
+  it("Should keep naming and catalog placement in Simple and reveal the rest only in Advanced", async () => {
     const user = userEvent.setup();
     renderStatefulDialog();
 
-    expect(screen.getByTestId("agent-create-progress")).toHaveTextContent("Step 1 of 4");
-    expect(screen.getByTestId("agent-create-step-basics")).toHaveAttribute("aria-current", "step");
-    expect(screen.getByTestId("agent-create-next")).toBeDisabled();
+    expect(screen.getByTestId("agent-create-name")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-create-prompt")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-create-runtime")).toBeInTheDocument();
+    // Category path names where the agent files in the catalog — a decision made
+    // while naming it, so it sits beside the runtime rather than under Advanced.
+    expect(screen.getByTestId("agent-create-category-path")).toBeInTheDocument();
+    expect(screen.queryByTestId("agent-create-permissions")).toBeNull();
+    expect(screen.queryByTestId("agent-create-tools-input")).toBeNull();
+    expect(screen.queryByTestId("agent-create-toolsets-input")).toBeNull();
+    expect(screen.queryByTestId("agent-create-deny-tools-input")).toBeNull();
+    expect(screen.queryByTestId("agent-create-disabled-skills-input")).toBeNull();
+    expect(screen.queryByTestId("agent-create-command")).toBeNull();
+
+    await user.click(screen.getByTestId("agent-create-mode-advanced"));
+
+    expect(screen.getByTestId("agent-create-permissions")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-create-tools-input")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-create-command")).toBeInTheDocument();
+    // Advanced never hides a required field.
+    expect(screen.getByTestId("agent-create-name")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-create-prompt")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-create-category-path")).toBeInTheDocument();
+  });
+
+  it("Should never offer an MCP servers control, which the create contract cannot accept", async () => {
+    const user = userEvent.setup();
+    renderStatefulDialog({ draft: validDraft() });
+
+    await user.click(screen.getByTestId("agent-create-mode-advanced"));
+
+    expect(screen.queryByText(/mcp/i)).toBeNull();
+  });
+
+  it("Should submit from Simple once name, prompt and runtime are valid", async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    renderStatefulDialog({ draft: validDraft(), onSubmit });
+
+    const submit = screen.getByTestId("submit-agent-create");
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+
+    expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("Should block submit while a required Simple field is empty", async () => {
+    const user = userEvent.setup();
+    renderStatefulDialog();
+
+    expect(screen.getByTestId("submit-agent-create")).toBeDisabled();
 
     await user.type(screen.getByTestId("agent-create-name"), "../bad");
 
     expect(screen.getByTestId("agent-create-name-error")).toHaveTextContent(
       "Agent names cannot be . or .. and cannot contain path separators."
     );
-    expect(screen.getByTestId("agent-create-next")).toBeDisabled();
+    expect(screen.getByTestId("submit-agent-create")).toBeDisabled();
   });
 
-  it("Should advance through all wizard steps and submit a valid draft", async () => {
+  it("Should reveal Advanced instead of submitting when only a hidden field is invalid", async () => {
     const onSubmit = vi.fn();
-    renderStatefulDialog({ onSubmit });
+    const user = userEvent.setup();
+    renderStatefulDialog({
+      draft: validDraft({ tools: ["  "] }),
+      onSubmit,
+    });
 
-    const user = await reachAccessStep();
+    expect(screen.queryByTestId("agent-create-tools-input")).toBeNull();
+    await user.click(screen.getByTestId("submit-agent-create"));
 
-    expect(screen.getByTestId("agent-create-progress")).toHaveTextContent("Step 4 of 4");
-    expect(screen.getByTestId("submit-agent-create")).toBeEnabled();
+    // A disabled primary with no visible cause is a dead end: the tier that owns
+    // the invalid field has to open before the submit is refused.
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByTestId("agent-create-tools-error")).toHaveTextContent(
+      "Tool entries cannot be blank."
+    );
+    expect(screen.getByTestId("agent-create-tools-input")).toBeInTheDocument();
+  });
+
+  it("Should surface an invalid category path without leaving Simple", async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    renderStatefulDialog({
+      draft: validDraft({ categoryPath: "operations//incident" }),
+      onSubmit,
+    });
 
     await user.click(screen.getByTestId("submit-agent-create"));
 
-    expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByTestId("agent-create-category-path-error")).toHaveTextContent(
+      "Category path cannot contain blank segments."
+    );
+    expect(screen.getByTestId("agent-create-mode-simple")).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("Should switch scope and surface provider-loading errors inline", async () => {
+  it("Should keep authored advanced values when leaving Advanced", async () => {
+    const user = userEvent.setup();
+    renderStatefulDialog({ draft: validDraft() });
+
+    await user.click(screen.getByTestId("agent-create-mode-advanced"));
+    await user.type(screen.getByTestId("agent-create-category-path"), "operations/incident");
+    await user.click(screen.getByTestId("agent-create-mode-simple"));
+    await user.click(screen.getByTestId("agent-create-mode-advanced"));
+
+    expect(screen.getByTestId("agent-create-category-path")).toHaveValue("operations/incident");
+  });
+
+  it("Should surface provider errors inline after switching scope", async () => {
     const user = userEvent.setup();
     renderStatefulDialog({
       providerOptions: [],
@@ -152,30 +221,40 @@ describe("AgentCreateDialog", () => {
 
     await user.click(screen.getByTestId("agent-create-scope-global"));
     await user.type(screen.getByTestId("agent-create-name"), "global-reviewer");
-    await user.click(screen.getByTestId("agent-create-next"));
 
     expect(screen.getByTestId("agent-create-provider-error")).toHaveTextContent(
       "Unable to load global provider settings."
     );
-    expect(screen.getByTestId("agent-create-next")).toBeDisabled();
+    expect(screen.getByTestId("submit-agent-create")).toBeDisabled();
   });
 
-  it("Should surface invalid reasoning effort errors on the runtime step", async () => {
+  it("Should keep the active workspace read-only while allowing scope changes", async () => {
     const user = userEvent.setup();
+    renderStatefulDialog({ draft: validDraft({ scope: "workspace" }) });
+
+    expect(screen.getByTestId("agent-create-scope-global")).toBeEnabled();
+    expect(screen.getByTestId("agent-create-scope-workspace")).toBeEnabled();
+    expect(screen.getByTestId("agent-create-workspace-select")).toBeDisabled();
+
+    await user.click(screen.getByTestId("agent-create-scope-global"));
+    expect(screen.queryByTestId("agent-create-workspace-select")).toBeNull();
+
+    await user.click(screen.getByTestId("agent-create-scope-workspace"));
+    expect(screen.getByTestId("agent-create-workspace-select")).toBeDisabled();
+  });
+
+  it("Should fail closed on an off-contract reasoning effort", () => {
     renderStatefulDialog({
       draft: validDraft({
-        provider: "codex",
         model: "gpt-5.6-sol",
         reasoningEffort: "ultra" as AgentCreateDialogDraft["reasoningEffort"],
       }),
     });
 
-    await user.click(screen.getByTestId("agent-create-next"));
-
     expect(screen.getByTestId("agent-create-provider-error")).toHaveTextContent(
       "Choose a valid reasoning effort."
     );
-    expect(screen.getByTestId("agent-create-next")).toBeDisabled();
+    expect(screen.getByTestId("submit-agent-create")).toBeDisabled();
   });
 
   it("Should clear authored runtime overrides back to project defaults", async () => {
@@ -187,7 +266,6 @@ describe("AgentCreateDialog", () => {
       }),
     });
 
-    await user.click(screen.getByTestId("agent-create-next"));
     await user.click(screen.getByTestId("agent-create-runtime-use-project-defaults"));
 
     expect(screen.getByTestId("agent-create-runtime-inherited")).toHaveTextContent(
@@ -196,10 +274,28 @@ describe("AgentCreateDialog", () => {
     expect(screen.queryByTestId("agent-create-runtime-use-project-defaults")).toBeNull();
   });
 
-  it("Should accept comma and newline token input while preserving de-duped order", async () => {
-    renderStatefulDialog();
+  it("Should translate the selected permission policy into its contract consequence", async () => {
+    const user = userEvent.setup();
+    renderStatefulDialog({ draft: validDraft() });
 
-    const user = await reachAccessStep();
+    await user.click(screen.getByTestId("agent-create-mode-advanced"));
+
+    expect(screen.getByTestId("agent-create-permissions-consequence")).toHaveTextContent(
+      "The definition omits permissions"
+    );
+
+    await user.click(screen.getByTestId("agent-create-permissions-approve-reads"));
+
+    expect(screen.getByTestId("agent-create-permissions-consequence")).toHaveTextContent(
+      "Sessions inherit approve-reads."
+    );
+  });
+
+  it("Should accept comma and newline token input while preserving de-duped order", async () => {
+    const user = userEvent.setup();
+    renderStatefulDialog({ draft: validDraft() });
+
+    await user.click(screen.getByTestId("agent-create-mode-advanced"));
     const input = screen.getByTestId("agent-create-tools-input");
 
     await user.type(input, "agh__skill_view,");
@@ -211,20 +307,16 @@ describe("AgentCreateDialog", () => {
     expect(screen.getAllByLabelText("Remove agh__skill_view")).toHaveLength(1);
   });
 
-  it("Should surface duplicate submit errors", async () => {
+  it("Should retain the draft and stay open when the save fails", () => {
     renderStatefulDialog({
       draft: validDraft(),
       submitError: "agent definition already exists",
     });
 
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("agent-create-next"));
-    await user.click(screen.getByTestId("agent-create-next"));
-    await user.click(screen.getByTestId("agent-create-next"));
-
     expect(screen.getByTestId("agent-create-submit-error")).toHaveTextContent(
       "agent definition already exists"
     );
+    expect(screen.getByTestId("agent-create-name")).toHaveValue("release-captain");
     expect(screen.getByTestId("submit-agent-create")).toBeEnabled();
   });
 
@@ -234,7 +326,7 @@ describe("AgentCreateDialog", () => {
       isSubmitting: true,
     });
 
-    expect(screen.getByTestId("agent-create-next")).toBeDisabled();
+    expect(screen.getByTestId("submit-agent-create")).toBeDisabled();
     expect(screen.getByTestId("agent-create-cancel")).toBeDisabled();
   });
 });

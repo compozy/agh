@@ -1,6 +1,8 @@
 import { useRef, useState, type SetStateAction } from "react";
 import { toast } from "sonner";
 
+import { useAgents } from "@/systems/agent";
+
 import { AutomationApiError } from "../adapters/automation-api";
 import {
   automationJobUpdateFromDraft,
@@ -70,6 +72,11 @@ function useWorkspaceBoundEditor<T>(workspaceId: string | null | undefined) {
   return { editor: contextMatches ? state.editor : null, setEditor };
 }
 
+function agentCatalogErrorMessage(error: unknown): string | null {
+  if (!(error instanceof Error)) return error ? "Unable to load agents." : null;
+  return error.message.trim() || "Unable to load agents.";
+}
+
 /**
  * Modal create/edit controller for automation jobs. Shared by the list route
  * (create + Loop deep-link) and the detail route (edit in place).
@@ -82,6 +89,9 @@ export function useAutomationJobEditor({
   const { editor, setEditor } = useWorkspaceBoundEditor<JobEditorState>(activeWorkspaceId);
   const inFlightRef = useRef(false);
   const [handle] = useState(createAutomationDialogHandle);
+  // The target selector reads the workspace catalog; a global editor still lists
+  // the active workspace's agents because that is what the job can address.
+  const agentsQuery = useAgents(activeWorkspaceId);
   const createMutation = useCreateAutomationJob();
   const updateMutation = useUpdateAutomationJob();
 
@@ -118,6 +128,9 @@ export function useAutomationJobEditor({
 
   const editorDialogProps = {
     activeWorkspaceId,
+    agents: agentsQuery.data ?? [],
+    agentsError: agentCatalogErrorMessage(agentsQuery.error),
+    agentsLoading: agentsQuery.isLoading,
     handle,
     workspaces,
     editor: editor
@@ -157,6 +170,7 @@ export function useAutomationTriggerEditor({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const [handle] = useState(createAutomationDialogHandle);
+  const agentsQuery = useAgents(activeWorkspaceId);
   const createMutation = useCreateAutomationTrigger();
   const updateMutation = useUpdateAutomationTrigger();
 
@@ -214,6 +228,9 @@ export function useAutomationTriggerEditor({
 
   const editorDialogProps = {
     activeWorkspaceId,
+    agents: agentsQuery.data ?? [],
+    agentsError: agentCatalogErrorMessage(agentsQuery.error),
+    agentsLoading: agentsQuery.isLoading,
     handle,
     workspaces,
     editor: editor

@@ -1,6 +1,6 @@
 import { useRef } from "react";
 
-import { FieldRow, PageShell, Switch, cn } from "@agh/ui";
+import { Field, FieldDescription, FieldLabel, FieldTitle, PageShell, Switch, cn } from "@agh/ui";
 
 import { useSettingsTopbar } from "@/systems/settings";
 
@@ -113,43 +113,39 @@ export function AppearanceSettingsPane() {
   return (
     <PageShell slug="appearance">
       <div className="flex max-w-2xl flex-col gap-8" data-testid="os-appearance-pane">
-        <FieldRow
-          label="Wallpaper"
-          description="Backdrop for the current shell session."
-          control={
-            <WallpaperPicker value={appearance.wallpaper} onChange={appearance.setWallpaper} />
-          }
-        />
-        <FieldRow
-          label="Dock magnification"
-          description="Dock icons lift and scale under the pointer."
-          htmlFor="os-appearance-magnify"
-          control={
+        <Field>
+          <FieldTitle>Wallpaper</FieldTitle>
+          <FieldDescription>Backdrop for the current shell session.</FieldDescription>
+          <WallpaperPicker value={appearance.wallpaper} onChange={appearance.setWallpaper} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="os-appearance-magnify">Dock magnification</FieldLabel>
+          <FieldDescription>Dock icons lift and scale under the pointer.</FieldDescription>
+          <div className="min-w-0">
             <Switch
               id="os-appearance-magnify"
               data-testid="os-appearance-magnify"
               checked={appearance.dockMagnify}
               onCheckedChange={checked => appearance.setDockMagnify(checked === true)}
             />
-          }
-        />
-        <FieldRow
-          label="Reduce motion"
-          description={
-            appearance.systemReducedMotion
+          </div>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="os-appearance-reduce-motion">Reduce motion</FieldLabel>
+          <FieldDescription>
+            {appearance.systemReducedMotion
               ? "Your system already prefers reduced motion — that preference wins while it is on."
-              : "Window, dock, and minimize animations become instant."
-          }
-          htmlFor="os-appearance-reduce-motion"
-          control={
+              : "Window, dock, and minimize animations become instant."}
+          </FieldDescription>
+          <div className="min-w-0">
             <Switch
               id="os-appearance-reduce-motion"
               data-testid="os-appearance-reduce-motion"
               checked={appearance.reduceMotion}
               onCheckedChange={checked => appearance.setReduceMotion(checked === true)}
             />
-          }
-        />
+          </div>
+        </Field>
       </div>
     </PageShell>
   );

@@ -10,59 +10,39 @@ import type {
   MCPSecretBinding,
   MCPSecretEnvEntry,
 } from "../lib/mcp-editor-model";
-import type { SettingsMCPServerTarget } from "../types";
 
-import { MCPFieldLabel, MCPNameField, MCPTargetField } from "./mcp-editor-fields";
+import { MCPFieldLabel } from "./mcp-editor-fields";
 import { MCPSecretBindingControl, type MCPVaultInventory } from "./mcp-secret-binding";
 
-export interface MCPEditorStdioSectionProps {
+export interface MCPEditorProcessSectionProps {
   draft: MCPDraft;
   errors: MCPDraftErrors;
   vaultInventory: MCPVaultInventory;
-  isCreate: boolean;
-  target: SettingsMCPServerTarget;
-  availableTargets: SettingsMCPServerTarget[];
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;
-  onTargetChange: (target: SettingsMCPServerTarget) => void;
 }
 
-export function MCPEditorStdioSection({
+/**
+ * Advanced tier for a local server: the process environment.
+ *
+ * Only stdio carries these — `toRequest` omits command, args, env, and
+ * secret_env entirely on a remote definition — so the caller renders this
+ * section only while the local transport is selected.
+ */
+export function MCPEditorProcessSection({
   draft,
   errors,
   vaultInventory,
-  isCreate,
-  target,
-  availableTargets,
   onChange,
-  onTargetChange,
-}: MCPEditorStdioSectionProps) {
+}: MCPEditorProcessSectionProps) {
   return (
     <>
-      <FormSection title="Process" rightLabel="stdio only" data-testid="settings-mcp-editor-stdio">
+      <FormSection
+        data-testid="settings-mcp-editor-stdio"
+        description="Ordered arguments and environment for the spawned process."
+        rightLabel="stdio only"
+        title="Process environment"
+      >
         <div className="flex flex-col gap-3">
-          <MCPNameField
-            name={draft.name}
-            isCreate={isCreate}
-            error={errors.name}
-            onChange={name => onChange(current => ({ ...current, name }))}
-          />
-          <div>
-            <MCPFieldLabel htmlFor="mcp-editor-command" hint="required">
-              Command
-            </MCPFieldLabel>
-            <Input
-              id="mcp-editor-command"
-              className="font-mono"
-              value={draft.command}
-              placeholder="npx"
-              aria-invalid={errors.command ? true : undefined}
-              onChange={event => onChange(current => ({ ...current, command: event.target.value }))}
-              data-testid="settings-mcp-servers-editor-command-input"
-            />
-            {errors.command ? (
-              <p className="mt-1.5 text-caption text-danger">{errors.command}</p>
-            ) : null}
-          </div>
           <ArgsEditor
             args={draft.args}
             onChange={args => onChange(current => ({ ...current, args }))}
@@ -72,15 +52,6 @@ export function MCPEditorStdioSection({
             errors={errors.env}
             onChange={env => onChange(current => ({ ...current, env }))}
           />
-          <MCPTargetField
-            target={target}
-            availableTargets={availableTargets}
-            onChange={onTargetChange}
-          />
-          <p className="rounded-md bg-info-tint p-2.5 text-caption text-info">
-            <strong className="font-semibold">Local process fields only.</strong> Stdio accepts
-            command, ordered args, env, and secret bindings. URL and OAuth are omitted.
-          </p>
         </div>
       </FormSection>
 

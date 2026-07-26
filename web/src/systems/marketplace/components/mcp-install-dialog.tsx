@@ -8,15 +8,22 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Field,
+  FieldDescription,
+  FieldError,
   FieldGroup,
+  FieldLabel,
   FormSection,
+  Input,
   MetadataList,
+  Pill,
   RadioCard,
+  SecretField,
   Spinner,
 } from "@agh/ui";
 
 import type { MarketplaceEntryResponse, MCPInstallRequest, MCPInstallResponse } from "../types";
-import { MCPSecretField } from "./mcp-secret-field";
+import { bindingValuePresent, type MCPEnvField, type MCPFieldBinding } from "./mcp-install-model";
 import { marketplaceErrorMessage } from "./marketplace-ui";
 import { useMCPInstallDialog } from "./use-mcp-install-dialog";
 
@@ -113,11 +120,7 @@ function MCPInstallDialog({
             </p>
           ) : null}
 
-          <FormSection
-            description="Choose where this server is available."
-            size="compact"
-            title="Scope"
-          >
+          <FormSection description="Choose where this server is available." title="Scope">
             <div
               aria-label="MCP install scope"
               className="grid grid-cols-1 gap-2 sm:grid-cols-2"
@@ -142,13 +145,13 @@ function MCPInstallDialog({
           </FormSection>
 
           {!remote && fields.length > 0 ? (
-            <FormSection size="compact" title="Required configuration">
+            <FormSection title="Required configuration">
               <FieldGroup>
                 {fields.map(field => {
                   const binding = bindings[field.name];
                   if (!binding) return null;
                   return (
-                    <MCPSecretField
+                    <MCPInstallField
                       binding={binding}
                       canonicalRef={canonicalRef(field)}
                       createPending={putVault.isPending}
@@ -205,6 +208,122 @@ function MCPInstallDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+interface MCPInstallFieldProps {
+  binding: MCPFieldBinding;
+  canonicalRef: string;
+  createPending: boolean;
+  field: MCPEnvField;
+  vaultError?: string | null;
+  vaultLoading: boolean;
+  vaultSecrets: ReadonlyArray<{ present: boolean; ref: string }>;
+  onChange: (next: MCPFieldBinding) => void;
+  onCreate: () => void;
+}
+
+/**
+ * Binds one marketplace env field to a control: secrets go through the shared
+ * write-only `SecretField`, plain configuration values through a text input.
+ */
+function MCPInstallField({
+  binding,
+  canonicalRef,
+  createPending,
+  field,
+  vaultError,
+  vaultLoading,
+  vaultSecrets,
+  onChange,
+  onCreate,
+}: MCPInstallFieldProps) {
+  const id = `mcp-field-${field.name}`;
+  const invalid = field.required && !bindingValuePresent(binding);
+  const showError = binding.touched && invalid;
+  const description =
+    field.prompt || (field.required ? "Required by this server." : "Optional configuration.");
+  const badges = field.required ? (
+    <Pill mono size="xs" tone="warning">
+      required
+    </Pill>
+  ) : null;
+
+  if (!field.secret) {
+    return (
+      <Field data-invalid={showError ? "true" : undefined}>
+        <div className="flex flex-wrap items-center gap-2">
+          <FieldLabel className="font-mono" htmlFor={id}>
+            {field.name}
+          </FieldLabel>
+          {badges}
+        </div>
+        <FieldDescription id={`${id}-description`}>{description}</FieldDescription>
+        <Input
+          aria-describedby={showError ? `${id}-description ${id}-error` : `${id}-description`}
+          aria-invalid={showError ? true : undefined}
+          autoComplete="off"
+          id={id}
+          onBlur={() => onChange({ ...binding, touched: true })}
+          onChange={event => onChange({ ...binding, typedValue: event.target.value })}
+          placeholder={field.default}
+          required={field.required}
+          type="text"
+          value={binding.typedValue}
+        />
+        {showError ? <FieldError id={`${id}-error`}>Enter a value.</FieldError> : null}
+      </Field>
+    );
+  }
+
+  return (
+    <SecretField
+      badges={
+        <>
+          <Pill mono size="xs">
+            secret
+          </Pill>
+          {badges}
+        </>
+      }
+      binding={{
+        create: {
+          error: binding.createError,
+          onOpenChange: open => onChange({ ...binding, createOpen: open }),
+          onSubmit: onCreate,
+          onValueChange: next =>
+            onChange({ ...binding, createError: undefined, createValue: next }),
+          open: binding.createOpen,
+          openLabel: "Create Vault secret",
+          valueLabel: `New Vault value for ${field.name}`,
+          pending: createPending,
+          ref: canonicalRef,
+          value: binding.createValue,
+        },
+        emptyLabel: "No MCP secrets are stored yet.",
+        error: vaultError,
+        loading: vaultLoading,
+        namespaceLabel: "namespace=mcp",
+        onSelectRef: ref => onChange({ ...binding, touched: true, vaultRef: ref }),
+        selectedRef: binding.vaultRef,
+        sources: vaultSecrets,
+      }}
+      createTestId={`mcp-create-secret-${field.name}`}
+      description={description}
+      error={showError ? "Choose a present Vault ref or enter a value." : undefined}
+      id={id}
+      label={field.name}
+      labelClassName="font-mono"
+      mode={binding.mode === "vault" ? "source" : "value"}
+      onBlur={() => onChange({ ...binding, touched: true })}
+      onModeChange={next => onChange({ ...binding, mode: next === "source" ? "vault" : "typed" })}
+      onValueChange={next => onChange({ ...binding, typedValue: next })}
+      placeholder="Stored write-only during install"
+      required={field.required}
+      sourceModeLabel="Use Vault"
+      sourcesTestId={`mcp-vault-selector-${field.name}`}
+      value={binding.typedValue}
+    />
   );
 }
 

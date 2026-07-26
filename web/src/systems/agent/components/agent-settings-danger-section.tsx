@@ -22,7 +22,6 @@ export function AgentSettingsDangerSection({
     <FormSection
       data-testid="agent-settings-danger"
       icon={AlertTriangle}
-      size="compact"
       title="Danger zone"
       description={`Permanently remove ${agent.name} from ${scopeLabel}.`}
       className="border-danger/30"

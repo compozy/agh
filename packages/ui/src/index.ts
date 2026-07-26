@@ -34,7 +34,6 @@ export {
 export { Panel, type PanelProps } from "./components/custom/panel";
 export { Sparkline, type SparklineProps } from "./components/custom/sparkline";
 export { IntensityMeter, type IntensityMeterProps } from "./components/custom/intensity-meter";
-export { FieldRow, type FieldRowProps } from "./components/custom/field-row";
 export {
   ContextBox,
   type ContextBoxEntry,
@@ -48,11 +47,8 @@ export {
   type StatusBreakdownProps,
 } from "./components/custom/status-breakdown";
 export { MetadataTile, type MetadataTileProps } from "./components/custom/metadata-tile";
-export {
-  FormSection,
-  type FormSectionProps,
-  type FormSectionSize,
-} from "./components/custom/form-section";
+export { FormSection, type FormSectionProps } from "./components/custom/form-section";
+export { HelpTip, type HelpTipProps } from "./components/custom/help-tip";
 export { Icon, type IconProps, type IconSize } from "./components/icon";
 export { MonoId, type MonoIdProps, type MonoIdSize } from "./components/custom/mono-id";
 export { Time, type TimeMode, type TimeProps } from "./components/custom/time";
@@ -95,6 +91,51 @@ export {
   WIDTH_RIGHT_RAIL_DEFAULT,
   WIDTH_TABLE_CELL_LG,
 } from "./lib/layout-widths";
+
+// Entity-editor modal shell (modals-redesign F1-F7).
+export {
+  dialogShellClass,
+  type DialogShellOptions,
+  type DialogShellSize,
+} from "./lib/dialog-shell";
+export {
+  EntityDialogHeader,
+  type EntityDialogHeaderProps,
+} from "./components/custom/entity-dialog-header";
+export {
+  EntityDialogFooter,
+  type EntityDialogFooterProps,
+} from "./components/custom/entity-dialog-footer";
+export {
+  EntityDialogBody,
+  type EntityDialogBodyProps,
+  type EntityDialogBodyVariant,
+} from "./components/custom/entity-dialog-body";
+export {
+  EntityDialogToolbar,
+  type EntityDialogToolbarProps,
+} from "./components/custom/entity-dialog-toolbar";
+export {
+  EntityModeToolbar,
+  type EntityMode,
+  type EntityModeToolbarProps,
+} from "./components/custom/entity-mode-toolbar";
+export {
+  SecretField,
+  type SecretFieldBinding,
+  type SecretFieldMode,
+  type SecretFieldProps,
+  type SecretFieldSource,
+  type SecretFieldSourceCreate,
+  type SecretFieldState,
+} from "./components/custom/secret-field";
+export {
+  ImmutableIdentity,
+  type ImmutableIdentityProps,
+  type ImmutableIdentityRow,
+} from "./components/custom/immutable-identity";
+export { RequiredMark, type RequiredMarkProps } from "./components/custom/required-mark";
+
 export { Markdown, STREAMDOWN_SAFE_CONFIG, type MarkdownProps } from "./components/custom/markdown";
 export { DescriptionCard, type DescriptionCardProps } from "./components/custom/description-card";
 export { StreamMarkdown, type StreamMarkdownProps } from "./components/custom/stream-markdown";
@@ -348,6 +389,7 @@ export {
   FieldDescription,
   FieldError,
   FieldGroup,
+  FieldHeader,
   FieldLabel,
   FieldLegend,
   FieldSeparator,

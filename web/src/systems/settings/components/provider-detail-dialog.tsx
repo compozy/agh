@@ -1,4 +1,5 @@
-import { AlertCircle, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { Pencil, Save, Settings2, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import {
   Alert,
@@ -6,18 +7,21 @@ import {
   Button,
   Dialog,
   DialogContent,
-  DialogTitle,
-  Eyebrow,
+  dialogShellClass,
+  EntityDialogBody,
+  EntityDialogFooter,
+  EntityDialogHeader,
+  EntityModeToolbar,
   LaneTabs,
   Pill,
-  Spinner,
+  type EntityMode,
 } from "@agh/ui";
 
 import { getProviderStateView } from "../lib/provider-state";
 import type { ProviderDraft, SettingsProviderEntry } from "../types";
 import { ProviderEditForm } from "./provider-edit-form";
 import { ProviderInspectView } from "./provider-inspect-view";
-import { ProviderLogo } from "./provider-logo";
+import { SettingsSourceBadge } from "./settings-source-badge";
 
 type DetailMode = "inspect" | "edit" | "create";
 
@@ -28,7 +32,6 @@ export interface ProviderDetailDialogProps {
   mode: DetailMode;
   entry: SettingsProviderEntry | null;
   draft: ProviderDraft | null;
-  existingNames: string[];
   error: string | null;
   warnings: string[] | undefined;
   canSave: boolean;
@@ -44,9 +47,11 @@ export interface ProviderDetailDialogProps {
 }
 
 /**
- * Provider detail as a centered modal (design decision D2 over the prototype's
- * side sheet): overlay click and Esc both dismiss; Overview / Configure lane
- * tabs map onto the page hook's inspect / edit modes.
+ * Provider detail on the shared entity-dialog shell (decision D1(b)): the
+ * production dialog keeps inspect, edit, and create in one surface, and takes
+ * the designed provider-sheet *body grammar* — `SettingsFieldRow` rows, auth
+ * ownership cards, write-only credential slots — rather than the 576px sheet
+ * host the artboards were drawn in.
  */
 export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
   const {
@@ -67,8 +72,20 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
     onRequestDelete,
     onRefreshCatalog,
   } = props;
-
   const provider = entry;
+  // The host keeps this dialog mounted between openings, so the disclosure tier
+  // is reset whenever it switches entity or mode — a create must open on the
+  // common path even if the last edit ended in Advanced.
+  // Keyed by the entry, never by the draft: a create draft's name changes on
+  // every keystroke and would reset the tier mid-typing.
+  const surfaceKey = `${mode}:${entry?.name ?? "new"}`;
+  const [tier, setTier] = useState<EntityMode>("simple");
+  const [tierSurface, setTierSurface] = useState(surfaceKey);
+  if (tierSurface !== surfaceKey) {
+    setTierSurface(surfaceKey);
+    setTier("simple");
+  }
+
   const state = provider ? getProviderStateView(provider) : null;
   const isEditing = mode === "edit" || mode === "create";
   const isCreate = mode === "create";
@@ -85,254 +102,187 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange} disablePointerDismissal={false}>
       <DialogContent
-        unframed
-        className={[
-          "w-(--width-modal-md) max-w-[calc(100%-2rem)] sm:max-w-(--width-modal-md)",
-          "grid-rows-[auto_minmax(0,1fr)_auto]",
-          "max-h-[min(var(--height-modal-md),calc(100%-2rem))]",
-        ].join(" ")}
-        data-testid="provider-detail-dialog"
+        className={`text-fg grid-rows-[auto_minmax(0,1fr)_auto] ${dialogShellClass("md")}`}
         data-mode={mode}
+        data-testid="provider-detail-dialog"
+        showCloseButton={false}
+        unframed
       >
-        <DetailHeaderBlock
-          mode={mode}
-          provider={provider}
-          draftName={draft?.name ?? ""}
-          stateDisplay={state?.display ?? null}
-          stateTone={state?.tone ?? "neutral"}
-          isDefault={provider?.default ?? false}
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-        />
+        <div className="flex flex-col">
+          <EntityDialogHeader
+            className="border-b-0 pb-3"
+            description={headerDescription(mode, provider)}
+            eyebrow="Settings · Provider"
+            icon={Settings2}
+            onClose={isSaving ? undefined : () => onOpenChange(false)}
+            title={
+              <span data-testid="provider-detail-title">{headerTitle(mode, provider, draft)}</span>
+            }
+          />
 
-        <div className="min-h-0 overflow-y-auto px-6 py-5">
-          {isEditing ? (
-            draft ? (
-              <ProviderEditForm
-                mode={isCreate ? "create" : "edit"}
-                draft={draft}
-                onChange={onDraftChange}
+          {isCreate ? null : (
+            <div className="flex flex-wrap items-center gap-3 border-b border-line bg-canvas-soft px-5 pb-2">
+              <LaneTabs<DetailTab>
+                ariaLabel="Provider detail sections"
+                items={[
+                  { value: "overview", label: "Overview", testId: "provider-detail-tab-overview" },
+                  {
+                    value: "configure",
+                    label: "Configure",
+                    testId: "provider-detail-tab-configure",
+                  },
+                ]}
+                onChange={handleTabChange}
+                value={activeTab}
               />
-            ) : null
-          ) : provider ? (
-            <ProviderInspectView provider={provider} onRefreshCatalog={onRefreshCatalog} />
+              <div className="flex-1" />
+              {provider?.default ? <Pill tone="accent">Default</Pill> : null}
+              {state?.display ? (
+                <Pill tone={state.tone}>
+                  <Pill.Dot tone={state.tone} />
+                  {state.display}
+                </Pill>
+              ) : null}
+            </div>
+          )}
+
+          {isEditing ? (
+            <EntityModeToolbar
+              mode={tier}
+              onModeChange={setTier}
+              testIdPrefix="settings-providers-editor"
+              trailing={
+                provider ? (
+                  <SettingsSourceBadge
+                    data-testid="settings-providers-editor-source"
+                    shadowed={provider.source_metadata.shadowed_sources ?? []}
+                    source={provider.source_metadata.effective_source}
+                  />
+                ) : (
+                  <span
+                    className="font-mono text-form-label text-muted"
+                    data-testid="settings-providers-editor-status"
+                  >
+                    overlay draft
+                  </span>
+                )
+              }
+            />
           ) : null}
         </div>
 
-        <DetailFooterBlock
-          mode={mode}
-          isEditing={isEditing}
-          canSave={canSave}
-          isSaving={isSaving}
-          isDeleting={isDeleting}
-          deletable={deletable}
-          error={error}
-          warnings={warnings}
-          onSwitchToEdit={onSwitchToEdit}
-          onCancelEdit={onCancelEdit}
-          onClose={() => onOpenChange(false)}
-          onSave={onSave}
-          onRequestDelete={onRequestDelete}
-        />
+        <EntityDialogBody className="flex flex-col" data-testid="provider-detail-body">
+          {error ? (
+            <Alert data-testid="provider-detail-error" variant="danger">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+          {!error && warnings && warnings.length > 0 ? (
+            <Alert data-testid="provider-detail-warnings" variant="warning">
+              <AlertDescription>
+                <ul className="flex flex-col gap-1">
+                  {warnings.map(warning => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          {isEditing ? (
+            draft ? (
+              <ProviderEditForm
+                draft={draft}
+                entry={provider}
+                mode={isCreate ? "create" : "edit"}
+                onChange={onDraftChange}
+                tier={tier}
+              />
+            ) : null
+          ) : provider ? (
+            <ProviderInspectView onRefreshCatalog={onRefreshCatalog} provider={provider} />
+          ) : null}
+        </EntityDialogBody>
+
+        {isEditing ? (
+          <EntityDialogFooter
+            cancelDisabled={isSaving}
+            cancelTestId="provider-detail-cancel"
+            hint={
+              isCreate
+                ? "Credential controls follow the selected ownership mode."
+                : "Unchanged credentials remain bound and untouched."
+            }
+            isSaving={isSaving}
+            onCancel={isCreate ? () => onOpenChange(false) : onCancelEdit}
+            onPrimary={onSave}
+            primaryDisabled={!canSave}
+            primaryIcon={Save}
+            primaryLabel={isSaving ? "Saving…" : isCreate ? "Create provider" : "Save provider"}
+            primaryTestId="provider-detail-save"
+          />
+        ) : (
+          <EntityDialogFooter
+            cancelLabel="Close"
+            cancelTestId="provider-detail-close"
+            hint={
+              <Button
+                data-testid="provider-detail-delete"
+                disabled={!deletable || isDeleting}
+                onClick={onRequestDelete}
+                size="sm"
+                title={
+                  deletable
+                    ? undefined
+                    : "Builtin providers cannot be deleted — edit the overlay to override them."
+                }
+                type="button"
+                variant="destructive"
+              >
+                <Trash2 aria-hidden="true" className="size-3" />
+                Delete overlay
+              </Button>
+            }
+            onCancel={() => onOpenChange(false)}
+            onPrimary={onSwitchToEdit}
+            primaryDisabled={isDeleting}
+            primaryIcon={Pencil}
+            primaryLabel="Edit settings"
+            primaryTestId="provider-detail-edit"
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-interface DetailHeaderBlockProps {
-  mode: DetailMode;
-  provider: SettingsProviderEntry | null;
-  draftName: string;
-  stateDisplay: string | null;
-  stateTone: "success" | "warning" | "danger" | "neutral" | "accent" | "info";
-  isDefault: boolean;
-  activeTab: DetailTab;
-  onTabChange: (next: DetailTab) => void;
+function headerTitle(
+  mode: DetailMode,
+  provider: SettingsProviderEntry | null,
+  draft: ProviderDraft | null
+): string {
+  if (mode === "create") return "Create provider";
+  const name = provider?.name ?? draft?.name ?? "";
+  return mode === "edit" ? `Edit ${name}` : name;
 }
 
-function DetailHeaderBlock({
-  mode,
-  provider,
-  draftName,
-  stateDisplay,
-  stateTone,
-  isDefault,
-  activeTab,
-  onTabChange,
-}: DetailHeaderBlockProps) {
-  const name = mode === "create" ? draftName || "New provider" : (provider?.name ?? "");
-  const subtitle =
-    mode === "create"
-      ? "Create a new provider overlay"
-      : provider?.settings.display_name ||
-        (mode === "edit" ? "Edit provider overlay" : "Provider configuration");
-
-  return (
-    <header className="flex flex-col border-b border-line-soft px-6 pt-4">
-      <div className="flex items-start gap-3">
-        {mode === "create" ? (
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-icon-well bg-canvas text-subtle">
-            <Plus aria-hidden="true" className="size-4" />
-          </span>
-        ) : (
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-icon-well bg-canvas text-fg">
-            <ProviderLogo provider={provider?.name ?? "agh"} className="size-5" />
-          </span>
-        )}
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <Eyebrow className="text-faint">Provider</Eyebrow>
-          <DialogTitle
-            className="truncate font-mono text-sm font-medium text-fg-strong"
-            data-testid="provider-detail-title"
-          >
-            {name}
-          </DialogTitle>
-          <p className="truncate text-xs text-muted">{subtitle}</p>
-        </div>
-        {mode !== "create" && (isDefault || stateDisplay) ? (
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 pe-7">
-            {isDefault ? <Pill tone="accent">Default</Pill> : null}
-            {stateDisplay ? (
-              <Pill tone={stateTone}>
-                <Pill.Dot tone={stateTone} />
-                {stateDisplay}
-              </Pill>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-      {mode === "create" ? (
-        <div className="pb-4" />
-      ) : (
-        <LaneTabs<DetailTab>
-          ariaLabel="Provider detail sections"
-          className="mt-2"
-          items={[
-            { value: "overview", label: "Overview", testId: "provider-detail-tab-overview" },
-            { value: "configure", label: "Configure", testId: "provider-detail-tab-configure" },
-          ]}
-          value={activeTab}
-          onChange={onTabChange}
-        />
-      )}
-    </header>
-  );
-}
-
-interface DetailFooterBlockProps {
-  mode: DetailMode;
-  isEditing: boolean;
-  canSave: boolean;
-  isSaving: boolean;
-  isDeleting: boolean;
-  deletable: boolean;
-  error: string | null;
-  warnings: string[] | undefined;
-  onSwitchToEdit: () => void;
-  onCancelEdit: () => void;
-  onClose: () => void;
-  onSave: () => void;
-  onRequestDelete: () => void;
-}
-
-function DetailFooterBlock(props: DetailFooterBlockProps) {
-  const {
-    mode,
-    isEditing,
-    canSave,
-    isSaving,
-    isDeleting,
-    deletable,
-    error,
-    warnings,
-    onSwitchToEdit,
-    onCancelEdit,
-    onClose,
-    onSave,
-    onRequestDelete,
-  } = props;
-
-  return (
-    <footer className="flex flex-col gap-3 border-t border-line-soft px-6 py-4">
-      {error ? (
-        <Alert variant="danger" data-testid="provider-detail-error">
-          <AlertCircle className="mt-0.5 size-3 shrink-0" />
-          <AlertDescription className="text-xs">{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {!error && warnings && warnings.length > 0 ? (
-        <Alert variant="warning" data-testid="provider-detail-warnings">
-          <AlertCircle className="mt-0.5 size-3 shrink-0" />
-          <AlertDescription>
-            <ul className="flex flex-col gap-1 text-xs">
-              {warnings.map(warning => (
-                <li key={warning}>{warning}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      <div className="flex items-center justify-between gap-2">
-        {isEditing ? (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={mode === "create" ? onClose : onCancelEdit}
-              disabled={isSaving}
-              data-testid="provider-detail-cancel"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              onClick={onSave}
-              disabled={!canSave || isSaving}
-              data-testid="provider-detail-save"
-            >
-              {isSaving ? (
-                <Spinner className="size-3" />
-              ) : (
-                <Save aria-hidden="true" className="size-3" />
-              )}
-              {isSaving ? "Saving…" : mode === "create" ? "Create provider" : "Save provider"}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onRequestDelete}
-              disabled={!deletable || isDeleting}
-              title={
-                deletable
-                  ? undefined
-                  : "Builtin providers cannot be deleted -- edit the overlay to override them."
-              }
-              data-testid="provider-detail-delete"
-            >
-              <Trash2 aria-hidden="true" className="size-3" />
-              Delete overlay
-            </Button>
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              onClick={onSwitchToEdit}
-              disabled={isDeleting}
-              data-testid="provider-detail-edit"
-            >
-              <Pencil aria-hidden="true" className="size-3" />
-              Edit settings
-            </Button>
-          </>
-        )}
-      </div>
-    </footer>
-  );
+function headerDescription(mode: DetailMode, provider: SettingsProviderEntry | null) {
+  if (mode === "create") {
+    return (
+      <>
+        An ACP provider overlay — <b className="font-medium text-muted">who owns authentication</b>{" "}
+        decides which credential controls AGH may manage.
+      </>
+    );
+  }
+  if (mode === "edit") {
+    return (
+      <>
+        Changes apply to the provider overlay.{" "}
+        <b className="font-medium text-muted">Stored credentials stay bound</b> — rotate only when
+        replacing them.
+      </>
+    );
+  }
+  return provider?.settings.display_name || "Provider configuration";
 }

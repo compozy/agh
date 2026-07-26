@@ -1,4 +1,5 @@
 import { PillGroup } from "@agh/ui";
+import type { AgentPayload } from "@/systems/agent";
 import { LoopTargetFields, type LoopTargetCatalog, type LoopTargetDraft } from "@/systems/loops";
 
 import type { AutomationTargetMode } from "../../lib/automation-drafts";
@@ -9,7 +10,9 @@ interface TriggerTargetStepProps {
   onModeChange: (mode: AutomationTargetMode) => void;
   /** Agent-mode fields. */
   agent: string;
-  agents: string[];
+  agents: AgentPayload[];
+  agentsLoading?: boolean;
+  agentsError?: string | null;
   prompt: string;
   variables: string[];
   onAgentChange: (next: string) => void;
@@ -36,6 +39,8 @@ export function TriggerTargetStep({
   onModeChange,
   agent,
   agents,
+  agentsLoading = false,
+  agentsError = null,
   prompt,
   variables,
   onAgentChange,
@@ -68,6 +73,8 @@ export function TriggerTargetStep({
           agent={agent}
           agentDisabled={editorMode === "edit"}
           agents={agents}
+          agentsError={agentsError}
+          agentsLoading={agentsLoading}
           onAgentChange={onAgentChange}
           onPromptChange={onPromptChange}
           prompt={prompt}

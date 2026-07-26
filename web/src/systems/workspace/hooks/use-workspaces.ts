@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  createWorkspace,
   deleteWorkspace,
   resolveWorkspace,
+  type CreateWorkspaceParams,
   type ResolveWorkspaceParams,
 } from "@/systems/workspace/adapters/workspace-api";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
@@ -11,6 +13,8 @@ import {
   workspacesListOptions,
 } from "@/systems/workspace/lib/query-options";
 import type { WorkspacePayload } from "@/systems/workspace/types";
+
+import { reconcileWorkspaceList } from "../lib/workspace-list-reconciliation";
 
 interface UseWorkspaceOptions {
   enabled?: boolean;
@@ -33,10 +37,23 @@ export function useResolveWorkspace() {
   return useMutation({
     mutationFn: (params: ResolveWorkspaceParams) => resolveWorkspace(params),
     onSuccess: workspace => {
-      queryClient.setQueryData<WorkspacePayload[]>(workspaceKeys.list(), current => {
-        const existing = current ?? [];
-        return [workspace, ...existing.filter(item => item.id !== workspace.id)];
-      });
+      queryClient.setQueryData<WorkspacePayload[]>(workspaceKeys.list(), current =>
+        reconcileWorkspaceList(current, workspace)
+      );
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() });
+    },
+  });
+}
+
+export function useCreateWorkspace() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: CreateWorkspaceParams) => createWorkspace(params),
+    onSuccess: workspace => {
+      queryClient.setQueryData<WorkspacePayload[]>(workspaceKeys.list(), current =>
+        reconcileWorkspaceList(current, workspace)
+      );
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() });
     },
   });

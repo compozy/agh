@@ -2,10 +2,17 @@ import { Outlet } from "@tanstack/react-router";
 
 import { cn } from "@agh/ui";
 
-import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
+import { AgentCreateDialog, AgentCreateHostProvider, useAgents } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
-import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
+import { useSettingsSandboxes } from "@/systems/settings";
+import {
+  useWorkspaceSetupContent,
+  WorkspaceOnboarding,
+  WorkspaceSetupDialog,
+  type WorkspaceSetupCollection,
+  type WorkspaceSetupDefaultsModel,
+} from "@/systems/workspace";
 
 import { OsShellContext } from "../contexts/os-shell-context";
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
@@ -46,11 +53,35 @@ export function DesktopShell() {
 function DesktopChrome({ firstRun }: { firstRun: boolean }) {
   const model = useDesktopShellModel();
   const chrome = useDesktopChrome(model.activeWorkspaceId);
+  const agentsQuery = useAgents();
+  const sandboxesQuery = useSettingsSandboxes();
+  const workspaceSetupDefaults: WorkspaceSetupDefaultsModel = {
+    agents: workspaceSetupCollection(
+      agentsQuery.data,
+      agentsQuery.isLoading,
+      agentsQuery.error,
+      "Could not load agents."
+    ),
+    sandboxes: workspaceSetupCollection(
+      sandboxesQuery.data?.sandboxes.map(entry => ({
+        name: entry.name,
+        backend: entry.profile.backend,
+      })),
+      sandboxesQuery.isLoading,
+      sandboxesQuery.error,
+      "Could not load sandbox profiles."
+    ),
+  };
 
   // First run legitimately has no workspace yet — setup is the one that adds it.
   // The post-setup workspace-less state still routes to workspace onboarding.
   if (!firstRun && !model.areWorkspacesLoading && !model.workspacesError && !model.hasWorkspaces) {
-    return <WorkspaceOnboarding onWorkspaceResolved={model.setActiveWorkspaceId} />;
+    return (
+      <WorkspaceOnboardingBoundary
+        defaults={workspaceSetupDefaults}
+        onWorkspaceResolved={model.setActiveWorkspaceId}
+      />
+    );
   }
 
   return (
@@ -67,14 +98,26 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
           openDialog={model.agentCreate.openDialog}
           openForDuplicate={model.agentCreate.openForDuplicate}
         >
-          <DesktopShellBody model={model} firstRun={firstRun} />
+          <DesktopShellBody
+            firstRun={firstRun}
+            model={model}
+            workspaceSetupDefaults={workspaceSetupDefaults}
+          />
         </AgentCreateHostProvider>
       </SessionCreateProvider>
     </OsShellContext.Provider>
   );
 }
 
-function DesktopShellBody({ model, firstRun }: { model: DesktopShellModel; firstRun: boolean }) {
+function DesktopShellBody({
+  model,
+  firstRun,
+  workspaceSetupDefaults,
+}: {
+  model: DesktopShellModel;
+  firstRun: boolean;
+  workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
+}) {
   const {
     attention,
     desktop,
@@ -215,10 +258,11 @@ function DesktopShellBody({ model, firstRun }: { model: DesktopShellModel; first
         presentation={pager.presentation}
         reducedMotion={reducedMotion}
       />
-      <WorkspaceSetupDialog
-        open={model.isWorkspaceSetupOpen}
+      <WorkspaceSetupDialogBoundary
+        defaults={workspaceSetupDefaults}
         onOpenChange={model.setWorkspaceSetupOpen}
         onWorkspaceResolved={model.setActiveWorkspaceId}
+        open={model.isWorkspaceSetupOpen}
       />
       <AgentCreateDialog
         draft={model.agentCreate.draft}
@@ -239,6 +283,7 @@ function DesktopShellBody({ model, firstRun }: { model: DesktopShellModel; first
         providersLoading={model.agentCreate.providersLoading}
         runtimeModels={model.agentCreate.runtimeModels}
         submitError={model.agentCreate.submitError}
+        workspaceId={model.agentCreate.workspaceId}
         workspaceName={model.agentCreate.workspaceName}
       />
       <SessionCreateDialog
@@ -251,15 +296,20 @@ function DesktopShellBody({ model, firstRun }: { model: DesktopShellModel; first
         catalogStale={model.sessionCreate.catalogStale}
         hasProviderOptions={model.sessionCreate.hasProviderOptions}
         isSubmitting={model.sessionCreate.isSubmitting}
+        mode={model.sessionCreate.mode}
         networkParticipation={model.sessionCreate.networkParticipation}
         onAgentChange={model.sessionCreate.onAgentChange}
         onCatalogRefresh={model.sessionCreate.refreshCatalog}
+        onModeChange={model.sessionCreate.onModeChange}
         onNetworkParticipationChange={model.sessionCreate.onNetworkParticipationChange}
         onOpenChange={model.sessionCreate.onOpenChange}
         onOpenProviderSettings={model.sessionCreate.openProviderSettings}
         onPromptChange={model.sessionCreate.onPromptChange}
         onRuntimeChange={model.sessionCreate.onRuntimeChange}
+        onSessionNameChange={model.sessionCreate.onSessionNameChange}
         onSubmit={model.sessionCreate.submit}
+        onWorkspaceChange={model.sessionCreate.onWorkspaceChange}
+        onWorkspacePathChange={model.sessionCreate.onWorkspacePathChange}
         open={model.sessionCreate.open}
         promptValue={model.sessionCreate.promptValue}
         providersError={model.sessionCreate.providersError}
@@ -268,9 +318,61 @@ function DesktopShellBody({ model, firstRun }: { model: DesktopShellModel; first
         runtimeProviders={model.sessionCreate.runtimeProviders}
         runtimeValue={model.sessionCreate.runtimeValue}
         selectedAgentName={model.sessionCreate.selectedAgentName}
+        sessionName={model.sessionCreate.sessionName}
         submitError={model.sessionCreate.submitError}
         workspace={model.sessionCreate.workspace}
+        workspaceId={model.sessionCreate.workspaceId}
+        workspacePath={model.sessionCreate.workspacePath}
+        workspaces={model.sessionCreate.workspaces}
       />
     </div>
   );
+}
+
+function WorkspaceOnboardingBoundary({
+  defaults,
+  onWorkspaceResolved,
+}: {
+  defaults: WorkspaceSetupDefaultsModel;
+  onWorkspaceResolved: (workspaceId: string) => void;
+}) {
+  const setup = useWorkspaceSetupContent({ onWorkspaceResolved });
+  return <WorkspaceOnboarding model={{ defaults, setup }} />;
+}
+
+function WorkspaceSetupDialogBoundary({
+  defaults,
+  onOpenChange,
+  onWorkspaceResolved,
+  open,
+}: {
+  defaults: WorkspaceSetupDefaultsModel;
+  onOpenChange: (open: boolean) => void;
+  onWorkspaceResolved: (workspaceId: string) => void;
+  open: boolean;
+}) {
+  const setup = useWorkspaceSetupContent({
+    onWorkspaceResolved,
+    onSuccessClose: () => onOpenChange(false),
+  });
+  return (
+    <WorkspaceSetupDialog model={{ defaults, setup }} onOpenChange={onOpenChange} open={open} />
+  );
+}
+
+function workspaceSetupCollection<T>(
+  entries: T[] | undefined,
+  isLoading: boolean,
+  error: unknown,
+  fallbackMessage: string
+): WorkspaceSetupCollection<T> {
+  if (isLoading) return { state: "loading" };
+  if (error) {
+    return {
+      state: "error",
+      message:
+        error instanceof Error && error.message.trim() !== "" ? error.message : fallbackMessage,
+    };
+  }
+  return { state: "ready", entries: entries ?? [] };
 }

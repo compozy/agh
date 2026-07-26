@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectFetchRequest, mockEmptyResponse, mockJsonResponse } from "@/test/fetch-test-utils";
 
 import {
+  createWorkspace,
   deleteWorkspace,
   fetchWorkspace,
   fetchWorkspaces,
@@ -120,6 +121,41 @@ describe("resolveWorkspace", () => {
       method: "POST",
       path: "/api/workspaces/resolve",
     });
+  });
+});
+
+describe("createWorkspace", () => {
+  it("posts the full create payload to the workspaces collection", async () => {
+    mockJsonResponse({ workspace: mockWorkspace }, { status: 201 });
+
+    const result = await createWorkspace({
+      root_dir: "/workspace/alpha",
+      name: "Alpha",
+      add_dirs: ["/workspace/shared"],
+      default_agent: "triage",
+      sandbox_ref: "isolated-dev",
+    });
+
+    expect(result).toEqual(mockWorkspace);
+    await expectFetchRequest({
+      body: {
+        root_dir: "/workspace/alpha",
+        name: "Alpha",
+        add_dirs: ["/workspace/shared"],
+        default_agent: "triage",
+        sandbox_ref: "isolated-dev",
+      },
+      method: "POST",
+      path: "/api/workspaces",
+    });
+  });
+
+  it("raises a typed error when the daemon rejects the create", async () => {
+    mockJsonResponse({ error: "root already registered" }, { status: 409 });
+
+    await expect(createWorkspace({ root_dir: "/workspace/alpha" })).rejects.toBeInstanceOf(
+      WorkspaceApiError
+    );
   });
 });
 

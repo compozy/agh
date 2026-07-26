@@ -2,29 +2,45 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { resolveAgentRuntimeValue, type AgentPayload } from "@/systems/agent";
-import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
+import type { EntityMode } from "@agh/ui";
+
+import { resolveAgentRuntimeValue, useAgents, type AgentPayload } from "@/systems/agent";
 import {
   deriveActiveSessionOptions,
   useRuntimeModelCatalog,
   type ProviderModelPayload,
   type RuntimeCatalogProvider,
 } from "@/systems/model-catalog";
-import type {
-  RuntimeModelOption,
-  RuntimeProviderOption,
-  RuntimeSelectorValue,
-} from "@/systems/runtime";
-import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
-import { useWorkspace } from "@/systems/workspace";
 import {
   networkParticipationDraftFromValues,
   networkParticipationValidationMessage,
   serializeNetworkParticipation,
   type NetworkParticipationDraft,
-  type NetworkParticipationStrategy,
 } from "@/systems/network";
+import type {
+  RuntimeModelOption,
+  RuntimeProviderOption,
+  RuntimeSelectorValue,
+} from "@/systems/runtime";
+import type {
+  SessionProviderOption,
+  WorkspaceCommandSelectOption,
+  WorkspacePayload,
+} from "@/systems/workspace";
+import { toWorkspaceCommandSelectOptions, useWorkspace, useWorkspaces } from "@/systems/workspace";
 
+import {
+  ADVANCED_DEFAULTS,
+  applySessionAgentSelection,
+  describeError,
+  describeWorkspaceError,
+  EMPTY_SESSION_CREATE_DRAFT,
+  normalizeEffort,
+  resolveSessionWorkspacePath,
+  resolveSelectedProvider,
+  RUNTIME_OVERRIDE_DEFAULTS,
+  type SessionCreateDialogDraft,
+} from "../lib/session-create-draft";
 import {
   MODEL_CATALOG_PENDING,
   validateSessionModelSelection,
@@ -42,35 +58,15 @@ interface SessionNavigationTarget {
   sessionId: string;
 }
 
-export interface SessionCreateDialogDraft {
-  agentName: string;
-  /** Workspace owning the provider, model, and Network selections. */
-  workspaceId: string;
-  prompt: string;
-  providerOverride: string;
-  modelOverride: string;
-  reasoningEffort: ReasoningEffort | "";
-  networkParticipationMode: "local" | "live";
-  networkChannelId: string;
-  networkChannelStrategy: NetworkParticipationStrategy | "";
-}
-
-const EMPTY_DRAFT: SessionCreateDialogDraft = {
-  agentName: "",
-  workspaceId: "",
-  prompt: "",
-  providerOverride: "",
-  modelOverride: "",
-  reasoningEffort: "",
-  networkParticipationMode: "local",
-  networkChannelId: "",
-  networkChannelStrategy: "",
-};
-
 export interface SessionCreateDialogState {
   open: boolean;
+  mode: EntityMode;
   agents: AgentPayload[];
   workspace: WorkspacePayload | undefined;
+  workspaces: WorkspaceCommandSelectOption[];
+  workspaceId: string | null;
+  sessionName: string;
+  workspacePath: string;
   providersLoading: boolean;
   providersError: string | null;
   hasProviderOptions: boolean;
@@ -94,7 +90,11 @@ export interface SessionCreateDialogState {
 export interface SessionCreateDialogApi extends SessionCreateDialogState {
   openForAgent: (agentName: string) => void;
   onOpenChange: (open: boolean) => void;
+  onModeChange: (mode: EntityMode) => void;
   onAgentChange: (agentName: string) => void;
+  onWorkspaceChange: (workspaceId: string) => void;
+  onSessionNameChange: (next: string) => void;
+  onWorkspacePathChange: (next: string) => void;
   onPromptChange: (next: string) => void;
   onRuntimeChange: (next: RuntimeSelectorValue) => void;
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
@@ -104,87 +104,31 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
   submit: () => Promise<void>;
 }
 
-/** Preserve same-workspace text while resetting selections derived from agent or workspace. */
-function applyAgentSelection(
-  current: SessionCreateDialogDraft,
-  nextAgentName: string,
-  nextWorkspaceId: string
-): SessionCreateDialogDraft {
-  if (current.agentName === nextAgentName && current.workspaceId === nextWorkspaceId) {
-    return current;
-  }
-  return {
-    ...EMPTY_DRAFT,
-    agentName: nextAgentName,
-    workspaceId: nextWorkspaceId,
-    prompt: current.workspaceId === nextWorkspaceId ? current.prompt : "",
-  };
-}
-
-function pickDefaultProvider(
-  agent: AgentPayload | undefined,
-  options: SessionProviderOption[]
-): string {
-  if (options.length === 0) {
-    return "";
-  }
-  const effectiveProvider = resolveAgentRuntimeValue(agent).provider;
-  if (options.some(option => option.name === effectiveProvider)) {
-    return effectiveProvider;
-  }
-  return "";
-}
-
-function resolveSelectedProvider(
-  agentName: string,
-  providerOverride: string,
-  agent: AgentPayload | undefined,
-  options: SessionProviderOption[]
-): string {
-  if (providerOverride.length > 0 && options.some(option => option.name === providerOverride)) {
-    return providerOverride;
-  }
-  if (agentName.trim().length === 0) {
-    return "";
-  }
-  return pickDefaultProvider(agent, options);
-}
-
-function normalizeEffort(effort: string): ReasoningEffort | "" {
-  return effort === "" ? "" : isReasoningEffort(effort) ? effort : "";
-}
-
-function describeWorkspaceError(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return "Unable to load provider options for this workspace.";
-}
-
-function describeError(fallback: string, error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
-}
-
 export function useSessionCreateDialog({
   agents,
   activeWorkspace,
 }: SessionCreateDialogContext): SessionCreateDialogApi {
   const navigate = useNavigate();
   const createSession = useCreateSession();
-  const workspaceId = activeWorkspace?.id ?? "";
+
+  const [open, setOpenState] = useState(false);
+  const [mode, setMode] = useState<EntityMode>("simple");
+  const [draft, setDraft] = useState<SessionCreateDialogDraft>(EMPTY_SESSION_CREATE_DRAFT);
+
+  const workspaceId = draft.workspaceId || (activeWorkspace?.id ?? "");
+  const workspaceAgentsQuery = useAgents(workspaceId, { enabled: workspaceId.length > 0 });
+  const workspacesQuery = useWorkspaces();
+  const workspaceOptions = toWorkspaceCommandSelectOptions(workspacesQuery.data ?? []);
   const {
     data: workspaceDetail,
     isLoading: workspaceDetailLoading,
     error: workspaceDetailError,
   } = useWorkspace(workspaceId, { enabled: workspaceId.length > 0 });
-
+  const targetWorkspace =
+    (workspacesQuery.data ?? []).find(candidate => candidate.id === workspaceId) ??
+    (activeWorkspace?.id === workspaceId ? activeWorkspace : undefined);
   const providerOptions: SessionProviderOption[] = workspaceDetail?.providers ?? [];
 
-  const [open, setOpenState] = useState(false);
-  const [draft, setDraft] = useState<SessionCreateDialogDraft>(EMPTY_DRAFT);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingAgentName, setPendingAgentName] = useState<string | null>(null);
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<string | null>(null);
@@ -201,7 +145,11 @@ export function useSessionCreateDialog({
     });
   }, [navigate, navigationTarget]);
 
-  const agentList = agents ?? [];
+  // The shell's active-workspace list only seeds this dialog for its initial workspace.
+  // A dialog-local workspace selection owns a distinct query identity and must never reuse
+  // an agent population fetched for a different workspace.
+  const agentList =
+    workspaceAgentsQuery.data ?? (workspaceId === activeWorkspace?.id ? (agents ?? []) : []);
   const selectedAgent = agentList.find(agent => agent.name === draft.agentName);
   const selectedProvider = resolveSelectedProvider(
     draft.agentName,
@@ -209,7 +157,6 @@ export function useSessionCreateDialog({
     selectedAgent,
     providerOptions
   );
-
   const runtimeProviders: RuntimeProviderOption[] = providerOptions.map(option => ({
     id: option.name,
     name: option.display_name?.trim() || option.name,
@@ -217,9 +164,6 @@ export function useSessionCreateDialog({
     runtime_provider: option.runtime_provider?.trim() || option.name,
   }));
 
-  // Browse/search span every provider available to the workspace via the single
-  // aggregate catalog query, filtered to those providers; the selected provider's
-  // raw payloads still drive reasoning-support derivation and the stale indicator.
   const catalogProviders: RuntimeCatalogProvider[] = runtimeProviders.map(entry => ({
     id: entry.id,
   }));
@@ -235,27 +179,20 @@ export function useSessionCreateDialog({
   const trimmedAgentReasoning =
     trimmedAgentProvider === selectedProvider ? agentRuntime.reasoning_effort : "";
   const effectiveSelectedModel = trimmedSelectedModel || trimmedAgentModel;
-
   const reasoningSupported = deriveActiveSessionOptions({
     catalog: catalogModels,
     selectedModel: effectiveSelectedModel.length > 0 ? effectiveSelectedModel : null,
   }).reasoningSupported;
-
   const selectedReasoning = reasoningSupported
     ? draft.providerOverride.length > 0
       ? draft.reasoningEffort
       : trimmedAgentReasoning
     : "";
-
-  // Render the EFFECTIVE model (explicit override or the inherited agent default)
-  // so the selector shows the inherited model and can offer its reasoning. The
-  // POST still omits `model` while it remains inherited (see `submit`).
   const runtimeValue: RuntimeSelectorValue = {
     provider: selectedProvider,
     model: effectiveSelectedModel,
     reasoning_effort: selectedReasoning,
   };
-
   const modelSelection = validateSessionModelSelection({
     provider: selectedProvider,
     model: effectiveSelectedModel,
@@ -265,12 +202,6 @@ export function useSessionCreateDialog({
     catalogError: catalog.error,
   });
 
-  const catalogStale = catalog.stale;
-  const catalogLoading = catalog.loading;
-  const catalogLoaded = catalog.loaded;
-  const catalogError = catalog.error;
-  const catalogRefreshError = catalog.refreshError;
-
   const openForAgent = (agentName: string) => {
     if (!activeWorkspace) {
       toast.error("Select an active workspace before starting a session.");
@@ -278,26 +209,55 @@ export function useSessionCreateDialog({
     }
     const matched = agentList.find(agent => agent.name === agentName) ?? agentList[0];
     const nextAgentName = matched?.name ?? agentName;
-    setDraft(current => applyAgentSelection(current, nextAgentName, activeWorkspace.id));
+    setDraft(current => applySessionAgentSelection(current, nextAgentName, activeWorkspace.id));
+    setMode("simple");
     setSubmitError(null);
     setOpenState(true);
   };
 
+  const onModeChange = (next: EntityMode) => {
+    setMode(next);
+    if (next === "advanced") return;
+    setSubmitError(null);
+    setDraft(current => ({ ...current, ...ADVANCED_DEFAULTS }));
+  };
+
+  const onWorkspaceChange = (nextWorkspaceId: string) => {
+    setSubmitError(null);
+    setDraft(current => ({
+      ...current,
+      workspaceId: nextWorkspaceId,
+      agentName: "",
+      prompt: "",
+      ...RUNTIME_OVERRIDE_DEFAULTS,
+      ...ADVANCED_DEFAULTS,
+    }));
+  };
+
+  const onSessionNameChange = (sessionName: string) => {
+    setDraft(current => ({ ...current, sessionName }));
+  };
+
+  const onWorkspacePathChange = (workspacePath: string) => {
+    setDraft(current => ({ ...current, workspacePath }));
+  };
+
   const handleOpenChange = (next: boolean) => {
     setOpenState(next);
-    if (!next) {
-      setSubmitError(null);
-    }
+    if (!next) setSubmitError(null);
   };
 
   const onAgentChange = (agentName: string) => {
     setSubmitError(null);
-    setDraft(current => applyAgentSelection(current, agentName, workspaceId));
+    setDraft(current => ({
+      ...applySessionAgentSelection(current, agentName, workspaceId),
+      sessionName: current.sessionName,
+    }));
   };
 
-  const onPromptChange = (next: string) => {
+  const onPromptChange = (prompt: string) => {
     setSubmitError(null);
-    setDraft(current => ({ ...current, prompt: next }));
+    setDraft(current => ({ ...current, prompt }));
   };
 
   const onNetworkParticipationChange = (next: NetworkParticipationDraft) => {
@@ -320,16 +280,13 @@ export function useSessionCreateDialog({
     }));
   };
 
-  const refreshCatalog = catalog.refresh;
-
   const openProviderSettings = () => {
     setOpenState(false);
     void navigate({ to: "/settings/providers" });
   };
 
   const submit = async () => {
-    if (submitInFlight.current) return;
-    if (!activeWorkspace) return;
+    if (submitInFlight.current || !targetWorkspace) return;
     const agentName = draft.agentName.trim();
     const provider = selectedProvider.trim();
     const prompt = draft.prompt.trim();
@@ -361,24 +318,33 @@ export function useSessionCreateDialog({
 
     setSubmitError(null);
     setPendingAgentName(agentName);
-    setPendingWorkspaceId(activeWorkspace.id);
+    setPendingWorkspaceId(targetWorkspace.id);
 
-    // The selector renders the effective agent runtime, but the draft stays empty
-    // until the operator changes it. That preserves project inheritance on the
-    // wire while any explicit selection ships as one coherent runtime override.
     const hasRuntimeOverride = draft.providerOverride.trim().length > 0;
     const modelOverride = hasRuntimeOverride ? draft.modelOverride.trim() : "";
     const reasoningEffort =
       hasRuntimeOverride && selectedReasoning !== "" ? selectedReasoning : undefined;
+    const sessionName = draft.sessionName.trim();
+    const workspacePathResolution = resolveSessionWorkspacePath(
+      targetWorkspace.root_dir,
+      draft.workspacePath
+    );
+    if ("error" in workspacePathResolution) {
+      setSubmitError(workspacePathResolution.error);
+      return;
+    }
+    const workspacePath = workspacePathResolution.workspacePath;
 
     submitInFlight.current = true;
     let session: SessionPayload;
     try {
-      // The daemon owns deferred prompt dispatch after this request.
       session = await createSession.mutateAsync({
         agent_name: agentName,
-        workspace: activeWorkspace.id,
         prompt,
+        ...(sessionName.length > 0 ? { name: sessionName } : {}),
+        ...(workspacePath.length > 0
+          ? { workspace_path: workspacePath }
+          : { workspace: targetWorkspace.id }),
         ...(hasRuntimeOverride ? { provider } : {}),
         ...(modelOverride.length > 0 ? { model: modelOverride } : {}),
         ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
@@ -394,16 +360,13 @@ export function useSessionCreateDialog({
       return;
     }
 
-    // Only a durable acceptance clears the draft.
     submitInFlight.current = false;
-    setDraft(EMPTY_DRAFT);
+    setDraft(EMPTY_SESSION_CREATE_DRAFT);
+    setMode("simple");
     setOpenState(false);
     setPendingAgentName(null);
     setPendingWorkspaceId(null);
-    setNavigationTarget({
-      agentName: session.agent_name,
-      sessionId: session.id,
-    });
+    setNavigationTarget({ agentName: session.agent_name, sessionId: session.id });
   };
 
   const effectiveProvider = resolveAgentRuntimeValue(selectedAgent).provider.trim();
@@ -420,8 +383,13 @@ export function useSessionCreateDialog({
 
   return {
     open,
+    mode,
     agents: agentList,
-    workspace: activeWorkspace,
+    workspace: targetWorkspace,
+    workspaces: workspaceOptions,
+    workspaceId: workspaceId.length > 0 ? workspaceId : null,
+    sessionName: draft.sessionName,
+    workspacePath: draft.workspacePath,
     providersLoading: workspaceId.length > 0 && workspaceDetailLoading,
     providersError,
     hasProviderOptions: providerOptions.length > 0,
@@ -429,12 +397,12 @@ export function useSessionCreateDialog({
     runtimeValue,
     runtimeProviders,
     runtimeModels,
-    catalogStale,
-    catalogLoading,
-    catalogLoaded,
-    catalogError,
+    catalogStale: catalog.stale,
+    catalogLoading: catalog.loading,
+    catalogLoaded: catalog.loaded,
+    catalogError: catalog.error,
     catalogRefreshing: catalog.refreshing,
-    catalogRefreshError,
+    catalogRefreshError: catalog.refreshError,
     isSubmitting: createSession.isPending,
     submitError,
     pendingAgentName,
@@ -442,7 +410,11 @@ export function useSessionCreateDialog({
     promptValue: draft.prompt,
     openForAgent,
     onOpenChange: handleOpenChange,
+    onModeChange,
     onAgentChange,
+    onWorkspaceChange,
+    onSessionNameChange,
+    onWorkspacePathChange,
     onPromptChange,
     onRuntimeChange,
     onNetworkParticipationChange,
@@ -451,7 +423,7 @@ export function useSessionCreateDialog({
       draft.networkChannelId,
       draft.networkChannelStrategy
     ),
-    refreshCatalog,
+    refreshCatalog: catalog.refresh,
     openProviderSettings,
     submit,
   };

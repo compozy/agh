@@ -22,6 +22,9 @@ function makeDraft(overrides: Partial<BridgeCreateDraft> = {}): BridgeCreateDraf
     },
     dmPolicy: "",
     displayName: "Telegram",
+    enabled: false,
+    notificationSuppress: false,
+    secretSlotValues: {},
     providerConfigText: "",
     routingPolicy: {
       include_group: true,
@@ -57,6 +60,13 @@ describe("createBridgeCreateDraft", () => {
       providerConfigText: "",
       scope: "workspace",
     });
+  });
+
+  it("seeds creation disabled so credentials can be bound before the bridge runs", () => {
+    const draft = createBridgeCreateDraft([], "ws_test");
+
+    expect(draft.enabled).toBe(false);
+    expect(draft.secretSlotValues).toEqual({});
   });
 });
 
@@ -133,6 +143,16 @@ describe("buildBridgeCreateRequest", () => {
       },
       ok: true,
     });
+  });
+
+  it("keeps creation disabled even when a stale draft requests activation", () => {
+    const result = buildBridgeCreateRequest(
+      makeDraft({ enabled: true }),
+      { extension_name: "ext-telegram", platform: "telegram" },
+      "ws_test"
+    );
+
+    expect(result).toMatchObject({ data: { enabled: false }, ok: true });
   });
 
   it("serializes all progress controls into delivery_defaults", () => {

@@ -1,4 +1,6 @@
-import { Eyebrow } from "@agh/ui";
+import type { ComponentProps } from "react";
+
+import { cn, Eyebrow } from "@agh/ui";
 
 import type { TriggerPreviewModel } from "../../../lib/trigger-preview";
 import { AutomationRequestPayload } from "../../automation-request-payload";
@@ -9,17 +11,14 @@ import { RenderedPrompt } from "./rendered-prompt";
 import { SampleEventCard } from "./sample-event-card";
 import { WebhookEndpointCard } from "./webhook-endpoint-card";
 
-interface TriggerPreviewProps {
+interface TriggerPreviewProps extends ComponentProps<"div"> {
   preview: TriggerPreviewModel;
 }
 
 /** Right-hand live preview pane: summary, sample event, rendered prompt, webhook. */
-export function TriggerPreview({ preview }: TriggerPreviewProps) {
+export function TriggerPreview({ preview, className, ...props }: TriggerPreviewProps) {
   return (
-    <aside
-      className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-line-soft bg-canvas px-5 pt-5 pb-6 max-lg:overflow-visible max-lg:border-t max-lg:border-l-0"
-      data-testid="trigger-preview"
-    >
+    <div className={cn("flex flex-col gap-3", className)} data-testid="trigger-preview" {...props}>
       <div className="flex items-center gap-2">
         <span
           aria-hidden="true"
@@ -50,6 +49,6 @@ export function TriggerPreview({ preview }: TriggerPreviewProps) {
         <WebhookEndpointCard curl={preview.webhook.curl} url={preview.webhook.url} />
       ) : null}
       <AutomationRequestPayload blockedReason={preview.targetIssue} request={preview.request} />
-    </aside>
+    </div>
   );
 }

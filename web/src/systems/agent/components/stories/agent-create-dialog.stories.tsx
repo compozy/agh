@@ -2,11 +2,12 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
 
+import type { EntityMode } from "@agh/ui";
+
 import {
   AgentCreateDialog,
   createDefaultAgentCreateDraft,
   type AgentCreateDialogDraft,
-  type AgentCreateStep,
 } from "@/systems/agent";
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 import { workspaceDetailFixture } from "@/systems/workspace/mocks";
@@ -53,16 +54,19 @@ const runtimeModels: RuntimeModelOption[] = [
 
 const validDraft: AgentCreateDialogDraft = {
   ...createDefaultAgentCreateDraft(true),
-  name: "release-captain",
+  name: "incident-triage",
   provider: modelProvider,
   model: "gpt-5.6-sol",
   reasoningEffort: "high",
-  prompt: "Own release readiness, canary evidence, and rollback guardrails.",
+  prompt:
+    "You triage production incidents for the checkout platform. Gather evidence from logs and recent deploys, propose a likely root cause, and escalate to the on-call human when customer impact is confirmed. Never modify infrastructure directly.",
   permissions: "approve-reads",
-  tools: ["agh__skill_view"],
-  toolsets: ["agh__catalog"],
-  denyTools: ["agh__task_*"],
-  disabledSkills: ["draft-blog-post"],
+  command: "",
+  categoryPath: "operations/incident",
+  tools: ["agh__catalog"],
+  toolsets: [],
+  denyTools: [],
+  disabledSkills: [],
 };
 
 const meta: Meta<typeof AgentCreateDialog> = {
@@ -72,7 +76,8 @@ const meta: Meta<typeof AgentCreateDialog> = {
     layout: "fullscreen",
     docs: {
       description: {
-        component: "Four-step agent authoring dialog with project-runtime inheritance.",
+        component:
+          "Create-only agent editor on the shared entity-dialog shell. Simple carries the definition, runtime, and permission policy; Advanced adds runtime overrides and the tool/skill allowlists.",
       },
     },
   },
@@ -83,26 +88,42 @@ type Story = StoryObj<typeof meta>;
 
 function AgentCreateDialogHarness({
   initialDraft,
-  initialStep,
+  initialMode,
   isSubmitting = false,
   submitError = null,
+  modelCatalogError = null,
+  modelCatalogLoading = false,
+  modelCatalogLoaded = true,
+  providersError = null,
+  providersLoading = false,
+  providers = providerOptions,
+  models = runtimeModels,
+  hasActiveWorkspace = true,
 }: {
   initialDraft?: AgentCreateDialogDraft;
-  initialStep?: AgentCreateStep;
+  initialMode?: EntityMode;
   isSubmitting?: boolean;
   submitError?: string | null;
+  modelCatalogError?: string | null;
+  modelCatalogLoading?: boolean;
+  modelCatalogLoaded?: boolean;
+  providersError?: string | null;
+  providersLoading?: boolean;
+  providers?: RuntimeProviderOption[];
+  models?: RuntimeModelOption[];
+  hasActiveWorkspace?: boolean;
 }) {
   const [draft, setDraft] = useState(initialDraft ?? createDefaultAgentCreateDraft(true));
 
   return (
     <AgentCreateDialog
       draft={draft}
-      hasActiveWorkspace
-      initialStep={initialStep}
+      hasActiveWorkspace={hasActiveWorkspace}
+      initialMode={initialMode}
       isSubmitting={isSubmitting}
-      modelCatalogError={null}
-      modelCatalogLoading={false}
-      modelCatalogLoaded={true}
+      modelCatalogError={modelCatalogError}
+      modelCatalogLoading={modelCatalogLoading}
+      modelCatalogLoaded={modelCatalogLoaded}
       modelCatalogRefreshing={false}
       onDraftChange={setDraft}
       onOpenChange={() => undefined}
@@ -110,23 +131,52 @@ function AgentCreateDialogHarness({
       onRefreshCatalog={fn()}
       onSubmit={fn()}
       open
-      providerOptions={providerOptions}
-      providersError={null}
-      providersLoading={false}
-      runtimeModels={runtimeModels}
+      providerOptions={providers}
+      providersError={providersError}
+      providersLoading={providersLoading}
+      runtimeModels={models}
       submitError={submitError}
-      workspaceName={workspaceDetailFixture.workspace.name}
+      workspaceId={hasActiveWorkspace ? workspaceDetailFixture.workspace.id : null}
+      workspaceName={hasActiveWorkspace ? workspaceDetailFixture.workspace.name : null}
     />
   );
 }
 
-/** Starts agent authoring at the Basics step. */
+/** Simple tier: definition, runtime, and permission policy. */
 export const Default: Story = {
+  args: {},
+  render: () => <AgentCreateDialogHarness initialDraft={validDraft} />,
+};
+
+/** Advanced tier: runtime overrides plus the tool and skill allowlists. */
+export const Advanced: Story = {
+  args: {},
+  render: () => <AgentCreateDialogHarness initialDraft={validDraft} initialMode="advanced" />,
+};
+
+/**
+ * Advanced tier scrolled to its tail — the runtime-override and allowlist blocks
+ * sit below the fold, so a capture at `scrollTop = 0` cannot show them.
+ */
+export const AdvancedTail: Story = {
+  args: {},
+  tags: ["play-fn"],
+  render: () => <AgentCreateDialogHarness initialDraft={validDraft} initialMode="advanced" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const tail = await canvas.findByTestId("agent-create-disabled-skills-input");
+    tail.scrollIntoView({ block: "end" });
+    await expect(canvas.getByTestId("agent-create-category-path")).toBeVisible();
+  },
+};
+
+/** Pristine draft — both required fields empty and the primary gated. */
+export const Empty: Story = {
   args: {},
   render: () => <AgentCreateDialogHarness />,
 };
 
-/** Shows canonical Basics validation failures. */
+/** Canonical validation failures on the required and advanced fields. */
 export const ValidationError: Story = {
   args: {},
   render: () => (
@@ -136,6 +186,7 @@ export const ValidationError: Story = {
         name: "../release",
         categoryPath: "Engineering//Release",
       }}
+      initialMode="advanced"
     />
   ),
   play: async ({ canvasElement }) => {
@@ -149,31 +200,86 @@ export const ValidationError: Story = {
   },
 };
 
-/** Shows the Runtime step with authored overrides and the project-default reset. */
+/** Authored runtime overrides with the project-default reset available. */
 export const RuntimeOverride: Story = {
   args: {},
-  render: () => <AgentCreateDialogHarness initialDraft={validDraft} initialStep="runtime" />,
+  render: () => <AgentCreateDialogHarness initialDraft={validDraft} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByTestId("agent-create-runtime-use-project-defaults")).toBeVisible();
   },
 };
 
-/** Shows the disabled submission state. */
-export const Submitting: Story = {
+/** Model catalog still loading — the draft survives, only the selector waits. */
+export const CatalogLoading: Story = {
   args: {},
   render: () => (
-    <AgentCreateDialogHarness initialDraft={validDraft} initialStep="access" isSubmitting />
+    <AgentCreateDialogHarness
+      initialDraft={validDraft}
+      modelCatalogLoading
+      modelCatalogLoaded={false}
+    />
   ),
 };
 
-/** Shows a durable duplicate-name submission error. */
+/** Model catalog failed — catalog truth stays visible in Simple. */
+export const CatalogError: Story = {
+  args: {},
+  render: () => (
+    <AgentCreateDialogHarness
+      initialDraft={validDraft}
+      modelCatalogError="Model catalog refresh failed. Showing the last known models."
+    />
+  ),
+};
+
+/** No provider is configured for the selected scope. */
+export const CatalogEmpty: Story = {
+  args: {},
+  render: () => (
+    <AgentCreateDialogHarness
+      initialDraft={{ ...validDraft, provider: "", model: "", reasoningEffort: "" }}
+      models={[]}
+      providers={[]}
+    />
+  ),
+};
+
+/** Provider settings could not be read — submit stays gated with the cause shown. */
+export const ProvidersError: Story = {
+  args: {},
+  render: () => (
+    <AgentCreateDialogHarness
+      initialDraft={{ ...validDraft, provider: "", model: "", reasoningEffort: "" }}
+      providers={[]}
+      providersError="Unable to load global provider settings."
+    />
+  ),
+};
+
+/** No active workspace — workspace scope is unavailable, global still works. */
+export const ScopeUnavailable: Story = {
+  args: {},
+  render: () => (
+    <AgentCreateDialogHarness
+      hasActiveWorkspace={false}
+      initialDraft={{ ...validDraft, scope: "global" }}
+    />
+  ),
+};
+
+/** Disabled submission state while the daemon validates the definition. */
+export const Submitting: Story = {
+  args: {},
+  render: () => <AgentCreateDialogHarness initialDraft={validDraft} isSubmitting />,
+};
+
+/** Durable duplicate-name submission error; every entered value is retained. */
 export const DuplicateError: Story = {
   args: {},
   render: () => (
     <AgentCreateDialogHarness
       initialDraft={validDraft}
-      initialStep="access"
       submitError="agent definition already exists"
     />
   ),

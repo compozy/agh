@@ -1,3 +1,4 @@
+import { agentFixtures } from "@/systems/agent/mocks";
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
@@ -74,6 +75,7 @@ function AutomationEditorJobHarness({ mode }: { mode: "create" | "edit" }) {
 
   return (
     <AutomationEditorDialog
+      agents={agentFixtures}
       activeWorkspaceId={ACTIVE_WORKSPACE_ID}
       editor={{
         draft,
@@ -94,6 +96,7 @@ function AutomationEditorTriggerHarness({ mode }: { mode: "create" | "edit" }) {
 
   return (
     <AutomationEditorDialog
+      agents={agentFixtures}
       activeWorkspaceId={ACTIVE_WORKSPACE_ID}
       editor={{
         draft,

@@ -42,7 +42,7 @@ Systemic findings (each expanded below):
 | `--size-topbar-glyph` | `22px` | Tokenizes `size-[22px]` (window-head glyph). |
 | `--size-status-dot` / `--size-status-dot-sm` | `7px` / `6px` | DS signal vocabulary (`.d` = 7px); fixes StatusDot's inert size prop with real values. |
 | `--tracking-row-title` | `-0.01em` | Replaces `tracking-[-0.01em]` arbitrary in listing-row title. |
-| `--width-kv-label` / `--width-form-label-col` | `140px` / `180px` | Unifies the 120/140/180 k/v gutters: ContextBox + MetadataList converge on 140; FieldRow keeps 180 via its own token. |
+| `--width-kv-label` | `140px` | Unifies the remaining metadata gutters: ContextBox + MetadataList converge on one shared 140px token. |
 | `--size-avatar-sm` / `-default` / `-lg` | `20 / 24 / 32px` | OwnerAvatar drops inline `style` px. |
 
 ### A2. Change
@@ -130,7 +130,7 @@ Toggle joins the **button** ladder (26/22/30) — a toggle is a button, not a fo
 | **QueueHealthSparkline** `:28-39,64` | accent stuck-fill ok; inline tooltip style literals | keep stuck accent; move tooltip literals to tokens (`--color-*`, `text-eyebrow`) |
 | **StackedProgress / StatusBreakdown** | own tone Records; tracks `bg-canvas` | tone map from `lib/tone.ts` (B8); track = `bg-canvas-tint` (DS meter track) |
 | **OwnerAvatar** `owner-avatar.tsx:10-14` | inline `style` px 20/24/32 | `size-(--size-avatar-*)` classes; palette unchanged |
-| **MetadataList / ContextBox / FieldRow gutters** | 120 / 140 / 180px arbitrary | `--width-kv-label` 140 (first two) · `--width-form-label-col` 180 (FieldRow) |
+| **MetadataList / ContextBox gutters** | 120 / 140px arbitrary | `--width-kv-label` 140 for both metadata layouts. |
 | **Section vs FormSection heads** | semibold-uppercase vs medium sentence | keep both, but name the rule: Section label = page-zone eyebrow (uppercase); FormSection title = form group (sentence). Add one shared `SectionLabel` part so the two stop drifting |
 | **Table** | hairlines `line`, hover `bg-hover` | no geometry change; document B6; selected `bg-elevated` stays |
 | **Dialog/Sheet literals** | `max-w-[calc(100%-2rem)]`, `2.5rem` offsets | acceptable; tokenize only the recurring `2rem` page-edge inset if a third consumer appears |

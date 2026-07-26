@@ -185,7 +185,7 @@ describe("useSettingsProvidersPage", () => {
         command: "",
         model_default: "",
         curated_models: "",
-        target_env: "",
+        credential_slots: [],
         auth_mode: "native_cli",
       },
     });
@@ -223,7 +223,7 @@ describe("useSettingsProvidersPage", () => {
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
         model_default: "claude-sonnet-5",
         curated_models: "claude-sonnet-5\nclaude-haiku-4-5-20251001",
-        target_env: "",
+        credential_slots: [],
         auth_mode: "native_cli",
         env_policy: "filtered",
         home_policy: "operator",
@@ -448,12 +448,20 @@ describe("useSettingsProvidersPage", () => {
         name: "openrouter",
         command: "npx -y pi-acp@latest",
         model_default: "openai/gpt-5.6-sol",
-        target_env: "OPENROUTER_API_KEY",
         harness: "pi_acp",
         runtime_provider: "openrouter",
         auth_mode: "bound_secret",
-        secret_ref: "vault:providers/openrouter/api-key",
-        secret_value: "sk-live",
+        credential_slots: [
+          {
+            key: "slot-api-key",
+            name: "api_key",
+            target_env: "OPENROUTER_API_KEY",
+            secret_ref: "vault:providers/openrouter/api-key",
+            kind: "api_key",
+            required: true,
+          },
+        ],
+        credential_secret_values: ["sk-live"],
       }));
     });
     act(() => {
@@ -508,11 +516,11 @@ describe("useSettingsProvidersPage", () => {
       result.current.updateDraft(draft => ({
         ...draft,
         name: "openrouter",
+        command: "npx -y pi-acp@latest",
         auth_mode: "bound_secret",
-        target_env: "OPENROUTER_API_KEY",
-        secret_ref: "vault:providers/openrouter/api-key",
         credential_slots: [
           {
+            key: "slot-api-key",
             name: "api_key",
             target_env: "OPENROUTER_API_KEY",
             secret_ref: "vault:providers/openrouter/api-key",
@@ -520,6 +528,7 @@ describe("useSettingsProvidersPage", () => {
             required: true,
           },
           {
+            key: "slot-organization",
             name: "organization",
             target_env: "OPENROUTER_ORG_ID",
             secret_ref: "env:OPENROUTER_ORG_ID",
@@ -537,6 +546,152 @@ describe("useSettingsProvidersPage", () => {
       result.current.saveInspector();
     });
     expect(putSettingsProvider).not.toHaveBeenCalled();
+  });
+
+  it("Should drop credential slots from the request when auth ownership is not bound_secret", async () => {
+    vi.mocked(putSettingsProvider).mockResolvedValue({
+      section: "general",
+      scope: "global",
+      applied: true,
+      active_config_hash: "sha256:test-active",
+      active_generation: 1,
+      apply_record_id: "cfg_apply_test",
+      lifecycle: "live",
+      next_action: "none",
+      restart_required: true,
+      write_target: "global-config",
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.providers).toHaveLength(2));
+
+    act(() => {
+      result.current.openCreate();
+      result.current.updateDraft(draft => ({
+        ...draft,
+        name: "local-acp",
+        command: "npx -y local-acp@latest",
+        auth_mode: "none",
+        // Slots left over from an earlier bound_secret draft must never reach the
+        // daemon: it rejects credential_slots under any other auth mode.
+        credential_slots: [
+          {
+            key: "slot-api-key",
+            name: "api_key",
+            target_env: "LOCAL_API_KEY",
+            secret_ref: "vault:providers/local-acp/api-key",
+            kind: "api_key",
+            required: true,
+          },
+        ],
+        credential_secret_values: ["sk-live"],
+      }));
+    });
+    act(() => {
+      result.current.saveInspector();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastAction?.kind).toBe("saved");
+    });
+
+    const [, body] = vi.mocked(putSettingsProvider).mock.calls.at(-1)!;
+    expect(body.settings?.credential_slots).toBeUndefined();
+    expect(body.secrets).toBeUndefined();
+    expect(body.settings?.auth_mode).toBe("none");
+  });
+
+  it("Should block create save until the provider carries a command", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.providers).toHaveLength(2));
+
+    act(() => {
+      result.current.openCreate();
+      result.current.updateDraft(draft => ({ ...draft, name: "openrouter" }));
+    });
+    expect(result.current.inspectorIsValid).toBe(false);
+
+    act(() => {
+      result.current.updateDraft(draft => ({ ...draft, command: "npx -y pi-acp@latest" }));
+    });
+    expect(result.current.inspectorIsValid).toBe(true);
+  });
+
+  it("Should block pi_acp saves until the runtime provider is set", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.providers).toHaveLength(2));
+
+    act(() => {
+      result.current.openCreate();
+      result.current.updateDraft(draft => ({
+        ...draft,
+        name: "openrouter",
+        command: "npx -y pi-acp@latest",
+        harness: "pi_acp",
+      }));
+    });
+    expect(result.current.inspectorIsValid).toBe(false);
+
+    act(() => {
+      result.current.updateDraft(draft => ({ ...draft, runtime_provider: "openrouter" }));
+    });
+    expect(result.current.inspectorIsValid).toBe(true);
+  });
+
+  it("Should seed an edit draft with empty secret values for every stored slot", async () => {
+    const boundProvider: SettingsProviderCollection["providers"][number] = {
+      ...claudeEntry,
+      name: "openrouter",
+      settings: {
+        ...claudeEntry.settings,
+        auth_mode: "bound_secret",
+        credential_slots: [
+          {
+            name: "api_key",
+            target_env: "OPENROUTER_API_KEY",
+            secret_ref: "vault:providers/openrouter/api-key",
+            kind: "api_key",
+            required: true,
+          },
+        ],
+      },
+      credentials: [
+        {
+          name: "api_key",
+          target_env: "OPENROUTER_API_KEY",
+          secret_ref: "vault:providers/openrouter/api-key",
+          present: true,
+          required: true,
+        },
+      ],
+    };
+    vi.mocked(listSettingsProviders).mockResolvedValue({
+      ...collection,
+      providers: [boundProvider],
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.providers).toHaveLength(1));
+
+    act(() => {
+      result.current.openInspect(boundProvider);
+      result.current.switchToEdit();
+    });
+
+    const inspector = result.current.inspector;
+    expect(inspector.mode).toBe("edit");
+    if (inspector.mode !== "edit") return;
+    // Presence rides `credentials[]`; no read path returns the value itself.
+    expect(inspector.draft.credential_secret_values).toEqual([""]);
+    expect(inspector.draft.credential_slots).toHaveLength(1);
   });
 
   it("Should send membership ids without copying merged catalog metadata", async () => {

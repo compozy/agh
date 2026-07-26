@@ -1,31 +1,32 @@
-import { FolderPlus, Home, Sparkles } from "lucide-react";
+import { Layers, Plus, Sparkles } from "lucide-react";
 
 import {
+  Alert,
+  AlertDescription,
   Button,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  dialogShellClass,
+  EntityDialogBody,
+  EntityDialogFooter,
+  EntityDialogHeader,
   Eyebrow,
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-  Input,
-  Pill,
   Spinner,
 } from "@agh/ui";
 
-import { OptionCard } from "./option-card";
-import {
-  useWorkspaceSetupContent,
-  type WorkspaceSetupVariant,
-} from "../hooks/use-workspace-setup-content";
+import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
 import { WORKSPACE_SETUP_COPY } from "../lib/workspace-setup-copy";
+import type { WorkspaceSetupDefaultsModel } from "../lib/workspace-setup-defaults";
+import { WorkspaceSetupDefaultsPane } from "./workspace-setup-defaults-pane";
+import { WorkspaceSetupLocationPane } from "./workspace-setup-location-pane";
+
+interface WorkspaceSetupModel {
+  defaults: WorkspaceSetupDefaultsModel;
+  setup: WorkspaceSetupContent;
+}
 
 interface WorkspaceSetupSharedProps {
-  onWorkspaceResolved: (workspaceId: string) => void;
+  model: WorkspaceSetupModel;
 }
 
 interface WorkspaceSetupDialogProps extends WorkspaceSetupSharedProps {
@@ -35,165 +36,64 @@ interface WorkspaceSetupDialogProps extends WorkspaceSetupSharedProps {
 
 type WorkspaceOnboardingProps = WorkspaceSetupSharedProps;
 
-function WorkspaceSetupContent({
-  variant,
-  onWorkspaceResolved,
-  onSuccessClose,
-}: WorkspaceSetupSharedProps & {
-  variant: WorkspaceSetupVariant;
-  onSuccessClose?: () => void;
-}) {
-  const setup = useWorkspaceSetupContent({
-    onSuccessClose,
-    onWorkspaceResolved,
-  });
-
-  const isSubmittingGlobal = setup.submissionMode === "global";
-  const isSubmittingManual = setup.submissionMode === "manual";
-  const isGlobalDisabled = setup.submissionMode !== null || setup.globalUnavailableReason !== null;
-  const globalMeta = setup.userHomeDir || setup.globalUnavailableReason || "";
-  const manualInvalid = Boolean(setup.manualError);
-  const size = variant === "onboarding" ? "comfortable" : "compact";
-
-  const globalCard = (
-    <OptionCard size={size} data-testid="workspace-setup-global-card">
-      <OptionCard.Header
-        eyebrow="Global"
-        right={<Pill tone="success">{WORKSPACE_SETUP_COPY.global.badge}</Pill>}
-      />
-      <OptionCard.Body>
-        <OptionCard.Icon tone="neutral">
-          <Home className="size-4" />
-        </OptionCard.Icon>
-        <OptionCard.Content>
-          <OptionCard.Title>{WORKSPACE_SETUP_COPY.global.title}</OptionCard.Title>
-          <OptionCard.Description>{WORKSPACE_SETUP_COPY.global.description}</OptionCard.Description>
-          {globalMeta ? (
-            <OptionCard.Meta data-testid="workspace-global-meta">{globalMeta}</OptionCard.Meta>
-          ) : null}
-        </OptionCard.Content>
-      </OptionCard.Body>
-      <OptionCard.Action>
-        <Button
-          className="w-full justify-between text-accent-ink"
-          disabled={isGlobalDisabled}
-          onClick={setup.handleUseGlobalWorkspace}
-          data-testid="workspace-use-global"
-        >
-          <span>{WORKSPACE_SETUP_COPY.global.action}</span>
-          {isSubmittingGlobal ? <Spinner /> : <Sparkles />}
-        </Button>
-      </OptionCard.Action>
-    </OptionCard>
-  );
-
-  const manualCard = (
-    <OptionCard size={size} data-testid="workspace-setup-manual-card">
-      <OptionCard.Header eyebrow="Path" right={<Pill>{WORKSPACE_SETUP_COPY.manual.badge}</Pill>} />
-      <OptionCard.Body>
-        <OptionCard.Icon tone="neutral">
-          <FolderPlus className="size-4" />
-        </OptionCard.Icon>
-        <OptionCard.Content>
-          <OptionCard.Title>{WORKSPACE_SETUP_COPY.manual.title}</OptionCard.Title>
-          <OptionCard.Description>{WORKSPACE_SETUP_COPY.manual.description}</OptionCard.Description>
-        </OptionCard.Content>
-      </OptionCard.Body>
-      <OptionCard.Action>
-        <form className="flex flex-col gap-3" onSubmit={setup.handleManualSubmit}>
-          <Field data-invalid={manualInvalid || undefined}>
-            <FieldLabel htmlFor="workspace-manual-path" className="sr-only">
-              {WORKSPACE_SETUP_COPY.manual.inputLabel}
-            </FieldLabel>
-            <Input
-              id="workspace-manual-path"
-              aria-label={WORKSPACE_SETUP_COPY.manual.inputLabel}
-              aria-invalid={manualInvalid || undefined}
-              className="border-line bg-canvas-soft"
-              disabled={setup.submissionMode !== null}
-              onChange={event => setup.setManualPath(event.currentTarget.value)}
-              placeholder={WORKSPACE_SETUP_COPY.manual.inputPlaceholder}
-              value={setup.manualPath}
-              data-testid="workspace-manual-path-input"
-            />
-            {setup.manualError ? (
-              <FieldError data-testid="workspace-path-error">{setup.manualError}</FieldError>
-            ) : (
-              <FieldDescription className="sr-only">Absolute path required.</FieldDescription>
-            )}
-          </Field>
-          <Button
-            className="w-full justify-between text-accent-ink"
-            disabled={setup.submissionMode !== null}
-            type="submit"
-            data-testid="workspace-register-manual"
-          >
-            <span>{WORKSPACE_SETUP_COPY.manual.action}</span>
-            {isSubmittingManual ? <Spinner /> : <FolderPlus />}
-          </Button>
-        </form>
-      </OptionCard.Action>
-    </OptionCard>
-  );
-
-  if (variant === "dialog") {
-    return (
-      <div className="flex flex-col gap-4 p-5" data-testid="workspace-setup-dialog-body">
-        {globalCard}
-        <div className="flex items-center gap-3 px-1">
-          <div className="h-px flex-1 bg-line" />
-          <Eyebrow className="text-muted">{WORKSPACE_SETUP_COPY.manual.dividerLabel}</Eyebrow>
-          <div className="h-px flex-1 bg-line" />
-        </div>
-        {manualCard}
-      </div>
-    );
-  }
+function WorkspaceSetupDialog({ open, onOpenChange, model }: WorkspaceSetupDialogProps) {
+  const { setup, defaults } = model;
+  const isSubmitting = setup.submissionMode !== null;
+  const location = <WorkspaceSetupLocationPane setup={setup} size="compact" />;
+  const defaultsPane = <WorkspaceSetupDefaultsPane defaults={defaults} setup={setup} />;
 
   return (
-    <div
-      className="flex w-full flex-col gap-4 lg:max-w-96 lg:justify-self-end"
-      data-testid="workspace-setup-options"
-    >
-      {globalCard}
-      {manualCard}
-    </div>
-  );
-}
-
-function WorkspaceSetupDialog({
-  open,
-  onOpenChange,
-  onWorkspaceResolved,
-}: WorkspaceSetupDialogProps) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        unframed
-        className="max-w-xl border border-line bg-canvas sm:max-w-xl"
-        showCloseButton
+        className={`grid-rows-[auto_minmax(0,1fr)_auto] ${dialogShellClass("xl")}`}
         data-testid="workspace-setup-dialog"
+        showCloseButton={false}
+        unframed
       >
-        <DialogHeader variant="ruled">
-          <DialogTitle className="text-item-title font-medium text-fg">
-            {WORKSPACE_SETUP_COPY.dialog.title}
-          </DialogTitle>
-          <DialogDescription className="text-small-body leading-6 text-muted">
-            {WORKSPACE_SETUP_COPY.dialog.description}
-          </DialogDescription>
-        </DialogHeader>
-        <WorkspaceSetupContent
-          variant="dialog"
-          onSuccessClose={() => onOpenChange(false)}
-          onWorkspaceResolved={onWorkspaceResolved}
+        <EntityDialogHeader
+          description="Register a local directory as a workspace. The root becomes immutable — defaults stay editable afterwards."
+          eyebrow="Workspace"
+          icon={Layers}
+          onClose={isSubmitting ? undefined : () => onOpenChange(false)}
+          title={WORKSPACE_SETUP_COPY.dialog.title}
         />
+
+        <form className="contents" onSubmit={event => void setup.handleCreateSubmit(event)}>
+          <EntityDialogBody
+            data-testid="workspace-setup-dialog-body"
+            side={defaultsPane}
+            variant="split"
+          >
+            {location}
+            {setup.createError ? (
+              <Alert className="mt-4" data-testid="workspace-setup-error" variant="danger">
+                <AlertDescription>{setup.createError}</AlertDescription>
+              </Alert>
+            ) : null}
+          </EntityDialogBody>
+
+          <EntityDialogFooter
+            cancelDisabled={isSubmitting}
+            cancelTestId="workspace-setup-cancel"
+            hint="Registration is instant — sessions can launch here right away."
+            isSaving={setup.submissionMode === "create"}
+            onCancel={() => onOpenChange(false)}
+            primaryDisabled={!setup.canSubmit}
+            primaryLabel="Add workspace"
+            primaryTestId="workspace-setup-submit"
+            primaryType="submit"
+          />
+        </form>
       </DialogContent>
     </Dialog>
   );
 }
 
-function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) {
+function WorkspaceOnboarding({ model }: WorkspaceOnboardingProps) {
   const copy = WORKSPACE_SETUP_COPY.onboarding;
+  const { setup, defaults } = model;
+  const location = <WorkspaceSetupLocationPane setup={setup} size="comfortable" />;
+  const defaultsPane = <WorkspaceSetupDefaultsPane defaults={defaults} setup={setup} />;
 
   return (
     <div
@@ -229,7 +129,28 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
             </div>
           </div>
 
-          <WorkspaceSetupContent variant="onboarding" onWorkspaceResolved={onWorkspaceResolved} />
+          <form
+            className="flex w-full flex-col gap-4"
+            data-testid="workspace-setup-options"
+            onSubmit={event => void setup.handleCreateSubmit(event)}
+          >
+            {location}
+            {defaultsPane}
+            {setup.createError ? (
+              <Alert data-testid="workspace-setup-error" variant="danger">
+                <AlertDescription>{setup.createError}</AlertDescription>
+              </Alert>
+            ) : null}
+            <Button
+              className="w-full"
+              data-testid="workspace-setup-onboarding-submit"
+              disabled={!setup.canSubmit}
+              type="submit"
+            >
+              {setup.submissionMode === "create" ? <Spinner /> : <Plus className="size-3.5" />}
+              {WORKSPACE_SETUP_COPY.dialog.title}
+            </Button>
+          </form>
         </div>
       </div>
     </div>
@@ -237,3 +158,4 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
 }
 
 export { WorkspaceOnboarding, WorkspaceSetupDialog };
+export type { WorkspaceSetupModel };

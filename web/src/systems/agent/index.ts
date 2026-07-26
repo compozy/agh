@@ -91,6 +91,7 @@ export {
   resolveAgentRuntimeValue,
 } from "./lib/agent-effective-runtime";
 export {
+  AGENT_CREATE_ADVANCED_FIELDS,
   AGENT_CREATE_PERMISSION_OPTIONS,
   appendAgentCreateTokens,
   buildCreateAgentParams,
@@ -105,8 +106,8 @@ export {
   type AgentCreateDialogDraft,
   type AgentCreatePermission,
   type AgentCreatePermissionChoice,
+  type AgentCreateFieldKey,
   type AgentCreateScope,
-  type AgentCreateStep,
   type AgentCreateValidation,
   type AgentCreateValidationContext,
 } from "./lib/agent-create-draft";

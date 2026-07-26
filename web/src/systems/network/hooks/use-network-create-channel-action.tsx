@@ -45,9 +45,13 @@ export function useNetworkCreateChannelAction({
     }
 
     try {
+      // `coordinator_peer_id` is deliberately absent: the daemon rejects it under
+      // any policy but `coordinator`, and coordinator is not writable at create
+      // time because member peers do not exist until this call provisions them.
       const response = await createChannel.mutateAsync({
         agent_names: createDraft.selectedAgentNames,
         channel: createDraft.channelName.trim(),
+        fanout_policy: createDraft.fanoutPolicy,
         purpose: createDraft.purpose.trim(),
         workspace_id: requestedWorkspaceId,
       });
@@ -87,6 +91,9 @@ export function useNetworkCreateChannelAction({
         setCreateDraft(current => ({ ...current, selectedAgentNames }))
       }
       onChannelNameChange={channelName => setCreateDraft(current => ({ ...current, channelName }))}
+      onFanoutPolicyChange={fanoutPolicy =>
+        setCreateDraft(current => ({ ...current, fanoutPolicy }))
+      }
       onOpenChange={setCreateOpen}
       onPurposeChange={purpose => setCreateDraft(current => ({ ...current, purpose }))}
       onSubmit={handleCreateChannel}
