@@ -99,7 +99,7 @@ type SessionManager interface {
 // SessionAcceptanceManager durably accepts user-created sessions without
 // waiting for provider startup.
 type SessionAcceptanceManager interface {
-	CreateAccepted(ctx context.Context, opts session.CreateOpts) (*session.Info, error)
+	CreateAccepted(ctx context.Context, opts session.CreateAcceptedOpts) (*session.Info, error)
 }
 
 // DaemonDrainController owns daemon-global new-work admission state.

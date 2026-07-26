@@ -46,26 +46,19 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{testutil.NewSessionInfo("sess-a")}, nil
 		},
-		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+		CreateAcceptedFn: func(_ context.Context, acceptedOpts session.CreateAcceptedOpts) (*session.Info, error) {
 			createCalled.Store(true)
+			opts := acceptedOpts.Session
 			if opts.AgentName != "coder" ||
 				opts.Provider != "fake" ||
-				opts.Workspace != "alpha" ||
-				opts.Type != session.SessionTypeUser {
-				t.Fatalf("Create opts = %#v", opts)
-			}
-			created := testutil.NewSession("sess-created")
-			created.AgentName = opts.AgentName
-			created.Provider = opts.Provider
-			return created, nil
-		},
-		CreateAcceptedFn: func(_ context.Context, opts session.CreateOpts) (*session.Info, error) {
-			createCalled.Store(true)
-			if opts.AgentName != "coder" ||
-				opts.Provider != "fake" ||
+				opts.Model != "fake-pro" ||
+				opts.ReasoningEffort != "high" ||
 				opts.Workspace != "alpha" ||
 				opts.Type != session.SessionTypeUser {
 				t.Fatalf("CreateAccepted opts = %#v", opts)
+			}
+			if acceptedOpts.InitialPrompt != "Investigate the failing build" {
+				t.Fatalf("CreateAccepted initial prompt = %q", acceptedOpts.InitialPrompt)
 			}
 			created := testutil.NewSessionInfo("sess-created")
 			created.AgentName = opts.AgentName
@@ -190,7 +183,14 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/sessions",
-			[]byte(`{"agent_name":"coder","provider":"fake","workspace":"alpha"}`),
+			[]byte(`{
+				"agent_name":"coder",
+				"provider":"fake",
+				"model":"fake-pro",
+				"reasoning_effort":"high",
+				"workspace":"alpha",
+				"prompt":"  Investigate the failing build  "
+			}`),
 		)
 		if createResp.Code != http.StatusCreated || !createCalled.Load() {
 			t.Fatalf("create status = %d, called=%v", createResp.Code, createCalled.Load())

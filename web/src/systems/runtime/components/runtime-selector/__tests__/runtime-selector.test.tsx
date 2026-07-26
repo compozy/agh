@@ -1862,3 +1862,56 @@ describe("IntensityMeter + reasoningEffortPosition", () => {
     expect(bars.every(bar => bar.getAttribute("data-fill") === "hollow")).toBe(true);
   });
 });
+
+describe("RuntimeSelector composer variant", () => {
+  const composerValue: RuntimeSelectorValue = {
+    provider: "codex",
+    model: "gpt-a",
+    reasoning_effort: "high",
+  };
+  const composerModels = [model("gpt-a", { efforts: ["low", "medium", "high"] })];
+
+  it("Should keep the full runtime identity in the composer", () => {
+    renderSelector({
+      value: composerValue,
+      models: composerModels,
+      props: { variant: "composer" },
+    });
+
+    const trigger = screen.getByTestId("rt-trigger");
+    expect(trigger).toHaveTextContent("gpt-a");
+    expect(trigger).toHaveAccessibleName(/Codex \/ gpt-a, reasoning High/);
+  });
+
+  it("Should open and close the popup exactly like the default variant", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: composerValue,
+      models: composerModels,
+      props: { variant: "composer" },
+    });
+
+    const trigger = screen.getByTestId("rt-trigger");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await openSelector(user);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("runtime-selector-popup")).toBeNull());
+    expect(trigger).toHaveFocus();
+  });
+
+  it("Should still commit a model selection through onChange", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      models: [model("gpt-a"), model("gpt-b")],
+      props: { variant: "composer" },
+    });
+
+    await openSelector(user);
+    await user.click(row("gpt-b"));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-b" }));
+  });
+});

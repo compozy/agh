@@ -149,6 +149,10 @@ type hostAPISessionManager interface {
 	ExecSandbox(ctx context.Context, req session.SandboxExecRequest) (session.SandboxExecResult, error)
 }
 
+type hostAPISessionAcceptanceManager interface {
+	CreateAccepted(ctx context.Context, opts session.CreateAcceptedOpts) (*session.Info, error)
+}
+
 type hostAPIBridgePromptSessionManager interface {
 	PromptWithOpts(
 		ctx context.Context,

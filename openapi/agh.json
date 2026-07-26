@@ -114042,6 +114042,9 @@
                       }
                     ]
                   },
+                  "prompt": {
+                    "type": "string"
+                  },
                   "provider": {
                     "type": "string"
                   },

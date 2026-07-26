@@ -32,6 +32,14 @@ func (m *Manager) runAcceptedSessionStart(accepted *acceptedSessionStart) (err e
 	return m.settleAcceptedSessionStartFailure(accepted, err)
 }
 
+func (m *Manager) runAcceptedSessionStartAndDispatch(accepted *acceptedSessionStart) error {
+	if err := m.runAcceptedSessionStart(accepted); err != nil {
+		return err
+	}
+	m.startNextQueuedInputPrompt(accepted.session.ID)
+	return nil
+}
+
 func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) error {
 	ctx := accepted.run.ctx
 	spec := accepted.spec
@@ -149,19 +157,59 @@ func (m *Manager) discardAcceptedSessionStart(
 ) error {
 	session := accepted.session
 	sandboxErr := m.finalizeSandbox(ctx, session, sandboxSyncReasonForStop(session))
-	cleanupDir := ""
+	var staged *stagedSessionDelete
 	if accepted.spec.cleanupSessionDir {
-		cleanupDir = accepted.storage.sessionDir
+		entry, stageErr := m.stageSessionDirectoryDelete(ctx, session.Info())
+		if stageErr != nil {
+			retainErr := m.retainAcceptedSessionAfterDiscardFailure(
+				ctx,
+				accepted,
+				errors.Join(startErr, stageErr),
+			)
+			return errors.Join(startErr, sandboxErr, stageErr, retainErr)
+		}
+		staged = &entry
 	}
-	cleanupErr := m.cleanupFailedStart(cleanupDir, accepted.storage.recorder, accepted.proc)
-	m.remove(session.ID)
-	var catalogErr error
 	if m.sessionCatalog != nil {
-		catalogErr = m.sessionCatalog.DeleteSession(ctx, session.ID)
+		if catalogErr := m.sessionCatalog.DeleteSession(ctx, session.ID); catalogErr != nil {
+			var rollbackErr error
+			if staged != nil {
+				rollbackErr = m.rollbackStagedSessionDeletes([]stagedSessionDelete{*staged})
+			}
+			retainErr := m.retainAcceptedSessionAfterDiscardFailure(
+				ctx,
+				accepted,
+				errors.Join(startErr, catalogErr, rollbackErr),
+			)
+			return errors.Join(startErr, sandboxErr, catalogErr, rollbackErr, retainErr)
+		}
+	}
+	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
+	var directoryErr error
+	if staged != nil {
+		directoryErr = m.commitStagedSessionDeletes([]stagedSessionDelete{*staged})
+	} else {
+		m.remove(session.ID)
 	}
 	if m.hostedMCP != nil {
 		m.hostedMCP.CancelLaunch(session.ID)
 	}
 	session.clearProviderSecretRedactions()
-	return errors.Join(startErr, sandboxErr, cleanupErr, catalogErr)
+	return errors.Join(startErr, sandboxErr, cleanupErr, directoryErr)
+}
+
+func (m *Manager) retainAcceptedSessionAfterDiscardFailure(
+	ctx context.Context,
+	accepted *acceptedSessionStart,
+	failure error,
+) error {
+	session := accepted.session
+	persistErr := m.persistFailedStart(ctx, session, failure, false)
+	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
+	m.removeActive(session.ID)
+	if m.hostedMCP != nil {
+		m.hostedMCP.CancelLaunch(session.ID)
+	}
+	session.clearProviderSecretRedactions()
+	return errors.Join(persistErr, cleanupErr)
 }

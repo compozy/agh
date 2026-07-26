@@ -20,6 +20,7 @@ type CreateSessionRequest struct {
 	Provider             string                 `json:"provider,omitempty"`
 	Model                string                 `json:"model,omitempty"`
 	ReasoningEffort      ReasoningEffort        `json:"reasoning_effort,omitempty"`
+	Prompt               string                 `json:"prompt,omitempty"`
 	Name                 string                 `json:"name,omitempty"`
 	Workspace            string                 `json:"workspace,omitempty"`
 	WorkspacePath        string                 `json:"workspace_path,omitempty"`

@@ -612,6 +612,34 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 		}
 	})
 
+	t.Run("Should round-trip the optional initial prompt", func(t *testing.T) {
+		t.Parallel()
+
+		req := contract.CreateSessionRequest{
+			AgentName: "coder",
+			Workspace: "alpha",
+			Prompt:    "Investigate the failing build",
+		}
+		raw, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var decoded contract.CreateSessionRequest
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.Prompt != req.Prompt {
+			t.Fatalf("decoded.Prompt = %q, want %q", decoded.Prompt, req.Prompt)
+		}
+		var shape map[string]any
+		if err := json.Unmarshal(raw, &shape); err != nil {
+			t.Fatalf("json.Unmarshal(map) error = %v", err)
+		}
+		if shape["prompt"] != req.Prompt {
+			t.Fatalf("shape = %#v, want prompt key %q", shape, req.Prompt)
+		}
+	})
+
 	t.Run("Should omit model and reasoning_effort cleanly when absent", func(t *testing.T) {
 		t.Parallel()
 
@@ -622,6 +650,18 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 		}
 		if strings.Contains(string(raw), "model") || strings.Contains(string(raw), "reasoning_effort") {
 			t.Fatalf("raw = %s", string(raw))
+		}
+	})
+
+	t.Run("Should omit prompt cleanly when absent", func(t *testing.T) {
+		t.Parallel()
+
+		raw, err := json.Marshal(contract.CreateSessionRequest{AgentName: "coder", Workspace: "alpha"})
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if strings.Contains(string(raw), "prompt") {
+			t.Fatalf("raw = %s, want prompt omitted", string(raw))
 		}
 	})
 }

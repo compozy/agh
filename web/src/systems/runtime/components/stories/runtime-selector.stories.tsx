@@ -165,8 +165,9 @@ async function openPopup(canvasElement: HTMLElement) {
 // --- Closed-state trigger variants -----------------------------------------
 
 /**
- * All five closed-state contracts in one deterministic canvas: default,
- * compact, small, no selectable reasoning, and provider authentication needed.
+ * Every closed-state contract in one deterministic canvas: default, compact,
+ * small, composer (idle and inert), no selectable reasoning, and provider
+ * authentication needed.
  */
 export const Default: Story = {
   args: {
@@ -176,7 +177,7 @@ export const Default: Story = {
     docs: {
       description: {
         story:
-          "Closed-state contract: default, compact, small, no-selectable-reasoning, and needs-auth variants.",
+          "Closed-state contract: default, compact, small, composer, disabled composer, no-selectable-reasoning, and needs-auth variants.",
       },
     },
   },
@@ -186,6 +187,7 @@ export const Default: Story = {
       description: string;
       value: RuntimeSelectorValue;
       variant?: RuntimeSelectorProps["variant"];
+      disabled?: boolean;
     }> = [
       {
         label: "Default",
@@ -203,6 +205,19 @@ export const Default: Story = {
         description: "Provider default in a tighter form row",
         value: { provider: "claude", model: "claude-fable-5", reasoning_effort: "" },
         variant: "small",
+      },
+      {
+        label: "Composer",
+        description: "Chromeless inside a prompt box: no border, fill, or shadow",
+        value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
+        variant: "composer",
+      },
+      {
+        label: "Composer, inert",
+        description: "Dimmed and unpressable: label and chevron stop answering hover",
+        value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
+        variant: "composer",
+        disabled: true,
       },
       {
         label: "No selectable effort",
@@ -231,7 +246,12 @@ export const Default: Story = {
               <h2 className="text-item-title font-semibold text-fg-strong">{state.label}</h2>
               <p className="mt-1 text-small-body text-subtle">{state.description}</p>
             </div>
-            <ControlledRuntimeSelector {...args} value={state.value} variant={state.variant} />
+            <ControlledRuntimeSelector
+              {...args}
+              value={state.value}
+              variant={state.variant}
+              disabled={state.disabled}
+            />
           </section>
         ))}
       </div>
@@ -310,6 +330,28 @@ export const PopupReasoningProviderDecides: Story = {
     const footer = await body.findByTestId("runtime-selector-reasoning");
     await expect(footer).toHaveAttribute("data-reasoning-mode", "supported-nolevels");
     await expect(within(footer).getByText(/expose selectable effort/i)).toBeInTheDocument();
+  },
+};
+
+/** Composer variant with the popup open — the trigger must stay chromeless. */
+export const PopupComposerVariant: Story = {
+  args: {
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
+    variant: "composer",
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Open popup on the composer variant. The trigger keeps no border, fill, or shadow while open — only the chevron flips and the label brightens; the popup itself is identical to every other variant.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await openPopup(canvasElement);
+    const trigger = within(canvasElement).getByRole("button", { name: /^Runtime:/ });
+    await expect(trigger).toHaveAttribute("data-variant", "composer");
+    await expect(trigger).toHaveAttribute("data-open", "true");
   },
 };
 

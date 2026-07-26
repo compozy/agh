@@ -39,6 +39,27 @@ function providerKind(
   return provider?.runtime_provider ?? provider?.id ?? value.provider;
 }
 
+/** Keeps the composer trigger chromeless inside the prompt frame. */
+function triggerSurfaceClass(
+  variant: RuntimeSelectorVariant,
+  open: boolean,
+  inert: boolean
+): string {
+  if (variant === "composer") {
+    return cn(
+      "group h-button-lg gap-2 border-0 bg-transparent px-2 shadow-none",
+      "hover:bg-transparent focus-visible:shadow-focus-ring",
+      inert && "cursor-not-allowed opacity-60"
+    );
+  }
+  return cn(
+    "bg-elevated shadow-highlight hover:bg-btn-default-hover focus-visible:ring-2 focus-visible:ring-accent",
+    variant === "small" ? "h-button-lg gap-2 px-2.5" : "h-[34px] gap-2.5 px-3",
+    open ? "border-accent-dim" : "border-line-strong",
+    inert && "cursor-not-allowed opacity-60 hover:bg-transparent"
+  );
+}
+
 /**
  * One click surface: the whole closed selector is a single button that opens
  * (or closes) the popup — no per-segment deep links, no divider chrome. It
@@ -63,6 +84,7 @@ export function RuntimeSelectorTrigger({
   ...props
 }: RuntimeSelectorTriggerProps) {
   const compact = variant === "compact";
+  const inert = disabled || readOnly;
   const reasoning = resolveReasoningState(model);
   const showReasoning = reasoning.mode === "levels" && !compact;
   // The meter mirrors the slider: the model default fills the bars while the
@@ -104,11 +126,8 @@ export function RuntimeSelectorTrigger({
       data-open={open ? "true" : "false"}
       data-variant={variant}
       className={cn(
-        "inline-flex select-none items-center rounded-md border bg-elevated shadow-highlight outline-none transition-colors",
-        "hover:bg-btn-default-hover focus-visible:ring-2 focus-visible:ring-accent",
-        variant === "small" ? "h-[30px] gap-2 px-2.5" : "h-[34px] gap-2.5 px-3",
-        open ? "border-accent-dim" : "border-line-strong",
-        (disabled || readOnly) && "cursor-not-allowed opacity-60 hover:bg-transparent",
+        "inline-flex select-none items-center rounded-md border outline-none transition-colors",
+        triggerSurfaceClass(variant, open, inert),
         className
       )}
       onClick={() => {
@@ -127,7 +146,15 @@ export function RuntimeSelectorTrigger({
         className="shrink-0"
       />
       {compact ? null : (
-        <span className="max-w-[150px] truncate text-small-body font-medium text-fg-strong">
+        <span
+          className={cn(
+            "max-w-[150px] truncate text-small-body font-medium",
+            variant === "composer"
+              ? "text-subtle transition-colors group-data-[open=true]:text-fg-strong"
+              : "text-fg-strong",
+            variant === "composer" && !inert && "group-hover:text-fg-strong"
+          )}
+        >
           {modelName}
         </span>
       )}
@@ -150,8 +177,10 @@ export function RuntimeSelectorTrigger({
       ) : null}
       <ChevronDown
         aria-hidden="true"
+        data-slot="runtime-selector-chevron"
         className={cn(
-          "size-3.5 shrink-0 text-faint transition-transform",
+          "size-3.5 shrink-0 text-faint transition-[transform,color]",
+          variant === "composer" && !inert && "group-hover:text-fg",
           open && "rotate-180 text-fg"
         )}
       />

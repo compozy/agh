@@ -44,6 +44,9 @@ interface SessionNavigationTarget {
 
 export interface SessionCreateDialogDraft {
   agentName: string;
+  /** Workspace owning the provider, model, and Network selections. */
+  workspaceId: string;
+  prompt: string;
   providerOverride: string;
   modelOverride: string;
   reasoningEffort: ReasoningEffort | "";
@@ -51,6 +54,18 @@ export interface SessionCreateDialogDraft {
   networkChannelId: string;
   networkChannelStrategy: NetworkParticipationStrategy | "";
 }
+
+const EMPTY_DRAFT: SessionCreateDialogDraft = {
+  agentName: "",
+  workspaceId: "",
+  prompt: "",
+  providerOverride: "",
+  modelOverride: "",
+  reasoningEffort: "",
+  networkParticipationMode: "local",
+  networkChannelId: "",
+  networkChannelStrategy: "",
+};
 
 export interface SessionCreateDialogState {
   open: boolean;
@@ -73,18 +88,37 @@ export interface SessionCreateDialogState {
   submitError: string | null;
   pendingAgentName: string | null;
   pendingWorkspaceId: string | null;
+  promptValue: string;
 }
 
 export interface SessionCreateDialogApi extends SessionCreateDialogState {
   openForAgent: (agentName: string) => void;
   onOpenChange: (open: boolean) => void;
   onAgentChange: (agentName: string) => void;
+  onPromptChange: (next: string) => void;
   onRuntimeChange: (next: RuntimeSelectorValue) => void;
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
   networkParticipation: NetworkParticipationDraft;
   refreshCatalog: () => void;
   openProviderSettings: () => void;
   submit: () => Promise<void>;
+}
+
+/** Preserve same-workspace text while resetting selections derived from agent or workspace. */
+function applyAgentSelection(
+  current: SessionCreateDialogDraft,
+  nextAgentName: string,
+  nextWorkspaceId: string
+): SessionCreateDialogDraft {
+  if (current.agentName === nextAgentName && current.workspaceId === nextWorkspaceId) {
+    return current;
+  }
+  return {
+    ...EMPTY_DRAFT,
+    agentName: nextAgentName,
+    workspaceId: nextWorkspaceId,
+    prompt: current.workspaceId === nextWorkspaceId ? current.prompt : "",
+  };
 }
 
 function pickDefaultProvider(
@@ -150,20 +184,13 @@ export function useSessionCreateDialog({
   const providerOptions: SessionProviderOption[] = workspaceDetail?.providers ?? [];
 
   const [open, setOpenState] = useState(false);
-  const [draft, setDraft] = useState<SessionCreateDialogDraft>({
-    agentName: "",
-    providerOverride: "",
-    modelOverride: "",
-    reasoningEffort: "",
-    networkParticipationMode: "local",
-    networkChannelId: "",
-    networkChannelStrategy: "",
-  });
+  const [draft, setDraft] = useState<SessionCreateDialogDraft>(EMPTY_DRAFT);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingAgentName, setPendingAgentName] = useState<string | null>(null);
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<string | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<SessionNavigationTarget | null>(null);
   const navigatedTarget = useRef<SessionNavigationTarget | null>(null);
+  const submitInFlight = useRef(false);
 
   useEffect(() => {
     if (!navigationTarget || navigatedTarget.current === navigationTarget) return;
@@ -251,15 +278,7 @@ export function useSessionCreateDialog({
     }
     const matched = agentList.find(agent => agent.name === agentName) ?? agentList[0];
     const nextAgentName = matched?.name ?? agentName;
-    setDraft({
-      agentName: nextAgentName,
-      providerOverride: "",
-      modelOverride: "",
-      reasoningEffort: "",
-      networkParticipationMode: "local",
-      networkChannelId: "",
-      networkChannelStrategy: "",
-    });
+    setDraft(current => applyAgentSelection(current, nextAgentName, activeWorkspace.id));
     setSubmitError(null);
     setOpenState(true);
   };
@@ -273,15 +292,12 @@ export function useSessionCreateDialog({
 
   const onAgentChange = (agentName: string) => {
     setSubmitError(null);
-    setDraft({
-      agentName,
-      providerOverride: "",
-      modelOverride: "",
-      reasoningEffort: "",
-      networkParticipationMode: "local",
-      networkChannelId: "",
-      networkChannelStrategy: "",
-    });
+    setDraft(current => applyAgentSelection(current, agentName, workspaceId));
+  };
+
+  const onPromptChange = (next: string) => {
+    setSubmitError(null);
+    setDraft(current => ({ ...current, prompt: next }));
   };
 
   const onNetworkParticipationChange = (next: NetworkParticipationDraft) => {
@@ -312,10 +328,16 @@ export function useSessionCreateDialog({
   };
 
   const submit = async () => {
+    if (submitInFlight.current) return;
     if (!activeWorkspace) return;
     const agentName = draft.agentName.trim();
     const provider = selectedProvider.trim();
+    const prompt = draft.prompt.trim();
     if (agentName.length === 0) return;
+    if (prompt.length === 0) {
+      setSubmitError("Write the first message before starting the session.");
+      return;
+    }
     if (provider.length === 0) {
       setSubmitError("Choose a provider configured for this workspace.");
       return;
@@ -349,17 +371,21 @@ export function useSessionCreateDialog({
     const reasoningEffort =
       hasRuntimeOverride && selectedReasoning !== "" ? selectedReasoning : undefined;
 
+    submitInFlight.current = true;
     let session: SessionPayload;
     try {
+      // The daemon owns deferred prompt dispatch after this request.
       session = await createSession.mutateAsync({
         agent_name: agentName,
         workspace: activeWorkspace.id,
+        prompt,
         ...(hasRuntimeOverride ? { provider } : {}),
         ...(modelOverride.length > 0 ? { model: modelOverride } : {}),
         ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
         network_participation: serializeNetworkParticipation(networkParticipation),
       });
     } catch (error) {
+      submitInFlight.current = false;
       const message = describeError("Failed to create session.", error);
       setSubmitError(message);
       toast.error(message);
@@ -368,6 +394,9 @@ export function useSessionCreateDialog({
       return;
     }
 
+    // Only a durable acceptance clears the draft.
+    submitInFlight.current = false;
+    setDraft(EMPTY_DRAFT);
     setOpenState(false);
     setPendingAgentName(null);
     setPendingWorkspaceId(null);
@@ -410,9 +439,11 @@ export function useSessionCreateDialog({
     submitError,
     pendingAgentName,
     pendingWorkspaceId,
+    promptValue: draft.prompt,
     openForAgent,
     onOpenChange: handleOpenChange,
     onAgentChange,
+    onPromptChange,
     onRuntimeChange,
     onNetworkParticipationChange,
     networkParticipation: networkParticipationDraftFromValues(

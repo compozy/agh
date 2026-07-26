@@ -103,7 +103,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	if err != nil {
 		return nil, err
 	}
-	if err := m.runAcceptedSessionStart(accepted); err != nil {
+	if err := m.runAcceptedSessionStartAndDispatch(accepted); err != nil {
 		return nil, err
 	}
 	return accepted.session, nil

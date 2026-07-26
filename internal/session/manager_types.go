@@ -52,6 +52,13 @@ type CreateOpts struct {
 	CreationIdentity     *store.SessionCreationIdentity
 }
 
+// CreateAcceptedOpts combines session creation options with an optional first
+// prompt that must be durably staged before the starting session is returned.
+type CreateAcceptedOpts struct {
+	Session       CreateOpts
+	InitialPrompt string
+}
+
 // StoreOpener opens the per-session events store for a session directory.
 type StoreOpener func(ctx context.Context, sessionID string, path string) (EventRecorder, error)
 

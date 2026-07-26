@@ -10,6 +10,8 @@ export const sessionLifecycleTestIds = {
   workspaceUseGlobal: "workspace-use-global",
 } as const;
 
+export const SESSION_CREATE_FIRST_MESSAGE = "e2e first message";
+
 // Session-window surfaces. Every one of these renders inside an owning
 // `os-window-session:<sessionId>` window and must be scoped to it — a page-level
 // match would resolve to a second session window (strict-mode violation).

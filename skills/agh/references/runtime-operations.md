@@ -51,6 +51,7 @@ Use structured output when agents need to inspect or route results.
 
     agh session new --agent general --name review-run
     agh session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
+    agh session new --provider codex --model gpt-5.6-sol --reasoning-effort high --prompt "Inspect the failing build."
     agh session new --agent general --no-wait -o json
     agh session list --all -o json
     agh session list --type user --state active --sort last_activity -o json
@@ -80,6 +81,13 @@ Use structured output when agents need to inspect or route results.
 the durable session stops with a failure. Use `--no-wait` when a controller needs the accepted
 `starting` record immediately; then observe that session through status/list or the workspace detail
 API until it becomes `active` or durably `stopped` with `failure.kind=startup_failure`.
+
+Use `--prompt` with non-whitespace text to atomically create a session and stage its first user turn.
+AGH persists the `starting` session and the trimmed prompt before returning, then dispatches the
+prompt once after the selected provider, model, and reasoning effort become active. Empty or
+whitespace-only values keep create-only behavior. `--no-wait --prompt` returns the durable `starting`
+record with the prompt still queued. A startup failure retains that prompt for an explicit resume;
+deleting the session removes it. Do not send the same prompt again after create.
 
 If an AGH-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
 

@@ -181,6 +181,26 @@ describe("createSession", () => {
     });
   });
 
+  it("sends the staged first message verbatim in the create body", async () => {
+    mockJsonResponse({ session: mockSession });
+
+    await createSession({
+      agent_name: "claude-agent",
+      prompt: "Draft the release notes.",
+      workspace: "ws_alpha",
+    });
+
+    await expectFetchRequest({
+      body: {
+        agent_name: "claude-agent",
+        prompt: "Draft the release notes.",
+        workspace: "ws_alpha",
+      },
+      method: "POST",
+      path: "/api/sessions",
+    });
+  });
+
   it("allows create session without agent_name", async () => {
     mockJsonResponse({ session: mockSession });
 

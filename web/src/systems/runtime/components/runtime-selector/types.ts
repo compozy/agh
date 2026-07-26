@@ -50,7 +50,8 @@ export interface RuntimeSelectorValue {
   reasoning_effort: ReasoningEffort | "";
 }
 
-export type RuntimeSelectorVariant = "default" | "small" | "compact";
+/** `composer` removes trigger chrome while preserving runtime identity. */
+export type RuntimeSelectorVariant = "default" | "small" | "compact" | "composer";
 
 export type RuntimeAvailability = "live" | "stale" | "unavailable";
 export type RuntimeReasoningSource = "acp" | "catalog";

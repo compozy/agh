@@ -81,7 +81,10 @@ func TestSessionNewWaitsForStartupByDefault(t *testing.T) {
 
 	var statusCalls int
 	deps := newTestDeps(t, &stubClient{
-		createSessionFn: func(_ context.Context, _ CreateSessionRequest) (SessionRecord, error) {
+		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
+			if request.Prompt != "Plan the migration" {
+				t.Fatalf("CreateSession() Prompt = %q, want initial prompt", request.Prompt)
+			}
 			return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
 		},
 		getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
@@ -94,7 +97,7 @@ func TestSessionNewWaitsForStartupByDefault(t *testing.T) {
 	})
 	deps.pollInterval = time.Millisecond
 
-	stdout, _, err := executeRootCommand(t, deps, "session", "new", "-o", "json")
+	stdout, _, err := executeRootCommand(t, deps, "session", "new", "--prompt", "Plan the migration", "-o", "json")
 	if err != nil {
 		t.Fatalf("executeRootCommand(session new) error = %v", err)
 	}
@@ -134,6 +137,58 @@ func TestSessionNewNoWaitReturnsAcceptedStartingSession(t *testing.T) {
 	if decoded.State != session.StateStarting {
 		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStarting)
 	}
+}
+
+func TestSessionNewPassesInitialPromptWithRuntimeOverrides(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should serialize the prompt with runtime overrides in no-wait mode", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
+				if request.Prompt != "Investigate the failing build" {
+					t.Fatalf("CreateSession() Prompt = %q, want initial prompt", request.Prompt)
+				}
+				if request.Provider != "codex" || request.Model != "gpt-5.6-sol" || request.ReasoningEffort != "high" {
+					t.Fatalf("CreateSession() runtime overrides = %#v", request)
+				}
+				return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
+			},
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				t.Fatal("GetSession() called with --no-wait --prompt")
+				return SessionRecord{}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"new",
+			"--no-wait",
+			"--prompt",
+			"Investigate the failing build",
+			"--provider",
+			"codex",
+			"--model",
+			"gpt-5.6-sol",
+			"--reasoning-effort",
+			"high",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session new --no-wait --prompt) error = %v", err)
+		}
+		var decoded SessionRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(session new --no-wait --prompt) error = %v", err)
+		}
+		if decoded.State != session.StateStarting {
+			t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStarting)
+		}
+	})
 }
 
 func TestSessionNewReportsDurableStartupFailure(t *testing.T) {

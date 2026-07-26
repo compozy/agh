@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { agentFixtures } from "@/systems/agent/mocks";
 import type { NetworkParticipationDraft } from "@/systems/network";
@@ -63,6 +63,9 @@ const runtimeValue = {
   reasoning_effort: "high",
 } satisfies RuntimeSelectorValue;
 
+const FIRST_MESSAGE =
+  "Audit the release notes for 0.9 and flag anything that claims behaviour we have not shipped.";
+
 const localParticipation = {
   mode: "local",
   channelStrategy: "",
@@ -93,6 +96,8 @@ const baseArgs = {
   providersError: null,
   hasProviderOptions: true,
   networkParticipation: localParticipation,
+  promptValue: FIRST_MESSAGE,
+  onPromptChange: fn(),
   onAgentChange: fn(),
   onRuntimeChange: fn(),
   onNetworkParticipationChange: fn(),
@@ -111,7 +116,7 @@ const meta: Meta<typeof SessionCreateDialog> = {
     docs: {
       description: {
         component:
-          "Session-create dialog hosting the unified RuntimeSelector (provider · model · reasoning) plus the agent picker.",
+          "Session-create dialog reshaped as a first-message composer: agent + Network above, then the prompt box that owns the chromeless RuntimeSelector (lower-left) and the accent Send disc (lower-right) — the only creation action. Enter sends, Shift+Enter inserts a newline.",
       },
     },
   },
@@ -121,10 +126,50 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Fully configured dialog ready to start a session.
+ * Drafted first message with the runtime selector closed — the chromeless
+ * trigger sits inside the prompt box, and the accent Send disc is armed.
  */
 export const Default: Story = {
   args: baseArgs,
+};
+
+/**
+ * Empty draft: Send is disabled because a session is never created without a
+ * first message.
+ */
+export const EmptyDraft: Story = {
+  args: {
+    ...baseArgs,
+    promptValue: "",
+  },
+};
+
+/**
+ * No active workspace: the composer is inert end to end — dimmed box, dead
+ * textarea, unpressable runtime trigger and Send disc — and the header states
+ * the one thing that unblocks it.
+ */
+export const NoWorkspace: Story = {
+  args: {
+    ...baseArgs,
+    workspace: undefined,
+    promptValue: "",
+  },
+};
+
+/**
+ * Runtime selector open over the composer — the trigger must stay borderless
+ * and unfilled while the popup is up.
+ */
+export const RuntimeSelectorOpen: Story = {
+  args: baseArgs,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    // Dialog and popup are both portaled, so query from the document body.
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await body.findByTestId("session-create-runtime-select"));
+    await expect(await body.findByTestId("runtime-selector-popup")).toBeInTheDocument();
+  },
 };
 
 /**
@@ -158,10 +203,8 @@ export const LiveParticipation: Story = {
   },
 };
 
-/**
- * Pending startup keeps the dialog open until ACP confirms the session.
- */
-export const PendingStartup: Story = {
+/** Pending admission keeps the dialog locked until the durable `201`. */
+export const PendingAdmission: Story = {
   args: {
     ...baseArgs,
     isSubmitting: true,

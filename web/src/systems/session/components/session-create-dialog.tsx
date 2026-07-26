@@ -1,19 +1,15 @@
-import { type FormEvent } from "react";
+import { useRef, type FormEvent } from "react";
 
 import {
-  Button,
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   Field,
   FieldDescription,
   FieldError,
   FieldLabel,
-  FieldTitle,
-  Spinner,
 } from "@agh/ui";
 
 import {
@@ -36,6 +32,7 @@ import {
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { validateSessionModelSelection } from "../lib/session-model-selection";
+import { SessionCreatePromptComposer } from "./session-create-prompt-composer";
 
 export interface SessionCreateDialogProps {
   open: boolean;
@@ -56,6 +53,8 @@ export interface SessionCreateDialogProps {
   providersError: string | null;
   hasProviderOptions: boolean;
   networkParticipation: NetworkParticipationDraft;
+  promptValue: string;
+  onPromptChange: (next: string) => void;
   onAgentChange: (agentName: string) => void;
   onRuntimeChange: (next: RuntimeSelectorValue) => void;
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
@@ -85,6 +84,8 @@ function SessionCreateDialog({
   providersError,
   hasProviderOptions,
   networkParticipation,
+  promptValue,
+  onPromptChange,
   onAgentChange,
   onRuntimeChange,
   onNetworkParticipationChange,
@@ -94,6 +95,8 @@ function SessionCreateDialog({
   isSubmitting,
   submitError,
 }: SessionCreateDialogProps) {
+  // Base UI otherwise focuses the first selectable control.
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const trimmedSelectedAgentName = selectedAgentName.trim();
   const workspaceSelected = workspace !== undefined;
   const activeAgent = workspaceSelected
@@ -125,12 +128,17 @@ function SessionCreateDialog({
     hasProviderOptions &&
     hasSelectedProvider &&
     modelSelection.valid &&
+    promptValue.trim().length > 0 &&
     isNetworkParticipationDraftValid(networkParticipation, ["named"]);
+
+  const submitIfAllowed = () => {
+    if (!canSubmit) return;
+    onSubmit();
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canSubmit) return;
-    onSubmit();
+    submitIfAllowed();
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -143,8 +151,10 @@ function SessionCreateDialog({
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
-        className="text-fg sm:max-w-(--width-modal-sm)"
+        // Keep Live participation and inline errors reachable on short viewports.
+        className="max-h-[calc(100dvh-4rem)] text-fg sm:max-w-(--width-modal-sm)"
         data-testid="session-create-dialog"
+        initialFocus={promptRef}
         showCloseButton={!isSubmitting}
         unframed
       >
@@ -152,17 +162,17 @@ function SessionCreateDialog({
           <DialogTitle>Start a new session</DialogTitle>
           <DialogDescription>
             {workspaceSelected
-              ? `Pick the agent and runtime for this session in ${workspace.name}.`
+              ? `Write the first message for a new session in ${workspace.name}. AGH sends it as soon as the runtime starts.`
               : "Choose an active workspace before starting a session."}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
+        <form className="min-h-0 overflow-y-auto" onSubmit={handleSubmit}>
           <div className="space-y-5 p-5">
             <Field>
               <FieldLabel htmlFor="session-create-agent">Agent</FieldLabel>
               <FieldDescription>
-                The agent owns the default prompt, tools, and provider for this session.
+                The agent owns the instructions, tools, and provider for this session.
               </FieldDescription>
               <AgentCommandSelect
                 agents={agents}
@@ -184,78 +194,6 @@ function SessionCreateDialog({
               ) : null}
             </Field>
 
-            <Field>
-              <FieldTitle id="session-create-runtime-label">Runtime</FieldTitle>
-              <FieldDescription>
-                The agent&apos;s effective project defaults are preselected. Changing this selector
-                creates overrides for this session only.
-              </FieldDescription>
-              <RuntimeSelector
-                value={runtimeValue}
-                onChange={onRuntimeChange}
-                providers={runtimeProviders}
-                models={runtimeModels}
-                loading={catalogLoading}
-                catalogLoaded={catalogLoaded}
-                refreshing={catalogRefreshing}
-                onRefreshCatalog={onCatalogRefresh}
-                onOpenProviderSettings={onOpenProviderSettings}
-                ariaLabelledby="session-create-runtime-label"
-                catalogStatus={
-                  <CatalogStatusLine
-                    loading={catalogLoading}
-                    refreshing={catalogRefreshing}
-                    stale={catalogStale}
-                    error={catalogError}
-                    refreshError={catalogRefreshError}
-                    optionCount={runtimeModels.length}
-                  />
-                }
-                disabled={
-                  !workspaceSelected || providersLoading || !hasProviderOptions || isSubmitting
-                }
-                triggerId="session-create-runtime"
-                triggerTestId="session-create-runtime-select"
-              />
-              {providersError ? (
-                <p
-                  className="mt-1 text-form-hint text-danger"
-                  data-testid="session-create-providers-error"
-                  role="alert"
-                >
-                  {providersError}
-                </p>
-              ) : null}
-              {workspaceSelected && !providersLoading && !providersError && !hasProviderOptions ? (
-                <p
-                  className="mt-1 text-form-hint text-warning"
-                  data-testid="session-create-providers-empty"
-                >
-                  No providers are configured for this workspace.
-                </p>
-              ) : null}
-              {modelSelection.error ? (
-                <FieldError
-                  className="mt-1 text-form-hint text-danger"
-                  data-testid="session-create-model-error"
-                >
-                  {modelSelection.error}
-                </FieldError>
-              ) : null}
-            </Field>
-
-            {isSubmitting ? (
-              <p
-                aria-live="polite"
-                className="text-form-hint text-subtle"
-                data-testid="session-create-pending-status"
-                role="status"
-              >
-                Saving the session. It opens as soon as AGH durably accepts it; runtime startup
-                continues in the session view.
-              </p>
-            ) : null}
-
             <NetworkParticipationFields
               allowedStrategies={["named"]}
               disabled={isSubmitting}
@@ -264,32 +202,95 @@ function SessionCreateDialog({
               value={networkParticipation}
             />
 
+            <SessionCreatePromptComposer
+              canSubmit={canSubmit}
+              disabled={!workspaceSelected || !hasAgents}
+              errorMessageId={submitError ? "session-create-submit-error" : undefined}
+              inputRef={promptRef}
+              isSubmitting={isSubmitting}
+              onChange={onPromptChange}
+              onSubmitDraft={submitIfAllowed}
+              runtimeControl={
+                <RuntimeSelector
+                  value={runtimeValue}
+                  onChange={onRuntimeChange}
+                  providers={runtimeProviders}
+                  models={runtimeModels}
+                  variant="composer"
+                  loading={catalogLoading}
+                  catalogLoaded={catalogLoaded}
+                  refreshing={catalogRefreshing}
+                  onRefreshCatalog={onCatalogRefresh}
+                  onOpenProviderSettings={onOpenProviderSettings}
+                  catalogStatus={
+                    <CatalogStatusLine
+                      loading={catalogLoading}
+                      refreshing={catalogRefreshing}
+                      stale={catalogStale}
+                      error={catalogError}
+                      refreshError={catalogRefreshError}
+                      optionCount={runtimeModels.length}
+                    />
+                  }
+                  disabled={
+                    !workspaceSelected || providersLoading || !hasProviderOptions || isSubmitting
+                  }
+                  triggerId="session-create-runtime"
+                  triggerTestId="session-create-runtime-select"
+                />
+              }
+              value={promptValue}
+            />
+
+            {providersError ? (
+              <p
+                className="text-form-hint text-danger"
+                data-testid="session-create-providers-error"
+                role="alert"
+              >
+                {providersError}
+              </p>
+            ) : null}
+            {workspaceSelected && !providersLoading && !providersError && !hasProviderOptions ? (
+              <p
+                className="text-form-hint text-warning"
+                data-testid="session-create-providers-empty"
+              >
+                No providers are configured for this workspace.
+              </p>
+            ) : null}
+            {modelSelection.error ? (
+              <FieldError
+                className="text-form-hint text-danger"
+                data-testid="session-create-model-error"
+              >
+                {modelSelection.error}
+              </FieldError>
+            ) : null}
+
+            {isSubmitting ? (
+              <p
+                aria-live="polite"
+                className="text-form-hint text-subtle"
+                data-testid="session-create-pending-status"
+                role="status"
+              >
+                Starting the session. It opens as soon as AGH accepts it; the first message is sent
+                when the runtime starts.
+              </p>
+            ) : null}
+
             {submitError ? (
               <p
                 className="text-form-hint text-danger"
                 data-testid="session-create-submit-error"
+                id="session-create-submit-error"
                 role="alert"
               >
                 {submitError}
               </p>
             ) : null}
           </div>
-
-          <DialogFooter variant="ruled">
-            <Button
-              data-testid="session-create-dialog-cancel"
-              disabled={isSubmitting}
-              onClick={() => handleOpenChange(false)}
-              type="button"
-              variant="outline"
-            >
-              Cancel
-            </Button>
-            <Button data-testid="session-create-dialog-submit" disabled={!canSubmit} type="submit">
-              {isSubmitting ? <Spinner aria-hidden="true" /> : null}
-              {isSubmitting ? "Saving session…" : "Start session"}
-            </Button>
-          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
