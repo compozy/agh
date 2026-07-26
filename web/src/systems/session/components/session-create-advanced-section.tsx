@@ -35,7 +35,7 @@ function SessionCreateAdvancedSection({
           <FieldContent>
             <FieldLabel htmlFor="session-create-workspace-path">Working path</FieldLabel>
             <FieldDescription>
-              Optional — run inside a subdirectory of the workspace root.
+              Optional — use a relative subdirectory of the selected workspace.
             </FieldDescription>
           </FieldContent>
           <Input

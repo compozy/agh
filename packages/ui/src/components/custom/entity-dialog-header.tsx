@@ -28,9 +28,8 @@ export interface EntityDialogHeaderProps extends Omit<
  * Canonical entity-editor modal header: a 36px accent icon well beside an
  * accent-strong eyebrow, the dialog title, and an optional description.
  *
- * The icon well is the only accent-tinted surface in the modal shell
- * (`MODAL-STANDARD.md` § Hosts). `ConfirmDialog` keeps its neutral well and
- * does not use this composition.
+ * The icon well is the only accent-tinted surface in the modal shell.
+ * `ConfirmDialog` keeps its neutral well and does not use this composition.
  *
  * Renders `DialogTitle`/`DialogDescription`, so it must be mounted inside a
  * `Dialog`. Surfaces that also render outside a dialog (OS window locations)

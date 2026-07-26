@@ -8,6 +8,8 @@ interface AgentPromptStepProps {
   agent: string;
   agentDisabled?: boolean;
   agents: AgentPayload[];
+  agentsLoading?: boolean;
+  agentsError?: string | null;
   prompt: string;
   variables: string[];
   onAgentChange: (next: string) => void;
@@ -24,6 +26,8 @@ export function AgentPromptStep({
   agent,
   agentDisabled = false,
   agents,
+  agentsLoading = false,
+  agentsError = null,
   prompt,
   variables,
   onAgentChange,
@@ -36,6 +40,8 @@ export function AgentPromptStep({
         <AgentCommandSelect
           agents={agents}
           disabled={agentDisabled}
+          error={agentsError}
+          loading={agentsLoading}
           onChange={next => onAgentChange(next ?? "")}
           triggerId="trigger-agent"
           triggerTestId="trigger-agent-input"

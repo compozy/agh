@@ -8,8 +8,6 @@ import type {
   SettingsProviderRequest,
 } from "../types";
 
-type CredentialSlotDraft = ProviderCredentialSlotDraft;
-
 let slotKeySeed = 0;
 
 /** Mints the editor-local row identity described on `ProviderCredentialSlotDraft`. */
@@ -112,7 +110,7 @@ export function addProviderCredentialSlot(draft: ProviderDraft): ProviderDraft {
 export function updateProviderCredentialSlot(
   draft: ProviderDraft,
   index: number,
-  patch: Partial<CredentialSlotDraft>
+  patch: Partial<ProviderCredentialSlotDraft>
 ): ProviderDraft {
   const current = draft.credential_slots[index];
   if (!current) return draft;
@@ -191,6 +189,7 @@ export function providerDraftIsValid(
     if (!draft.command.trim()) return false;
     if (existingNames.some(existing => existing.toLowerCase() === name.toLowerCase())) return false;
   }
+  if (draft.harness === "pi_acp" && !draft.runtime_provider.trim()) return false;
   if (draft.auth_mode === "bound_secret" && draft.credential_slots.length === 0) return false;
   return draft.credential_slots.every((slot, index) => {
     if (draft.auth_mode !== "bound_secret") return true;
@@ -209,7 +208,7 @@ export function isVaultSecretRef(secretRef: string): boolean {
   return secretRef.trim().startsWith(VAULT_REF_PREFIX);
 }
 
-function newCredentialSlot(index: number, required: boolean): CredentialSlotDraft {
+function newCredentialSlot(index: number, required: boolean): ProviderCredentialSlotDraft {
   return {
     key: nextCredentialSlotKey(),
     name: index === 0 ? DEFAULT_SLOT_KIND : "",

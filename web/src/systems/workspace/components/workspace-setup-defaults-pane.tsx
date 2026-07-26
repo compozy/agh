@@ -20,35 +20,73 @@ import {
   Pill,
 } from "@agh/ui";
 
-import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
+import { AgentCommandSelect } from "@/systems/agent";
 
-import type { useWorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
-
-type SetupApi = ReturnType<typeof useWorkspaceSetupContent>;
-
-interface SandboxOption {
-  name: string;
-  backend?: string;
-}
+import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
+import type {
+  WorkspaceSetupCollection,
+  WorkspaceSetupDefaultsModel,
+} from "../lib/workspace-setup-defaults";
 
 interface WorkspaceSetupDefaultsPaneProps {
-  setup: SetupApi;
-  agents: AgentPayload[];
-  sandboxes: SandboxOption[];
+  setup: WorkspaceSetupContent;
+  defaults: WorkspaceSetupDefaultsModel;
+}
+
+function collectionPlaceholder<T>(
+  collection: WorkspaceSetupCollection<T>,
+  loading: string,
+  empty: string,
+  error: string,
+  ready: string
+): string {
+  if (collection.state === "loading") return loading;
+  if (collection.state === "error") return error;
+  return collection.entries.length === 0 ? empty : ready;
+}
+
+function CollectionStateMessage<T>({
+  collection,
+  loading,
+  error,
+  testId,
+}: {
+  collection: WorkspaceSetupCollection<T>;
+  loading: string;
+  error: string;
+  testId: string;
+}) {
+  if (collection.state === "loading") {
+    return (
+      <p className="text-form-hint text-muted" data-testid={`${testId}-loading`} role="status">
+        {loading}
+      </p>
+    );
+  }
+
+  if (collection.state === "error") {
+    return (
+      <p className="text-form-hint text-danger" data-testid={`${testId}-error`} role="alert">
+        {error}: {collection.message}
+      </p>
+    );
+  }
+
+  return null;
 }
 
 /**
  * Right pane of the split shell: the session defaults carried by
  * `CreateWorkspaceRequest`. Every field here is optional and editable later.
  */
-export function WorkspaceSetupDefaultsPane({
-  setup,
-  agents,
-  sandboxes,
-}: WorkspaceSetupDefaultsPaneProps) {
+export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDefaultsPaneProps) {
   const [pendingDir, setPendingDir] = useState("");
   const [sandboxOpen, setSandboxOpen] = useState(false);
   const disabled = setup.submissionMode !== null;
+  const agents = defaults.agents.state === "ready" ? defaults.agents.entries : [];
+  const sandboxes = defaults.sandboxes.state === "ready" ? defaults.sandboxes.entries : [];
+  const agentsUnavailable = defaults.agents.state !== "ready";
+  const sandboxesUnavailable = defaults.sandboxes.state !== "ready";
 
   const commitDir = () => {
     setup.addDir(pendingDir);
@@ -68,12 +106,25 @@ export function WorkspaceSetupDefaultsPane({
           </FieldContent>
           <AgentCommandSelect
             agents={agents}
-            disabled={disabled || agents.length === 0}
+            clearLabel="No default agent"
+            disabled={disabled || agentsUnavailable}
             onChange={next => setup.setDefaultAgent(next ?? "")}
-            placeholder={agents.length === 0 ? "No agents available" : "No default"}
+            placeholder={collectionPlaceholder(
+              defaults.agents,
+              "Loading agents…",
+              "No agents available",
+              "Agents unavailable",
+              "No default agent"
+            )}
             triggerId="workspace-setup-default-agent"
             triggerTestId="workspace-setup-default-agent-select"
             value={setup.draft.defaultAgent || null}
+          />
+          <CollectionStateMessage
+            collection={defaults.agents}
+            error="Could not load agents"
+            loading="Loading agents…"
+            testId="workspace-setup-default-agent"
           />
         </Field>
 
@@ -86,8 +137,14 @@ export function WorkspaceSetupDefaultsPane({
             <CommandSelectTrigger
               aria-labelledby="workspace-setup-sandbox-label"
               data-testid="workspace-setup-sandbox-select"
-              disabled={disabled || sandboxes.length === 0}
-              placeholder={sandboxes.length === 0 ? "No sandbox profiles" : "No sandbox"}
+              disabled={disabled || sandboxesUnavailable}
+              placeholder={collectionPlaceholder(
+                defaults.sandboxes,
+                "Loading sandbox profiles…",
+                "No sandbox profiles",
+                "Sandbox profiles unavailable",
+                "No sandbox"
+              )}
               selected={setup.draft.sandboxRef !== ""}
             >
               {setup.draft.sandboxRef || null}
@@ -96,6 +153,17 @@ export function WorkspaceSetupDefaultsPane({
               <CommandList>
                 <CommandEmpty>No sandbox profiles match.</CommandEmpty>
                 <CommandSelectGroup>
+                  <CommandItem
+                    data-checked={setup.draft.sandboxRef === "" ? "true" : "false"}
+                    data-testid="workspace-setup-sandbox-none"
+                    onSelect={() => {
+                      setup.setSandboxRef("");
+                      setSandboxOpen(false);
+                    }}
+                    value="No sandbox"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-muted">No sandbox</span>
+                  </CommandItem>
                   {sandboxes.map(sandbox => (
                     <CommandItem
                       data-testid={`workspace-setup-sandbox-${sandbox.name}`}
@@ -118,6 +186,12 @@ export function WorkspaceSetupDefaultsPane({
               </CommandList>
             </CommandSelectShell>
           </CommandSelect>
+          <CollectionStateMessage
+            collection={defaults.sandboxes}
+            error="Could not load sandbox profiles"
+            loading="Loading sandbox profiles…"
+            testId="workspace-setup-sandbox"
+          />
         </Field>
 
         <Field>

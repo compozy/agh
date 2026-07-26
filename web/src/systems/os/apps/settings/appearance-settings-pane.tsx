@@ -1,6 +1,6 @@
 import { useRef } from "react";
 
-import { Field, FieldDescription, FieldLabel, PageShell, Switch, cn } from "@agh/ui";
+import { Field, FieldDescription, FieldLabel, FieldTitle, PageShell, Switch, cn } from "@agh/ui";
 
 import { useSettingsTopbar } from "@/systems/settings";
 
@@ -114,7 +114,7 @@ export function AppearanceSettingsPane() {
     <PageShell slug="appearance">
       <div className="flex max-w-2xl flex-col gap-8" data-testid="os-appearance-pane">
         <Field>
-          <FieldLabel>Wallpaper</FieldLabel>
+          <FieldTitle>Wallpaper</FieldTitle>
           <FieldDescription>Backdrop for the current shell session.</FieldDescription>
           <WallpaperPicker value={appearance.wallpaper} onChange={appearance.setWallpaper} />
         </Field>

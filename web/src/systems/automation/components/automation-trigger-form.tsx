@@ -39,6 +39,8 @@ interface AutomationTriggerFormProps {
   workspaces?: ReadonlyArray<WorkspaceOption>;
   /** Agent catalog for the searchable selector. */
   agents?: AgentPayload[];
+  agentsLoading?: boolean;
+  agentsError?: string | null;
 }
 
 const EMPTY_AGENTS: AgentPayload[] = [];
@@ -54,6 +56,8 @@ export function AutomationTriggerForm({
   submitError,
   workspaces,
   agents = EMPTY_AGENTS,
+  agentsLoading = false,
+  agentsError = null,
 }: AutomationTriggerFormProps) {
   const form = useAutomationTriggerForm({
     activeWorkspaceId,
@@ -176,6 +180,8 @@ export function AutomationTriggerForm({
                 onModeChange={form.onTargetModeChange}
                 agent={draft.agent_name}
                 agents={agents}
+                agentsError={agentsError}
+                agentsLoading={agentsLoading}
                 prompt={draft.prompt}
                 variables={form.variables}
                 onAgentChange={form.onAgentChange}

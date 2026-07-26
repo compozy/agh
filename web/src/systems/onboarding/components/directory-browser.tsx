@@ -1,10 +1,11 @@
 import { ChevronUp, Folder, FolderPlus, House, Plus, Spline } from "lucide-react";
+import type { ComponentProps } from "react";
 
 import { Button, Spinner, cn } from "@agh/ui";
 
 import type { FSEntry } from "../types";
 
-interface DirectoryBrowserProps {
+interface DirectoryBrowserProps extends ComponentProps<"div"> {
   currentPath: string;
   parentPath: string | null;
   homePath: string | null;
@@ -27,7 +28,6 @@ interface DirectoryBrowserProps {
   /** Builds the accessible name for a row's pick control. */
   pickRowLabel?: (name: string) => string;
   testIdPrefix?: string;
-  className?: string;
 }
 
 /**
@@ -55,6 +55,7 @@ export function DirectoryBrowser({
   pickRowLabel = name => `Use ${name}`,
   testIdPrefix = "directory-browser",
   className,
+  ...props
 }: DirectoryBrowserProps) {
   return (
     <div
@@ -63,6 +64,7 @@ export function DirectoryBrowser({
         className
       )}
       data-testid={testIdPrefix}
+      {...props}
     >
       <div className="flex flex-none items-center gap-2 border-b border-line px-3 py-2">
         <Button

@@ -27,6 +27,7 @@ const {
   mockUseCreateSessionPending,
   mockWorkspaceQuery,
   mockWorkspaceListRef,
+  mockUseAgents,
   mockListAllModels,
   mockRefreshAllModels,
 } = vi.hoisted(() => ({
@@ -35,7 +36,8 @@ const {
   mockToastError: vi.fn(),
   mockUseCreateSessionPending: { current: false as boolean },
   mockWorkspaceQuery: vi.fn(),
-  mockWorkspaceListRef: { current: [] as unknown[] },
+  mockWorkspaceListRef: { current: [] as WorkspacePayload[] },
+  mockUseAgents: vi.fn(),
   mockListAllModels: vi.fn<(input: unknown) => Promise<AllModelsListResponse>>(),
   mockRefreshAllModels: vi.fn<(input: unknown) => Promise<AllModelsRefreshResponse>>(),
 }));
@@ -49,6 +51,16 @@ vi.mock("sonner", () => ({
     error: mockToastError,
   },
 }));
+
+vi.mock("@/systems/agent", async () => {
+  const actual = await vi.importActual<typeof import("@/systems/agent")>("@/systems/agent");
+
+  return {
+    ...actual,
+    useAgents: (workspaceId: string, options?: { enabled?: boolean }) =>
+      mockUseAgents(workspaceId, options),
+  };
+});
 
 vi.mock("@/systems/workspace", async () => {
   const actual = await vi.importActual<typeof import("@/systems/workspace")>("@/systems/workspace");
@@ -277,6 +289,8 @@ describe("useSessionCreateDialog", () => {
     mockToastError.mockReset();
     mockWorkspaceQuery.mockReset();
     mockWorkspaceListRef.current = [activeWorkspace];
+    mockUseAgents.mockReset();
+    mockUseAgents.mockReturnValue({ data: undefined });
     mockUseCreateSessionPending.current = false;
 
     workspaceQueryResult = {
@@ -357,7 +371,7 @@ describe("useSessionCreateDialog", () => {
     });
   });
 
-  it("Should send a trimmed session name and working path when they are provided", async () => {
+  it("Should resolve a relative working path without sending a workspace reference", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
       wrapper,
@@ -371,11 +385,28 @@ describe("useSessionCreateDialog", () => {
 
     await submitWithPrompt(result);
 
-    expect(mockMutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "Investigate checkout latency",
-        workspace_path: "services/checkout",
-      })
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      agent_name: "claude-agent",
+      name: "Investigate checkout latency",
+      workspace_path: "/workspace/alpha/services/checkout",
+      prompt: FIRST_MESSAGE,
+      network_participation: { mode: "local" },
+    });
+  });
+
+  it("Should reject a working path that escapes the selected workspace", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openForAgent("claude-agent"));
+    act(() => result.current.onWorkspacePathChange("../other-workspace"));
+    await submitWithPrompt(result);
+
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(result.current.submitError).toBe(
+      "Working path must stay within the selected workspace."
     );
   });
 
@@ -445,6 +476,36 @@ describe("useSessionCreateDialog", () => {
     expect(result.current.workspace?.id).toBe("ws_beta");
     // Agents and providers are workspace-scoped, so the agent pick cannot carry over.
     expect(result.current.selectedAgentName).toBe("");
+  });
+
+  it("Should replace the agent population with the selected workspace query", () => {
+    const betaWorkspace = { ...activeWorkspace, id: "ws_beta", name: "beta" };
+    const betaAgents: AgentPayload[] = [
+      {
+        name: "beta-agent",
+        provider: "codex",
+        prompt: "work in beta",
+        origin: "workspace",
+        workspace_id: betaWorkspace.id,
+        definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+      },
+    ];
+    mockWorkspaceListRef.current = [activeWorkspace, betaWorkspace];
+    mockUseAgents.mockImplementation((workspaceId: string) => ({
+      data: workspaceId === betaWorkspace.id ? betaAgents : undefined,
+    }));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openForAgent("claude-agent"));
+    expect(result.current.agents.map(agent => agent.name)).toEqual(["claude-agent", "codex-agent"]);
+
+    act(() => result.current.onWorkspaceChange(betaWorkspace.id));
+
+    expect(mockUseAgents).toHaveBeenLastCalledWith(betaWorkspace.id, { enabled: true });
+    expect(result.current.agents.map(agent => agent.name)).toEqual(["beta-agent"]);
   });
 
   it("Should keep an unavailable inherited provider unresolved instead of displaying an unsent fallback", async () => {

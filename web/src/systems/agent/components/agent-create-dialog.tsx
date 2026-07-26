@@ -1,4 +1,4 @@
-import { Bot } from "lucide-react";
+import { Bot, Box, Globe } from "lucide-react";
 import { type FormEvent } from "react";
 
 import {
@@ -11,11 +11,12 @@ import {
   EntityDialogFooter,
   EntityDialogHeader,
   EntityModeToolbar,
+  PillGroup,
   type EntityMode,
 } from "@agh/ui";
 
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
-import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
+import { WorkspaceCommandSelect, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 
 import { updateAgentCreateScope, type AgentCreateDialogDraft } from "../lib/agent-create-draft";
 import { useAgentCreateDialogViewState } from "../hooks/use-agent-create-dialog-view-state";
@@ -133,16 +134,52 @@ function AgentCreateDialog({
           onModeChange={setMode}
           testIdPrefix="agent-create"
           trailing={
-            <ScopeSelector
-              disabled={isSubmitting}
-              onScopeChange={next => onDraftChange(updateAgentCreateScope(draft, next))}
-              onWorkspaceChange={() => undefined}
-              scope={draft.scope}
-              testIdPrefix="agent-create"
-              workspaceId={workspaceId}
-              workspaceDisabled={!hasActiveWorkspace}
-              workspaces={workspaceOptions}
-            />
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <PillGroup
+                aria-label="Scope"
+                data-testid="agent-create-scope-group"
+                items={[
+                  {
+                    value: "global",
+                    label: (
+                      <span className="flex items-center gap-1.5">
+                        <Globe aria-hidden="true" className="size-3" />
+                        Global
+                      </span>
+                    ),
+                    disabled: isSubmitting,
+                    testId: "agent-create-scope-global",
+                  },
+                  {
+                    value: "workspace",
+                    label: (
+                      <span className="flex items-center gap-1.5">
+                        <Box aria-hidden="true" className="size-3" />
+                        Workspace
+                      </span>
+                    ),
+                    disabled: isSubmitting || !hasActiveWorkspace,
+                    testId: "agent-create-scope-workspace",
+                  },
+                ]}
+                onChange={next => onDraftChange(updateAgentCreateScope(draft, next))}
+                size="md"
+                value={draft.scope}
+              />
+              {draft.scope === "workspace" && hasActiveWorkspace ? (
+                <div className="min-w-40 w-auto max-w-xs shrink-0">
+                  <WorkspaceCommandSelect
+                    disabled
+                    onChange={() => undefined}
+                    size="compact"
+                    testIdPrefix="agent-create-workspace"
+                    triggerTestId="agent-create-workspace-select"
+                    value={workspaceId ?? null}
+                    workspaces={workspaceOptions}
+                  />
+                </div>
+              ) : null}
+            </div>
           }
           trailingLabel="Scope"
         />

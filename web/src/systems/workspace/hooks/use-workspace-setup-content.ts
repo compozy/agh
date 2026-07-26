@@ -47,8 +47,8 @@ function getGlobalUnavailableReason(isLoading: boolean, userHomeDir: string): st
 
 /** Folder name of an absolute path, used to autofill the display name. */
 function workspaceNameFromPath(path: string): string {
-  const trimmed = path.trim().replace(/\/+$/, "");
-  const segment = trimmed.split("/").pop();
+  const trimmed = path.trim().replace(/[\\/]+$/, "");
+  const segment = trimmed.split(/[\\/]/).pop();
   return segment && segment.length > 0 ? segment : trimmed;
 }
 
@@ -198,3 +198,5 @@ export function useWorkspaceSetupContent({
     userHomeDir,
   };
 }
+
+export type WorkspaceSetupContent = ReturnType<typeof useWorkspaceSetupContent>;

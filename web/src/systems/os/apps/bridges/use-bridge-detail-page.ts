@@ -369,13 +369,16 @@ function useBridgeDetailPage(bridgeId: string) {
     onDraftChange: setEditDraft,
     onModeChange: setEditMode,
     onOpenChange: handleEditDialogOpenChange,
-    onRotationEditingChange: secrets.setEditing,
-    onRotationValueChange: secrets.setDraft,
     onSubmit: handleUpdateBridge,
     open: isEditDialogOpen,
     pristineDraft: pristineEditDraft,
     provider: selectedBridgeProvider,
-    rotations: secrets.rotations,
+    rotation: {
+      kind: "managed" as const,
+      onRotationEditingChange: secrets.setEditing,
+      onRotationValueChange: secrets.setDraft,
+      rotations: secrets.rotations,
+    },
     statusLabel: selectedBridge
       ? `${selectedBridge.enabled ? "enabled" : "disabled"} · ${selectedBridge.platform}`
       : undefined,

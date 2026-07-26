@@ -194,15 +194,11 @@ describe("ProviderDetailDialog", () => {
     expect(
       screen.getByTestId("settings-providers-editor-credential-slot-0-value-unavailable")
     ).toBeVisible();
-    expect(
-      screen.queryByTestId("settings-providers-editor-credential-slot-0-value-input")
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Credential value")).not.toBeInTheDocument();
 
     await user.clear(secretRef);
     await user.type(secretRef, "vault:providers/openai/api-key");
-    expect(
-      screen.getByTestId("settings-providers-editor-credential-slot-0-value-input")
-    ).toBeVisible();
+    expect(screen.getByLabelText("Credential value")).toBeVisible();
   });
 
   it("Should keep a stored credential rotate-only on edit", async () => {
@@ -217,14 +213,12 @@ describe("ProviderDetailDialog", () => {
       "settings-providers-editor-credential-slot-0-value-presence"
     );
     expect(presence).toHaveTextContent("vault:providers/openrouter/api-key → OPENROUTER_API_KEY");
-    expect(
-      screen.queryByTestId("settings-providers-editor-credential-slot-0-value-input")
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Credential value")).not.toBeInTheDocument();
 
     await user.click(
       screen.getByTestId("settings-providers-editor-credential-slot-0-value-replace")
     );
-    const input = screen.getByTestId("settings-providers-editor-credential-slot-0-value-input");
+    const input = screen.getByLabelText("Credential value");
     expect(input).toHaveValue("");
     expect(input).toHaveAttribute("type", "password");
   });
@@ -255,6 +249,22 @@ describe("ProviderDetailDialog", () => {
     expect(screen.getByTestId("settings-providers-editor-home-policy-input")).toBeVisible();
     // Advanced appends; the required basics never disappear.
     expect(screen.getByTestId("settings-providers-editor-name-input")).toBeVisible();
+  });
+
+  it("Should mark runtime provider as required only for the pi_acp harness", async () => {
+    const user = userEvent.setup();
+    renderDialog({ mode: "create" });
+
+    await user.click(screen.getByTestId("settings-providers-editor-mode-advanced"));
+    const runtimeProvider = screen.getByTestId("settings-providers-editor-runtime-provider");
+    expect(within(runtimeProvider).queryByText("required")).not.toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByTestId("settings-providers-editor-harness-input"),
+      "pi_acp"
+    );
+
+    expect(within(runtimeProvider).getByText("required")).toBeVisible();
   });
 
   it("Should open the edit form from the Configure tab without losing inspect", async () => {

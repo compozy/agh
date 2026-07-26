@@ -621,6 +621,29 @@ describe("useSettingsProvidersPage", () => {
     expect(result.current.inspectorIsValid).toBe(true);
   });
 
+  it("Should block pi_acp saves until the runtime provider is set", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.providers).toHaveLength(2));
+
+    act(() => {
+      result.current.openCreate();
+      result.current.updateDraft(draft => ({
+        ...draft,
+        name: "openrouter",
+        command: "npx -y pi-acp@latest",
+        harness: "pi_acp",
+      }));
+    });
+    expect(result.current.inspectorIsValid).toBe(false);
+
+    act(() => {
+      result.current.updateDraft(draft => ({ ...draft, runtime_provider: "openrouter" }));
+    });
+    expect(result.current.inspectorIsValid).toBe(true);
+  });
+
   it("Should seed an edit draft with empty secret values for every stored slot", async () => {
     const boundProvider: SettingsProviderCollection["providers"][number] = {
       ...claudeEntry,

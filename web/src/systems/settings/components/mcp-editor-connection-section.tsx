@@ -29,7 +29,7 @@ export interface MCPEditorConnectionSectionProps {
   draft: MCPDraft;
   errors: MCPDraftErrors;
   isCreate: boolean;
-  scope: string;
+  scope: "global" | "workspace";
   target: SettingsMCPServerTarget;
   availableTargets: SettingsMCPServerTarget[];
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;

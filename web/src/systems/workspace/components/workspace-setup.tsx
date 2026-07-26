@@ -14,13 +14,19 @@ import {
   Spinner,
 } from "@agh/ui";
 
-import { useWorkspaceSetupModel } from "../hooks/use-workspace-setup-model";
+import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
 import { WORKSPACE_SETUP_COPY } from "../lib/workspace-setup-copy";
+import type { WorkspaceSetupDefaultsModel } from "../lib/workspace-setup-defaults";
 import { WorkspaceSetupDefaultsPane } from "./workspace-setup-defaults-pane";
 import { WorkspaceSetupLocationPane } from "./workspace-setup-location-pane";
 
+interface WorkspaceSetupModel {
+  defaults: WorkspaceSetupDefaultsModel;
+  setup: WorkspaceSetupContent;
+}
+
 interface WorkspaceSetupSharedProps {
-  onWorkspaceResolved: (workspaceId: string) => void;
+  model: WorkspaceSetupModel;
 }
 
 interface WorkspaceSetupDialogProps extends WorkspaceSetupSharedProps {
@@ -30,20 +36,11 @@ interface WorkspaceSetupDialogProps extends WorkspaceSetupSharedProps {
 
 type WorkspaceOnboardingProps = WorkspaceSetupSharedProps;
 
-function WorkspaceSetupDialog({
-  open,
-  onOpenChange,
-  onWorkspaceResolved,
-}: WorkspaceSetupDialogProps) {
-  const { setup, agents, sandboxes } = useWorkspaceSetupModel({
-    onWorkspaceResolved,
-    onSuccessClose: () => onOpenChange(false),
-  });
+function WorkspaceSetupDialog({ open, onOpenChange, model }: WorkspaceSetupDialogProps) {
+  const { setup, defaults } = model;
   const isSubmitting = setup.submissionMode !== null;
   const location = <WorkspaceSetupLocationPane setup={setup} size="compact" />;
-  const defaults = (
-    <WorkspaceSetupDefaultsPane agents={agents} sandboxes={sandboxes} setup={setup} />
-  );
+  const defaultsPane = <WorkspaceSetupDefaultsPane defaults={defaults} setup={setup} />;
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -64,7 +61,7 @@ function WorkspaceSetupDialog({
         <form className="contents" onSubmit={event => void setup.handleCreateSubmit(event)}>
           <EntityDialogBody
             data-testid="workspace-setup-dialog-body"
-            side={defaults}
+            side={defaultsPane}
             variant="split"
           >
             {location}
@@ -92,13 +89,11 @@ function WorkspaceSetupDialog({
   );
 }
 
-function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) {
+function WorkspaceOnboarding({ model }: WorkspaceOnboardingProps) {
   const copy = WORKSPACE_SETUP_COPY.onboarding;
-  const { setup, agents, sandboxes } = useWorkspaceSetupModel({ onWorkspaceResolved });
+  const { setup, defaults } = model;
   const location = <WorkspaceSetupLocationPane setup={setup} size="comfortable" />;
-  const defaults = (
-    <WorkspaceSetupDefaultsPane agents={agents} sandboxes={sandboxes} setup={setup} />
-  );
+  const defaultsPane = <WorkspaceSetupDefaultsPane defaults={defaults} setup={setup} />;
 
   return (
     <div
@@ -140,7 +135,7 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
             onSubmit={event => void setup.handleCreateSubmit(event)}
           >
             {location}
-            {defaults}
+            {defaultsPane}
             {setup.createError ? (
               <Alert data-testid="workspace-setup-error" variant="danger">
                 <AlertDescription>{setup.createError}</AlertDescription>
@@ -163,3 +158,4 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
 }
 
 export { WorkspaceOnboarding, WorkspaceSetupDialog };
+export type { WorkspaceSetupModel };

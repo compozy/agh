@@ -20,8 +20,8 @@ import type { SandboxDraft } from "../lib/sandbox-profile-draft";
 const SYNC_MODES: readonly { value: string; label: string }[] = [
   { value: "", label: "Provider default" },
   { value: "none", label: "None — no file sync" },
-  { value: "session-bidir", label: "Session bidirectional — sync at start and stop" },
-  { value: "turn-bidir", label: "Turn bidirectional — sync every turn" },
+  { value: "session-bidirectional", label: "Session bidirectional — sync at start and stop" },
+  { value: "turn-bidirectional", label: "Turn bidirectional — sync every turn" },
 ];
 
 export interface SandboxEditorSimpleSectionProps {

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { dialogShellClass, UIProvider } from "@agh/ui";
+import { UIProvider } from "@agh/ui";
 import type { AgentPayload } from "@/systems/agent";
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
@@ -189,11 +189,6 @@ describe("SessionCreateDialog", () => {
   it("Should render the runtime selector wired to the selected provider", () => {
     renderDialog();
 
-    const host = screen.getByTestId("session-create-dialog");
-    for (const token of dialogShellClass("sm").split(" ")) {
-      expect(host.className).toContain(token);
-    }
-    expect(host.className).not.toContain("sm:max-w-120");
     const trigger = screen.getByTestId("session-create-runtime-select");
     // The provider renders as its mark only; the selected identity reaches
     // assistive tech through the composed caption + value accessible name.

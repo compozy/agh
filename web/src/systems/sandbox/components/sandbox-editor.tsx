@@ -5,7 +5,11 @@ import { EntityModeToolbar, type EntityMode } from "@agh/ui";
 
 import { SettingsEditorDialog, SettingsSourceBadge } from "@/systems/settings";
 
-import { sandboxSecretEnvErrors, type SandboxDraft } from "../lib/sandbox-profile-draft";
+import {
+  sandboxEnvErrors,
+  sandboxSecretEnvErrors,
+  type SandboxDraft,
+} from "../lib/sandbox-profile-draft";
 import type { SandboxEditorState } from "../hooks/use-sandbox-page";
 import { SandboxEditorAdvancedSection } from "./sandbox-editor-advanced-section";
 import { SandboxEditorSimpleSection } from "./sandbox-editor-simple-section";
@@ -57,12 +61,15 @@ export function SandboxEditor({
     existingNames.some(existing => existing.toLowerCase() === lowerName);
   // A plaintext secret must never reach the replace PUT: the daemon stores
   // references only, so an unreferenced row blocks the save outright.
+  const envErrors = sandboxEnvErrors(draft);
+  const envError = Object.values(envErrors)[0] ?? null;
   const secretEnvErrors = sandboxSecretEnvErrors(draft);
   const secretEnvError = Object.values(secretEnvErrors)[0] ?? null;
+  const nameError = nameConflict ? `A sandbox named "${draft.name}" already exists.` : null;
 
   return (
     <SettingsEditorDialog
-      canSave={isValid && !nameConflict && secretEnvError === null}
+      canSave={isValid && !nameConflict && envError === null && secretEnvError === null}
       description={
         isCreate
           ? "A profile decides where sessions execute — on this machine or in an isolated cloud workspace — and what they may reach."
@@ -70,9 +77,9 @@ export function SandboxEditor({
       }
       error={
         error ??
-        (nameConflict ? `A sandbox named "${draft.name}" already exists.` : null) ??
+        nameError ??
         // Simple cannot render the offending row, so the blocked save states its cause here.
-        (tier === "simple" ? secretEnvError : null)
+        (tier === "simple" ? (envError ?? secretEnvError) : null)
       }
       eyebrow="System · Sandbox"
       hint="Profiles are referenced by workspaces; replacing one changes every session that binds it."
@@ -125,12 +132,14 @@ export function SandboxEditor({
         <SandboxEditorSimpleSection
           draft={draft}
           isCreate={isCreate}
+          nameError={nameError}
           onChange={onChange}
           workspaceUsage={entry?.workspace_usage_count}
         />
         {tier === "advanced" ? (
           <SandboxEditorAdvancedSection
             draft={draft}
+            envErrors={envErrors}
             onChange={onChange}
             secretEnvErrors={secretEnvErrors}
           />

@@ -37,6 +37,8 @@ export interface BridgeSecretRecoveryState {
   bridgeId: string;
   bound: string[];
   failures: Record<string, string>;
+  /** The provider captured with the committed bridge; the mutable draft cannot replace it. */
+  provider: BridgeProvider;
 }
 
 interface BridgeCreateDialogProps {
@@ -73,7 +75,8 @@ export function BridgeCreateDialog({
   supportsManifest = false,
 }: BridgeCreateDialogProps) {
   const committedManifestState = supportsManifest ? manifestState : null;
-  const selectedProvider = findBridgeProviderByKey(providers, draft.selectedProviderKey);
+  const selectedProvider =
+    secretRecovery?.provider ?? findBridgeProviderByKey(providers, draft.selectedProviderKey);
   const providerConfigError = parseBridgeProviderConfig(draft.providerConfigText).error;
   const providerSelectable = Boolean(
     selectedProvider && isBridgeProviderSelectable(selectedProvider)
@@ -141,6 +144,9 @@ export function BridgeCreateDialog({
 
   const recoveryFailures = secretRecovery?.failures ?? {};
   const failedSlotNames = Object.keys(recoveryFailures);
+  const recoveryReady = failedSlotNames.every(
+    name => (draft.secretSlotValues[name]?.trim().length ?? 0) > 0
+  );
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
@@ -212,6 +218,7 @@ export function BridgeCreateDialog({
               draft={draft}
               onDraftChange={onDraftChange}
               onSelectProvider={selectProvider}
+              providerSelectionDisabled={isPending}
               providers={providers}
               supportsManifest={supportsManifest}
             />
@@ -258,7 +265,7 @@ export function BridgeCreateDialog({
           }
           isSaving={isPending}
           onCancel={() => handleOpenChange(false)}
-          primaryDisabled={secretRecovery ? failedSlotNames.length === 0 : !canSubmit || isPending}
+          primaryDisabled={secretRecovery ? isPending || !recoveryReady : !canSubmit || isPending}
           primaryLabel={
             secretRecovery
               ? "Retry secret binding"

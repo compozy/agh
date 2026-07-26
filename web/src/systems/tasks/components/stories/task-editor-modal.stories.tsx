@@ -15,11 +15,8 @@ import {
   createTaskEditorDraft,
   type TaskEditorDraft,
 } from "../../lib/task-editor";
-import {
-  DEFAULT_TASK_TEMPLATE_ID,
-  getTaskTemplate,
-  type TaskTemplateId,
-} from "../../lib/task-templates";
+import { DEFAULT_TASK_TEMPLATE_ID, type TaskTemplateId } from "../../lib/task-templates";
+
 const meta: Meta<typeof TaskEditorModal> = {
   title: "systems/tasks/components/TaskEditorModal",
   component: TaskEditorModal,
@@ -86,7 +83,6 @@ function TaskEditorModalHarness({
         }
         open
         status={status}
-        template={isNewMode ? getTaskTemplate(activeTemplate) : undefined}
         templateId={isNewMode ? activeTemplate : undefined}
         workspaces={storyWorkspaces}
       />

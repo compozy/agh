@@ -6,6 +6,7 @@ import * as React from "react";
 import { DIALOG_TOUCH_TARGET_CLASS } from "../../lib/dialog-shell";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
+import { FieldError } from "../field";
 import { Input } from "../input";
 import { Spinner } from "../spinner";
 import { Eyebrow } from "./eyebrow";
@@ -68,6 +69,48 @@ function SecretFieldSources({
   createTestId,
 }: SecretFieldSourcesProps) {
   const { create } = binding;
+  const selectableSources = binding.sources.filter(source => source.present);
+  const rovingRef = selectableSources.some(source => source.ref === binding.selectedRef)
+    ? binding.selectedRef
+    : selectableSources[0]?.ref;
+
+  const handleSourceKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    sourceRef: string
+  ) => {
+    const currentIndex = selectableSources.findIndex(source => source.ref === sourceRef);
+    if (currentIndex === -1) return;
+
+    let nextIndex: number;
+    switch (event.key) {
+      case "ArrowDown":
+      case "ArrowRight":
+        nextIndex = (currentIndex + 1) % selectableSources.length;
+        break;
+      case "ArrowUp":
+      case "ArrowLeft":
+        nextIndex = (currentIndex - 1 + selectableSources.length) % selectableSources.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = selectableSources.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    const nextSource = selectableSources[nextIndex];
+    if (!nextSource) return;
+
+    event.preventDefault();
+    binding.onSelectRef(nextSource.ref);
+    const group = event.currentTarget.closest('[role="radiogroup"]');
+    const radios = group?.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled)');
+    radios?.[nextIndex]?.focus();
+  };
+
   return (
     <div
       className="flex flex-col gap-2.5 rounded-md bg-canvas px-3 py-3"
@@ -80,7 +123,7 @@ function SecretFieldSources({
           Loading stored references
         </div>
       ) : null}
-      {binding.error ? <p className="text-small-body text-danger">{binding.error}</p> : null}
+      {binding.error ? <FieldError>{binding.error}</FieldError> : null}
       {create?.open ? (
         <div className="flex flex-col gap-2">
           <Eyebrow className="text-muted">Create inline</Eyebrow>
@@ -156,8 +199,10 @@ function SecretFieldSources({
                   )}
                   disabled={!source.present}
                   key={source.ref}
+                  onKeyDown={event => handleSourceKeyDown(event, source.ref)}
                   onSelect={() => binding.onSelectRef(source.ref)}
                   selected={binding.selectedRef === source.ref}
+                  tabIndex={source.ref === rovingRef ? 0 : -1}
                   title={
                     <code className="block break-all font-mono text-mono-id font-normal leading-snug tracking-normal text-fg">
                       {source.ref}

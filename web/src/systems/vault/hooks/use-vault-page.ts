@@ -201,12 +201,14 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
     });
   };
 
-  const knownRefs = allSecretsQuery.data ?? [];
+  const collisionInventoryReady = allSecretsQuery.isSuccess;
+  const knownRefs = collisionInventoryReady ? allSecretsQuery.data : [];
   const editorRef = editor.mode === "closed" ? "" : normalizeVaultRef(editor.draft.ref);
   const editorRefExists =
     editorRef !== "" && knownRefs.some(secret => normalizeVaultRef(secret.ref) === editorRef);
   const overwriteBlocked =
-    editor.mode !== "closed" && editorRefExists && !editor.draft.overwriteConfirmed;
+    editor.mode !== "closed" &&
+    (!collisionInventoryReady || (editorRefExists && !editor.draft.overwriteConfirmed));
 
   const editorIsValid =
     editor.mode !== "closed" &&
@@ -312,7 +314,8 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
     deleteTarget,
     dismissLastAction,
     editor,
-    editorError: editor.mode === "create" ? putError : null,
+    editorError:
+      editor.mode === "create" ? (putError ?? errorMessage(allSecretsQuery.error)) : null,
     editorIsSaving: editor.mode === "create" && putMutation.isPending,
     editorIsValid,
     editorRefExists,

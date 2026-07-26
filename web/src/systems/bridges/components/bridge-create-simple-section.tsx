@@ -1,16 +1,6 @@
 import { Fingerprint } from "lucide-react";
 
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-  FieldTitle,
-  FormSection,
-  Input,
-  RequiredMark,
-  Switch,
-} from "@agh/ui";
+import { Field, FieldLabel, FormSection, Input, RequiredMark } from "@agh/ui";
 
 import type { BridgeCreateDraft, BridgeProvider } from "../types";
 import { BridgeCreateProviderStep } from "./bridge-create-provider-step";
@@ -19,6 +9,7 @@ export interface BridgeCreateSimpleSectionProps {
   draft: BridgeCreateDraft;
   onDraftChange: (draft: BridgeCreateDraft) => void;
   onSelectProvider: (key: string) => void;
+  providerSelectionDisabled?: boolean;
   providers: BridgeProvider[];
   supportsManifest: boolean;
 }
@@ -34,6 +25,7 @@ export function BridgeCreateSimpleSection({
   draft,
   onDraftChange,
   onSelectProvider,
+  providerSelectionDisabled = false,
   providers,
   supportsManifest,
 }: BridgeCreateSimpleSectionProps) {
@@ -41,6 +33,7 @@ export function BridgeCreateSimpleSection({
     <>
       <BridgeCreateProviderStep
         onSelect={onSelectProvider}
+        disabled={providerSelectionDisabled}
         providers={providers}
         selectedProviderKey={draft.selectedProviderKey}
         supportsManifest={supportsManifest}
@@ -63,21 +56,6 @@ export function BridgeCreateSimpleSection({
             onChange={event => onDraftChange({ ...draft, displayName: event.target.value })}
             placeholder="Support operations"
             value={draft.displayName}
-          />
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Enable after creation</FieldTitle>
-            <FieldDescription>
-              Start receiving platform events as soon as the daemon accepts the bridge.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            aria-label="Enable after creation"
-            checked={draft.enabled}
-            data-testid="bridge-create-enabled"
-            onCheckedChange={enabled => onDraftChange({ ...draft, enabled })}
           />
         </Field>
       </FormSection>

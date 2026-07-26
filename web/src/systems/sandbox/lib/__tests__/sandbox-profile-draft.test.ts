@@ -4,6 +4,7 @@ import type { SettingsSandboxEntry } from "@/systems/settings";
 
 import {
   emptySandboxDraft,
+  sandboxEnvErrors,
   sandboxSecretEnvErrors,
   toSandboxDraft,
   toSandboxRequest,
@@ -27,7 +28,7 @@ describe("sandbox profile draft", () => {
     const draft = toSandboxDraft(
       makeEntry({
         backend: "daytona",
-        sync_mode: "session-bidir",
+        sync_mode: "session-bidirectional",
         persistence: "transient",
         runtime_root: "/workspace",
         env: { LOG_LEVEL: "info" },
@@ -46,12 +47,12 @@ describe("sandbox profile draft", () => {
   it("Should round-trip a full profile through the replace body", () => {
     const profile = {
       backend: "daytona",
-      sync_mode: "session-bidir",
+      sync_mode: "session-bidirectional",
       persistence: "transient",
       runtime_root: "/workspace",
       env: { LOG_LEVEL: "info" },
       secret_env: { GITHUB_TOKEN: "vault:sandbox/github" },
-      network: { allow_outbound: true, allow_list: ["api.github.com"] },
+      network: { allow_public_ingress: true },
       daytona: { api_url: "https://app.daytona.io/api" },
     };
 
@@ -92,6 +93,39 @@ describe("sandbox profile draft", () => {
     expect(request.profile.env).toEqual({ LOG_LEVEL: "info" });
     expect(request.profile).not.toHaveProperty("secret_env");
     expect(request.profile).not.toHaveProperty("network");
+  });
+
+  it("Should reject invalid and secret-like environment keys before serialization", () => {
+    const draft = {
+      ...emptySandboxDraft(),
+      env: [
+        { key: "9INVALID", value: "ignored" },
+        { key: "GITHUB_TOKEN", value: "ignored" },
+        { key: "LOG_LEVEL", value: "info" },
+      ],
+    };
+
+    expect(sandboxEnvErrors(draft)).toEqual({
+      0: "9INVALID is not a valid environment variable name.",
+      1: "GITHUB_TOKEN must move secret-like values to secret environment.",
+    });
+    expect(toSandboxRequest(draft).profile.env).toEqual({ LOG_LEVEL: "info" });
+  });
+
+  it("Should omit Daytona network rules the provider cannot enforce", () => {
+    const request = toSandboxRequest({
+      ...emptySandboxDraft(),
+      backend: "daytona",
+      network: {
+        required: true,
+        allow_public_ingress: true,
+        allow_outbound: true,
+        allow_list: ["api.example.com"],
+        deny_list: ["metadata.internal"],
+      },
+    });
+
+    expect(request.profile.network).toEqual({ allow_public_ingress: true });
   });
 
   it("Should reject a literal secret_env value and keep it out of the replace body", () => {

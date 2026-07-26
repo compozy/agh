@@ -21,7 +21,7 @@ const localDraft: SandboxDraft = {
   ...emptySandboxDraft(),
   name: "isolated-dev",
   backend: "local",
-  sync_mode: "session-bidir",
+  sync_mode: "session-bidirectional",
   persistence: "transient",
   runtime_root: "/workspace",
   env: [{ key: "LOG_LEVEL", value: "info" }],
@@ -32,6 +32,7 @@ const localDraft: SandboxDraft = {
 const daytonaDraft: SandboxDraft = {
   ...localDraft,
   backend: "daytona",
+  network: { allow_public_ingress: true },
   daytona: { api_url: "https://app.daytona.io/api", class: "medium", auto_stop: "30m" },
 };
 

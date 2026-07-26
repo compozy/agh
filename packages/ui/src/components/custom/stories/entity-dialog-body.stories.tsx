@@ -34,7 +34,7 @@ function Placeholder({ label }: { label: string }) {
 }
 
 export const Default: Story = {
-  args: { children: null },
+  args: {},
   render: () => (
     <Dialog defaultOpen>
       <DialogContent
@@ -55,7 +55,7 @@ export const Default: Story = {
 };
 
 export const Split: Story = {
-  args: { children: null },
+  args: {},
   parameters: {
     docs: {
       description: { story: "The `xl` host pairs with the split body for workspace-scale tasks." },

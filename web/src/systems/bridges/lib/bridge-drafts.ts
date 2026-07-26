@@ -187,7 +187,9 @@ export function buildBridgeCreateRequest(
       delivery_defaults: compactBridgeDeliveryDefaults(draft.deliveryDefaults),
       display_name: draft.displayName.trim(),
       dm_policy: parseBridgeDmPolicy(draft.dmPolicy),
-      enabled: draft.enabled,
+      // Credentials are bound only after the bridge instance exists. Activation
+      // is therefore an explicit lifecycle action from the detail surface.
+      enabled: false,
       extension_name: provider.extension_name,
       notification_suppress: draft.notificationSuppress,
       platform: provider.platform,

@@ -125,6 +125,7 @@ export {
   formatBridgeRelativeTime,
   isBridgeProviderSelectable,
   normalizeBridgeDeliveryDefaults,
+  stableBridgeJSON,
 } from "./lib/bridge-formatters";
 export {
   applyBridgeFilterChips,

@@ -126,6 +126,7 @@ export const SecretBindingRecovery: Story = {
         bridgeId: "brg_launch_room",
         bound: ["signing_secret"],
         failures: { bot_token: "Vault is unavailable. The value was not stored." },
+        provider: bridgeProvidersFixture[0],
       }}
     />
   ),

@@ -93,11 +93,28 @@ export function useBridgeCreateFlow({
    * The plaintext leaves the draft either way — a failed write reopens the slot
    * empty rather than echoing what was typed.
    */
-  const bindSecretSlots = async (bridgeId: string, alreadyBound: string[] = []) => {
-    const filled = collectFilledBridgeSecretSlots(
-      selectedProvider?.secret_slots,
-      draft.secretSlotValues
+  const bindSecretSlots = async (
+    bridgeId: string,
+    provider: BridgeProvider,
+    alreadyBound: string[] = [],
+    expectedSlotNames?: readonly string[]
+  ) => {
+    const expectedSlotNameSet = expectedSlotNames ? new Set(expectedSlotNames) : null;
+    const slots = expectedSlotNameSet
+      ? provider.secret_slots?.filter(slot => expectedSlotNameSet.has(slot.name))
+      : provider.secret_slots;
+    const filled = collectFilledBridgeSecretSlots(slots, draft.secretSlotValues);
+    const missingSlotNames = expectedSlotNames?.filter(
+      name => !filled.some(slot => slot.name === name)
     );
+    if (missingSlotNames?.length) {
+      return {
+        bound: alreadyBound,
+        failures: Object.fromEntries(
+          missingSlotNames.map(name => [name, "Enter a replacement value before retrying."])
+        ),
+      };
+    }
     if (filled.length === 0) return { bound: alreadyBound, failures: {} as Record<string, string> };
 
     const outcome = await submitBridgeSecretSlots(bridgeId, filled, async ({ name, value }) => {
@@ -120,7 +137,12 @@ export function useBridgeCreateFlow({
 
   const retrySecretBinding = async () => {
     if (!secretRecovery) return;
-    const result = await bindSecretSlots(secretRecovery.bridgeId, secretRecovery.bound);
+    const result = await bindSecretSlots(
+      secretRecovery.bridgeId,
+      secretRecovery.provider,
+      secretRecovery.bound,
+      Object.keys(secretRecovery.failures)
+    );
     if (Object.keys(result.failures).length === 0) {
       toast.success("Bound the remaining bridge credentials.");
       navigateToBridge({ displayName: draft.displayName, id: secretRecovery.bridgeId });
@@ -130,6 +152,7 @@ export function useBridgeCreateFlow({
       bridgeId: secretRecovery.bridgeId,
       bound: result.bound,
       failures: result.failures,
+      provider: secretRecovery.provider,
     });
   };
 
@@ -163,12 +186,13 @@ export function useBridgeCreateFlow({
         id: result.bridge.id,
       };
 
-      const secrets = await bindSecretSlots(committed.id);
+      const secrets = await bindSecretSlots(committed.id, provider);
       if (Object.keys(secrets.failures).length > 0) {
         setSecretRecovery({
           bridgeId: committed.id,
           bound: secrets.bound,
           failures: secrets.failures,
+          provider,
         });
         toast.error(
           `Created bridge ${committed.displayName}, but some credentials failed to bind.`

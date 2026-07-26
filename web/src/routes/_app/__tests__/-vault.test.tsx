@@ -174,10 +174,7 @@ describe("VaultPage", () => {
 
     fireEvent.click(screen.getByTestId("vault-page-create"));
     expect(openCreate).toHaveBeenCalled();
-    expect(screen.getByTestId("settings-vault-editor-secret-value-input")).toHaveAttribute(
-      "type",
-      "password"
-    );
+    expect(screen.getByLabelText("Secret value")).toHaveAttribute("type", "password");
     expect(container.textContent).not.toContain("super-secret-token");
   });
 

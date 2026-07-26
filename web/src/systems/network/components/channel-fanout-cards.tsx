@@ -1,6 +1,7 @@
 import { Search, Users, UserRound } from "lucide-react";
+import type { ComponentProps } from "react";
 
-import { Pill, RadioCard } from "@agh/ui";
+import { cn, Pill, RadioCard } from "@agh/ui";
 
 import type { NetworkFanoutPolicy } from "../types";
 
@@ -32,7 +33,7 @@ const FANOUT_OPTIONS: ReadonlyArray<FanoutOption> = [
   },
 ];
 
-interface ChannelFanoutCardsProps {
+interface ChannelFanoutCardsProps extends Omit<ComponentProps<"div">, "onChange"> {
   value: NetworkFanoutPolicy;
   onChange: (next: NetworkFanoutPolicy) => void;
   /**
@@ -60,10 +61,12 @@ function ChannelFanoutCards({
   unavailableHint,
   disabled = false,
   testIdPrefix,
+  className,
+  ...props
 }: ChannelFanoutCardsProps) {
   const hasUnavailable = unavailable.length > 0 && Boolean(unavailableHint);
   return (
-    <div className="flex flex-col gap-2">
+    <div {...props} className={cn("flex flex-col gap-2", className)}>
       <div
         aria-label="Fanout policy"
         className="grid grid-cols-1 gap-2 sm:grid-cols-3"

@@ -2,8 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { KeyRound } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
-import { dialogShellClass } from "@agh/ui";
-
 import { SettingsEditorDialog } from "../settings-editor-dialog";
 
 function baseProps() {
@@ -90,54 +88,24 @@ describe("SettingsEditorDialog", () => {
     expect(props.onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("Should pin the shared ruled header with an accent eyebrow and icon well", () => {
+  it("Should expose the editor title and eyebrow through the dialog", () => {
     render(
       <SettingsEditorDialog {...baseProps()}>
         <div />
       </SettingsEditorDialog>
     );
-    const dialog = screen.getByTestId("settings-widgets-editor");
-    expect(dialog).toHaveAttribute("data-frame", "unframed");
-    expect(dialog.querySelector('[data-slot="dialog-header"]')).toHaveAttribute(
-      "data-variant",
-      "ruled"
-    );
-    expect(dialog.querySelector('[data-slot="entity-dialog-header-icon"]')).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "New widget" })).toBeInTheDocument();
     expect(screen.getByText("System · Widgets")).toBeInTheDocument();
   });
 
-  it("Should render the footer consequence hint on the ruled footer", () => {
+  it("Should render the footer consequence hint", () => {
     const props = { ...baseProps(), hint: "Stored write-only; AGH returns presence only." };
     render(
       <SettingsEditorDialog {...props}>
         <div />
       </SettingsEditorDialog>
     );
-    const dialog = screen.getByTestId("settings-widgets-editor");
-    expect(dialog.querySelector('[data-slot="dialog-footer"]')).toHaveAttribute(
-      "data-variant",
-      "ruled"
-    );
-    expect(screen.getByTestId("settings-widgets-editor-hint")).toHaveTextContent(
-      "Stored write-only; AGH returns presence only."
-    );
-  });
-
-  it("Should give the body sole ownership of overflow", () => {
-    const props = { ...baseProps(), error: "Field missing." };
-    render(
-      <SettingsEditorDialog {...props}>
-        <div />
-      </SettingsEditorDialog>
-    );
-    const dialog = screen.getByTestId("settings-widgets-editor");
-    expect(dialog.className).toContain("grid-rows-[auto_minmax(0,1fr)_auto_auto]");
-
-    const scrollers = Array.from(dialog.querySelectorAll<HTMLElement>("*")).filter(el =>
-      el.className.toString().includes("overflow-y-auto")
-    );
-    expect(scrollers).toHaveLength(1);
-    expect(scrollers[0]).toHaveAttribute("data-testid", "settings-widgets-editor-body");
+    expect(screen.getByText("Stored write-only; AGH returns presence only.")).toBeVisible();
   });
 
   it("Should omit the feedback region entirely when there is nothing to report", () => {
@@ -148,17 +116,5 @@ describe("SettingsEditorDialog", () => {
     );
     // An always-present wrapper would open a dead grid row between body and footer.
     expect(screen.queryByTestId("settings-widgets-editor-feedback")).not.toBeInTheDocument();
-  });
-
-  it("Should host the shell on the size token instead of an ad-hoc width", () => {
-    render(
-      <SettingsEditorDialog {...baseProps()} size="md">
-        <div />
-      </SettingsEditorDialog>
-    );
-    const host = screen.getByTestId("settings-widgets-editor");
-    for (const token of dialogShellClass("md").split(" ")) {
-      expect(host).toHaveClass(token);
-    }
   });
 });

@@ -202,6 +202,61 @@ describe("AutomationEditorDialog", () => {
     expect(screen.queryByTestId("automation-job-form")).not.toBeInTheDocument();
   });
 
+  it("Should preserve the agent catalog loading state through the job target selector", () => {
+    render(
+      <AutomationEditorDialog
+        activeWorkspaceId="ws_test"
+        agents={[]}
+        agentsLoading
+        editor={{
+          draft: createAutomationJobDraft("ws_test"),
+          isPending: false,
+          kind: "jobs",
+          mode: "create",
+          onCancel: vi.fn(),
+          onChange: vi.fn(),
+          onSubmit: vi.fn(),
+        }}
+        workspaces={WORKSPACES}
+      />
+    );
+
+    const selector = screen.getByTestId("job-agent-input");
+    expect(selector).toBeDisabled();
+    expect(selector).toHaveTextContent("Loading agents…");
+    expect(selector).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("Should preserve an agent catalog error through the trigger target selector", async () => {
+    const user = userEvent.setup();
+    render(
+      <AutomationEditorDialog
+        activeWorkspaceId="ws_test"
+        agents={[]}
+        agentsError="Agent catalog is unavailable."
+        editor={{
+          draft: createAutomationTriggerDraft("ws_test"),
+          isPending: false,
+          kind: "triggers",
+          mode: "create",
+          onCancel: vi.fn(),
+          onChange: vi.fn(),
+          onSubmit: vi.fn(),
+        }}
+        workspaces={WORKSPACES}
+      />
+    );
+
+    const selector = screen.getByTestId("trigger-agent-input");
+    expect(selector).toHaveTextContent("Unable to load agents");
+    expect(selector).toHaveAttribute("aria-invalid", "true");
+
+    await user.click(selector);
+    expect(screen.getByTestId("agent-command-empty")).toHaveTextContent(
+      "Agent catalog is unavailable."
+    );
+  });
+
   it("Should render the Edit trigger title for the triggers edit mode", () => {
     render(<TriggerEditorHarness mode="edit" onCancel={vi.fn()} onSubmit={vi.fn()} />);
 

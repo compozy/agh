@@ -37,6 +37,10 @@ interface AutomationEditorDialogProps {
   activeWorkspaceId?: string | null;
   /** Agent catalog for the target selector. */
   agents?: AgentPayload[];
+  /** Initial loading state for the agent target catalog. */
+  agentsLoading?: boolean;
+  /** Agent target catalog failure, preserved by the selector. */
+  agentsError?: string | null;
   editor: AutomationDialogEditorState | null;
   handle?: AutomationDialogHandle;
   workspaces?: ReadonlyArray<WorkspaceOption>;
@@ -84,6 +88,8 @@ const WIDE_CONTENT_CLASS = `text-fg grid-rows-[auto_minmax(0,1fr)] ${dialogShell
 export function AutomationEditorDialog({
   activeWorkspaceId,
   agents,
+  agentsLoading,
+  agentsError,
   editor,
   handle,
   workspaces,
@@ -114,6 +120,8 @@ export function AutomationEditorDialog({
             <AutomationJobForm
               activeWorkspaceId={activeWorkspaceId}
               agents={agents}
+              agentsError={agentsError}
+              agentsLoading={agentsLoading}
               draft={editor.draft}
               isPending={editor.isPending}
               mode={editor.mode}
@@ -126,6 +134,8 @@ export function AutomationEditorDialog({
             <AutomationTriggerForm
               activeWorkspaceId={activeWorkspaceId}
               agents={agents}
+              agentsError={agentsError}
+              agentsLoading={agentsLoading}
               draft={editor.draft}
               isPending={editor.isPending}
               mode={editor.mode}

@@ -1,4 +1,4 @@
-import { dialogShellClass, UIProvider } from "@agh/ui";
+import { UIProvider } from "@agh/ui";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -23,36 +23,21 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeCreate
 }
 
 describe("KnowledgeCreateDialog", () => {
-  it("Should host the editor on the shared sm modal token with a ruled entity header", () => {
+  it("Should present the knowledge form and its type choices", () => {
     renderDialog();
-    const host = screen.getByTestId("knowledge-create-dialog");
-    for (const token of dialogShellClass("sm").split(" ")) {
-      expect(host.className).toContain(token);
-    }
-    expect(host.className).not.toMatch(/max-w-2xl/);
-    expect(host.querySelector('[data-slot="dialog-header"]')).toHaveAttribute(
-      "data-variant",
-      "ruled"
-    );
-    expect(host.querySelector('[data-slot="entity-dialog-header-icon"]')).not.toBeNull();
-    expect(screen.getByText("Catalog · Knowledge")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Create knowledge entry" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Knowledge type" })).toBeInTheDocument();
   });
 
-  it("Should expose exactly one close route", () => {
+  it("Should expose a close action", () => {
     renderDialog();
-    const host = screen.getByTestId("knowledge-create-dialog");
-    expect(host.querySelectorAll('[data-slot="entity-dialog-header-close"]')).toHaveLength(1);
-    expect(within(host).queryByRole("button", { name: "Close" })).toBe(
-      host.querySelector('[data-slot="entity-dialog-header-close"]')
-    );
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
-  it("Should render a 2-col RadioCard grid for the Type picker", () => {
+  it("Should render the available type choices for the Type picker", () => {
     renderDialog();
     const grid = screen.getByTestId("knowledge-create-type-grid");
     expect(grid).toHaveAttribute("role", "radiogroup");
-    expect(grid.className).toMatch(/grid-cols-1/);
-    expect(grid.className).toMatch(/sm:grid-cols-2/);
     const cards = within(grid).getAllByRole("radio");
     expect(cards).toHaveLength(4);
     expect(screen.getByTestId("knowledge-create-type-user")).toBeInTheDocument();

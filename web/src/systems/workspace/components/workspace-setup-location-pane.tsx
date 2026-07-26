@@ -17,13 +17,11 @@ import {
 import { DirectoryBrowser } from "@/systems/onboarding";
 
 import { WORKSPACE_SETUP_COPY } from "../lib/workspace-setup-copy";
-import type { useWorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
+import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
 import { OptionCard } from "./option-card";
 
-type SetupApi = ReturnType<typeof useWorkspaceSetupContent>;
-
 interface WorkspaceSetupLocationPaneProps {
-  setup: SetupApi;
+  setup: WorkspaceSetupContent;
   size: "comfortable" | "compact";
 }
 

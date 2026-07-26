@@ -61,3 +61,11 @@ export {
   type WorkspaceCommandSelectProps,
 } from "./components/workspace-command-select";
 export { WorkspaceOnboarding, WorkspaceSetupDialog } from "./components/workspace-setup";
+export type { WorkspaceSetupModel } from "./components/workspace-setup";
+export { useWorkspaceSetupContent } from "./hooks/use-workspace-setup-content";
+export type { WorkspaceSetupContent } from "./hooks/use-workspace-setup-content";
+export type {
+  WorkspaceSetupCollection,
+  WorkspaceSetupDefaultsModel,
+  WorkspaceSetupSandboxOption,
+} from "./lib/workspace-setup-defaults";

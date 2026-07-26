@@ -49,6 +49,8 @@ interface AutomationJobFormProps {
   workspaces?: ReadonlyArray<WorkspaceOption>;
   /** Agent catalog for the searchable selector. */
   agents?: AgentPayload[];
+  agentsLoading?: boolean;
+  agentsError?: string | null;
 }
 
 const EMPTY_AGENTS: AgentPayload[] = [];
@@ -145,6 +147,8 @@ export function AutomationJobForm({
   onSubmit,
   workspaces,
   agents = EMPTY_AGENTS,
+  agentsLoading = false,
+  agentsError = null,
 }: AutomationJobFormProps) {
   const form = useAutomationJobForm({
     activeWorkspaceId,
@@ -247,6 +251,8 @@ export function AutomationJobForm({
                     agent={draft.agent_name}
                     agentDisabled={mode === "edit"}
                     agents={form.agents}
+                    agentsError={agentsError}
+                    agentsLoading={agentsLoading}
                     onAgentChange={form.onAgentChange}
                     onPromptChange={form.onPromptChange}
                     prompt={draft.prompt}

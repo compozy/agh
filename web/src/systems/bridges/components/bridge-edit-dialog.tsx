@@ -52,22 +52,28 @@ interface BridgeEditDialogProps {
   pristineDraft: BridgeUpdateDraft;
   isPending: boolean;
   mode?: EntityMode;
-  onModeChange?: (mode: EntityMode) => void;
+  onModeChange: (mode: EntityMode) => void;
   onDraftChange: (draft: BridgeUpdateDraft) => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: () => void;
   open: boolean;
   provider?: BridgeProvider;
-  rotations?: readonly BridgeSecretRotation[];
+  rotation: BridgeEditDialogRotationProps;
   /** A typed rotation is a real change even when no PATCH field moved. */
   hasPendingSecretRotation?: boolean;
-  onRotationValueChange?: (name: string, value: string) => void;
-  onRotationEditingChange?: (name: string, editing: boolean) => void;
   deliveryTest?: Omit<BridgeDeliveryTestPanelProps, "bridgeName">;
 }
 
-/** Stable empty default so a bridge with no declared slots never re-renders the body. */
-const NO_ROTATIONS: readonly BridgeSecretRotation[] = [];
+type BridgeEditDialogRotationProps =
+  | {
+      kind: "none";
+    }
+  | {
+      kind: "managed";
+      rotations: readonly BridgeSecretRotation[];
+      onRotationEditingChange: (name: string, editing: boolean) => void;
+      onRotationValueChange: (name: string, value: string) => void;
+    };
 
 /**
  * Bridge editor on the shared entity-dialog shell.
@@ -91,12 +97,11 @@ export function BridgeEditDialog({
   onSubmit,
   open,
   provider,
-  rotations = NO_ROTATIONS,
+  rotation,
   hasPendingSecretRotation = false,
-  onRotationValueChange,
-  onRotationEditingChange,
   deliveryTest,
 }: BridgeEditDialogProps) {
+  const rotations = rotation.kind === "managed" ? rotation.rotations : [];
   const providerConfigError = parseBridgeProviderConfig(draft.providerConfigText).error;
   // PATCH rejects an empty patch (`HasChanges`), so the primary stays inert
   // until a mutable field actually differs from what was loaded.
@@ -140,7 +145,7 @@ export function BridgeEditDialog({
 
         <EntityModeToolbar
           mode={mode}
-          onModeChange={onModeChange ?? (() => undefined)}
+          onModeChange={onModeChange}
           testIdPrefix="bridge-edit"
           trailing={
             statusLabel ? (
@@ -215,11 +220,15 @@ export function BridgeEditDialog({
               <BridgeEditAdvancedSection
                 draft={draft}
                 onDraftChange={onDraftChange}
-                onRotationEditingChange={onRotationEditingChange ?? (() => undefined)}
-                onRotationValueChange={onRotationValueChange ?? (() => undefined)}
+                onRotationEditingChange={
+                  rotation.kind === "managed" ? rotation.onRotationEditingChange : undefined
+                }
+                onRotationValueChange={
+                  rotation.kind === "managed" ? rotation.onRotationValueChange : undefined
+                }
                 provider={provider}
                 providerConfigError={providerConfigError}
-                rotations={rotations}
+                rotations={rotations ?? []}
               />
               {deliveryTest ? (
                 <BridgeDeliveryTestPanel {...deliveryTest} bridgeName={bridgeName} />

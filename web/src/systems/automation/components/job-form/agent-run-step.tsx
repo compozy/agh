@@ -6,6 +6,8 @@ interface AgentRunStepProps {
   agent: string;
   agentDisabled?: boolean;
   agents: AgentPayload[];
+  agentsLoading?: boolean;
+  agentsError?: string | null;
   prompt: string;
   onAgentChange: (next: string) => void;
   onPromptChange: (next: string) => void;
@@ -22,6 +24,8 @@ export function AgentRunStep({
   agent,
   agentDisabled = false,
   agents,
+  agentsLoading = false,
+  agentsError = null,
   prompt,
   onAgentChange,
   onPromptChange,
@@ -33,6 +37,8 @@ export function AgentRunStep({
         <AgentCommandSelect
           agents={agents}
           disabled={agentDisabled}
+          error={agentsError}
+          loading={agentsLoading}
           onChange={next => onAgentChange(next ?? "")}
           triggerId="job-agent"
           triggerTestId="job-agent-input"

@@ -10,6 +10,7 @@ import {
   NativeSelect,
   NativeSelectOption,
   Switch,
+  Textarea,
 } from "@agh/ui";
 
 import type { SandboxDraft, SandboxEnvPair } from "../lib/sandbox-profile-draft";
@@ -60,6 +61,8 @@ function parseList(raw: string): string[] {
 
 export interface SandboxEditorAdvancedSectionProps {
   draft: SandboxDraft;
+  /** Per-row non-secret `env` errors, keyed by draft index. */
+  envErrors?: Record<number, string>;
   /** Per-row `secret_env` reference errors, keyed by draft index. */
   secretEnvErrors?: Record<number, string>;
   onChange: (updater: (draft: SandboxDraft) => SandboxDraft) => void;
@@ -74,10 +77,12 @@ export interface SandboxEditorAdvancedSectionProps {
  */
 export function SandboxEditorAdvancedSection({
   draft,
+  envErrors,
   secretEnvErrors,
   onChange,
 }: SandboxEditorAdvancedSectionProps) {
   const isDaytona = draft.backend.trim() === "daytona";
+  const envError = Object.values(envErrors ?? {})[0];
   const secretEnvError = Object.values(secretEnvErrors ?? {})[0];
 
   return (
@@ -119,21 +124,24 @@ export function SandboxEditorAdvancedSection({
           />
         </Field>
 
-        <Field>
+        <Field data-invalid={Boolean(envError)}>
           <FieldLabel htmlFor="sandbox-editor-env">Environment</FieldLabel>
           <FieldDescription>
             Non-secret <code className="font-mono">KEY=value</code> pairs, one per line.
           </FieldDescription>
-          <Input
-            className="font-mono"
+          <Textarea
+            aria-invalid={Boolean(envError)}
             data-testid="sandbox-editor-env"
             id="sandbox-editor-env"
             onChange={event =>
               onChange(current => ({ ...current, env: parsePairs(event.target.value) }))
             }
             placeholder="LOG_LEVEL=info"
+            rows={3}
             value={serializePairs(draft.env)}
+            variant="mono"
           />
+          <FieldError data-testid="sandbox-editor-env-error">{envError}</FieldError>
         </Field>
 
         <Field data-invalid={Boolean(secretEnvError)}>
@@ -143,16 +151,17 @@ export function SandboxEditorAdvancedSection({
             <code className="font-mono">KEY=vault:sandbox/…</code> references, one per line. The
             profile stores the reference; the value never passes through here.
           </FieldDescription>
-          <Input
+          <Textarea
             aria-invalid={Boolean(secretEnvError)}
-            className="font-mono"
             data-testid="sandbox-editor-secret-env"
             id="sandbox-editor-secret-env"
             onChange={event =>
               onChange(current => ({ ...current, secretEnv: parsePairs(event.target.value) }))
             }
             placeholder="GITHUB_TOKEN=vault:sandbox/github"
+            rows={3}
             value={serializePairs(draft.secretEnv)}
+            variant="mono"
           />
           <FieldError data-testid="sandbox-editor-secret-env-error">{secretEnvError}</FieldError>
         </Field>
@@ -160,34 +169,20 @@ export function SandboxEditorAdvancedSection({
 
       <FormSection
         data-testid="sandbox-editor-network"
-        description="Outbound and ingress rules enforced by the backend."
+        description={
+          isDaytona
+            ? "Daytona supports public ingress. It does not enforce outbound or host allow and deny rules."
+            : "Outbound and ingress rules enforced by the backend."
+        }
         title="Network policy"
       >
         <Field orientation="horizontal">
           <FieldContent>
-            <FieldTitle>Allow outbound</FieldTitle>
-            <FieldDescription>
-              Permit outbound connections, subject to the lists below.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            aria-label="Allow outbound"
-            checked={Boolean(draft.network.allow_outbound)}
-            data-testid="sandbox-editor-allow-outbound"
-            onCheckedChange={allow_outbound =>
-              onChange(current => ({
-                ...current,
-                network: { ...current.network, allow_outbound },
-              }))
-            }
-          />
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
             <FieldTitle>Allow public ingress</FieldTitle>
             <FieldDescription>
-              Expose the sandbox publicly — only when the backend supports it.
+              {isDaytona
+                ? "Expose the Daytona sandbox publicly."
+                : "Expose the sandbox publicly — only when the backend supports it."}
             </FieldDescription>
           </FieldContent>
           <Switch
@@ -203,40 +198,74 @@ export function SandboxEditorAdvancedSection({
           />
         </Field>
 
-        <div className="grid gap-3.5 md:grid-cols-2">
-          <Field>
-            <FieldLabel htmlFor="sandbox-editor-allow-list">Allow list</FieldLabel>
-            <Input
-              className="font-mono"
-              data-testid="sandbox-editor-allow-list"
-              id="sandbox-editor-allow-list"
-              onChange={event =>
-                onChange(current => ({
-                  ...current,
-                  network: { ...current.network, allow_list: parseList(event.target.value) },
-                }))
-              }
-              placeholder="api.github.com"
-              value={serializeList(draft.network.allow_list)}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="sandbox-editor-deny-list">Deny list</FieldLabel>
-            <Input
-              className="font-mono"
-              data-testid="sandbox-editor-deny-list"
-              id="sandbox-editor-deny-list"
-              onChange={event =>
-                onChange(current => ({
-                  ...current,
-                  network: { ...current.network, deny_list: parseList(event.target.value) },
-                }))
-              }
-              placeholder="metadata.internal"
-              value={serializeList(draft.network.deny_list)}
-            />
-          </Field>
-        </div>
+        {isDaytona ? (
+          <p
+            className="text-form-hint text-subtle"
+            data-testid="sandbox-editor-daytona-network-limitation"
+          >
+            Daytona does not enforce outbound or host allow and deny rules, so this profile will not
+            send them.
+          </p>
+        ) : (
+          <>
+            <Field orientation="horizontal">
+              <FieldContent>
+                <FieldTitle>Allow outbound</FieldTitle>
+                <FieldDescription>
+                  Permit outbound connections, subject to the lists below.
+                </FieldDescription>
+              </FieldContent>
+              <Switch
+                aria-label="Allow outbound"
+                checked={Boolean(draft.network.allow_outbound)}
+                data-testid="sandbox-editor-allow-outbound"
+                onCheckedChange={allow_outbound =>
+                  onChange(current => ({
+                    ...current,
+                    network: { ...current.network, allow_outbound },
+                  }))
+                }
+              />
+            </Field>
+
+            <div className="grid gap-3.5 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="sandbox-editor-allow-list">Allow list</FieldLabel>
+                <Textarea
+                  data-testid="sandbox-editor-allow-list"
+                  id="sandbox-editor-allow-list"
+                  onChange={event =>
+                    onChange(current => ({
+                      ...current,
+                      network: { ...current.network, allow_list: parseList(event.target.value) },
+                    }))
+                  }
+                  placeholder="api.github.com"
+                  rows={3}
+                  value={serializeList(draft.network.allow_list)}
+                  variant="mono"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="sandbox-editor-deny-list">Deny list</FieldLabel>
+                <Textarea
+                  data-testid="sandbox-editor-deny-list"
+                  id="sandbox-editor-deny-list"
+                  onChange={event =>
+                    onChange(current => ({
+                      ...current,
+                      network: { ...current.network, deny_list: parseList(event.target.value) },
+                    }))
+                  }
+                  placeholder="metadata.internal"
+                  rows={3}
+                  value={serializeList(draft.network.deny_list)}
+                  variant="mono"
+                />
+              </Field>
+            </div>
+          </>
+        )}
       </FormSection>
 
       {isDaytona ? (

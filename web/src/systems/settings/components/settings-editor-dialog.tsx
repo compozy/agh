@@ -49,8 +49,8 @@ interface SettingsEditorDialogProps {
 
 /**
  * Shared create/edit shell for settings-owned entities (vault secrets, sandbox
- * profiles). Owns the F1 header, F3 host token, and F2 footer so each page
- * supplies only its body and copy — no per-page header forks.
+ * profiles). Owns the shared header, size-aware dialog host, and footer so
+ * each page supplies only its body and copy — no per-page shell forks.
  */
 function SettingsEditorDialog({
   open,

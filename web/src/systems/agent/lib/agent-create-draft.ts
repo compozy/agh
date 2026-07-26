@@ -45,7 +45,7 @@ export interface AgentCreateValidation {
   categorySegments: string[];
 }
 
-/** Fields that only exist under the Advanced disclosure tier. */
+/** Advanced-only fields that can produce validation errors hidden by the Simple tier. */
 export const AGENT_CREATE_ADVANCED_FIELDS: readonly AgentCreateFieldKey[] = [
   "tools",
   "toolsets",

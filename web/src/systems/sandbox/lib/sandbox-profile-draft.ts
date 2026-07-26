@@ -52,6 +52,19 @@ function fromPairs(pairs: readonly SandboxEnvPair[]): Record<string, string> | u
 
 /** Mirrors `vault.EnvNamePattern` (`internal/vault/types.go`). */
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const SECRET_LIKE_ENV_NEEDLES = [
+  "SECRET",
+  "TOKEN",
+  "PASSWORD",
+  "PASSWD",
+  "API_KEY",
+  "APIKEY",
+  "PRIVATE_KEY",
+  "PRIVATEKEY",
+  "AUTHORIZATION",
+  "BEARER",
+  "CREDENTIAL",
+] as const;
 /** Mirrors `vault.vaultRefPattern` narrowed to the `sandbox` namespace. */
 const SANDBOX_VAULT_REF_PATTERN =
   /^vault:sandbox\/[a-z0-9][a-z0-9_.-]*(?:\/[A-Za-z0-9][A-Za-z0-9_.-]*)*$/;
@@ -83,6 +96,43 @@ export function validateSandboxSecretEnvRef(pair: SandboxEnvPair): string | null
       : `${key} must use vault:sandbox/<path>; ${ref} is outside the sandbox namespace.`;
   }
   return `${key} must reference a secret with env:NAME or vault:sandbox/<path> — never a literal value.`;
+}
+
+/** Mirrors `vault.ValidateNonSecretEnvMap` before a settings replace request. */
+export function validateSandboxEnvPair(pair: SandboxEnvPair): string | null {
+  const key = pair.key.trim();
+  const value = pair.value.trim();
+  if (key.length === 0 && value.length === 0) return null;
+  if (key.length === 0) return "Enter the environment variable name.";
+  if (!ENV_NAME_PATTERN.test(key)) return `${key} is not a valid environment variable name.`;
+  if (isSecretLikeEnvName(key)) {
+    return `${key} must move secret-like values to secret environment.`;
+  }
+  return null;
+}
+
+function isSecretLikeEnvName(name: string): boolean {
+  const normalized = name.trim().toUpperCase();
+  if (
+    normalized.endsWith("_URL") ||
+    normalized.endsWith("_URI") ||
+    normalized.endsWith("_PATH") ||
+    normalized.endsWith("_FILE") ||
+    normalized.endsWith("_DIR")
+  ) {
+    return false;
+  }
+  return SECRET_LIKE_ENV_NEEDLES.some(needle => normalized.includes(needle));
+}
+
+/** Every `env` row error, in draft order. Empty when the draft is writable. */
+export function sandboxEnvErrors(draft: SandboxDraft): Record<number, string> {
+  const errors: Record<number, string> = {};
+  draft.env.forEach((pair, index) => {
+    const error = validateSandboxEnvPair(pair);
+    if (error) errors[index] = error;
+  });
+  return errors;
 }
 
 /** Every `secret_env` row error, in draft order. Empty when the draft is writable. */
@@ -151,7 +201,7 @@ export function toSandboxRequest(draft: SandboxDraft): SettingsSandboxRequest {
   if (draft.persistence.trim()) profile.persistence = draft.persistence.trim();
   if (draft.runtime_root.trim()) profile.runtime_root = draft.runtime_root.trim();
 
-  const env = fromPairs(draft.env);
+  const env = fromPairs(draft.env.filter(pair => validateSandboxEnvPair(pair) === null));
   if (env) profile.env = env;
   // Only reference-shaped rows are serialized: a literal value here would be a
   // credential persisted into a profile that stores pointers only.
@@ -160,7 +210,7 @@ export function toSandboxRequest(draft: SandboxDraft): SettingsSandboxRequest {
   );
   if (secretEnv) profile.secret_env = secretEnv;
 
-  const network = compactNetwork(draft.network);
+  const network = compactNetwork(draft.network, backend);
   if (network) profile.network = network;
 
   if (backend === "daytona") {
@@ -171,7 +221,14 @@ export function toSandboxRequest(draft: SandboxDraft): SettingsSandboxRequest {
   return { profile };
 }
 
-function compactNetwork(network: NetworkProfile): NetworkProfile | undefined {
+function compactNetwork(network: NetworkProfile, backend: string): NetworkProfile | undefined {
+  // Daytona only applies public ingress. Its alpha provider explicitly cannot
+  // enforce outbound or hostname allow/deny policy, so never preserve or send
+  // those claims through a full replacement request.
+  if (backend === "daytona") {
+    return network.allow_public_ingress ? { allow_public_ingress: true } : undefined;
+  }
+
   const allowList = (network.allow_list ?? []).filter(entry => entry.trim().length > 0);
   const denyList = (network.deny_list ?? []).filter(entry => entry.trim().length > 0);
   const compact: NetworkProfile = {};

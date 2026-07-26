@@ -57,10 +57,10 @@ const daytonaEnv: SettingsSandboxCollection["sandboxes"][number] = {
   workspace_usage_count: 1,
   profile: {
     backend: "daytona",
-    sync_mode: "session-bidir",
+    sync_mode: "session-bidirectional",
     persistence: "reuse",
     runtime_root: "/workspace",
-    network: { required: true, allow_outbound: true },
+    network: { allow_public_ingress: true },
     daytona: { api_url: "https://daytona.dev", target: "staging" },
   },
   source_metadata: {
@@ -186,7 +186,7 @@ describe("useSandboxPage", () => {
       name: "daytona-staging",
       draft: expect.objectContaining({
         backend: "daytona",
-        sync_mode: "session-bidir",
+        sync_mode: "session-bidirectional",
         persistence: "reuse",
         runtime_root: "/workspace",
       }),
@@ -227,10 +227,10 @@ describe("useSandboxPage", () => {
     expect(putSettingsSandbox).toHaveBeenCalledWith("daytona-staging", {
       profile: expect.objectContaining({
         backend: "daytona",
-        sync_mode: "session-bidir",
+        sync_mode: "session-bidirectional",
         persistence: "reuse",
         runtime_root: "/home/agh",
-        network: { required: true, allow_outbound: true },
+        network: { allow_public_ingress: true },
         daytona: { api_url: "https://daytona.dev", target: "staging" },
       }),
     });
@@ -248,6 +248,29 @@ describe("useSandboxPage", () => {
     });
 
     expect(result.current.editorIsValid).toBe(false);
+  });
+
+  it("rejects saves when a non-secret environment key is invalid", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSandboxPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.sandboxes).toHaveLength(2));
+
+    act(() => {
+      result.current.openEdit(localEnv);
+    });
+    act(() => {
+      result.current.updateDraft(draft => ({
+        ...draft,
+        env: [{ key: "9INVALID", value: "ignored" }],
+      }));
+    });
+    expect(result.current.editorIsValid).toBe(false);
+    act(() => {
+      result.current.saveEditor();
+    });
+
+    expect(putSettingsSandbox).not.toHaveBeenCalled();
   });
 
   it("records delete actions with the workspace usage count", async () => {

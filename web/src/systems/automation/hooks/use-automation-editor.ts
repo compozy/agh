@@ -72,6 +72,11 @@ function useWorkspaceBoundEditor<T>(workspaceId: string | null | undefined) {
   return { editor: contextMatches ? state.editor : null, setEditor };
 }
 
+function agentCatalogErrorMessage(error: unknown): string | null {
+  if (!(error instanceof Error)) return error ? "Unable to load agents." : null;
+  return error.message.trim() || "Unable to load agents.";
+}
+
 /**
  * Modal create/edit controller for automation jobs. Shared by the list route
  * (create + Loop deep-link) and the detail route (edit in place).
@@ -124,6 +129,8 @@ export function useAutomationJobEditor({
   const editorDialogProps = {
     activeWorkspaceId,
     agents: agentsQuery.data ?? [],
+    agentsError: agentCatalogErrorMessage(agentsQuery.error),
+    agentsLoading: agentsQuery.isLoading,
     handle,
     workspaces,
     editor: editor
@@ -222,6 +229,8 @@ export function useAutomationTriggerEditor({
   const editorDialogProps = {
     activeWorkspaceId,
     agents: agentsQuery.data ?? [],
+    agentsError: agentCatalogErrorMessage(agentsQuery.error),
+    agentsLoading: agentsQuery.isLoading,
     handle,
     workspaces,
     editor: editor

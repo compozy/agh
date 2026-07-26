@@ -13,7 +13,7 @@ const taskTemplateIdSchema = z.enum([
   "blank",
 ]);
 
-/** Object type, not an interface: it is spread straight into navigation search. */
+/** Query parameters for the tasks catalog. */
 export type TasksRouteSearch = {
   mode?: "kanban" | "dashboard" | "inbox";
 };
@@ -38,14 +38,13 @@ export function parseTasksSurfaceMode(search: Record<string, unknown>): TaskView
 
 export function validateTaskCreateSearch(search: Record<string, unknown>): TaskCreateSearch {
   const template = taskTemplateIdSchema.safeParse(search.template);
-  const mode = taskRouteModeSchema.safeParse(search.mode);
   return {
+    ...validateTasksSearch(search),
     ...(template.success ? { template: template.data } : {}),
-    ...(mode.success ? { mode: mode.data } : {}),
   };
 }
 
-/** Search a create location carries back to the catalog it was opened from. */
+/** Builds the catalog search state used when returning from a create location. */
 export function taskCatalogSearchFor(mode: TaskViewMode): TasksRouteSearch {
   return mode === "list" ? {} : { mode };
 }

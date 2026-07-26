@@ -1,4 +1,6 @@
-import { Button, Field, FieldError, FieldHeader, FieldLabel, HelpTip, Input } from "@agh/ui";
+import type { ComponentProps } from "react";
+
+import { Button, cn, Field, FieldError, FieldHeader, FieldLabel, HelpTip, Input } from "@agh/ui";
 
 import {
   RuntimeSelector,
@@ -9,7 +11,7 @@ import {
 
 import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
 
-export interface AgentCreateRuntimeFieldsProps {
+export interface AgentCreateRuntimeFieldsProps extends ComponentProps<"div"> {
   draft: AgentCreateDialogDraft;
   errors: Record<string, string | undefined>;
   modelCatalogError: string | null;
@@ -48,6 +50,8 @@ export function AgentCreateRuntimeFields({
   providerOptions,
   providersLoading,
   runtimeModels,
+  className,
+  ...props
 }: AgentCreateRuntimeFieldsProps) {
   const runtimeValue: RuntimeSelectorValue = {
     provider: draft.provider,
@@ -58,7 +62,11 @@ export function AgentCreateRuntimeFields({
     draft.provider.trim() || draft.model.trim() || draft.reasoningEffort
   );
   return (
-    <div className="grid min-w-0 gap-4.5 md:grid-cols-2" data-testid="agent-create-runtime">
+    <div
+      className={cn("grid min-w-0 gap-4.5 md:grid-cols-2", className)}
+      data-testid="agent-create-runtime"
+      {...props}
+    >
       <Field data-invalid={Boolean(errors.provider || errors.reasoningEffort)}>
         <FieldHeader className="w-full">
           <FieldLabel htmlFor="agent-create-runtime-trigger" id="agent-create-runtime-label">

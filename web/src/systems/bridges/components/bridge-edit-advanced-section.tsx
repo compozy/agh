@@ -34,8 +34,8 @@ export interface BridgeEditAdvancedSectionProps {
   provider?: BridgeProvider;
   providerConfigError?: string;
   rotations: readonly BridgeSecretRotation[];
-  onRotationValueChange: (name: string, value: string) => void;
-  onRotationEditingChange: (name: string, editing: boolean) => void;
+  onRotationValueChange?: (name: string, value: string) => void;
+  onRotationEditingChange?: (name: string, editing: boolean) => void;
 }
 
 /**
@@ -58,7 +58,7 @@ export function BridgeEditAdvancedSection({
 
   return (
     <>
-      {rotations.length > 0 ? (
+      {rotations.length > 0 && onRotationValueChange && onRotationEditingChange ? (
         <FormSection
           data-testid="bridge-edit-section-credentials"
           description="Only presence is returned. Rotate a slot to send a new write-only value."

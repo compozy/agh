@@ -44,7 +44,6 @@ export function TaskCreateDialog({
       onSubmit={page.handleSubmit}
       onTemplateChange={page.handleTemplateChange}
       open
-      template={page.template}
       templateId={page.templateId}
       workspaces={page.workspaces}
     />

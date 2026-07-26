@@ -55,7 +55,7 @@ export interface AgentCreatePermissionsSectionProps {
 }
 
 /**
- * Simple tier: the permission policy every session inherits.
+ * Advanced tier: the permission policy every session inherits.
  *
  * Four cards, not the reference's three: `permissions` is optional on
  * `CreateAgentPayload`, so "omit the field" is a distinct outcome an operator

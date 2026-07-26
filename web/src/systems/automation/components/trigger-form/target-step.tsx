@@ -11,6 +11,8 @@ interface TriggerTargetStepProps {
   /** Agent-mode fields. */
   agent: string;
   agents: AgentPayload[];
+  agentsLoading?: boolean;
+  agentsError?: string | null;
   prompt: string;
   variables: string[];
   onAgentChange: (next: string) => void;
@@ -37,6 +39,8 @@ export function TriggerTargetStep({
   onModeChange,
   agent,
   agents,
+  agentsLoading = false,
+  agentsError = null,
   prompt,
   variables,
   onAgentChange,
@@ -69,6 +73,8 @@ export function TriggerTargetStep({
           agent={agent}
           agentDisabled={editorMode === "edit"}
           agents={agents}
+          agentsError={agentsError}
+          agentsLoading={agentsLoading}
           onAgentChange={onAgentChange}
           onPromptChange={onPromptChange}
           prompt={prompt}

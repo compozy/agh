@@ -228,6 +228,21 @@ describe("AgentCreateDialog", () => {
     expect(screen.getByTestId("submit-agent-create")).toBeDisabled();
   });
 
+  it("Should keep the active workspace read-only while allowing scope changes", async () => {
+    const user = userEvent.setup();
+    renderStatefulDialog({ draft: validDraft({ scope: "workspace" }) });
+
+    expect(screen.getByTestId("agent-create-scope-global")).toBeEnabled();
+    expect(screen.getByTestId("agent-create-scope-workspace")).toBeEnabled();
+    expect(screen.getByTestId("agent-create-workspace-select")).toBeDisabled();
+
+    await user.click(screen.getByTestId("agent-create-scope-global"));
+    expect(screen.queryByTestId("agent-create-workspace-select")).toBeNull();
+
+    await user.click(screen.getByTestId("agent-create-scope-workspace"));
+    expect(screen.getByTestId("agent-create-workspace-select")).toBeDisabled();
+  });
+
   it("Should fail closed on an off-contract reasoning effort", () => {
     renderStatefulDialog({
       draft: validDraft({

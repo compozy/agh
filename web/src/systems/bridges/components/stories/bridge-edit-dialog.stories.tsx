@@ -73,6 +73,7 @@ function BridgeEditDialogHarness({
   const pristine = createBridgeUpdateDraft(bridge);
   const [draft, setDraft] = useState(initialDraft ?? pristine);
   const [mode, setMode] = useState<EntityMode>(initialMode);
+  const [rotationState, setRotationState] = useState(rotations);
 
   return (
     <BridgeEditDialog
@@ -87,13 +88,22 @@ function BridgeEditDialogHarness({
       onDraftChange={setDraft}
       onModeChange={setMode}
       onOpenChange={() => undefined}
-      onRotationEditingChange={() => undefined}
-      onRotationValueChange={() => undefined}
       onSubmit={() => undefined}
       open
       pristineDraft={pristine}
       provider={bridgeProvidersFixture[0]}
-      rotations={rotations}
+      rotation={{
+        kind: "managed",
+        onRotationEditingChange: (name, editing) =>
+          setRotationState(current =>
+            current.map(rotation => (rotation.name === name ? { ...rotation, editing } : rotation))
+          ),
+        onRotationValueChange: (name, value) =>
+          setRotationState(current =>
+            current.map(rotation => (rotation.name === name ? { ...rotation, value } : rotation))
+          ),
+        rotations: rotationState,
+      }}
       statusLabel={`${bridge.enabled ? "enabled" : "disabled"} · ${bridge.platform}`}
     />
   );

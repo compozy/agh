@@ -20,7 +20,7 @@ interface LoopConfigureSwitchRowProps {
 }
 
 /**
- * One switch row of the configure sheet (verification check or human gate): a typed mono
+ * One switch row of the configure dialog (verification check or human gate): a typed mono
  * badge, a title + description, an enable switch, and an optional command-field slot. A
  * locked row (a structural, non-command check) is rendered on and disabled.
  */

@@ -51,16 +51,6 @@ describe("SecretField", () => {
     expect(screen.queryByTestId("secret-presence")).not.toBeInTheDocument();
   });
 
-  it("Should expose the write input under a caller-supplied test id", () => {
-    // Domains that absorb an existing control keep their bound e2e selectors
-    // rather than forcing a spec rewrite.
-    render(<SecretFieldHarness inputTestId="vault-secret-value-input" />);
-
-    const input = screen.getByTestId("vault-secret-value-input");
-    expect(input).toHaveAttribute("type", "password");
-    expect(input).toBe(screen.getByLabelText("API key"));
-  });
-
   it("Should cycle present to editing and back to present on cancel", async () => {
     const user = userEvent.setup();
     const onValueChangeSpy = vi.fn();
@@ -134,6 +124,23 @@ describe("SecretField", () => {
     );
   });
 
+  it("Should announce a stored-reference lookup failure", () => {
+    render(
+      <SecretFieldHarness
+        binding={{
+          error: "Stored references could not be loaded.",
+          onSelectRef: vi.fn(),
+          selectedRef: "",
+          sources: [],
+        }}
+        mode="source"
+        onModeChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Stored references could not be loaded.");
+  });
+
   it("Should bind an existing reference instead of a typed value", async () => {
     const user = userEvent.setup();
     const onModeChange = vi.fn();
@@ -167,6 +174,71 @@ describe("SecretField", () => {
 
     await user.click(screen.getByTestId("secret-mode-value"));
     expect(onModeChange).toHaveBeenCalledWith("value");
+  });
+
+  it("Should move selection and focus through stored references with radio keys", async () => {
+    const user = userEvent.setup();
+    const onSelectRef = vi.fn();
+    render(
+      <SecretFieldHarness
+        binding={{
+          onSelectRef,
+          selectedRef: "vault:mcp/github",
+          sources: [
+            { present: true, ref: "vault:mcp/github" },
+            { present: false, ref: "vault:mcp/stale" },
+            { present: true, ref: "vault:mcp/gitlab" },
+          ],
+        }}
+        mode="source"
+        onModeChange={vi.fn()}
+      />
+    );
+
+    const [github, stale, gitlab] = screen.getAllByRole("radio");
+    github.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(onSelectRef).toHaveBeenLastCalledWith("vault:mcp/gitlab");
+    expect(gitlab).toHaveFocus();
+
+    await user.keyboard("{Home}");
+    expect(onSelectRef).toHaveBeenLastCalledWith("vault:mcp/github");
+    expect(github).toHaveFocus();
+
+    await user.keyboard("{End}");
+    expect(onSelectRef).toHaveBeenLastCalledWith("vault:mcp/gitlab");
+    expect(gitlab).toHaveFocus();
+    expect(stale).toBeDisabled();
+  });
+
+  it("Should lock the binding method while an inline secret create is pending", async () => {
+    const user = userEvent.setup();
+    const onModeChange = vi.fn();
+    render(
+      <SecretFieldHarness
+        binding={{
+          create: {
+            onOpenChange: vi.fn(),
+            onSubmit: vi.fn(),
+            onValueChange: vi.fn(),
+            open: true,
+            pending: true,
+            ref: "vault:mcp/new-key",
+            value: "pending",
+          },
+          onSelectRef: vi.fn(),
+          selectedRef: "",
+          sources: [],
+        }}
+        mode="source"
+        onModeChange={onModeChange}
+      />
+    );
+
+    const enterValue = screen.getByTestId("secret-mode-value");
+    expect(enterValue).toBeDisabled();
+    await user.click(enterValue);
+    expect(onModeChange).not.toHaveBeenCalled();
   });
 
   it("Should mark the selected source neutrally, never with accent", () => {

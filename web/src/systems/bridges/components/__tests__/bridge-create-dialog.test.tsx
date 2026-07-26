@@ -283,6 +283,15 @@ describe("BridgeCreateDialog", () => {
           bridgeId: "brg_slack",
           bound: ["signing_secret"],
           failures: { bot_token: "vault unavailable" },
+          provider: makeProvider({
+            display_name: "Slack",
+            extension_name: "ext-slack",
+            platform: "slack",
+            secret_slots: [
+              { description: "Bot token", name: "bot_token", required: true },
+              { description: "Signing secret", name: "signing_secret", required: true },
+            ],
+          }),
         }}
       />
     );
@@ -293,9 +302,45 @@ describe("BridgeCreateDialog", () => {
     expect(screen.getByText("brg_slack")).toBeInTheDocument();
     expect(screen.getByLabelText("bot_token")).toHaveValue("");
     expect(screen.getByTestId("submit-bridge-create")).toHaveTextContent("Retry secret binding");
+    expect(screen.getByTestId("submit-bridge-create")).toBeDisabled();
 
+    await user.type(screen.getByLabelText("bot_token"), "new-token");
     await user.click(screen.getByTestId("submit-bridge-create"));
     expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should keep provider identity immutable while creation is pending", async () => {
+    const user = userEvent.setup();
+    render(
+      <DialogHarness
+        initialDraft={{
+          ...baseDraft,
+          displayName: "Telegram",
+          selectedProviderKey: "ext-telegram::telegram",
+        }}
+        isPending
+        providers={[
+          makeProvider(),
+          makeProvider({
+            display_name: "Slack",
+            extension_name: "ext-slack",
+            platform: "slack",
+          }),
+        ]}
+      />
+    );
+
+    const slack = screen.getByRole("radio", { name: /Slack/ });
+    expect(slack).toHaveAttribute("tabindex", "-1");
+    await user.click(slack);
+
+    expect(readDraftProbe().selectedProviderKey).toBe("ext-telegram::telegram");
+  });
+
+  it("Should remove activation from the creation surface until setup is complete", () => {
+    render(<DialogHarness />);
+
+    expect(screen.queryByTestId("bridge-create-enabled")).toBeNull();
   });
 
   it("Should block Cancel and dialog dismissal while the create request is pending", async () => {

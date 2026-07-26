@@ -7,6 +7,7 @@ import type { BridgeProvider } from "../types";
 import { BridgeProviderCatalogCard } from "./bridge-provider-catalog-card";
 
 interface BridgeCreateProviderStepProps {
+  disabled?: boolean;
   onSelect: (providerKey: string) => void;
   providers: BridgeProvider[];
   selectedProviderKey: string;
@@ -14,6 +15,7 @@ interface BridgeCreateProviderStepProps {
 }
 
 export function BridgeCreateProviderStep({
+  disabled = false,
   onSelect,
   providers,
   selectedProviderKey,
@@ -46,7 +48,7 @@ export function BridgeCreateProviderStep({
         >
           {providers.map(provider => {
             const providerKey = buildBridgeProviderKey(provider);
-            const selectable = isBridgeProviderSelectable(provider);
+            const selectable = !disabled && isBridgeProviderSelectable(provider);
             const selected = providerKey === selectedProviderKey;
 
             return (

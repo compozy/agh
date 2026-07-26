@@ -9,7 +9,14 @@ import { StorySurface } from "@/storybook/story-layout";
 import { statusFixture } from "@/systems/status/mocks/fixtures";
 import { primaryWorkspaceFixture } from "@/systems/workspace/mocks/fixtures";
 
+import { useWorkspaceSetupContent } from "../../hooks/use-workspace-setup-content";
+import type { WorkspaceSetupDefaultsModel } from "../../lib/workspace-setup-defaults";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "../workspace-setup";
+
+const storyDefaults: WorkspaceSetupDefaultsModel = {
+  agents: { state: "ready", entries: [] },
+  sandboxes: { state: "ready", entries: [] },
+};
 
 const meta: Meta<typeof WorkspaceOnboarding> = {
   title: "systems/workspace/components/WorkspaceSetup",
@@ -24,11 +31,39 @@ type Story = StoryObj<typeof meta>;
 
 type DialogStory = StoryObj<typeof WorkspaceSetupDialog>;
 
+function WorkspaceOnboardingHarness({
+  onWorkspaceResolved,
+}: {
+  onWorkspaceResolved: (workspaceId: string) => void;
+}) {
+  const setup = useWorkspaceSetupContent({ onWorkspaceResolved });
+  return <WorkspaceOnboarding model={{ defaults: storyDefaults, setup }} />;
+}
+
+function WorkspaceSetupDialogHarness({
+  onOpenChange,
+  onWorkspaceResolved,
+}: {
+  onOpenChange: (open: boolean) => void;
+  onWorkspaceResolved: (workspaceId: string) => void;
+}) {
+  const setup = useWorkspaceSetupContent({
+    onWorkspaceResolved,
+    onSuccessClose: () => onOpenChange(false),
+  });
+  return (
+    <WorkspaceSetupDialog
+      model={{ defaults: storyDefaults, setup }}
+      onOpenChange={onOpenChange}
+      open
+    />
+  );
+}
+
 function dialogHarness(padding: string) {
   return (
     <StorySurface className={padding}>
-      <WorkspaceSetupDialog
-        open
+      <WorkspaceSetupDialogHarness
         onOpenChange={() => undefined}
         onWorkspaceResolved={() => undefined}
       />
@@ -39,7 +74,7 @@ function dialogHarness(padding: string) {
 function onboardingHarness() {
   return (
     <StorySurface className="p-0">
-      <WorkspaceOnboarding onWorkspaceResolved={() => undefined} />
+      <WorkspaceOnboardingHarness onWorkspaceResolved={() => undefined} />
     </StorySurface>
   );
 }
@@ -246,7 +281,7 @@ export const UseGlobalWorkspace: Story = {
       const [status, setStatus] = useState("");
       return (
         <StorySurface className="p-0">
-          <WorkspaceOnboarding onWorkspaceResolved={id => setStatus(`resolved:${id}`)} />
+          <WorkspaceOnboardingHarness onWorkspaceResolved={id => setStatus(`resolved:${id}`)} />
           <div data-testid="resolve-status" className="sr-only">
             {status}
           </div>

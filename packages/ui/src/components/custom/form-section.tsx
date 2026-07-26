@@ -31,10 +31,9 @@ export interface FormSectionProps extends Omit<React.ComponentProps<"section">, 
 /**
  * One titled block of a modal body or settings form.
  *
- * Follows `.sec` (`modal-system.css:221-231`): a hairline rule and top padding,
- * with no card surface and no horizontal padding of its own, so fields inside a
- * section align with the body gutter instead of stepping 16 px further in. The
- * first section in a body drops the rule.
+ * A hairline rule and top padding separate sections, without adding a card
+ * surface or horizontal padding. Fields therefore align with the dialog body
+ * gutter; the first section drops the rule.
  */
 function FormSection({
   title,

@@ -13,6 +13,7 @@ import {
 } from "../lib/sandbox-list-filters";
 import {
   emptySandboxDraft,
+  sandboxEnvErrors,
   toSandboxDraft,
   toSandboxRequest,
   type SandboxDraft,
@@ -208,12 +209,14 @@ export function useSandboxPage(search: SandboxRouteSearch = {}) {
     editorName.length > 0 &&
     editor.draft.backend.trim().length > 0 &&
     (editor.mode !== "create" ||
-      !sandboxes.some(entry => entry.name.toLowerCase() === editorName.toLowerCase()));
+      !sandboxes.some(entry => entry.name.toLowerCase() === editorName.toLowerCase())) &&
+    Object.keys(sandboxEnvErrors(editor.draft)).length === 0;
 
   const saveEditor = () => {
     if (editor.mode === "closed") return;
     const name = editor.draft.name.trim();
     if (!name) return;
+    if (Object.keys(sandboxEnvErrors(editor.draft)).length > 0) return;
     const body = toSandboxRequest(editor.draft);
     putMutation.mutate(
       { name, body },

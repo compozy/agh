@@ -21,6 +21,12 @@ const mocks = vi.hoisted(() => ({
     isPending: false,
   },
   secrets: [] as unknown[],
+  allSecretsState: {
+    error: null as Error | null,
+    isFetching: false,
+    isLoading: false,
+    isSuccess: true,
+  },
   vaultFilter: vi.fn(),
 }));
 
@@ -44,11 +50,14 @@ vi.mock("@/systems/vault/hooks/use-vault-actions", () => ({
 vi.mock("@/systems/vault/hooks/use-vault", () => ({
   useVaultSecrets: (filter: unknown) => {
     mocks.vaultFilter(filter);
+    const isUnfiltered =
+      typeof filter === "object" && filter !== null && Object.keys(filter).length === 0;
     return {
       data: mocks.secrets,
-      error: null,
-      isFetching: false,
-      isLoading: false,
+      error: isUnfiltered ? mocks.allSecretsState.error : null,
+      isFetching: isUnfiltered ? mocks.allSecretsState.isFetching : false,
+      isLoading: isUnfiltered ? mocks.allSecretsState.isLoading : false,
+      isSuccess: isUnfiltered ? mocks.allSecretsState.isSuccess : true,
       refetch: vi.fn(),
     };
   },
@@ -81,6 +90,10 @@ describe("useVaultPage route state", () => {
     mocks.deleteState.error = null;
     mocks.deleteState.isPending = false;
     mocks.secrets = [];
+    mocks.allSecretsState.error = null;
+    mocks.allSecretsState.isFetching = false;
+    mocks.allSecretsState.isLoading = false;
+    mocks.allSecretsState.isSuccess = true;
   });
 
   it("Should derive the API filter and write prefix, namespace, and view through route search", () => {
@@ -231,6 +244,32 @@ describe("useVaultPage route state", () => {
     );
 
     expect(result.current.editorRefExists).toBe(false);
+    expect(result.current.editorIsValid).toBe(true);
+  });
+
+  it("Should withhold a create write until the complete collision inventory resolves", () => {
+    mocks.allSecretsState.isLoading = true;
+    mocks.allSecretsState.isSuccess = false;
+    const { result, rerender } = renderHook(() => useVaultPage({ namespace: "providers" }));
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.updateDraft(draft => ({
+        ...draft,
+        ref: "vault:providers/anthropic",
+        secretValue: "sk-live",
+      }))
+    );
+
+    expect(result.current.editorRefExists).toBe(false);
+    expect(result.current.editorIsValid).toBe(false);
+    act(() => result.current.saveEditor());
+    expect(mocks.putMutate).not.toHaveBeenCalled();
+
+    mocks.allSecretsState.isLoading = false;
+    mocks.allSecretsState.isSuccess = true;
+    rerender();
+
     expect(result.current.editorIsValid).toBe(true);
   });
 

@@ -206,7 +206,6 @@ function CredentialSlotBlock({
           }
           editing={isEditing}
           id={`${testId}-value`}
-          inputTestId={`${testId}-value-input`}
           label="Credential value"
           onEditingChange={onEditingChange}
           onValueChange={next =>

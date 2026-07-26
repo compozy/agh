@@ -122,10 +122,7 @@ export const CreateSecretDuplicateRef: Story = {
     const ref = await canvas.findByTestId("settings-vault-editor-ref-input");
     await userEvent.clear(ref);
     await userEvent.type(ref, EXISTING_REF);
-    await userEvent.type(
-      await canvas.findByTestId("settings-vault-editor-secret-value-input"),
-      "rotated-value"
-    );
+    await userEvent.type(await canvas.findByLabelText("Secret value"), "rotated-value");
   },
 };
 
@@ -140,10 +137,7 @@ export const CreateSecretOverwriteConfirmed: Story = {
     const ref = await canvas.findByTestId("settings-vault-editor-ref-input");
     await userEvent.clear(ref);
     await userEvent.type(ref, EXISTING_REF);
-    await userEvent.type(
-      await canvas.findByTestId("settings-vault-editor-secret-value-input"),
-      "rotated-value"
-    );
+    await userEvent.type(await canvas.findByLabelText("Secret value"), "rotated-value");
     await userEvent.click(await canvas.findByTestId("settings-vault-editor-overwrite-confirm"));
   },
 };

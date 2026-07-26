@@ -6,7 +6,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { EntityMode } from "@agh/ui";
 
 import { BridgeEditDialog } from "@/systems/bridges/components/bridge-edit-dialog";
-import type { BridgeProvider, BridgeUpdateDraft } from "@/systems/bridges/types";
+import type {
+  BridgeProvider,
+  BridgeTestDeliveryDraft,
+  BridgeUpdateDraft,
+} from "@/systems/bridges/types";
 
 const baseDraft: BridgeUpdateDraft = {
   deliveryDefaults: {},
@@ -63,6 +67,7 @@ function DialogHarness({
   initialDraft = baseDraft,
   initialMode = "simple",
   pristineDraft = baseDraft,
+  rotation,
   ...overrides
 }: Partial<Parameters<typeof BridgeEditDialog>[0]> & {
   initialDraft?: BridgeUpdateDraft;
@@ -85,6 +90,7 @@ function DialogHarness({
       open
       pristineDraft={pristineDraft}
       provider={makeProvider()}
+      rotation={rotation ?? { kind: "none" }}
       {...overrides}
     />
   );
@@ -101,13 +107,12 @@ describe("BridgeEditDialog", () => {
   it("Should render platform, extension and scope as immutable identity, never as inputs", () => {
     render(<DialogHarness />);
 
-    // The dialog portals into `document.body`, so the render container is empty.
-    const rows = document.body.querySelector('[data-slot="immutable-identity-rows"]');
-    expect(rows).not.toBeNull();
-    expect(within(rows as HTMLElement).getByText("telegram")).toBeInTheDocument();
-    expect(within(rows as HTMLElement).getByText("ext-telegram")).toBeInTheDocument();
-    expect(within(rows as HTMLElement).getByText("workspace")).toBeInTheDocument();
-    expect((rows as HTMLElement).querySelectorAll("input")).toHaveLength(0);
+    expect(screen.getByText("telegram")).toBeInTheDocument();
+    expect(screen.getByText("ext-telegram")).toBeInTheDocument();
+    expect(screen.getByText("workspace")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("telegram")).toBeNull();
+    expect(screen.queryByDisplayValue("ext-telegram")).toBeNull();
+    expect(screen.queryByDisplayValue("workspace")).toBeNull();
   });
 
   it("Should keep the primary inert until a mutable field actually changes", async () => {
@@ -137,7 +142,12 @@ describe("BridgeEditDialog", () => {
       <DialogHarness
         hasPendingSecretRotation
         initialMode="advanced"
-        rotations={[{ editing: true, name: "bot_token", present: true, value: "new-token" }]}
+        rotation={{
+          kind: "managed",
+          onRotationEditingChange: vi.fn(),
+          onRotationValueChange: vi.fn(),
+          rotations: [{ editing: true, name: "bot_token", present: true, value: "new-token" }],
+        }}
       />
     );
 
@@ -148,15 +158,20 @@ describe("BridgeEditDialog", () => {
     render(
       <DialogHarness
         initialMode="advanced"
-        rotations={[
-          {
-            editing: false,
-            name: "bot_token",
-            present: true,
-            secretRef: "vault:bridges/brg_support/bot_token",
-            value: "",
-          },
-        ]}
+        rotation={{
+          kind: "managed",
+          onRotationEditingChange: vi.fn(),
+          onRotationValueChange: vi.fn(),
+          rotations: [
+            {
+              editing: false,
+              name: "bot_token",
+              present: true,
+              secretRef: "vault:bridges/brg_support/bot_token",
+              value: "",
+            },
+          ],
+        }}
       />
     );
 
@@ -198,6 +213,42 @@ describe("BridgeEditDialog", () => {
     );
 
     expect(screen.getByTestId("test-delivery-peer-input")).toHaveValue("peer_1");
+
+    await user.click(screen.getByTestId("submit-test-delivery"));
+    await user.click(screen.getByTestId("submit-send-test"));
+
+    expect(onDryRun).toHaveBeenCalledTimes(1);
+    expect(onSendTest).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should retain one editable delivery target for both the dry run and send", async () => {
+    const user = userEvent.setup();
+    const onDryRun = vi.fn();
+    const onSendTest = vi.fn();
+
+    function DeliveryHarness() {
+      const [draft, setDraft] = useState<BridgeTestDeliveryDraft>({ message: "", target: {} });
+      return (
+        <DialogHarness
+          deliveryTest={{ ...deliveryTest, draft, onDraftChange: setDraft, onDryRun, onSendTest }}
+          initialMode="advanced"
+        />
+      );
+    }
+
+    render(<DeliveryHarness />);
+
+    await user.type(screen.getByTestId("test-delivery-message"), "operator ping");
+    await user.selectOptions(screen.getByTestId("test-delivery-mode-select"), "reply");
+    await user.type(screen.getByTestId("test-delivery-peer-input"), "peer_1");
+    await user.type(screen.getByTestId("test-delivery-thread-input"), "thread_1");
+    await user.type(screen.getByTestId("test-delivery-group-input"), "group_1");
+
+    expect(screen.getByTestId("test-delivery-message")).toHaveValue("operator ping");
+    expect(screen.getByTestId("test-delivery-mode-select")).toHaveValue("reply");
+    expect(screen.getByTestId("test-delivery-peer-input")).toHaveValue("peer_1");
+    expect(screen.getByTestId("test-delivery-thread-input")).toHaveValue("thread_1");
+    expect(screen.getByTestId("test-delivery-group-input")).toHaveValue("group_1");
 
     await user.click(screen.getByTestId("submit-test-delivery"));
     await user.click(screen.getByTestId("submit-send-test"));
@@ -292,6 +343,7 @@ describe("BridgeEditDialog", () => {
             bridge_instance_id: "brg_support",
             delivery_id: "delivery-002",
             delivery_target: { bridge_instance_id: "brg_support", peer_id: "peer_1" },
+            error: { message: "Provider receipt is still pending." },
             status: "committed_result_unavailable",
           },
         }}
@@ -299,9 +351,11 @@ describe("BridgeEditDialog", () => {
       />
     );
 
-    expect(screen.getByTestId("bridge-send-test-result")).toHaveTextContent(
-      "Delivery result is indeterminate"
-    );
+    const result = screen.getByTestId("bridge-send-test-result");
+    expect(result).toHaveTextContent("Delivery result is indeterminate");
+    expect(result).toHaveTextContent("Provider receipt is still pending.");
+    expect(result).not.toHaveTextContent("Remote message ID");
+    expect(result).toHaveTextContent("committed_result_unavailable");
   });
 
   it("Should block submission when provider config JSON is invalid", () => {
@@ -345,13 +399,14 @@ describe("BridgeEditDialog", () => {
     await user.clear(screen.getByTestId("bridge-edit-display-name-input"));
     await user.type(screen.getByTestId("bridge-edit-display-name-input"), "Support Ops");
     await user.selectOptions(screen.getByTestId("bridge-edit-dm-policy-select"), "pairing");
-    await user.click(screen.getAllByRole("switch")[0]);
+    const routingIncludePeer = screen.getByTestId("bridge-edit-routing-include-peer");
+    await user.click(routingIncludePeer);
     await user.selectOptions(screen.getByTestId("bridge-edit-delivery-mode-select"), "reply");
     await user.type(screen.getByTestId("bridge-edit-delivery-peer-input"), "peer_123");
 
     expect(screen.getByTestId("bridge-edit-display-name-input")).toHaveValue("Support Ops");
     expect(screen.getByTestId("bridge-edit-dm-policy-select")).toHaveValue("pairing");
-    expect(screen.getAllByRole("switch")[0]).toHaveAttribute("aria-checked", "false");
+    expect(routingIncludePeer).toHaveAttribute("aria-checked", "false");
     expect(screen.getByTestId("bridge-edit-delivery-mode-select")).toHaveValue("reply");
     expect(screen.getByTestId("bridge-edit-delivery-peer-input")).toHaveValue("peer_123");
     expect(screen.getByTestId("submit-bridge-edit")).toBeEnabled();
@@ -378,6 +433,7 @@ describe("BridgeEditDialog", () => {
             open
             pristineDraft={baseDraft}
             provider={makeProvider()}
+            rotation={{ kind: "none" }}
           />
           <output data-testid="bridge-edit-progress-draft">
             {draft.deliveryDefaults.progress

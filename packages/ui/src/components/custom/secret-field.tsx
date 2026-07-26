@@ -66,8 +66,6 @@ export interface SecretFieldProps {
   sourcesTestId?: string;
   /** Overrides the derived `${testIdPrefix}-create` id. */
   createTestId?: string;
-  /** Test id for the write input itself, for domains with bound e2e selectors. */
-  inputTestId?: string;
   className?: string;
 }
 
@@ -122,7 +120,6 @@ function SecretField({
   testIdPrefix,
   sourcesTestId,
   createTestId,
-  inputTestId,
   className,
 }: SecretFieldProps) {
   const state = resolveState({ saving, error, rotated, present, editing });
@@ -136,12 +133,19 @@ function SecretField({
     undefined;
   const showPresenceSummary = present && !editing;
   const sourceBinding = binding && mode === "source" ? binding : null;
+  const bindingModeLocked = binding?.create?.open === true && binding.create.pending === true;
   const modeItems: PillGroupItem<SecretFieldMode>[] = [
-    { value: "value", label: "Enter value", testId: testIdPrefix && `${testIdPrefix}-mode-value` },
+    {
+      value: "value",
+      label: "Enter value",
+      testId: testIdPrefix && `${testIdPrefix}-mode-value`,
+      disabled: bindingModeLocked,
+    },
     {
       value: "source",
       label: sourceModeLabel,
       testId: testIdPrefix && `${testIdPrefix}-mode-source`,
+      disabled: bindingModeLocked,
     },
   ];
 
@@ -221,7 +225,6 @@ function SecretField({
             aria-describedby={describedBy}
             aria-invalid={error ? true : undefined}
             autoComplete="new-password"
-            data-testid={inputTestId}
             disabled={saving}
             id={id}
             onBlur={onBlur}

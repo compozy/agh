@@ -19,11 +19,7 @@ import {
 import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 
 import type { TaskEditorDraft } from "../lib/task-editor";
-import {
-  SIMPLE_TASK_TEMPLATE_IDS,
-  type TaskTemplate,
-  type TaskTemplateId,
-} from "../lib/task-templates";
+import { SIMPLE_TASK_TEMPLATE_IDS, type TaskTemplateId } from "../lib/task-templates";
 import { ContractSection } from "./task-form/contract-section";
 import { ExecutionCollapsible } from "./task-form/execution-collapsible";
 import { IngressIdentitySection } from "./task-form/ingress-identity-section";
@@ -51,7 +47,6 @@ export interface TaskEditorSurfaceProps {
   isSubmitting?: boolean;
   workspaces?: ReadonlyArray<WorkspaceCommandSelectOption>;
   templateId?: TaskTemplateId;
-  template?: TaskTemplate;
   onTemplateChange?: (templateId: TaskTemplateId) => void;
 }
 
@@ -77,8 +72,12 @@ export function TaskEditorSurface({
   onTemplateChange,
 }: TaskEditorSurfaceProps) {
   const form = useTasksCreateModalForm({ draft, onDraftChange, onSubmit });
-  const [formMode, setFormMode] = useState<EntityMode>("simple");
   const isNewMode = mode === "new";
+  const [formMode, setFormMode] = useState<EntityMode>(() =>
+    isNewMode && templateId && !SIMPLE_TASK_TEMPLATE_IDS.includes(templateId)
+      ? "advanced"
+      : "simple"
+  );
 
   const setField = (field: keyof TaskEditorDraft) => (value: string) =>
     onDraftChange(current => ({ ...current, [field]: value }));

@@ -141,7 +141,6 @@ export function VaultEditor({
           <div className="flex flex-col gap-3">
             <SecretField
               id="settings-vault-editor-secret-value"
-              inputTestId="settings-vault-editor-secret-value-input"
               label="Secret value"
               description="Write-only payload. The daemon never returns this value."
               placeholder="Paste the secret value"

@@ -6,7 +6,7 @@ import { LoopConfigureDialog, useLoop, useLoopConfig } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 /**
- * The no-fork Configure surface (design §4.7): a right-side sheet over a dimmed backdrop that
+ * The no-fork Configure surface (design §4.7): a dialog over a dimmed backdrop that
  * writes the per-loop `loop_config` store. Opened from the detail Configure action (task 19);
  * closing or saving returns to the loop detail. Structural edits route to the fork editor.
  */

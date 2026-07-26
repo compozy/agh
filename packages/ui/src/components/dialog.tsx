@@ -102,14 +102,13 @@ const DIALOG_CONTENT_FRAMED = "gap-4 p-4";
 const DIALOG_CONTENT_UNFRAMED = "gap-0 p-0";
 
 const DIALOG_HEADER_DEFAULT = "flex flex-col gap-2";
-// `.dialog__head` (modal-system.css:170) — `padding: 16px 20px`. The 20px gutter
-// is the shell-wide value shared by the mode toolbar, body, and footer; do not
-// "align" it to the 24px route gutter, which belongs to page content.
+// The 20px gutter is shared by the mode toolbar, body, and footer; do not align
+// it to the 24px route gutter, which belongs to page content.
 const DIALOG_HEADER_RULED = "flex flex-col gap-2 border-b border-line bg-canvas-soft px-5 py-4";
 
 const DIALOG_FOOTER_DEFAULT =
   "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-lg border-t border-line bg-canvas-tint p-4 sm:flex-row sm:justify-end";
-// `.dialog__foot` (modal-system.css:395) — `padding: 12px 20px`.
+// The ruled footer uses the same horizontal gutter as the rest of the shell.
 const DIALOG_FOOTER_RULED =
   "flex flex-col-reverse gap-2 border-t border-line bg-canvas-tint px-5 py-3 sm:flex-row sm:justify-end";
 

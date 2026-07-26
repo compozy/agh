@@ -96,7 +96,7 @@ describe("LoopConfigureDialog", () => {
     expect(onOpenEditor).toHaveBeenCalledTimes(1);
   });
 
-  it("Should render NO cost-cap field anywhere in the sheet", () => {
+  it("Should render no cost-cap field anywhere in the dialog", () => {
     renderSheet({ config: null });
     expect(screen.queryByTestId("loop-configure-limit-cost")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-configure-dialog")).not.toHaveTextContent(/cost cap/i);

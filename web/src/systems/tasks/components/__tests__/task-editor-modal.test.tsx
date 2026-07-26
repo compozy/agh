@@ -13,7 +13,7 @@ import {
   taskEditorDraftFromTask,
   type TaskEditorDraft,
 } from "../../lib/task-editor";
-import { getTaskTemplate, type TaskTemplateId } from "../../lib/task-templates";
+import type { TaskTemplateId } from "../../lib/task-templates";
 import { buildTaskExecutionProfileFixture } from "../../mocks/fixtures";
 import type { TaskRecord } from "../../types";
 
@@ -94,7 +94,6 @@ function renderModal({
         }
         open
         status={status}
-        template={isNewMode ? getTaskTemplate(currentTemplate) : undefined}
         templateId={isNewMode ? currentTemplate : undefined}
         workspaces={workspaces}
       />
@@ -132,6 +131,14 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-template-epic")).toBeInTheDocument();
     // Advanced-only sections stay hidden in Simple mode.
     expect(screen.queryByTestId("task-parent-input")).not.toBeInTheDocument();
+  });
+
+  it("Should open an advanced-only template in Advanced mode", () => {
+    renderModal({ templateId: "recurring" });
+
+    expect(screen.getByTestId("task-mode-advanced")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("task-template-recurring")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("task-parent-input")).toBeInTheDocument();
   });
 
   it("Should expose exactly one close route", () => {
@@ -177,7 +184,6 @@ describe("TaskEditorModal", () => {
   it("Should snap an advanced-only template back to a Simple-valid default on leaving Advanced", () => {
     const { onTemplateChange } = renderModal({ templateId: "recurring" });
 
-    fireEvent.click(screen.getByTestId("task-mode-advanced"));
     expect(onTemplateChange).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId("task-mode-simple"));

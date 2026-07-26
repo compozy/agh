@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import type { EntityMode } from "@agh/ui";
 
-import { resolveAgentRuntimeValue, type AgentPayload } from "@/systems/agent";
+import { resolveAgentRuntimeValue, useAgents, type AgentPayload } from "@/systems/agent";
 import {
   deriveActiveSessionOptions,
   useRuntimeModelCatalog,
@@ -36,6 +36,7 @@ import {
   describeWorkspaceError,
   EMPTY_SESSION_CREATE_DRAFT,
   normalizeEffort,
+  resolveSessionWorkspacePath,
   resolveSelectedProvider,
   RUNTIME_OVERRIDE_DEFAULTS,
   type SessionCreateDialogDraft,
@@ -115,6 +116,7 @@ export function useSessionCreateDialog({
   const [draft, setDraft] = useState<SessionCreateDialogDraft>(EMPTY_SESSION_CREATE_DRAFT);
 
   const workspaceId = draft.workspaceId || (activeWorkspace?.id ?? "");
+  const workspaceAgentsQuery = useAgents(workspaceId, { enabled: workspaceId.length > 0 });
   const workspacesQuery = useWorkspaces();
   const workspaceOptions = toWorkspaceCommandSelectOptions(workspacesQuery.data ?? []);
   const {
@@ -143,7 +145,11 @@ export function useSessionCreateDialog({
     });
   }, [navigate, navigationTarget]);
 
-  const agentList = agents ?? [];
+  // The shell's active-workspace list only seeds this dialog for its initial workspace.
+  // A dialog-local workspace selection owns a distinct query identity and must never reuse
+  // an agent population fetched for a different workspace.
+  const agentList =
+    workspaceAgentsQuery.data ?? (workspaceId === activeWorkspace?.id ? (agents ?? []) : []);
   const selectedAgent = agentList.find(agent => agent.name === draft.agentName);
   const selectedProvider = resolveSelectedProvider(
     draft.agentName,
@@ -319,17 +325,26 @@ export function useSessionCreateDialog({
     const reasoningEffort =
       hasRuntimeOverride && selectedReasoning !== "" ? selectedReasoning : undefined;
     const sessionName = draft.sessionName.trim();
-    const workspacePath = draft.workspacePath.trim();
+    const workspacePathResolution = resolveSessionWorkspacePath(
+      targetWorkspace.root_dir,
+      draft.workspacePath
+    );
+    if ("error" in workspacePathResolution) {
+      setSubmitError(workspacePathResolution.error);
+      return;
+    }
+    const workspacePath = workspacePathResolution.workspacePath;
 
     submitInFlight.current = true;
     let session: SessionPayload;
     try {
       session = await createSession.mutateAsync({
         agent_name: agentName,
-        workspace: targetWorkspace.id,
         prompt,
         ...(sessionName.length > 0 ? { name: sessionName } : {}),
-        ...(workspacePath.length > 0 ? { workspace_path: workspacePath } : {}),
+        ...(workspacePath.length > 0
+          ? { workspace_path: workspacePath }
+          : { workspace: targetWorkspace.id }),
         ...(hasRuntimeOverride ? { provider } : {}),
         ...(modelOverride.length > 0 ? { model: modelOverride } : {}),
         ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),

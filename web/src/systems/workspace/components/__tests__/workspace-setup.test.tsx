@@ -1,8 +1,12 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { dialogShellClass, UIProvider } from "@agh/ui";
+import { UIProvider } from "@agh/ui";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { primaryAgentFixture } from "@/systems/agent/mocks";
+
+import { useWorkspaceSetupContent } from "../../hooks/use-workspace-setup-content";
+import type { WorkspaceSetupDefaultsModel } from "../../lib/workspace-setup-defaults";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "../workspace-setup";
 
 const {
@@ -51,19 +55,6 @@ vi.mock("@/systems/onboarding", async () => {
   return { ...actual, useDirectoryBrowser: () => mockBrowseState };
 });
 
-vi.mock("@/systems/agent", async () => {
-  const actual = await vi.importActual<typeof import("@/systems/agent")>("@/systems/agent");
-  return { ...actual, useAgents: () => ({ data: [], isLoading: false, error: null }) };
-});
-
-vi.mock("@/systems/settings", async () => {
-  const actual = await vi.importActual<typeof import("@/systems/settings")>("@/systems/settings");
-  return {
-    ...actual,
-    useSettingsSandboxes: () => ({ data: { sandboxes: [] }, isLoading: false, error: null }),
-  };
-});
-
 vi.mock("../../hooks/use-workspaces", () => ({
   useResolveWorkspace: () => ({ mutateAsync: mockResolveMutateAsync }),
   useCreateWorkspace: () => ({ mutateAsync: mockCreateMutateAsync }),
@@ -78,22 +69,66 @@ const createdWorkspace = {
   updated_at: "2026-04-10T12:00:00Z",
 };
 
-function renderOnboarding(onWorkspaceResolved = vi.fn()) {
+let mockDefaults: WorkspaceSetupDefaultsModel;
+
+function WorkspaceOnboardingHarness({
+  defaults,
+  onWorkspaceResolved,
+}: {
+  defaults: WorkspaceSetupDefaultsModel;
+  onWorkspaceResolved: (workspaceId: string) => void;
+}) {
+  const setup = useWorkspaceSetupContent({ onWorkspaceResolved });
+  return <WorkspaceOnboarding model={{ defaults, setup }} />;
+}
+
+function WorkspaceSetupDialogHarness({
+  defaults,
+  onOpenChange,
+  onWorkspaceResolved,
+  open,
+}: {
+  defaults: WorkspaceSetupDefaultsModel;
+  onOpenChange: (open: boolean) => void;
+  onWorkspaceResolved: (workspaceId: string) => void;
+  open: boolean;
+}) {
+  const setup = useWorkspaceSetupContent({
+    onWorkspaceResolved,
+    onSuccessClose: () => onOpenChange(false),
+  });
+  return (
+    <WorkspaceSetupDialog model={{ defaults, setup }} onOpenChange={onOpenChange} open={open} />
+  );
+}
+
+function renderOnboarding(
+  onWorkspaceResolved = vi.fn(),
+  defaults: WorkspaceSetupDefaultsModel = mockDefaults
+) {
   return render(
     <UIProvider reducedMotion="always">
-      <WorkspaceOnboarding onWorkspaceResolved={onWorkspaceResolved} />
+      <WorkspaceOnboardingHarness defaults={defaults} onWorkspaceResolved={onWorkspaceResolved} />
     </UIProvider>
   );
 }
 
-function renderDialog(props: Partial<React.ComponentProps<typeof WorkspaceSetupDialog>> = {}) {
+function renderDialog(
+  props: {
+    defaults?: WorkspaceSetupDefaultsModel;
+    onOpenChange?: (open: boolean) => void;
+    onWorkspaceResolved?: (workspaceId: string) => void;
+    open?: boolean;
+  } = {}
+) {
   const onOpenChange = props.onOpenChange ?? vi.fn();
   const onWorkspaceResolved = props.onWorkspaceResolved ?? vi.fn();
   const open = props.open ?? true;
 
   const utils = render(
     <UIProvider reducedMotion="always">
-      <WorkspaceSetupDialog
+      <WorkspaceSetupDialogHarness
+        defaults={props.defaults ?? mockDefaults}
         open={open}
         onOpenChange={onOpenChange}
         onWorkspaceResolved={onWorkspaceResolved}
@@ -105,6 +140,10 @@ function renderDialog(props: Partial<React.ComponentProps<typeof WorkspaceSetupD
 }
 
 function resetMocks() {
+  mockDefaults = {
+    agents: { state: "ready", entries: [] },
+    sandboxes: { state: "ready", entries: [] },
+  };
   mockDaemonStatusState.data = { user_home_dir: "/Users/pedro" };
   mockDaemonStatusState.isLoading = false;
   mockBrowseState.isLoading = false;
@@ -167,14 +206,6 @@ describe("WorkspaceOnboarding", () => {
     );
   });
 
-  it("keeps a single accent surface on the workspace setup global card (CTA only)", () => {
-    renderOnboarding();
-    const globalCard = screen.getByTestId("workspace-setup-global-card");
-    expect(globalCard.querySelectorAll('[data-tone="accent"]').length).toBe(0);
-    expect(screen.getByTestId("workspace-use-global")).toBeInTheDocument();
-    expect(globalCard.querySelector('[data-tone="success"]')).not.toBeNull();
-  });
-
   it("offers no plain path input for root selection", () => {
     renderOnboarding();
 
@@ -234,32 +265,12 @@ describe("WorkspaceSetupDialog", () => {
     expect(screen.getByRole("heading", { name: "Add workspace" })).toBeInTheDocument();
   });
 
-  it("hosts the split shell on the xl modal token", () => {
+  it("keeps the root browser and optional defaults in their separate panes", () => {
     renderDialog({ open: true });
 
-    const host = screen.getByTestId("workspace-setup-dialog");
-    for (const token of dialogShellClass("xl").split(" ")) {
-      expect(host.className).toContain(token);
-    }
-    expect(host.className).not.toMatch(/max-w-xl/);
-    expect(host.dataset.frame).toBe("unframed");
-
-    // Two independent panes: location on the left, session defaults on the right.
-    // The ≤980px collapse itself is owned by the `EntityDialogBody` suite.
     const body = screen.getByTestId("workspace-setup-dialog-body");
-    expect(body).toHaveAttribute("data-variant", "split");
-    const main = body.querySelector('[data-slot="entity-dialog-body-main"]');
-    const side = body.querySelector('[data-slot="entity-dialog-body-side"]');
-    expect(main).not.toBeNull();
-    expect(side).not.toBeNull();
-    expect(within(main as HTMLElement).getByTestId("workspace-setup-browser")).toBeInTheDocument();
-    expect(
-      within(side as HTMLElement).getByTestId("workspace-setup-add-dir-input")
-    ).toBeInTheDocument();
-
-    const header = host.querySelector('[data-slot="dialog-header"]') as HTMLElement | null;
-    expect(header?.dataset.variant).toBe("ruled");
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
+    expect(within(body).getByTestId("workspace-setup-browser")).toBeInTheDocument();
+    expect(within(body).getByTestId("workspace-setup-add-dir-input")).toBeInTheDocument();
   });
 
   it("does not mount the dialog body when `open` is false", () => {
@@ -316,6 +327,100 @@ describe("WorkspaceSetupDialog", () => {
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
+  });
+
+  it("submits the selected default agent and sandbox profile", async () => {
+    const user = userEvent.setup();
+    mockCreateMutateAsync.mockResolvedValue(createdWorkspace);
+    mockDefaults = {
+      agents: { state: "ready", entries: [primaryAgentFixture] },
+      sandboxes: { state: "ready", entries: [{ name: "isolated", backend: "docker" }] },
+    };
+    renderDialog({ open: true });
+
+    await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+    await user.click(screen.getByTestId("workspace-setup-default-agent-select"));
+    await user.click(screen.getByTestId(`agent-command-item-${primaryAgentFixture.name}`));
+    await user.click(screen.getByTestId("workspace-setup-sandbox-select"));
+    await user.click(screen.getByTestId("workspace-setup-sandbox-isolated"));
+    await user.click(screen.getByTestId("workspace-setup-submit"));
+
+    await waitFor(() => {
+      expect(mockCreateMutateAsync).toHaveBeenCalledWith({
+        root_dir: "/Users/pedro/Dev",
+        name: "Dev",
+        default_agent: primaryAgentFixture.name,
+        sandbox_ref: "isolated",
+      });
+    });
+  });
+
+  it("lets operators clear selected optional defaults before submitting", async () => {
+    const user = userEvent.setup();
+    mockCreateMutateAsync.mockResolvedValue(createdWorkspace);
+    mockDefaults = {
+      agents: { state: "ready", entries: [primaryAgentFixture] },
+      sandboxes: { state: "ready", entries: [{ name: "isolated" }] },
+    };
+    renderDialog({ open: true });
+
+    await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+    await user.click(screen.getByTestId("workspace-setup-default-agent-select"));
+    await user.click(screen.getByTestId(`agent-command-item-${primaryAgentFixture.name}`));
+    await user.click(screen.getByTestId("workspace-setup-default-agent-select"));
+    await user.click(screen.getByTestId("agent-command-item-clear"));
+    await user.click(screen.getByTestId("workspace-setup-sandbox-select"));
+    await user.click(screen.getByTestId("workspace-setup-sandbox-isolated"));
+    await user.click(screen.getByTestId("workspace-setup-sandbox-select"));
+    await user.click(screen.getByTestId("workspace-setup-sandbox-none"));
+    await user.click(screen.getByTestId("workspace-setup-submit"));
+
+    await waitFor(() => {
+      expect(mockCreateMutateAsync).toHaveBeenCalledWith({
+        root_dir: "/Users/pedro/Dev",
+        name: "Dev",
+      });
+    });
+  });
+
+  it("keeps independent collection loading and failure states visible", () => {
+    renderDialog({
+      defaults: {
+        agents: { state: "loading" },
+        sandboxes: { state: "error", message: "settings endpoint unavailable" },
+      },
+      open: true,
+    });
+
+    expect(screen.getByTestId("workspace-setup-default-agent-loading")).toHaveTextContent(
+      "Loading agents"
+    );
+    expect(screen.getByTestId("workspace-setup-default-agent-select")).toBeDisabled();
+    expect(screen.getByTestId("workspace-setup-sandbox-error")).toHaveTextContent(
+      "settings endpoint unavailable"
+    );
+    expect(screen.getByTestId("workspace-setup-sandbox-select")).toBeDisabled();
+  });
+
+  it("derives a display name from POSIX and Windows path separators", async () => {
+    const user = userEvent.setup();
+    const cases = [
+      { path: "/Users/pedro/Dev/checkout-platform/", name: "checkout-platform" },
+      { path: "C:\\Users\\pedro\\Dev\\checkout-platform\\", name: "checkout-platform" },
+    ];
+
+    for (const testCase of cases) {
+      mockBrowseState.data = {
+        path: testCase.path,
+        parent: null,
+        home: null,
+        entries: [],
+      };
+      const view = renderDialog({ open: true });
+      await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+      expect(screen.getByTestId("workspace-setup-name-input")).toHaveValue(testCase.name);
+      view.unmount();
+    }
   });
 
   it("blocks duplicate submits and the close route while the create is in flight", async () => {

@@ -61,6 +61,13 @@ describe("createBridgeCreateDraft", () => {
       scope: "workspace",
     });
   });
+
+  it("seeds creation disabled so credentials can be bound before the bridge runs", () => {
+    const draft = createBridgeCreateDraft([], "ws_test");
+
+    expect(draft.enabled).toBe(false);
+    expect(draft.secretSlotValues).toEqual({});
+  });
 });
 
 describe("createBridgeTestDeliveryDraft", () => {
@@ -85,13 +92,6 @@ describe("createBridgeTestDeliveryDraft", () => {
 });
 
 describe("parseBridgeProviderConfig", () => {
-  it("seeds the create draft disabled so credentials can be bound before the bridge runs", () => {
-    const draft = createBridgeCreateDraft([], "ws_test");
-
-    expect(draft.enabled).toBe(false);
-    expect(draft.secretSlotValues).toEqual({});
-  });
-
   it("accepts only JSON objects for provider config", () => {
     expect(parseBridgeProviderConfig("")).toEqual({});
     expect(parseBridgeProviderConfig('{"mode":"bot"}')).toEqual({
@@ -143,6 +143,16 @@ describe("buildBridgeCreateRequest", () => {
       },
       ok: true,
     });
+  });
+
+  it("keeps creation disabled even when a stale draft requests activation", () => {
+    const result = buildBridgeCreateRequest(
+      makeDraft({ enabled: true }),
+      { extension_name: "ext-telegram", platform: "telegram" },
+      "ws_test"
+    );
+
+    expect(result).toMatchObject({ data: { enabled: false }, ok: true });
   });
 
   it("serializes all progress controls into delivery_defaults", () => {

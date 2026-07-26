@@ -28,6 +28,8 @@ const HOME_POLICIES = ["operator", "isolated"] as const;
  * does not choose one (`MODAL-STANDARD.md` § Forbidden drift).
  */
 export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFieldsProps) {
+  const runtimeProviderRequired = draft.harness === "pi_acp";
+
   return (
     <FormSection
       data-testid="settings-providers-editor-runtime"
@@ -72,11 +74,15 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           />
         }
         data-testid="settings-providers-editor-runtime-provider"
-        description="Downstream provider id used by the selected harness. Required for pi_acp."
+        description="Downstream provider id used by the selected harness. Required when using pi_acp."
         label={
           <>
             Runtime provider
-            <Eyebrow className="ml-1.5 text-subtle">pi</Eyebrow>
+            {runtimeProviderRequired ? (
+              <RequiredMark />
+            ) : (
+              <Eyebrow className="ml-1.5 text-subtle">pi</Eyebrow>
+            )}
           </>
         }
       />

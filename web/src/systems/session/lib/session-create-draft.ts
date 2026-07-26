@@ -92,6 +92,41 @@ export function normalizeEffort(effort: string): ReasoningEffort | "" {
   return effort === "" ? "" : isReasoningEffort(effort) ? effort : "";
 }
 
+type SessionWorkspacePathResolution =
+  | { workspacePath: string }
+  | { error: "Working path must be relative to the selected workspace." }
+  | { error: "Working path must stay within the selected workspace." }
+  | { error: "The selected workspace root must be an absolute path." };
+
+/**
+ * Resolves the dialog's relative working-path input into the absolute create-session contract.
+ * The input cannot escape the workspace selected for its agent/provider population.
+ */
+export function resolveSessionWorkspacePath(
+  workspaceRoot: string,
+  workingPath: string
+): SessionWorkspacePathResolution {
+  const trimmedWorkingPath = workingPath.trim();
+  if (trimmedWorkingPath.length === 0) {
+    return { workspacePath: "" };
+  }
+  if (trimmedWorkingPath.startsWith("/")) {
+    return { error: "Working path must be relative to the selected workspace." };
+  }
+  if (trimmedWorkingPath.split("/").includes("..")) {
+    return { error: "Working path must stay within the selected workspace." };
+  }
+
+  const trimmedWorkspaceRoot = workspaceRoot.trim();
+  if (!trimmedWorkspaceRoot.startsWith("/")) {
+    return { error: "The selected workspace root must be an absolute path." };
+  }
+
+  const normalizedWorkspaceRoot =
+    trimmedWorkspaceRoot === "/" ? "" : trimmedWorkspaceRoot.replace(/\/+$/, "");
+  return { workspacePath: `${normalizedWorkspaceRoot}/${trimmedWorkingPath}` };
+}
+
 export function describeWorkspaceError(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
