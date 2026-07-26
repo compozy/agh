@@ -137,40 +137,44 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 func TestHostAPIHandlerSessionsCreateUsesAtomicAcceptedPrompt(t *testing.T) {
 	t.Parallel()
 
-	sessions := &recordingHostAPISessionManager{}
-	handler := &HostAPIHandler{sessions: sessions}
-	raw := json.RawMessage(`{
-		"agent":"coder",
-		"provider":"codex",
-		"model":"gpt-5.6-sol",
-		"reasoning_effort":"high",
-		"workspace":"ws-alpha",
-		"prompt":"  Investigate the failing build  "
-	}`)
+	t.Run("Should use atomic accepted create with a trimmed prompt", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := handler.handleSessionsCreate(testutil.Context(t), raw)
-	if err != nil {
-		t.Fatalf("handleSessionsCreate() error = %v", err)
-	}
-	if len(sessions.createCalls) != 0 {
-		t.Fatalf("Create() calls = %#v, want atomic accepted create only", sessions.createCalls)
-	}
-	if len(sessions.acceptedCreateCalls) != 1 {
-		t.Fatalf("CreateAccepted() calls = %#v, want one", sessions.acceptedCreateCalls)
-	}
-	accepted := sessions.acceptedCreateCalls[0]
-	if accepted.InitialPrompt != "Investigate the failing build" {
-		t.Fatalf("CreateAccepted() InitialPrompt = %q, want trimmed prompt", accepted.InitialPrompt)
-	}
-	if accepted.Session.Provider != "codex" || accepted.Session.Model != "gpt-5.6-sol" ||
-		accepted.Session.ReasoningEffort != "high" {
-		t.Fatalf("CreateAccepted() runtime = %#v", accepted.Session)
-	}
-	var created hostAPISessionCreateResult
-	decodeResult(t, result, &created)
-	if created.SessionID != "sess-accepted" || created.Provider != "codex" {
-		t.Fatalf("sessions/create result = %#v", created)
-	}
+		sessions := &recordingHostAPISessionManager{}
+		handler := &HostAPIHandler{sessions: sessions}
+		raw := json.RawMessage(`{
+			"agent":"coder",
+			"provider":"codex",
+			"model":"gpt-5.6-sol",
+			"reasoning_effort":"high",
+			"workspace":"ws-alpha",
+			"prompt":"  Investigate the failing build  "
+		}`)
+
+		result, err := handler.handleSessionsCreate(testutil.Context(t), raw)
+		if err != nil {
+			t.Fatalf("handleSessionsCreate() error = %v", err)
+		}
+		if len(sessions.createCalls) != 0 {
+			t.Fatalf("Create() calls = %#v, want atomic accepted create only", sessions.createCalls)
+		}
+		if len(sessions.acceptedCreateCalls) != 1 {
+			t.Fatalf("CreateAccepted() calls = %#v, want one", sessions.acceptedCreateCalls)
+		}
+		accepted := sessions.acceptedCreateCalls[0]
+		if accepted.InitialPrompt != "Investigate the failing build" {
+			t.Fatalf("CreateAccepted() InitialPrompt = %q, want trimmed prompt", accepted.InitialPrompt)
+		}
+		if accepted.Session.Provider != "codex" || accepted.Session.Model != "gpt-5.6-sol" ||
+			accepted.Session.ReasoningEffort != "high" {
+			t.Fatalf("CreateAccepted() runtime = %#v", accepted.Session)
+		}
+		var created hostAPISessionCreateResult
+		decodeResult(t, result, &created)
+		if created.SessionID != "sess-accepted" || created.Provider != "codex" {
+			t.Fatalf("sessions/create result = %#v", created)
+		}
+	})
 }
 
 func TestDecodeHostAPIParamsRejectsUnknownFieldsByDefault(t *testing.T) {

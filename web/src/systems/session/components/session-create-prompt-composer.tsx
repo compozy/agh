@@ -1,7 +1,7 @@
 import { SendHorizontal } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, type RefObject } from "react";
 
-import { cn, Kbd, Spinner, Textarea } from "@agh/ui";
+import { Button, cn, Kbd, Spinner, Textarea } from "@agh/ui";
 
 export interface SessionCreatePromptComposerProps {
   value: string;
@@ -74,24 +74,21 @@ export function SessionCreatePromptComposer({
           <span className="hidden items-center gap-1 text-form-label text-faint sm:inline-flex">
             <Kbd>Enter</Kbd> to send
           </span>
-          <button
+          <Button
             aria-label="Send first message"
-            className={cn(
-              "inline-flex size-button-icon-lg shrink-0 items-center justify-center rounded-full",
-              "bg-accent text-accent-ink transition-colors",
-              "hover:bg-accent-hover focus-visible:outline-none focus-visible:shadow-focus-ring",
-              "disabled:cursor-not-allowed disabled:opacity-50"
-            )}
+            className="rounded-full"
             data-testid="session-create-send"
             disabled={!canSubmit}
+            size="icon-lg"
             type="submit"
+            variant="default"
           >
             {isSubmitting ? (
               <Spinner aria-hidden="true" className="size-3.5" />
             ) : (
               <SendHorizontal aria-hidden="true" className="size-3.5" />
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

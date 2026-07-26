@@ -49,11 +49,15 @@ func (m *Manager) stageAcceptedInitialPrompt(ctx context.Context, sessionID stri
 	if m.inputQueue == nil {
 		return errors.New("session: input queue is not configured")
 	}
-	generation, err := m.currentInputGeneration(ctx, sessionID)
+	// Detach from request cancellation so a client disconnect after durable
+	// acceptance cannot fail enqueue and roll the session back.
+	stageCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	generation, err := m.currentInputGeneration(stageCtx, sessionID)
 	if err != nil {
 		return fmt.Errorf("session: read initial prompt queue generation for %q: %w", sessionID, err)
 	}
-	if _, _, err := m.inputQueue.Enqueue(ctx, sessionID, message, generation); err != nil {
+	if _, _, err := m.inputQueue.Enqueue(stageCtx, sessionID, message, generation); err != nil {
 		return fmt.Errorf("session: stage initial prompt for %q: %w", sessionID, err)
 	}
 	return nil

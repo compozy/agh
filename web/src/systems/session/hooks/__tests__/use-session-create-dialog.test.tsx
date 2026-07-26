@@ -574,6 +574,9 @@ describe("useSessionCreateDialog", () => {
 
       expect(mockMutateAsync).not.toHaveBeenCalled();
       expect(mockNavigate).not.toHaveBeenCalled();
+      expect(result.current.submitError).toBe(
+        "Write the first message before starting the session."
+      );
     });
 
     it("Should preserve the draft for a retry when creation fails", async () => {

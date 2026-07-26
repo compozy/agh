@@ -334,7 +334,10 @@ export function useSessionCreateDialog({
     const provider = selectedProvider.trim();
     const prompt = draft.prompt.trim();
     if (agentName.length === 0) return;
-    if (prompt.length === 0) return;
+    if (prompt.length === 0) {
+      setSubmitError("Write the first message before starting the session.");
+      return;
+    }
     if (provider.length === 0) {
       setSubmitError("Choose a provider configured for this workspace.");
       return;
