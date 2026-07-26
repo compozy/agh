@@ -154,7 +154,7 @@ export function BridgeEditDialog({
           }
         />
 
-        <EntityDialogBody className="flex flex-col gap-4">
+        <EntityDialogBody className="flex flex-col">
           {identityRows.length > 0 ? (
             <ImmutableIdentity
               hint="Provider and account are fixed for this bridge — create a new bridge to change them."
@@ -166,7 +166,6 @@ export function BridgeEditDialog({
             data-testid="bridge-edit-section-identity"
             description="How this bridge appears in lists and receipts."
             icon={Link2}
-            size="compact"
             title="Identity"
           >
             <Field>

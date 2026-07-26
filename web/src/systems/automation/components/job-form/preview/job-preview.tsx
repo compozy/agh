@@ -10,13 +10,16 @@ interface JobPreviewProps {
   preview: JobPreviewModel;
 }
 
-/** Right-hand live preview pane: summary, next runs, run digest, request payload. */
+/**
+ * Live preview: summary, next runs, run digest, request payload.
+ *
+ * Swaps in for the form body rather than sitting in a permanent rail, so the
+ * default read of the editor is the form alone. The enclosing `EntityDialogBody`
+ * owns the frame and the scroll.
+ */
 export function JobPreview({ preview }: JobPreviewProps) {
   return (
-    <aside
-      className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-line-soft bg-canvas px-5 pt-5 pb-6 max-lg:overflow-visible max-lg:border-t max-lg:border-l-0"
-      data-testid="job-preview"
-    >
+    <div className="flex flex-col gap-3" data-testid="job-preview">
       <div className="flex items-center gap-2">
         <span
           aria-hidden="true"
@@ -34,6 +37,6 @@ export function JobPreview({ preview }: JobPreviewProps) {
       <NextRunsCard emptyReason={preview.nextRunsEmptyReason} nextRuns={preview.nextRuns} />
       <RunDigestCard runDigest={preview.runDigest} />
       <AutomationRequestPayload blockedReason={preview.targetIssue} request={preview.request} />
-    </aside>
+    </div>
   );
 }

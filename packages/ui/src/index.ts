@@ -34,7 +34,6 @@ export {
 export { Panel, type PanelProps } from "./components/custom/panel";
 export { Sparkline, type SparklineProps } from "./components/custom/sparkline";
 export { IntensityMeter, type IntensityMeterProps } from "./components/custom/intensity-meter";
-export { FieldRow, type FieldRowProps } from "./components/custom/field-row";
 export {
   ContextBox,
   type ContextBoxEntry,
@@ -48,11 +47,8 @@ export {
   type StatusBreakdownProps,
 } from "./components/custom/status-breakdown";
 export { MetadataTile, type MetadataTileProps } from "./components/custom/metadata-tile";
-export {
-  FormSection,
-  type FormSectionProps,
-  type FormSectionSize,
-} from "./components/custom/form-section";
+export { FormSection, type FormSectionProps } from "./components/custom/form-section";
+export { HelpTip, type HelpTipProps } from "./components/custom/help-tip";
 export { Icon, type IconProps, type IconSize } from "./components/icon";
 export { MonoId, type MonoIdProps, type MonoIdSize } from "./components/custom/mono-id";
 export { Time, type TimeMode, type TimeProps } from "./components/custom/time";
@@ -115,6 +111,10 @@ export {
   type EntityDialogBodyProps,
   type EntityDialogBodyVariant,
 } from "./components/custom/entity-dialog-body";
+export {
+  EntityDialogToolbar,
+  type EntityDialogToolbarProps,
+} from "./components/custom/entity-dialog-toolbar";
 export {
   EntityModeToolbar,
   type EntityMode,
@@ -389,6 +389,7 @@ export {
   FieldDescription,
   FieldError,
   FieldGroup,
+  FieldHeader,
   FieldLabel,
   FieldLegend,
   FieldSeparator,

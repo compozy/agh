@@ -148,7 +148,6 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
 
           {isEditing ? (
             <EntityModeToolbar
-              className="border-t-0"
               mode={tier}
               onModeChange={setTier}
               testIdPrefix="settings-providers-editor"
@@ -172,16 +171,16 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
           ) : null}
         </div>
 
-        <EntityDialogBody className="flex flex-col gap-4" data-testid="provider-detail-body">
+        <EntityDialogBody className="flex flex-col" data-testid="provider-detail-body">
           {error ? (
             <Alert data-testid="provider-detail-error" variant="danger">
-              <AlertDescription className="text-xs">{error}</AlertDescription>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
           {!error && warnings && warnings.length > 0 ? (
             <Alert data-testid="provider-detail-warnings" variant="warning">
               <AlertDescription>
-                <ul className="flex flex-col gap-1 text-xs">
+                <ul className="flex flex-col gap-1">
                   {warnings.map(warning => (
                     <li key={warning}>{warning}</li>
                   ))}

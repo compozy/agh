@@ -47,7 +47,6 @@ export interface AgentCreateValidation {
 
 /** Fields that only exist under the Advanced disclosure tier. */
 export const AGENT_CREATE_ADVANCED_FIELDS: readonly AgentCreateFieldKey[] = [
-  "categoryPath",
   "tools",
   "toolsets",
   "denyTools",

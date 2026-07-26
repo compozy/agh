@@ -72,13 +72,12 @@ export function VaultEditor({
         if (!next) onClose();
       }}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col">
         <FormSection
-          description="How providers, bridges, and sandboxes point at this value."
-          size="compact"
+          help="Providers, bridges, and sandboxes bind this value by its reference, so the reference is the only part of a secret that stays readable."
           title="The reference"
         >
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-4.5">
             <ModalSettingsFieldRow
               label={
                 <>
@@ -86,7 +85,6 @@ export function VaultEditor({
                   <Eyebrow className="ml-1.5 text-accent-strong">required</Eyebrow>
                 </>
               }
-              description="How providers and bridges point at this value."
               error={refError}
               data-testid="settings-vault-editor-ref"
               control={
@@ -122,7 +120,7 @@ export function VaultEditor({
             ) : null}
             <ModalSettingsFieldRow
               label="Kind"
-              description="Metadata label returned on public Vault surfaces."
+              help="A metadata label returned on public Vault surfaces. It groups secrets; it never affects how the value is stored."
               data-testid="settings-vault-editor-kind"
               control={
                 <Input
@@ -139,11 +137,7 @@ export function VaultEditor({
           </div>
         </FormSection>
 
-        <FormSection
-          description="Written once, retrievable never."
-          size="compact"
-          title="The value"
-        >
+        <FormSection description="Written once, retrievable never." title="The value">
           <div className="flex flex-col gap-3">
             <SecretField
               id="settings-vault-editor-secret-value"

@@ -5,7 +5,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMswFetch } from "@/test/msw-fetch";
-import { LoopConfigureSheet } from "../configure/loop-configure-sheet";
+import { LoopConfigureDialog } from "../configure/loop-configure-dialog";
 import { handlers } from "../../mocks";
 import {
   loopConfigFixture,
@@ -57,7 +57,7 @@ function renderSheet(
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
   render(
-    <LoopConfigureSheet
+    <LoopConfigureDialog
       open
       workspaceId={WS}
       loop={loop}
@@ -75,7 +75,7 @@ function rowSwitch(testId: string) {
   return within(screen.getByTestId(testId)).getByRole("switch");
 }
 
-describe("LoopConfigureSheet", () => {
+describe("LoopConfigureDialog", () => {
   beforeEach(() => {
     putBodies = [];
     vi.stubGlobal("fetch", createMswFetch(captureHandlers));
@@ -99,7 +99,7 @@ describe("LoopConfigureSheet", () => {
   it("Should render NO cost-cap field anywhere in the sheet", () => {
     renderSheet({ config: null });
     expect(screen.queryByTestId("loop-configure-limit-cost")).not.toBeInTheDocument();
-    expect(screen.getByTestId("loop-configure-sheet")).not.toHaveTextContent(/cost cap/i);
+    expect(screen.getByTestId("loop-configure-dialog")).not.toHaveTextContent(/cost cap/i);
   });
 
   it("Should disable a command check's command field when the check is toggled off", () => {
@@ -196,7 +196,7 @@ describe("LoopConfigureSheet", () => {
 
   it("Should close without saving via the header close and Cancel", () => {
     const { onOpenChange } = renderSheet({ config: null });
-    fireEvent.click(screen.getByTestId("loop-configure-close"));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
     fireEvent.click(screen.getByTestId("loop-configure-cancel"));
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
@@ -236,8 +236,9 @@ describe("LoopConfigureSheet", () => {
       expect(screen.getByTestId("loop-configure-strategy-full-body")).toBeDisabled()
     );
     expect(screen.getByTestId("loop-configure-save")).toBeDisabled();
-    // Header close + editor link disable in lockstep with the footer while a save is in flight.
-    expect(screen.getByTestId("loop-configure-close")).toBeDisabled();
+    // The shared shell withdraws the header close while a save is in flight
+    // rather than disabling it, so the only exits are Cancel and Escape.
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
     expect(screen.getByTestId("loop-configure-edit-link")).toBeDisabled();
   });
 
@@ -249,7 +250,7 @@ describe("LoopConfigureSheet", () => {
     const wrapper = ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client: queryClient }, children);
     render(
-      <LoopConfigureSheet
+      <LoopConfigureDialog
         open
         workspaceId={WS}
         loop={delivery}

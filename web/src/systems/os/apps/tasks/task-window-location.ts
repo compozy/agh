@@ -3,15 +3,21 @@ import {
   validateTaskCreateSearch,
   validateTaskDetailSearch,
   type ResolvedTaskDetailSearch,
+  type TaskCreateSearch,
   type TaskViewMode,
 } from "@/systems/tasks";
 import type { OsWindowRoute } from "../../lib/os-types";
 
+/**
+ * `create` and `edit` are dialog locations: they render the catalog or the task
+ * detail underneath and layer the task editor over it, so each carries the
+ * background surface's own state.
+ */
 export type TaskWindowLocation =
   | { kind: "catalog"; mode: TaskViewMode }
-  | { kind: "create"; search: ReturnType<typeof validateTaskCreateSearch> }
+  | { kind: "create"; mode: TaskViewMode; search: TaskCreateSearch }
   | { kind: "detail"; taskId: string; search: ResolvedTaskDetailSearch }
-  | { kind: "edit"; taskId: string }
+  | { kind: "edit"; taskId: string; search: ResolvedTaskDetailSearch }
   | { kind: "run"; taskId: string; runId: string };
 
 function decodePathSegment(value: string): string {
@@ -24,7 +30,11 @@ function decodePathSegment(value: string): string {
 
 export function parseTaskWindowLocation(location: OsWindowRoute): TaskWindowLocation {
   if (location.pathname === "/tasks/new") {
-    return { kind: "create", search: validateTaskCreateSearch(location.search) };
+    return {
+      kind: "create",
+      mode: parseTasksSurfaceMode(location.search),
+      search: validateTaskCreateSearch(location.search),
+    };
   }
 
   const runMatch = /^\/tasks\/([^/]+)\/runs\/([^/]+)$/.exec(location.pathname);
@@ -37,7 +47,13 @@ export function parseTaskWindowLocation(location: OsWindowRoute): TaskWindowLoca
   }
 
   const editMatch = /^\/tasks\/([^/]+)\/edit$/.exec(location.pathname);
-  if (editMatch) return { kind: "edit", taskId: decodePathSegment(editMatch[1]) };
+  if (editMatch) {
+    return {
+      kind: "edit",
+      taskId: decodePathSegment(editMatch[1]),
+      search: validateTaskDetailSearch(location.search),
+    };
+  }
 
   const detailMatch = /^\/tasks\/([^/]+)$/.exec(location.pathname);
   if (detailMatch) {

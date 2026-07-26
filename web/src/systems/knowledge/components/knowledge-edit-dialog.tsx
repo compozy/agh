@@ -96,7 +96,7 @@ function KnowledgeEditDialog({
           onClose={() => onOpenChange(false)}
           title="Edit knowledge entry"
         />
-        <EntityDialogBody className="flex flex-col gap-4">
+        <EntityDialogBody className="flex flex-col">
           <ImmutableIdentity
             data-testid="knowledge-edit-identity"
             hint="Name and type are fixed so existing retrieval references keep resolving. Recreate the entry to change them."
@@ -108,7 +108,6 @@ function KnowledgeEditDialog({
           />
           <FormSection
             description="Only the description and content are saved — the runtime re-indexes on save."
-            size="compact"
             title="The content"
           >
             <div className="flex flex-col gap-4">
@@ -145,7 +144,7 @@ function KnowledgeEditDialog({
         </EntityDialogBody>
         {error ? (
           <div
-            className="border-t border-line px-6 py-3 text-xs text-danger"
+            className="border-t border-line px-5 py-3 text-form-hint text-danger"
             data-testid="knowledge-edit-dialog-error"
             role="alert"
           >

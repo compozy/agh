@@ -1,18 +1,25 @@
-import { Field, FieldLabel, Input, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Field, FieldLabel } from "@agh/ui";
+
+import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 
 import { PromptTemplateField } from "./prompt-template-field";
 
 interface AgentPromptStepProps {
   agent: string;
   agentDisabled?: boolean;
-  agents: string[];
+  agents: AgentPayload[];
   prompt: string;
   variables: string[];
   onAgentChange: (next: string) => void;
   onPromptChange: (next: string) => void;
 }
 
-/** "Then" step: the agent to run and the prompt template it receives. */
+/**
+ * "Then" step: the agent to run and the prompt template it receives.
+ *
+ * Agent selection goes through the shared searchable catalog; a native
+ * `<select>` here is forbidden (`MODAL-STANDARD.md` § Component grammar).
+ */
 export function AgentPromptStep({
   agent,
   agentDisabled = false,
@@ -22,49 +29,18 @@ export function AgentPromptStep({
   onAgentChange,
   onPromptChange,
 }: AgentPromptStepProps) {
-  const initial = agent.trim().charAt(0).toUpperCase() || "·";
-
   return (
     <div className="space-y-4">
       <Field>
         <FieldLabel htmlFor="trigger-agent">Agent</FieldLabel>
-        <div className="relative">
-          <span
-            aria-hidden="true"
-            className="absolute top-1/2 left-2 z-10 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm bg-accent-strong font-mono text-mono-id font-semibold text-accent-ink"
-          >
-            {initial}
-          </span>
-          {agents.length > 0 ? (
-            <NativeSelect
-              className="w-full [&>select]:pl-9"
-              data-testid="trigger-agent-input"
-              disabled={agentDisabled}
-              id="trigger-agent"
-              onChange={event => onAgentChange(event.target.value)}
-              value={agent}
-            >
-              {agents.includes(agent) ? null : (
-                <NativeSelectOption value={agent}>{agent || "Select an agent"}</NativeSelectOption>
-              )}
-              {agents.map(name => (
-                <NativeSelectOption key={name} value={name}>
-                  {name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          ) : (
-            <Input
-              className="pl-9"
-              data-testid="trigger-agent-input"
-              disabled={agentDisabled}
-              id="trigger-agent"
-              onChange={event => onAgentChange(event.target.value)}
-              placeholder="reviewer"
-              value={agent}
-            />
-          )}
-        </div>
+        <AgentCommandSelect
+          agents={agents}
+          disabled={agentDisabled}
+          onChange={next => onAgentChange(next ?? "")}
+          triggerId="trigger-agent"
+          triggerTestId="trigger-agent-input"
+          value={agent || null}
+        />
       </Field>
       <PromptTemplateField onChange={onPromptChange} value={prompt} variables={variables} />
     </div>

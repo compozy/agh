@@ -21,7 +21,7 @@ interface ProviderEditFormProps {
  */
 export function ProviderEditForm({ mode, tier, draft, entry, onChange }: ProviderEditFormProps) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col">
       <ProviderGeneralFields draft={draft} mode={mode} onChange={onChange} />
       <ProviderAuthFields draft={draft} entry={entry} mode={mode} onChange={onChange} />
       {tier === "advanced" ? <ProviderRuntimeFields draft={draft} onChange={onChange} /> : null}

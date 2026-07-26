@@ -120,11 +120,7 @@ function MCPInstallDialog({
             </p>
           ) : null}
 
-          <FormSection
-            description="Choose where this server is available."
-            size="compact"
-            title="Scope"
-          >
+          <FormSection description="Choose where this server is available." title="Scope">
             <div
               aria-label="MCP install scope"
               className="grid grid-cols-1 gap-2 sm:grid-cols-2"
@@ -149,7 +145,7 @@ function MCPInstallDialog({
           </FormSection>
 
           {!remote && fields.length > 0 ? (
-            <FormSection size="compact" title="Required configuration">
+            <FormSection title="Required configuration">
               <FieldGroup>
                 {fields.map(field => {
                   const binding = bindings[field.name];

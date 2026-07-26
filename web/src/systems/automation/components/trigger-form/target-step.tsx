@@ -1,4 +1,5 @@
 import { PillGroup } from "@agh/ui";
+import type { AgentPayload } from "@/systems/agent";
 import { LoopTargetFields, type LoopTargetCatalog, type LoopTargetDraft } from "@/systems/loops";
 
 import type { AutomationTargetMode } from "../../lib/automation-drafts";
@@ -9,7 +10,7 @@ interface TriggerTargetStepProps {
   onModeChange: (mode: AutomationTargetMode) => void;
   /** Agent-mode fields. */
   agent: string;
-  agents: string[];
+  agents: AgentPayload[];
   prompt: string;
   variables: string[];
   onAgentChange: (next: string) => void;

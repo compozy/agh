@@ -132,10 +132,9 @@ function KnowledgeCreateDialog({
           onClose={() => updateDialogOpen(false)}
           title="Create knowledge entry"
         />
-        <EntityDialogBody className="flex flex-col gap-4">
+        <EntityDialogBody className="flex flex-col">
           <FormSection
             description="The form decides how agents consume it."
-            size="compact"
             title="What kind of knowledge?"
           >
             <div
@@ -159,7 +158,6 @@ function KnowledgeCreateDialog({
           </FormSection>
           <FormSection
             description="A stable name and a retrieval-friendly description help agents find it."
-            size="compact"
             title="The content"
           >
             <div className="flex flex-col gap-4">
@@ -212,7 +210,7 @@ function KnowledgeCreateDialog({
         </EntityDialogBody>
         {error ? (
           <div
-            className="border-t border-line px-6 py-3 text-xs text-danger"
+            className="border-t border-line px-5 py-3 text-form-hint text-danger"
             data-testid="knowledge-create-dialog-error"
             role="alert"
           >

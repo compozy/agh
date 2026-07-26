@@ -45,7 +45,6 @@ export function BridgeCreateAdvancedSection({
       data-testid="bridge-create-section-routing"
       description="Optional policies from the bridge request contract."
       icon={Waypoints}
-      size="compact"
       title="Routing & delivery"
     >
       <Field>

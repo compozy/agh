@@ -20,7 +20,6 @@ function SessionCreateAdvancedSection({
   return (
     <FormSection
       description="Override the agent defaults for this launch only."
-      size="compact"
       title="Launch overrides"
     >
       <div className="flex flex-col gap-4">

@@ -59,9 +59,9 @@ const fieldVariants = cva("group/field flex w-full gap-2 data-[invalid=true]:tex
     orientation: {
       vertical: "flex-col *:w-full [&>.sr-only]:w-auto",
       horizontal:
-        "flex-row items-center has-[>[data-slot=field-content]]:items-start *:data-[slot=field-label]:flex-auto has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px",
+        "flex-row items-center has-[>[data-slot=field-content]]:items-start *:data-[slot=field-label]:flex-auto *:data-[slot=field-header]:flex-auto has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px",
       responsive:
-        "flex-col *:w-full @md/field-group:flex-row @md/field-group:items-center @md/field-group:*:w-auto @md/field-group:has-[>[data-slot=field-content]]:items-start @md/field-group:*:data-[slot=field-label]:flex-auto [&>.sr-only]:w-auto @md/field-group:has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px",
+        "flex-col *:w-full @md/field-group:flex-row @md/field-group:items-center @md/field-group:*:w-auto @md/field-group:has-[>[data-slot=field-content]]:items-start @md/field-group:*:data-[slot=field-label]:flex-auto @md/field-group:*:data-[slot=field-header]:flex-auto [&>.sr-only]:w-auto @md/field-group:has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px",
     },
   },
   defaultVariants: {
@@ -109,12 +109,31 @@ function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>)
   );
 }
 
+/**
+ * Row pairing a `FieldLabel` with the controls that annotate it — a `HelpTip`,
+ * a `RequiredMark`, a count.
+ *
+ * The tip must sit *beside* the label, never inside it: an icon button nested in
+ * a `<label>` both nests interactive content and folds its accessible name into
+ * the label's name-from-content computation, so the input would announce as
+ * "Agent name About agent name".
+ */
+function FieldHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="field-header"
+      className={cn("flex w-fit min-w-0 items-center gap-1.5", className)}
+      {...props}
+    />
+  );
+}
+
 function FieldTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="field-label"
       className={cn(
-        "flex w-fit items-center gap-2 text-small-body leading-snug font-medium text-fg-strong group-data-[disabled=true]/field:opacity-50",
+        "flex w-fit items-center gap-2 text-form-label leading-snug font-medium text-fg-strong group-data-[disabled=true]/field:opacity-50",
         className
       )}
       {...props}
@@ -127,7 +146,7 @@ function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="field-description"
       className={cn(
-        "text-left text-small-body leading-normal font-normal text-muted group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5",
+        "text-left text-form-hint leading-normal font-normal text-muted group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5",
         "last:mt-0 nth-last-2:-mt-1",
         "[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-accent",
         className
@@ -202,7 +221,7 @@ function FieldError({
     <div
       role="alert"
       data-slot="field-error"
-      className={cn("text-small-body font-normal text-danger", className)}
+      className={cn("text-form-hint font-normal text-danger", className)}
       {...props}
     >
       {content}
@@ -216,6 +235,7 @@ export {
   FieldDescription,
   FieldError,
   FieldGroup,
+  FieldHeader,
   FieldLabel,
   FieldLegend,
   FieldSeparator,

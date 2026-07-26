@@ -1,3 +1,4 @@
+import { agentFixtures } from "@/systems/agent/mocks";
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
@@ -35,12 +36,8 @@ const storyWorkspaces = [
   { id: storyWorkspaceIds.growth, name: storyWorkspaceNames.growth },
 ];
 
-const storyAgents = [
-  storyAgentNames.release,
-  storyAgentNames.compliance,
-  storyAgentNames.support,
-  storyAgentNames.fraud,
-];
+// The target selector reads the real agent catalog shape, not bare names.
+const storyAgents = agentFixtures;
 
 const REVIEW_PROMPT =
   "Review the diffs merged in the last 24 hours. Flag risky changes, summarize what shipped, " +

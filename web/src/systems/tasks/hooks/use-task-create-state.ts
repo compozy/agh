@@ -9,6 +9,7 @@ import {
   createTaskEditorDraft,
   type TaskEditorDraft,
 } from "@/systems/tasks/lib/task-editor";
+import type { TaskCreateSearch } from "@/systems/tasks/lib/task-location-search";
 import {
   DEFAULT_TASK_TEMPLATE_ID,
   getTaskTemplate,
@@ -48,7 +49,7 @@ function resolveTaskCreateDraft(
 }
 
 export function useTaskCreateState(
-  search: { template?: TaskTemplateId },
+  search: TaskCreateSearch,
   onNavigate: (location: TaskCreateLocation) => void
 ) {
   const { activeWorkspace, workspaces } = useActiveWorkspace();
@@ -99,7 +100,10 @@ export function useTaskCreateState(
   const handleTemplateChange = (nextTemplateId: TaskTemplateId) => {
     onNavigate({
       pathname: "/tasks/new",
-      search: nextTemplateId === DEFAULT_TASK_TEMPLATE_ID ? {} : { template: nextTemplateId },
+      search: {
+        ...(search.mode ? { mode: search.mode } : {}),
+        ...(nextTemplateId === DEFAULT_TASK_TEMPLATE_ID ? {} : { template: nextTemplateId }),
+      },
     });
   };
 

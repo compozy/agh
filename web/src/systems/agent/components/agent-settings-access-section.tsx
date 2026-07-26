@@ -22,7 +22,6 @@ export function AgentSettingsAccessSection({
     <FormSection
       data-testid="agent-settings-access"
       icon={ShieldCheck}
-      size="compact"
       title="Access"
       description="Constrain the tools and skills available to sessions started from this agent."
     >

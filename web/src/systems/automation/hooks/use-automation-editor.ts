@@ -1,6 +1,8 @@
 import { useRef, useState, type SetStateAction } from "react";
 import { toast } from "sonner";
 
+import { useAgents } from "@/systems/agent";
+
 import { AutomationApiError } from "../adapters/automation-api";
 import {
   automationJobUpdateFromDraft,
@@ -82,6 +84,9 @@ export function useAutomationJobEditor({
   const { editor, setEditor } = useWorkspaceBoundEditor<JobEditorState>(activeWorkspaceId);
   const inFlightRef = useRef(false);
   const [handle] = useState(createAutomationDialogHandle);
+  // The target selector reads the workspace catalog; a global editor still lists
+  // the active workspace's agents because that is what the job can address.
+  const agentsQuery = useAgents(activeWorkspaceId);
   const createMutation = useCreateAutomationJob();
   const updateMutation = useUpdateAutomationJob();
 
@@ -118,6 +123,7 @@ export function useAutomationJobEditor({
 
   const editorDialogProps = {
     activeWorkspaceId,
+    agents: agentsQuery.data ?? [],
     handle,
     workspaces,
     editor: editor
@@ -157,6 +163,7 @@ export function useAutomationTriggerEditor({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const [handle] = useState(createAutomationDialogHandle);
+  const agentsQuery = useAgents(activeWorkspaceId);
   const createMutation = useCreateAutomationTrigger();
   const updateMutation = useUpdateAutomationTrigger();
 
@@ -214,6 +221,7 @@ export function useAutomationTriggerEditor({
 
   const editorDialogProps = {
     activeWorkspaceId,
+    agents: agentsQuery.data ?? [],
     handle,
     workspaces,
     editor: editor

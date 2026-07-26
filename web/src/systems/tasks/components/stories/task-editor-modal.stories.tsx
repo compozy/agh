@@ -5,7 +5,11 @@ import { expect, userEvent, within } from "storybook/test";
 import { storyWorkspaceIds, storyWorkspaceNames } from "@/storybook/fintech-scenario";
 import { CenteredSurface } from "@/storybook/story-layout";
 
-import { TaskEditorModal, type TaskEditorModalMode } from "../task-editor-modal";
+import {
+  TaskEditorModal,
+  type TaskEditorModalMode,
+  type TaskEditorModalStatus,
+} from "../task-editor-modal";
 import {
   applyTaskTemplateToEditorDraft,
   createTaskEditorDraft,
@@ -16,8 +20,6 @@ import {
   getTaskTemplate,
   type TaskTemplateId,
 } from "../../lib/task-templates";
-import type { TaskRecord } from "../../types";
-
 const meta: Meta<typeof TaskEditorModal> = {
   title: "systems/tasks/components/TaskEditorModal",
   component: TaskEditorModal,
@@ -40,7 +42,7 @@ interface TaskEditorModalHarnessProps {
   templateId?: TaskTemplateId;
   initialDraft?: TaskEditorDraft;
   isSubmitting?: boolean;
-  task?: TaskRecord | null;
+  status?: TaskEditorModalStatus;
 }
 
 /**
@@ -54,7 +56,7 @@ function TaskEditorModalHarness({
   templateId = DEFAULT_TASK_TEMPLATE_ID,
   initialDraft,
   isSubmitting = false,
-  task = null,
+  status = "ready",
 }: TaskEditorModalHarnessProps) {
   const [activeTemplate, setActiveTemplate] = useState<TaskTemplateId>(templateId);
   const [draft, setDraft] = useState<TaskEditorDraft>(
@@ -83,7 +85,7 @@ function TaskEditorModalHarness({
             : undefined
         }
         open
-        task={task}
+        status={status}
         template={isNewMode ? getTaskTemplate(activeTemplate) : undefined}
         templateId={isNewMode ? activeTemplate : undefined}
         workspaces={storyWorkspaces}
@@ -91,22 +93,6 @@ function TaskEditorModalHarness({
     </CenteredSurface>
   );
 }
-
-const editTask = {
-  id: "task_42",
-  identifier: "TASK-42",
-  title: "Summarize launch-room escalations",
-  status: "in_progress",
-  scope: "workspace",
-  origin: { kind: "cli", ref: "op" },
-  workspace_id: storyWorkspaceIds.hq,
-  created_at: "2026-04-17T09:00:00Z",
-  updated_at: "2026-04-17T09:30:00Z",
-  created_by: { kind: "human", ref: "pedro" },
-  priority: "high",
-  description: "Compress the escalation thread into five bullets the launch room can act on.",
-  max_attempts: 3,
-} as unknown as TaskRecord;
 
 function buildEditDraft(): TaskEditorDraft {
   return {
@@ -188,9 +174,7 @@ export const RecurringDraft: Story = {
 /** Edit state after changing an exact-session owner to Unassigned. */
 export const EditModeUnassigned: Story = {
   args: {},
-  render: () => (
-    <TaskEditorModalHarness mode="edit" initialDraft={buildExactOwnerEditDraft()} task={editTask} />
-  ),
+  render: () => <TaskEditorModalHarness initialDraft={buildExactOwnerEditDraft()} mode="edit" />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement.ownerDocument.body);
@@ -211,4 +195,16 @@ export const ValidationDisabled: Story = {
       initialDraft={createTaskEditorDraft(DEFAULT_TASK_TEMPLATE_ID, storyWorkspaceIds.hq)}
     />
   ),
+};
+
+/** Edit host while the bound task is still resolving. */
+export const EditLoading: Story = {
+  args: {},
+  render: () => <TaskEditorModalHarness mode="edit" status="loading" />,
+};
+
+/** Edit host when the bound task cannot be read — the form never renders half-bound. */
+export const EditUnavailable: Story = {
+  args: {},
+  render: () => <TaskEditorModalHarness mode="edit" status="unavailable" />,
 };

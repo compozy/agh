@@ -23,7 +23,6 @@ export function AgentSettingsInstructionsSection({
     <FormSection
       data-testid="agent-settings-instructions"
       icon={Bot}
-      size="compact"
       title="Instructions"
       description="AGENT.md body used when starting sessions from this agent."
     >

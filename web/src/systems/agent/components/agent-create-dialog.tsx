@@ -2,6 +2,8 @@ import { Bot } from "lucide-react";
 import { type FormEvent } from "react";
 
 import {
+  Alert,
+  AlertDescription,
   Dialog,
   DialogContent,
   dialogShellClass,
@@ -9,7 +11,6 @@ import {
   EntityDialogFooter,
   EntityDialogHeader,
   EntityModeToolbar,
-  FieldError,
   type EntityMode,
 } from "@agh/ui";
 
@@ -21,7 +22,7 @@ import { useAgentCreateDialogViewState } from "../hooks/use-agent-create-dialog-
 import { AgentCreateDefinitionSection } from "./agent-create-definition-section";
 import { AgentCreatePermissionsSection } from "./agent-create-permissions-section";
 import { AgentCreateRuntimeDetailsSection } from "./agent-create-runtime-details-section";
-import { AgentCreateRuntimeSection } from "./agent-create-runtime-section";
+import { AgentCreateRuntimeFields } from "./agent-create-runtime-fields";
 import { AgentCreateToolsSection } from "./agent-create-tools-section";
 
 interface AgentCreateDialogProps {
@@ -147,51 +148,44 @@ function AgentCreateDialog({
         />
 
         <form className="contents" onSubmit={handleSubmit}>
-          <EntityDialogBody className="flex flex-col gap-4">
+          <EntityDialogBody className="flex flex-col">
+            {submitError || visibleErrors.scope ? (
+              <Alert className="mb-4" data-testid="agent-create-submit-error" variant="danger">
+                <AlertDescription>{submitError ?? visibleErrors.scope}</AlertDescription>
+              </Alert>
+            ) : null}
+
             <AgentCreateDefinitionSection
               draft={draft}
               errors={visibleErrors}
               onDraftChange={onDraftChange}
-            />
-
-            <AgentCreateRuntimeSection
-              draft={draft}
-              errors={visibleErrors}
-              modelCatalogError={modelCatalogError}
-              modelCatalogLoaded={modelCatalogLoaded}
-              modelCatalogLoading={modelCatalogLoading}
-              modelCatalogRefreshing={modelCatalogRefreshing}
-              onDraftChange={onDraftChange}
-              onOpenProviderSettings={onOpenProviderSettings}
-              onRefreshCatalog={onRefreshCatalog}
-              providerOptions={providerOptions}
-              providersLoading={providersLoading}
-              runtimeModels={runtimeModels}
-            />
-
-            <AgentCreatePermissionsSection draft={draft} onDraftChange={onDraftChange} />
+            >
+              <AgentCreateRuntimeFields
+                draft={draft}
+                errors={visibleErrors}
+                modelCatalogError={modelCatalogError}
+                modelCatalogLoaded={modelCatalogLoaded}
+                modelCatalogLoading={modelCatalogLoading}
+                modelCatalogRefreshing={modelCatalogRefreshing}
+                onDraftChange={onDraftChange}
+                onOpenProviderSettings={onOpenProviderSettings}
+                onRefreshCatalog={onRefreshCatalog}
+                providerOptions={providerOptions}
+                providersLoading={providersLoading}
+                runtimeModels={runtimeModels}
+              />
+            </AgentCreateDefinitionSection>
 
             {mode === "advanced" ? (
               <>
-                <AgentCreateRuntimeDetailsSection
-                  draft={draft}
-                  errors={visibleErrors}
-                  onDraftChange={onDraftChange}
-                />
+                <AgentCreatePermissionsSection draft={draft} onDraftChange={onDraftChange} />
+                <AgentCreateRuntimeDetailsSection draft={draft} onDraftChange={onDraftChange} />
                 <AgentCreateToolsSection
                   draft={draft}
                   errors={visibleErrors}
                   onDraftChange={onDraftChange}
                 />
               </>
-            ) : null}
-
-            {visibleErrors.scope ? (
-              <FieldError data-testid="agent-create-scope-error">{visibleErrors.scope}</FieldError>
-            ) : null}
-
-            {submitError ? (
-              <FieldError data-testid="agent-create-submit-error">{submitError}</FieldError>
             ) : null}
           </EntityDialogBody>
 

@@ -29,7 +29,6 @@ export function AgentCreateToolsSection({
       data-testid="agent-create-tools-section"
       description="Empty lists mean the runtime defaults apply."
       icon={Wrench}
-      size="compact"
       title="Tools & skills"
     >
       <div className="grid gap-3.5 md:grid-cols-2">

@@ -87,10 +87,9 @@ export function NetworkCreateChannelDialog({
         />
 
         <form className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]" onSubmit={handleSubmit}>
-          <EntityDialogBody className="flex flex-col gap-4">
+          <EntityDialogBody className="flex flex-col">
             <FormSection
               description="Name and membership are fixed after creation."
-              size="compact"
               title="The channel"
             >
               <div className="flex flex-col gap-4">
@@ -145,7 +144,6 @@ export function NetworkCreateChannelDialog({
                   {draft.selectedAgentNames.length} selected
                 </Pill>
               }
-              size="compact"
               title="Members"
             >
               {agents.length === 0 ? (
@@ -174,7 +172,6 @@ export function NetworkCreateChannelDialog({
 
             <FormSection
               description="The fanout policy routes incoming work."
-              size="compact"
               title="Who receives a message?"
             >
               <ChannelFanoutCards

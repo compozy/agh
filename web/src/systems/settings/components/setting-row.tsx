@@ -3,7 +3,16 @@ import { useRender } from "@base-ui/react/use-render";
 import { ChevronRight } from "lucide-react";
 import { useId, type ComponentProps, type ReactNode } from "react";
 
-import { cn, Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@agh/ui";
+import {
+  cn,
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldHeader,
+  FieldLabel,
+  HelpTip,
+} from "@agh/ui";
 import { associateSettingsControl } from "../lib/control-association";
 
 export interface SettingRowProps {
@@ -11,6 +20,11 @@ export interface SettingRowProps {
   label: ReactNode;
   /** The consequence sentence — what this does to the user's work (≤52ch). */
   description?: ReactNode;
+  /**
+   * Explanation, moved into a `HelpTip` beside the label. Modal rows only —
+   * `description` stays for what the runtime will do with the value.
+   */
+  help?: ReactNode;
   error?: ReactNode;
   /** Single control, right-aligned. Labelled via aria association automatically. */
   control?: ReactNode;
@@ -91,10 +105,17 @@ export function SettingRow({
   );
 }
 
-/** Modal/dialog form of SettingRow — stacked Field layout instead of inline srow. */
+/**
+ * Modal/dialog form of SettingRow — a stacked `Field` with no chrome of its own.
+ *
+ * Rules and vertical rhythm belong to the enclosing `FormSection`; this row drew
+ * its own hairlines and a `text-sm`/`text-xs` type fork, which stacked a second
+ * rule system inside every settings modal.
+ */
 export function ModalSettingRow({
   label,
   description,
+  help,
   error,
   control,
   className,
@@ -113,39 +134,31 @@ export function ModalSettingRow({
   });
 
   return (
-    <Field
-      className={cn(
-        "grid gap-3 border-t border-line pt-5 pb-5 first:border-t-0 first:pt-0",
-        className
-      )}
-      data-testid={testId}
-      orientation="vertical"
-    >
+    <Field className={className} data-testid={testId} orientation="vertical">
       <FieldContent className="min-w-0 gap-1.5">
-        <FieldLabel
-          className="text-sm font-medium text-fg"
-          data-testid={testId ? `${testId}-label` : undefined}
-          htmlFor={labelHtmlFor}
-          id={labelId}
-        >
-          {label}
-        </FieldLabel>
-        {description ? (
-          <FieldDescription className="max-w-136 text-xs leading-5 text-muted" id={descriptionId}>
-            {description}
-          </FieldDescription>
-        ) : null}
-        {error ? (
-          <FieldError className="text-xs text-danger" id={errorId}>
-            {error}
-          </FieldError>
-        ) : null}
+        <FieldHeader>
+          <FieldLabel
+            data-testid={testId ? `${testId}-label` : undefined}
+            htmlFor={labelHtmlFor}
+            id={labelId}
+          >
+            {label}
+          </FieldLabel>
+          {help ? <HelpTip label={helpTriggerLabel(label)}>{help}</HelpTip> : null}
+        </FieldHeader>
+        {description ? <FieldDescription id={descriptionId}>{description}</FieldDescription> : null}
       </FieldContent>
       <div className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-3 [&_input]:max-w-full [&_select]:max-w-full">
         {renderedControl}
       </div>
+      {error ? <FieldError id={errorId}>{error}</FieldError> : null}
     </Field>
   );
+}
+
+/** Names the help trigger after its row when the label is plain text. */
+function helpTriggerLabel(label: ReactNode) {
+  return typeof label === "string" ? `About ${label.toLowerCase()}` : "More information";
 }
 
 interface SettingNavigationRowContentProps {

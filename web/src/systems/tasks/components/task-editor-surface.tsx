@@ -3,7 +3,13 @@
 import { Check } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import { EntityDialogBody, EntityDialogFooter, EntityModeToolbar, type EntityMode } from "@agh/ui";
+import {
+  EntityDialogBody,
+  EntityDialogFooter,
+  EntityModeToolbar,
+  FormSection,
+  type EntityMode,
+} from "@agh/ui";
 
 import {
   NetworkParticipationFields,
@@ -21,7 +27,6 @@ import {
 import { ContractSection } from "./task-form/contract-section";
 import { ExecutionCollapsible } from "./task-form/execution-collapsible";
 import { IngressIdentitySection } from "./task-form/ingress-identity-section";
-import { NumberedSection } from "./task-form/numbered-section";
 import { PlacementSection } from "./task-form/placement-section";
 import { PrioritySection } from "./task-form/priority-section";
 import { QueueOwnershipSection } from "./task-form/queue-ownership-section";
@@ -34,10 +39,10 @@ export interface TaskEditorSurfaceProps {
   mode: TaskEditorSurfaceMode;
   /**
    * Dialog chrome supplied by the modal host. `EntityDialogHeader` renders
-   * `DialogTitle`, so it can only be mounted inside a `Dialog` — OS window
-   * locations mount this surface directly and pass nothing.
+   * `DialogTitle`, so it can only be mounted inside a `Dialog`; the host owns it
+   * and hands it down as a slot.
    */
-  header?: ReactNode;
+  header: ReactNode;
   draft: TaskEditorDraft;
   onDraftChange: (next: TaskEditorDraft | ((current: TaskEditorDraft) => TaskEditorDraft)) => void;
   onSubmit: (draft: TaskEditorDraft, asDraft: boolean) => Promise<unknown> | void;
@@ -143,19 +148,21 @@ export function TaskEditorSurface({
         ) : null}
 
         <EntityDialogBody data-testid="task-editor-modal-body">
-          <NumberedSection first index="01" subtitle="What should get done?" title="The contract">
+          <FormSection
+            help="The title and description a person or agent reads when the task is claimed."
+            title="The contract"
+          >
             <ContractSection
               description={draft.description}
               onDescription={setField("description")}
               onTitle={setField("title")}
               title={draft.title}
             />
-          </NumberedSection>
+          </FormSection>
 
           {isNewMode && templateId && onTemplateChange ? (
-            <NumberedSection
-              index="02"
-              subtitle={
+            <FormSection
+              help={
                 advanced
                   ? "Presets the contract fields below — tweak any of them."
                   : "Pick the closest fit — you can change details after."
@@ -163,20 +170,15 @@ export function TaskEditorSurface({
               title={advanced ? "Template" : "How should it run?"}
             >
               <TemplateCards mode={formMode} onSelect={onTemplateChange} templateId={templateId} />
-            </NumberedSection>
+            </FormSection>
           ) : null}
 
-          <NumberedSection
-            index={isNewMode ? "03" : "02"}
-            subtitle="Higher priority gets claimed sooner."
-            title="Priority"
-          >
+          <FormSection help="Higher priority gets claimed sooner." title="Priority">
             <PrioritySection onPriority={form.updatePriority} priority={draft.priority} />
-          </NumberedSection>
+          </FormSection>
 
-          <NumberedSection
-            index={isNewMode ? "04" : "03"}
-            subtitle="Local by default. Live requires an explicit channel strategy."
+          <FormSection
+            description="Local by default. Live requires an explicit channel strategy."
             title="Network participation"
           >
             <NetworkParticipationFields
@@ -192,23 +194,18 @@ export function TaskEditorSurface({
               testIdPrefix="task-editor-participation"
               value={networkParticipation}
             />
-          </NumberedSection>
+          </FormSection>
 
           {advanced ? (
             <>
-              <NumberedSection
-                index="05"
-                subtitle="Where it sits in the task hierarchy."
-                title="Placement"
-              >
+              <FormSection help="Where it sits in the task hierarchy." title="Placement">
                 <PlacementSection
                   onParentTaskId={setField("parentTaskId")}
                   parentTaskId={draft.parentTaskId}
                 />
-              </NumberedSection>
-              <NumberedSection
-                index="06"
-                subtitle="Who runs it, and how retries behave."
+              </FormSection>
+              <FormSection
+                help="Who runs it, and how retries behave."
                 title="Queue &amp; ownership"
               >
                 <QueueOwnershipSection
@@ -221,17 +218,16 @@ export function TaskEditorSurface({
                   ownerKind={draft.ownerKind}
                   ownerRef={draft.ownerRef}
                 />
-              </NumberedSection>
-              <NumberedSection
-                index="07"
-                subtitle="Optional — stable identifier override."
+              </FormSection>
+              <FormSection
+                help="A stable identifier override. Leave it empty and the daemon assigns one."
                 title="Identity"
               >
                 <IngressIdentitySection
                   identifier={draft.identifier}
                   onIdentifier={setField("identifier")}
                 />
-              </NumberedSection>
+              </FormSection>
               <ExecutionCollapsible
                 autoEnqueueOnReady={draft.autoEnqueueOnReady}
                 onAutoEnqueue={form.updateAutoEnqueue}
@@ -242,11 +238,7 @@ export function TaskEditorSurface({
           ) : null}
 
           {!isNewMode ? (
-            <NumberedSection
-              index="04"
-              subtitle="Who runs it, and how retries behave."
-              title="Queue &amp; ownership"
-            >
+            <FormSection help="Who runs it, and how retries behave." title="Queue &amp; ownership">
               <QueueOwnershipSection
                 approvalPolicy={draft.approvalPolicy}
                 maxAttempts={draft.maxAttempts}
@@ -257,7 +249,7 @@ export function TaskEditorSurface({
                 ownerKind={draft.ownerKind}
                 ownerRef={draft.ownerRef}
               />
-            </NumberedSection>
+            </FormSection>
           ) : null}
         </EntityDialogBody>
 

@@ -144,7 +144,7 @@ function ChannelPolicyDialogForm({
 
   return (
     <form className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]" onSubmit={handleSubmit}>
-      <EntityDialogBody className="flex flex-col gap-4">
+      <EntityDialogBody className="flex flex-col">
         <ImmutableIdentity
           data-testid="channel-policy-identity"
           hint="UpdateNetworkChannelRequest cannot change the name or membership — recreate the channel to change them."
@@ -157,11 +157,7 @@ function ChannelPolicyDialogForm({
           ]}
         />
 
-        <FormSection
-          description="The mutable half of the channel."
-          size="compact"
-          title="Purpose & fanout"
-        >
+        <FormSection description="The mutable half of the channel." title="Purpose & fanout">
           <div className="flex flex-col gap-4">
             <Field>
               <FieldContent>

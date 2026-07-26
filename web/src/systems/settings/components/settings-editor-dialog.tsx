@@ -113,20 +113,20 @@ function SettingsEditorDialog({
 
         {feedback ? (
           <div
-            className="flex flex-col gap-2 px-6 pb-4"
+            className="flex flex-col gap-2 px-5 pb-4"
             data-testid={`settings-${testSlug}-editor-feedback`}
           >
             {error ? (
               <Alert variant="danger" data-testid={`settings-${testSlug}-editor-error`}>
                 <AlertCircle className="mt-0.5 size-3 shrink-0" />
-                <AlertDescription className="text-xs">{error}</AlertDescription>
+                <AlertDescription>{error}</AlertDescription>
               </Alert>
             ) : null}
             {!error && warnings && warnings.length > 0 ? (
               <Alert variant="warning" data-testid={`settings-${testSlug}-editor-warnings`}>
                 <AlertCircle className="mt-0.5 size-3 shrink-0" />
                 <AlertDescription>
-                  <ul className="flex flex-col gap-1 text-xs">
+                  <ul className="flex flex-col gap-1">
                     {warnings.map(warning => (
                       <li key={warning}>{warning}</li>
                     ))}

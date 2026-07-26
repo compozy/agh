@@ -2,6 +2,7 @@
 // Invariant: The live preview and displayed request preserve the selected Job execution target.
 // Boundary IN: controlled Job form, pure preview projection, and rendered preview cards.
 // Boundary OUT: HTTP submission and persisted reads, owned by route and detail suites.
+import { agentFixtures } from "@/systems/agent/mocks";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -27,7 +28,7 @@ import { createAutomationJobDraft } from "../../lib/automation-drafts";
 import type { CreateAutomationJobRequest } from "../../types";
 
 const WORKSPACE_ID = "ws_alpha";
-const STORY_AGENTS = ["reviewer", "writer", "auditor"];
+const STORY_AGENTS = agentFixtures;
 const WORKSPACES = [
   { id: WORKSPACE_ID, name: "alpha" },
   { id: "ws_beta", name: "beta" },
@@ -42,7 +43,7 @@ interface RenderJobFormOptions {
   draft?: CreateAutomationJobRequest;
   isPending?: boolean;
   mode?: "create" | "edit";
-  agents?: string[];
+  agents?: typeof agentFixtures;
   workspaces?: typeof WORKSPACES;
 }
 
@@ -89,6 +90,20 @@ function renderJobForm({
   return { onCancel, onChange, onSubmit, ...view };
 }
 
+/**
+ * The live preview now swaps in for the form body behind the footer toggle.
+ * Both helpers are idempotent so a test can move between the two views freely.
+ */
+function showPreview() {
+  if (screen.queryByTestId("job-preview")) return;
+  fireEvent.click(screen.getByTestId("job-preview-toggle"));
+}
+
+function showForm() {
+  if (screen.queryByTestId("job-name-input")) return;
+  fireEvent.click(screen.getByTestId("job-preview-toggle"));
+}
+
 describe("AutomationJobForm", () => {
   it("Should update the job name through onChange", () => {
     const { onChange } = renderJobForm();
@@ -110,7 +125,9 @@ describe("AutomationJobForm", () => {
       expect.objectContaining({ scope: "global", workspace_id: undefined })
     );
     expect(screen.getByTestId("job-scope-global")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText(/Global jobs aren't bound to a workspace/i)).toBeInTheDocument();
+    // The picker withdrawing *is* the statement that a global job has no
+    // workspace — the prose that used to say so pointed at a field it removes.
+    expect(screen.queryByTestId("job-workspace-select")).toBeNull();
   });
 
   it("Should choose a workspace from the command selector", async () => {
@@ -140,6 +157,8 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("job-workspace-select")).toBeDisabled();
     fireEvent.click(screen.getByTestId("job-scope-global"));
     expect(onChange).not.toHaveBeenCalled();
+
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent('"scope"');
   });
 
@@ -217,6 +236,8 @@ describe("AutomationJobForm", () => {
         }),
       })
     );
+
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
       /"channel"|"network_channel"|"coordination_channel_id"/
     );
@@ -302,6 +323,8 @@ describe("AutomationJobForm", () => {
         }),
       })
     );
+
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
       `"workspace_id": "${WORKSPACE_ID}"`
     );
@@ -322,6 +345,8 @@ describe("AutomationJobForm", () => {
         loop_target: expect.objectContaining({ workspace_id: "ws_beta" }),
       })
     );
+
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
       '"workspace_id": "ws_beta"'
     );
@@ -353,12 +378,15 @@ describe("AutomationJobForm", () => {
     expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
       "reviews-watch does not declare the schedule start kind"
     );
+
+    showPreview();
     expect(screen.getByTestId("job-preview")).toHaveTextContent("Request blocked");
     expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
       "Blocked · PATCH /api/automation/jobs/{id}"
     );
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
 
+    showForm();
     fireEvent.submit(screen.getByTestId("automation-job-form"));
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -381,6 +409,7 @@ describe("AutomationJobForm", () => {
       },
     });
 
+    showPreview();
     const preview = screen.getByTestId("job-preview");
     expect(preview).toHaveTextContent("start Loop software-delivery");
     expect(preview).toHaveTextContent("helix-v1-launch");
@@ -404,6 +433,7 @@ describe("AutomationJobForm", () => {
       },
     });
 
+    showPreview();
     const preview = screen.getByTestId("job-preview");
     expect(preview).toHaveTextContent("run agent reviewer");
     expect(preview).toHaveTextContent("Prompt the agent receives");
@@ -423,6 +453,7 @@ describe("AutomationJobForm", () => {
       },
     });
 
+    showPreview();
     expect(screen.getByTestId("job-preview")).toHaveTextContent("in 1s");
     act(() => vi.advanceTimersByTime(1_000));
     expect(screen.getByTestId("job-preview")).toHaveTextContent("in 1 min");
@@ -445,6 +476,7 @@ describe("AutomationJobForm", () => {
       target: { value: "* * * * *" },
     });
 
+    showPreview();
     expect(screen.getByTestId("job-preview")).toHaveTextContent("in 20s");
     act(() => vi.advanceTimersByTime(20_000));
     expect(screen.getByTestId("job-preview")).toHaveTextContent("in 1 min");
@@ -485,6 +517,8 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("job-catch-up-field")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("job-catch-up-replay"));
     fireEvent.change(screen.getByTestId("job-misfire-grace"), { target: { value: "45" } });
+
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
       '"catch_up_policy": "replay"'
     );
@@ -493,9 +527,11 @@ describe("AutomationJobForm", () => {
     );
 
     // One-shot `at` hides the controls and drops both fields from the request.
+    showForm();
     fireEvent.click(screen.getByTestId("job-schedule-mode-at"));
     expect(screen.queryByTestId("job-catch-up-field")).not.toBeInTheDocument();
     expect(screen.queryByTestId("job-misfire-grace")).not.toBeInTheDocument();
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
       "catch_up_policy"
     );
@@ -504,9 +540,11 @@ describe("AutomationJobForm", () => {
     );
 
     // Returning to cron restores the entered recurring values.
+    showForm();
     fireEvent.click(screen.getByTestId("job-schedule-mode-cron"));
     expect(screen.getByTestId("job-catch-up-replay")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("job-misfire-grace")).toHaveValue(45);
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
       '"catch_up_policy": "replay"'
     );
@@ -517,12 +555,16 @@ describe("AutomationJobForm", () => {
     fireEvent.click(screen.getByTestId("job-governance-toggle"));
 
     fireEvent.click(screen.getByTestId("job-catch-up-coalesce"));
+
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
       '"catch_up_policy": "coalesce"'
     );
 
+    showForm();
     fireEvent.click(screen.getByTestId("job-catch-up-default"));
     expect(screen.getByTestId("job-catch-up-default")).toHaveAttribute("aria-pressed", "true");
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
       "catch_up_policy"
     );
@@ -532,14 +574,21 @@ describe("AutomationJobForm", () => {
     renderJobForm();
     fireEvent.click(screen.getByTestId("job-governance-toggle"));
 
-    const grace = screen.getByTestId("job-misfire-grace");
-    fireEvent.change(grace, { target: { value: "30" } });
+    fireEvent.change(screen.getByTestId("job-misfire-grace"), { target: { value: "30" } });
+
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
       '"misfire_grace_seconds": 30'
     );
 
+    // Re-query after the swap: the preview unmounts the form body, so a handle
+    // captured before it points at a detached node.
+    showForm();
+    const grace = screen.getByTestId("job-misfire-grace");
     fireEvent.change(grace, { target: { value: "0" } });
     expect(grace).toHaveValue(0);
+
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
       "misfire_grace_seconds"
     );
@@ -581,9 +630,9 @@ describe("AutomationJobForm", () => {
     });
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
 
-    fireEvent.change(screen.getByTestId("job-agent-input"), {
-      target: { value: "reviewer" },
-    });
+    // The agent target is a searchable catalog selector, not a text input.
+    fireEvent.click(screen.getByTestId("job-agent-input"));
+    fireEvent.click(screen.getByTestId(`agent-command-item-${agentFixtures[0].name}`));
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
 
     fireEvent.change(screen.getByTestId("job-prompt-input"), {
@@ -593,7 +642,7 @@ describe("AutomationJobForm", () => {
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         name: "daily-review",
-        agent_name: "reviewer",
+        agent_name: agentFixtures[0].name,
         prompt: "Review recent changes.",
       })
     );

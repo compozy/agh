@@ -156,10 +156,7 @@ export function MCPServerEditor({
           }
         />
 
-        <EntityDialogBody
-          className="flex flex-col gap-4"
-          data-testid="settings-mcp-servers-editor-body"
-        >
+        <EntityDialogBody className="flex flex-col" data-testid="settings-mcp-servers-editor-body">
           <MCPEditorConnectionSection
             availableTargets={availableTargets}
             draft={draft}
@@ -191,13 +188,13 @@ export function MCPServerEditor({
 
           {saveError ? (
             <Alert data-testid="settings-mcp-servers-editor-error" variant="danger">
-              <AlertDescription className="text-xs">{saveError}</AlertDescription>
+              <AlertDescription>{saveError}</AlertDescription>
             </Alert>
           ) : null}
           {!saveError && warnings && warnings.length > 0 ? (
             <Alert data-testid="settings-mcp-servers-editor-warnings" variant="warning">
               <AlertDescription>
-                <ul className="flex flex-col gap-1 text-xs">
+                <ul className="flex flex-col gap-1">
                   {warnings.map(warning => (
                     <li key={warning}>{warning}</li>
                   ))}

@@ -45,6 +45,8 @@ interface ReliabilitySectionProps {
   mode: "create" | "edit";
   badge: string;
   defaultOpen: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   /** True for cron/every schedules; catch-up + grace are recurring-only, hidden for one-shot `at`. */
   recurring: boolean;
   catchUpPolicy: AutomationCatchUpPolicy | undefined;
@@ -71,6 +73,8 @@ export function ReliabilitySection({
   mode,
   badge,
   defaultOpen,
+  open,
+  onOpenChange,
   recurring,
   catchUpPolicy,
   misfireGraceSeconds,
@@ -86,6 +90,8 @@ export function ReliabilitySection({
     <ReliabilitySectionShell
       badge={badge}
       defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      open={open}
       testId="job-governance-toggle"
       title="Reliability & limits"
     >

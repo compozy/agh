@@ -12,6 +12,8 @@ interface ReliabilitySectionProps {
   enabled: boolean;
   badge: string;
   defaultOpen: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onRetryChange: (retry: AutomationRetry) => void;
   onFireLimitChange: (fireLimit: AutomationFireLimit) => void;
   onEnabledChange: (enabled: boolean) => void;
@@ -24,6 +26,8 @@ export function ReliabilitySection({
   enabled,
   badge,
   defaultOpen,
+  open,
+  onOpenChange,
   onRetryChange,
   onFireLimitChange,
   onEnabledChange,
@@ -32,6 +36,8 @@ export function ReliabilitySection({
     <ReliabilitySectionShell
       badge={badge}
       defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      open={open}
       testId="trigger-governance-toggle"
       title="Reliability & state"
     >

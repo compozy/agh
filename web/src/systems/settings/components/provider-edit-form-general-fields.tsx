@@ -24,7 +24,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
     <FormSection
       data-testid="settings-providers-editor-basics"
       description="The minimum needed to launch an ACP subprocess."
-      size="compact"
       title="Provider basics"
     >
       {isCreate ? (

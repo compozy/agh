@@ -69,9 +69,8 @@ export function AgentCreatePermissionsSection({
   return (
     <FormSection
       data-testid="agent-create-permissions-section"
-      description="The permission policy every session inherits."
+      help="Sessions launched from this agent inherit this policy. It is the ceiling on what the agent may do without asking you first."
       icon={ShieldCheck}
-      size="compact"
       title="What can it do on its own?"
     >
       <Field>

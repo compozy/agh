@@ -1,24 +1,22 @@
-import {
-  Bot,
-  Box,
-  CalendarCheck,
-  Check,
-  Clock,
-  Info,
-  Repeat,
-  Repeat2,
-  Workflow,
-} from "lucide-react";
+import { Bot, CalendarCheck, Check, Clock, Eye, Repeat, Repeat2, Workflow } from "lucide-react";
+import { useState } from "react";
 
 import {
+  Alert,
+  AlertDescription,
   Button,
-  DialogFooter,
+  EntityDialogBody,
+  EntityDialogFooter,
+  EntityDialogToolbar,
   Field,
   FieldLabel,
+  FormSection,
   Input,
   PillGroup,
   type PillGroupItem,
 } from "@agh/ui";
+import type { AgentPayload } from "@/systems/agent";
+import { ScopeSelector } from "@/systems/workspace";
 import { LoopTargetFields } from "@/systems/loops";
 
 import { useAutomationJobForm, type JobTargetMode } from "../hooks/use-automation-job-form";
@@ -37,9 +35,7 @@ import { JobPreview } from "./job-form/preview/job-preview";
 import { ReliabilitySection } from "./job-form/reliability-section";
 import { ScheduleAt } from "./job-form/schedule-at";
 import { ScheduleEvery } from "./job-form/schedule-every";
-import { ScopeStep } from "./job-form/scope-step";
 import { TaskRunStep } from "./job-form/task-run-step";
-import { FlowStep } from "./trigger-form/flow-step";
 
 interface AutomationJobFormProps {
   activeWorkspaceId?: string | null;
@@ -51,11 +47,11 @@ interface AutomationJobFormProps {
   onSubmit: () => void;
   /** Workspaces selectable for a workspace-scoped job. */
   workspaces?: ReadonlyArray<WorkspaceOption>;
-  /** Known agent names; falls back to a free-text agent input when empty. */
-  agents?: string[];
+  /** Agent catalog for the searchable selector. */
+  agents?: AgentPayload[];
 }
 
-const EMPTY_AGENTS: string[] = [];
+const EMPTY_AGENTS: AgentPayload[] = [];
 
 const JOB_TARGET_ITEMS: PillGroupItem<JobTargetMode>[] = [
   {
@@ -160,6 +156,12 @@ export function AutomationJobForm({
     workspaces,
     agents,
   });
+  // View state, not draft state: `AutomationEditorDialog` unmounts the content
+  // on close, so the initial value is the whole reset.
+  const [view, setView] = useState<"form" | "preview">("form");
+  // Held above the view swap: the preview unmounts the form body, and a
+  // disclosure someone opened must survive a look at the preview.
+  const [reliabilityOpen, setReliabilityOpen] = useState(form.reliabilityDefaultOpen);
 
   return (
     <form
@@ -167,43 +169,49 @@ export function AutomationJobForm({
       data-testid="automation-job-form"
       onSubmit={form.handleSubmit}
     >
-      <div className="grid min-h-0 flex-1 grid-cols-[1fr_var(--width-right-rail-default)] max-lg:block max-lg:overflow-y-auto">
-        <section className="min-h-0 overflow-y-auto px-6 py-5 max-lg:overflow-visible">
-          <Field className="mb-1">
-            <FieldLabel htmlFor="job-name">Job name</FieldLabel>
-            <Input
-              className="font-mono"
-              data-testid="job-name-input"
-              id="job-name"
-              onChange={event => form.onName(event.target.value)}
-              placeholder="daily-code-review"
-              value={draft.name}
-            />
-          </Field>
+      <EntityDialogToolbar
+        trailing={
+          <ScopeSelector
+            ariaLabel="Job scope"
+            disabled={mode === "edit"}
+            onScopeChange={form.onScopeChange}
+            onWorkspaceChange={form.onWorkspaceChange}
+            scope={draft.scope}
+            testIdPrefix="job"
+            workspaceId={draft.workspace_id}
+            workspaces={form.resolvedWorkspaces}
+          />
+        }
+        trailingLabel="Scope"
+      />
 
-          <div className="mt-5">
-            <FlowStep
-              active
-              icon={Box}
-              kicker="For"
-              subtitle="Where the job lives. A global job runs against the runtime; a workspace job runs in one project."
-              title="A workspace, or the whole runtime"
-            >
-              <ScopeStep
-                disabled={mode === "edit"}
-                onScopeChange={form.onScopeChange}
-                onWorkspaceChange={form.onWorkspaceChange}
-                scope={draft.scope}
-                workspaceId={draft.workspace_id}
-                workspaces={form.resolvedWorkspaces}
+      <EntityDialogBody data-testid="automation-job-form-body">
+        {view === "preview" ? (
+          <JobPreview preview={form.preview} />
+        ) : (
+          <>
+            {form.preview.targetIssue ? (
+              // With the preview closed this is the only visible reason the
+              // primary is disabled — never let it live solely in the preview.
+              <Alert className="mb-4" data-testid="job-form-blocked" variant="warning">
+                <AlertDescription>{form.preview.targetIssue}</AlertDescription>
+              </Alert>
+            ) : null}
+            <Field>
+              <FieldLabel htmlFor="job-name">Job name</FieldLabel>
+              <Input
+                className="font-mono"
+                data-testid="job-name-input"
+                id="job-name"
+                onChange={event => form.onName(event.target.value)}
+                placeholder="daily-code-review"
+                value={draft.name}
               />
-            </FlowStep>
+            </Field>
 
-            <FlowStep
-              active
+            <FormSection
+              help="Prompt an agent, hand the work to a durable task, or start a Loop with typed inputs."
               icon={Bot}
-              kicker="Run"
-              subtitle="Prompt an agent, hand the work to a durable task, or start a Loop with typed inputs."
               title="What fires on each tick"
             >
               <div className="space-y-4">
@@ -245,14 +253,11 @@ export function AutomationJobForm({
                   />
                 )}
               </div>
-            </FlowStep>
+            </FormSection>
 
-            <FlowStep
-              active
+            <FormSection
+              description="All times evaluate in UTC, the runtime's automation timezone."
               icon={Clock}
-              kicker="When"
-              last
-              subtitle="All times evaluate in UTC, the runtime's automation timezone."
               title="On this schedule"
             >
               <div className="space-y-4">
@@ -300,66 +305,65 @@ export function AutomationJobForm({
                   />
                 ) : null}
               </div>
-            </FlowStep>
-          </div>
+            </FormSection>
 
-          <ReliabilitySection
-            badge={reliabilityBadge(
-              form.retry,
-              draft.fire_limit ?? undefined,
-              draft.enabled ?? true,
-              form.output === "task",
-              form.recurring ? form.catchUpPolicy : undefined
-            )}
-            catchUpPolicy={form.catchUpPolicy}
-            defaultOpen={form.reliabilityDefaultOpen}
-            enabled={draft.enabled ?? true}
-            fireLimit={draft.fire_limit ?? undefined}
-            locked={form.output === "task"}
-            misfireGraceSeconds={form.misfireGraceSeconds}
-            mode={mode}
-            onCatchUpPolicyChange={form.onCatchUpPolicyChange}
-            onEnabledChange={form.onEnabledChange}
-            onFireLimitChange={form.onFireLimitChange}
-            onMisfireGraceChange={form.onMisfireGraceChange}
-            onRetryChange={form.onRetryChange}
-            recurring={form.recurring}
-            retry={form.retry}
-          />
-        </section>
+            <ReliabilitySection
+              badge={reliabilityBadge(
+                form.retry,
+                draft.fire_limit ?? undefined,
+                draft.enabled ?? true,
+                form.output === "task",
+                form.recurring ? form.catchUpPolicy : undefined
+              )}
+              catchUpPolicy={form.catchUpPolicy}
+              defaultOpen={form.reliabilityDefaultOpen}
+              onOpenChange={setReliabilityOpen}
+              open={reliabilityOpen}
+              enabled={draft.enabled ?? true}
+              fireLimit={draft.fire_limit ?? undefined}
+              locked={form.output === "task"}
+              misfireGraceSeconds={form.misfireGraceSeconds}
+              mode={mode}
+              onCatchUpPolicyChange={form.onCatchUpPolicyChange}
+              onEnabledChange={form.onEnabledChange}
+              onFireLimitChange={form.onFireLimitChange}
+              onMisfireGraceChange={form.onMisfireGraceChange}
+              onRetryChange={form.onRetryChange}
+              recurring={form.recurring}
+              retry={form.retry}
+            />
+          </>
+        )}
+      </EntityDialogBody>
 
-        <JobPreview preview={form.preview} />
-      </div>
-
-      <DialogFooter variant="ruled">
-        <div className="flex flex-1 items-center gap-2 text-form-hint text-subtle">
-          <Info aria-hidden="true" className="size-3 shrink-0 text-faint" />
-          <span>
+      <EntityDialogFooter
+        hint={
+          <>
             Created as a <b className="font-medium text-muted">dynamic</b> job: editable,
             disable-able, and deletable anytime.
-          </span>
-        </div>
-        <Button onClick={onCancel} type="button" variant="outline">
-          Cancel
-        </Button>
-        <Button
-          className="min-w-32"
-          data-testid="submit-job-form"
-          disabled={!form.canSubmit || isPending}
-          type="submit"
-        >
-          {isPending ? (
-            "Saving..."
-          ) : mode === "create" ? (
-            <>
-              <Check aria-hidden="true" className="size-4" />
-              Create job
-            </>
-          ) : (
-            "Save changes"
-          )}
-        </Button>
-      </DialogFooter>
+          </>
+        }
+        isSaving={isPending}
+        leading={
+          <Button
+            aria-pressed={view === "preview"}
+            data-testid="job-preview-toggle"
+            onClick={() => setView(current => (current === "form" ? "preview" : "form"))}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Eye aria-hidden="true" className="size-3.5" />
+            {view === "preview" ? "Back to form" : "Show live preview"}
+          </Button>
+        }
+        onCancel={onCancel}
+        primaryDisabled={!form.canSubmit}
+        primaryIcon={mode === "create" ? Check : undefined}
+        primaryLabel={isPending ? "Saving..." : mode === "create" ? "Create job" : "Save changes"}
+        primaryTestId="submit-job-form"
+        primaryType="submit"
+      />
     </form>
   );
 }

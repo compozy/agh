@@ -4,13 +4,16 @@ import { AlertCircle, ListChecks, Plus } from "lucide-react";
 import { BlockLoading, Button, Empty, RouteNav, useTopbarSlot } from "@agh/ui";
 
 import {
+  DEFAULT_TASK_TEMPLATE_ID,
   TasksDashboardView,
   TasksEmptyState,
   TasksInboxView,
   TasksKanbanBoard,
   TasksListSurface,
   TasksListToolbar,
+  taskCatalogSearchFor,
   useTasksPage,
+  type TaskTemplateId,
   type TaskViewMode,
 } from "@/systems/tasks";
 
@@ -32,7 +35,13 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
   const page = useTasksPage({ mode });
   const navigate = (pathname: string, search: Record<string, unknown> = {}) =>
     void coordinator.userOpen({ app: "tasks", route: { pathname, search } });
-  const openCreate = () => navigate("/tasks/new");
+  // The create dialog layers over this catalog, so the active view rides along
+  // and dismissal lands back on the view the operator was reading.
+  const openCreate = (template?: TaskTemplateId) =>
+    navigate("/tasks/new", {
+      ...taskCatalogSearchFor(mode),
+      ...(template && template !== DEFAULT_TASK_TEMPLATE_ID ? { template } : {}),
+    });
   const modeNav = (
     <RouteNav aria-label="Tasks views" data-testid="tasks-mode-nav">
       {TASK_MODE_ITEMS.map(item => (
@@ -69,7 +78,7 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
       <Button
         data-testid="tasks-open-create"
         disabled={!page.hasActiveTaskScope}
-        onClick={openCreate}
+        onClick={() => openCreate()}
         size="sm"
         type="button"
       >
@@ -173,12 +182,7 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
           pendingRetryIds={page.pendingRetryIds}
         />
       ) : page.isEmpty ? (
-        <TasksEmptyState
-          onSelectTemplate={templateId =>
-            navigate("/tasks/new", templateId === "one_shot" ? {} : { template: templateId })
-          }
-          workspaceName={page.activeWorkspaceName}
-        />
+        <TasksEmptyState onSelectTemplate={openCreate} workspaceName={page.activeWorkspaceName} />
       ) : mode === "kanban" ? (
         <TasksKanbanBoard
           columns={page.kanbanColumns}
@@ -186,7 +190,7 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
           hasMore={page.hasMoreTasks}
           isLoading={page.listLoading}
           isLoadingMore={page.isLoadingMoreTasks}
-          onCreate={openCreate}
+          onCreate={() => openCreate()}
           onRetryLoad={page.retryTasks}
           onRetryTask={page.handleRetryRun}
           onSelectTask={taskId => navigate(`/tasks/${encodeURIComponent(taskId)}`)}

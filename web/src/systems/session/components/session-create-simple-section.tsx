@@ -64,7 +64,6 @@ function SessionCreateSimpleSection({
   return (
     <FormSection
       description="Both choices come from runtime-backed catalogs."
-      size="compact"
       title="Who runs, and where"
     >
       <div className="flex flex-col gap-4">

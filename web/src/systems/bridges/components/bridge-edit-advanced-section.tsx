@@ -63,7 +63,6 @@ export function BridgeEditAdvancedSection({
           data-testid="bridge-edit-section-credentials"
           description="Only presence is returned. Rotate a slot to send a new write-only value."
           icon={KeyRound}
-          size="compact"
           title="Credentials"
         >
           {rotations.map(rotation => (
@@ -93,7 +92,6 @@ export function BridgeEditAdvancedSection({
         data-testid="bridge-edit-section-routing"
         description="Optional policies from the bridge update contract."
         icon={Waypoints}
-        size="compact"
         title="Routing & delivery"
       >
         <BridgeRoutingFields

@@ -1,3 +1,4 @@
+import { agentFixtures } from "@/systems/agent/mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render as renderTestingLibrary, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -44,6 +45,7 @@ function JobEditorHarness({
   return (
     <AutomationEditorDialog
       activeWorkspaceId="ws_test"
+      agents={agentFixtures}
       editor={{
         draft,
         isPending: false,
@@ -74,6 +76,7 @@ function TriggerEditorHarness({
   return (
     <AutomationEditorDialog
       activeWorkspaceId="ws_test"
+      agents={agentFixtures}
       editor={{
         draft,
         isPending: false,
@@ -167,9 +170,8 @@ describe("AutomationEditorDialog", () => {
     });
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
 
-    fireEvent.change(screen.getByTestId("job-agent-input"), {
-      target: { value: "writer" },
-    });
+    fireEvent.click(screen.getByTestId("job-agent-input"));
+    fireEvent.click(screen.getByTestId(`agent-command-item-${agentFixtures[0].name}`));
     fireEvent.change(screen.getByTestId("job-prompt-input"), {
       target: { value: "Summarize the latest commits." },
     });
@@ -180,7 +182,7 @@ describe("AutomationEditorDialog", () => {
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
-        agent_name: "writer",
+        agent_name: agentFixtures[0].name,
         name: "nightly-docs",
         prompt: "Summarize the latest commits.",
       })

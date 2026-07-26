@@ -61,7 +61,6 @@ function OptionCardRoot({ className, size = "comfortable", children, ...props }:
         {...props}
         data-slot="option-card"
         data-size={size}
-        size={size}
         title={headerEyebrow}
         rightLabel={headerRight}
         className={className}

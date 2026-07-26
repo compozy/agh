@@ -155,7 +155,6 @@ export function BridgeDeliveryTestPanel({
       data-testid="bridge-delivery-test-panel"
       description={`Resolve a target without provider side effects, or send one real message through ${bridgeName ?? "this bridge"}.`}
       icon={SearchCheck}
-      size="compact"
       title="Delivery test"
     >
       <Field>

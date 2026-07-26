@@ -40,7 +40,6 @@ export function MCPEditorProcessSection({
         data-testid="settings-mcp-editor-stdio"
         description="Ordered arguments and environment for the spawned process."
         rightLabel="stdio only"
-        size="compact"
         title="Process environment"
       >
         <div className="flex flex-col gap-3">

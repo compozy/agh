@@ -2,6 +2,7 @@
 // Invariant: The live preview and displayed request preserve the selected Trigger target union.
 // Boundary IN: controlled Trigger form, pure preview projection, and rendered preview cards.
 // Boundary OUT: HTTP submission and persisted reads, owned by route and detail suites.
+import { agentFixtures } from "@/systems/agent/mocks";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -55,6 +56,7 @@ function renderTriggerForm({
     return (
       <AutomationTriggerForm
         activeWorkspaceId={activeWorkspaceId}
+        agents={agentFixtures}
         draft={currentDraft}
         isPending={isPending}
         mode={mode}
@@ -78,12 +80,26 @@ function fillIdentity() {
   fireEvent.change(screen.getByTestId("trigger-name-input"), {
     target: { value: "push-review" },
   });
-  fireEvent.change(screen.getByTestId("trigger-agent-input"), {
-    target: { value: "reviewer" },
-  });
+  // The agent target is a searchable catalog selector, not a text input.
+  fireEvent.click(screen.getByTestId("trigger-agent-input"));
+  fireEvent.click(screen.getByTestId(`agent-command-item-${agentFixtures[0].name}`));
   fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
     target: { value: "Review {{ .Kind }} for session {{ .Data.session_id }}." },
   });
+}
+
+/**
+ * The live preview now swaps in for the form body behind the footer toggle.
+ * Both helpers are idempotent so a test can move between the two views freely.
+ */
+function showPreview() {
+  if (screen.queryByTestId("trigger-preview")) return;
+  fireEvent.click(screen.getByTestId("trigger-preview-toggle"));
+}
+
+function showForm() {
+  if (screen.queryByTestId("trigger-name-input")) return;
+  fireEvent.click(screen.getByTestId("trigger-preview-toggle"));
 }
 
 describe("AutomationTriggerForm", () => {
@@ -151,6 +167,8 @@ describe("AutomationTriggerForm", () => {
         webhook_secret_value: "shared-secret",
       })
     );
+
+    showPreview();
     const requestPayload = screen.getByTestId("automation-request-payload");
     expect(requestPayload).not.toHaveTextContent("shared-secret");
     expect(requestPayload).toHaveTextContent("[redacted]");
@@ -211,6 +229,8 @@ describe("AutomationTriggerForm", () => {
     expect(screen.getByTestId("trigger-workspace-select")).toBeDisabled();
     fireEvent.click(screen.getByTestId("trigger-scope-global"));
     expect(onChange).not.toHaveBeenCalled();
+
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent('"scope"');
   });
 
@@ -227,6 +247,8 @@ describe("AutomationTriggerForm", () => {
     expect(webhook).toBeDisabled();
     fireEvent.click(webhook);
     expect(onChange).not.toHaveBeenCalled();
+
+    showPreview();
     expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent("webhook");
   });
 
@@ -256,7 +278,7 @@ describe("AutomationTriggerForm", () => {
       draft: {
         ...createAutomationTriggerDraft("ws_alpha"),
         name: "session-review",
-        agent_name: "reviewer",
+        agent_name: agentFixtures[0].name,
         prompt: "Review stopped session",
         event: "session.stopped",
       },
@@ -304,7 +326,7 @@ describe("AutomationTriggerForm", () => {
       draft: {
         ...createAutomationTriggerDraft("ws_alpha"),
         name: "push-review",
-        agent_name: "reviewer",
+        agent_name: agentFixtures[0].name,
         prompt: "Review push event.",
         event: "session.stopped",
       },
@@ -421,8 +443,10 @@ describe("AutomationTriggerForm", () => {
         workspace_id: "ws_beta",
       })
     );
+    showPreview();
     expect(screen.getByTestId("automation-target-details")).toHaveTextContent("ws_beta");
     expect(screen.getByTestId("automation-target-details")).not.toHaveTextContent("Not selected");
+
     expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
       '"workspace_id": "ws_beta"'
     );
@@ -461,12 +485,15 @@ describe("AutomationTriggerForm", () => {
     expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
       "software-delivery does not declare the webhook start kind"
     );
+
+    showPreview();
     expect(screen.getByTestId("trigger-preview")).toHaveTextContent("Request blocked");
     expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
       "Blocked · PATCH /api/automation/triggers/{id}"
     );
     expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
 
+    showForm();
     fireEvent.submit(screen.getByTestId("automation-trigger-form"));
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -489,6 +516,7 @@ describe("AutomationTriggerForm", () => {
       },
     });
 
+    showPreview();
     const preview = screen.getByTestId("trigger-preview");
     expect(preview).toHaveTextContent("start Loop software-delivery");
     expect(preview).toHaveTextContent("helix-v1-launch");
@@ -506,13 +534,14 @@ describe("AutomationTriggerForm", () => {
       draft: {
         ...createAutomationTriggerDraft("ws_alpha"),
         name: "push-review",
-        agent_name: "reviewer",
+        agent_name: agentFixtures[0].name,
         prompt: "Review stopped session.",
       },
     });
 
+    showPreview();
     const preview = screen.getByTestId("trigger-preview");
-    expect(preview).toHaveTextContent("run reviewer");
+    expect(preview).toHaveTextContent(`run ${agentFixtures[0].name}`);
     expect(preview).toHaveTextContent("Prompt the agent receives");
     expect(preview).toHaveTextContent("Review stopped session.");
     expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(

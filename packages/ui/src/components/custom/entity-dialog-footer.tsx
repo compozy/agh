@@ -17,6 +17,12 @@ export interface EntityDialogFooterProps extends Omit<
 > {
   /** Consequence note — what persists when the primary action is confirmed. */
   hint?: React.ReactNode;
+  /**
+   * One low-chrome command on the leading edge — a reset, a view toggle. Ghost
+   * or outline only: the footer still carries exactly one primary action.
+   */
+  leading?: React.ReactNode;
+  leadingTestId?: string;
   onCancel: () => void;
   cancelLabel?: React.ReactNode;
   cancelDisabled?: boolean;
@@ -44,6 +50,8 @@ export interface EntityDialogFooterProps extends Omit<
  */
 function EntityDialogFooter({
   hint,
+  leading,
+  leadingTestId,
   onCancel,
   cancelLabel = "Cancel",
   cancelDisabled = false,
@@ -73,15 +81,30 @@ function EntityDialogFooter({
       )}
       {...props}
     >
+      {leading ? (
+        <div
+          className={cn("flex shrink-0 items-center", DIALOG_TOUCH_TARGET_CLASS)}
+          data-slot="entity-dialog-footer-leading"
+          data-testid={leadingTestId}
+        >
+          {leading}
+        </div>
+      ) : null}
       {hint ? (
         <div
-          className="flex min-w-0 flex-1 items-center gap-2 text-form-hint text-subtle"
+          className="flex min-w-0 flex-1 items-center gap-2 text-form-hint text-muted"
           data-slot="entity-dialog-footer-hint"
           data-testid={hintTestId}
         >
           <Info aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
           <span className="min-w-0">{hint}</span>
         </div>
+      ) : null}
+      {leading && !hint ? (
+        // `DialogFooter variant="ruled"` justifies to the end, so without a
+        // growing cell a leading-only footer parks its command beside Cancel.
+        // Hidden once the footer stacks, where it would become an empty row.
+        <div aria-hidden="true" className="flex-1 max-[760px]:hidden" />
       ) : null}
       <Button
         className={DIALOG_TOUCH_TARGET_CLASS}

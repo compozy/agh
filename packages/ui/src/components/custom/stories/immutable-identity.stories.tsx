@@ -45,7 +45,7 @@ export const WithHintInSection: Story = {
   },
   render: args => (
     <div className="w-(--width-modal-sm) max-w-full p-6">
-      <FormSection size="compact" title="Identity">
+      <FormSection title="Identity">
         <ImmutableIdentity {...args} />
       </FormSection>
     </div>

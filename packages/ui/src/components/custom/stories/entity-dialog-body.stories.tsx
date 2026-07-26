@@ -44,7 +44,7 @@ export const Default: Story = {
       >
         <EntityDialogHeader eyebrow="Workspace" icon={Layers} title="Add workspace" />
         <EntityDialogBody>
-          <FormSection size="compact" title="Location">
+          <FormSection title="Location">
             <Placeholder label="Directory browser" />
           </FormSection>
         </EntityDialogBody>
@@ -77,14 +77,14 @@ export const Split: Story = {
         />
         <EntityDialogBody
           side={
-            <FormSection size="compact" title="Session defaults">
+            <FormSection title="Session defaults">
               <Placeholder label="Default agent" />
               <Placeholder label="Sandbox profile" />
             </FormSection>
           }
           variant="split"
         >
-          <FormSection size="compact" title="Location">
+          <FormSection title="Location">
             <Placeholder label="Directory browser" />
           </FormSection>
         </EntityDialogBody>

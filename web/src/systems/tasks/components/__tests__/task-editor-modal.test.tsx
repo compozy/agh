@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskEditorModal, type TaskEditorModalMode } from "../task-editor-modal";
+import {
+  TaskEditorModal,
+  type TaskEditorModalMode,
+  type TaskEditorModalStatus,
+} from "../task-editor-modal";
 import {
   createTaskEditorDraft,
   taskEditorDraftFromTask,
@@ -19,7 +23,7 @@ interface RenderModalOptions {
   draft?: TaskEditorDraft;
   canSubmit?: boolean;
   isSubmitting?: boolean;
-  task?: TaskRecord | null;
+  status?: TaskEditorModalStatus;
 }
 
 const editTask = {
@@ -52,7 +56,7 @@ function renderModal({
   draft = createTaskEditorDraft(templateId, "ws_alpha"),
   canSubmit,
   isSubmitting = false,
-  task = null,
+  status = "ready",
 }: RenderModalOptions = {}) {
   const onOpenChange = vi.fn();
   const onTemplateChange = vi.fn();
@@ -89,7 +93,7 @@ function renderModal({
             : undefined
         }
         open
-        task={task}
+        status={status}
         template={isNewMode ? getTaskTemplate(currentTemplate) : undefined}
         templateId={isNewMode ? currentTemplate : undefined}
         workspaces={workspaces}
@@ -270,7 +274,7 @@ describe("TaskEditorModal", () => {
       maxAttempts: 3,
     };
 
-    renderModal({ mode: "edit", draft, task: editTask });
+    renderModal({ mode: "edit", draft });
 
     const header = screen
       .getByTestId("task-editor-modal")
@@ -282,6 +286,28 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-title-input")).toHaveValue("Summarize review feedback");
     expect(screen.queryByTestId("task-network-input")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save changes");
+  });
+
+  it("Should hold the edit host on a loading state instead of a half-bound form", () => {
+    renderModal({ mode: "edit", status: "loading" });
+
+    expect(screen.getByTestId("task-editor-modal-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("task-editor-modal-form")).not.toBeInTheDocument();
+    const header = screen
+      .getByTestId("task-editor-modal")
+      .querySelector('[data-slot="entity-dialog-header"]');
+    expect(within(header as HTMLElement).getByText("Edit task")).toBeInTheDocument();
+  });
+
+  it("Should report an unreadable task instead of rendering an empty editor", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange } = renderModal({ mode: "edit", status: "unavailable" });
+
+    expect(screen.getByTestId("task-editor-modal-unavailable")).toBeInTheDocument();
+    expect(screen.queryByTestId("task-editor-modal-form")).not.toBeInTheDocument();
+    // Dismissal stays reachable so the host can navigate back to the task.
+    await user.click(screen.getByRole("button", { name: /close/i }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("Should submit persisted Live participation inherited from a Loop run", () => {
@@ -300,7 +326,7 @@ describe("TaskEditorModal", () => {
       })
     );
 
-    const { onSubmit } = renderModal({ mode: "edit", draft, task: loopTask });
+    const { onSubmit } = renderModal({ mode: "edit", draft });
 
     expect(screen.getByTestId("task-editor-participation-mode")).toHaveValue("live");
     expect(screen.getByTestId("task-editor-participation-strategy")).toHaveValue("loop_run");

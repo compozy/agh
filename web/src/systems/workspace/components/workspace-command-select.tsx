@@ -102,7 +102,12 @@ export function WorkspaceCommandSelect({
         selected={Boolean(selected)}
         className={cn(
           size === "compact"
-            ? "h-[calc(var(--height-pill-group-segment-md)+2*var(--space-pill-group-track-padding))] min-w-0 gap-1.5 rounded-md border border-line bg-elevated px-(--space-pill-group-segment-md-x) py-0 shadow-none hover:bg-hover focus-visible:border-line-strong focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
+            ? // Ghost, not a button: this sits inline beside the borderless scope
+              // PillGroup, and a bordered filled trigger reads as a second, taller
+              // control on that line. `border-transparent` rather than `border-0`
+              // — the border is inside the 28 px box, so dropping it would shrink
+              // the trigger to 26 px and re-break the alignment.
+              "h-[calc(var(--height-pill-group-segment-md)+2*var(--space-pill-group-track-padding))] min-w-0 gap-1.5 rounded-md border-transparent bg-transparent px-(--space-pill-group-segment-md-x) py-0 text-subtle shadow-none hover:bg-row-hover hover:text-fg-strong focus-visible:border-transparent focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
             : "h-12 w-full gap-2.5 border-0 bg-transparent px-2 py-0 shadow-none hover:bg-hover focus-visible:border-0 focus-visible:shadow-none [&>svg:last-child]:hidden",
           className
         )}
@@ -118,8 +123,9 @@ export function WorkspaceCommandSelect({
             data-testid="workspace-switcher-avatar"
             data-home={selectedIsHome ? "true" : undefined}
             className={cn(
-              "inline-flex shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg",
-              size === "compact" ? "size-4" : "size-button-icon-xs"
+              "inline-flex shrink-0 items-center justify-center rounded-sm font-mono text-eyebrow font-medium tracking-mono text-fg",
+              // A ghost trigger holds no filled sub-surface.
+              size === "compact" ? "size-4 bg-canvas-tint" : "size-button-icon-xs bg-elevated"
             )}
           >
             {selectedIsHome ? (

@@ -19,8 +19,13 @@ export interface EntityDialogBodyProps extends React.ComponentProps<"div"> {
   sideClassName?: string;
 }
 
-/** Shared pane padding — matches the `.dialog__body` rhythm. */
-const PANE_CLASS = "min-h-0 min-w-0 overflow-y-auto px-6 py-5";
+/**
+ * Shared pane padding — `.dialog__body` (`modal-system.css:218`), which is
+ * `padding: 20px 20px 24px`. The heavier bottom pad keeps the last field off the
+ * footer rule; `scrollbar-gutter` reserves the track so a body does not reflow
+ * horizontally the moment it starts scrolling.
+ */
+const PANE_CLASS = "min-h-0 min-w-0 overflow-y-auto px-5 pt-5 pb-6 [scrollbar-gutter:stable]";
 
 /**
  * Modal body region and sole scroll owner of the shell.

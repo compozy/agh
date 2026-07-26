@@ -85,7 +85,6 @@ export function SandboxEditorAdvancedSection({
       <FormSection
         data-testid="sandbox-editor-lifecycle"
         description="What happens to the sandbox between sessions."
-        size="compact"
         title="Isolation & lifecycle"
       >
         <Field>
@@ -162,7 +161,6 @@ export function SandboxEditorAdvancedSection({
       <FormSection
         data-testid="sandbox-editor-network"
         description="Outbound and ingress rules enforced by the backend."
-        size="compact"
         title="Network policy"
       >
         <Field orientation="horizontal">
@@ -245,7 +243,6 @@ export function SandboxEditorAdvancedSection({
         <FormSection
           data-testid="sandbox-editor-daytona"
           description="Cloud workspace parameters for this profile."
-          size="compact"
           title="Daytona workspace"
         >
           <div className="grid gap-3.5 md:grid-cols-2">

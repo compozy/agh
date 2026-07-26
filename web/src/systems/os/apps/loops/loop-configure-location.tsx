@@ -2,7 +2,7 @@ import { AlertCircle, Repeat2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { Empty, Spinner, useTopbarSlot } from "@agh/ui";
-import { LoopConfigureSheet, useLoop, useLoopConfig } from "@/systems/loops";
+import { LoopConfigureDialog, useLoop, useLoopConfig } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 /**
@@ -77,7 +77,7 @@ export function LoopConfigureLocation({ name }: { name: string }) {
   }
 
   return (
-    <LoopConfigureSheet
+    <LoopConfigureDialog
       key={name}
       open
       workspaceId={workspaceId}

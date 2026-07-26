@@ -214,6 +214,7 @@ export {
 export { taskRunCanRecover } from "./lib/task-run-recovery";
 export {
   parseTasksSurfaceMode,
+  taskCatalogSearchFor,
   validateTaskCreateSearch,
   validateTasksSearch,
 } from "./lib/task-location-search";
@@ -401,7 +402,6 @@ export {
   TaskDeleteAction,
   TaskDependenciesSection,
   TaskEditorModal,
-  TaskEditorSurface,
   TaskFanOutDialog,
   TaskGroup,
   TaskInspectDrawer,
@@ -453,8 +453,7 @@ export type {
   TaskCardProps,
   TaskEditorModalMode,
   TaskEditorModalProps,
-  TaskEditorSurfaceMode,
-  TaskEditorSurfaceProps,
+  TaskEditorModalStatus,
   TaskFanOutDialogProps,
   TaskGroupProps,
   TaskInspectDrawerProps,

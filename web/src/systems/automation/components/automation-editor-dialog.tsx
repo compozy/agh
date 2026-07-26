@@ -7,6 +7,8 @@ import { Dialog, DialogContent, EntityDialogHeader, dialogShellClass } from "@ag
 import type { AutomationDialogHandle } from "../lib/dialog-handle";
 import type { WorkspaceOption } from "../lib/trigger-preview";
 import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../types";
+import type { AgentPayload } from "@/systems/agent";
+
 import { AutomationJobForm } from "./automation-job-form";
 import { AutomationTriggerForm } from "./automation-trigger-form";
 
@@ -33,6 +35,8 @@ type AutomationDialogEditorState =
 
 interface AutomationEditorDialogProps {
   activeWorkspaceId?: string | null;
+  /** Agent catalog for the target selector. */
+  agents?: AgentPayload[];
   editor: AutomationDialogEditorState | null;
   handle?: AutomationDialogHandle;
   workspaces?: ReadonlyArray<WorkspaceOption>;
@@ -73,12 +77,13 @@ function triggerHeaderCopy(mode: "create" | "edit"): AutomationHeaderCopy {
   };
 }
 
-const WIDE_CONTENT_CLASS = `text-fg grid-rows-[auto_minmax(0,1fr)] ${dialogShellClass("xl", {
+const WIDE_CONTENT_CLASS = `text-fg grid-rows-[auto_minmax(0,1fr)] ${dialogShellClass("lg", {
   fill: true,
 })}`;
 
 export function AutomationEditorDialog({
   activeWorkspaceId,
+  agents,
   editor,
   handle,
   workspaces,
@@ -108,6 +113,7 @@ export function AutomationEditorDialog({
           {editor.kind === "jobs" ? (
             <AutomationJobForm
               activeWorkspaceId={activeWorkspaceId}
+              agents={agents}
               draft={editor.draft}
               isPending={editor.isPending}
               mode={editor.mode}
@@ -119,6 +125,7 @@ export function AutomationEditorDialog({
           ) : (
             <AutomationTriggerForm
               activeWorkspaceId={activeWorkspaceId}
+              agents={agents}
               draft={editor.draft}
               isPending={editor.isPending}
               mode={editor.mode}

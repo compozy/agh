@@ -81,7 +81,6 @@ export function WorkspaceSetupLocationPane({ setup, size }: WorkspaceSetupLocati
       <FormSection
         className="flex min-h-0 flex-col"
         description="Browse the daemon's filesystem and pick the folder sessions run in."
-        size="compact"
         title="Location"
       >
         <div className="flex min-h-0 flex-col gap-4">

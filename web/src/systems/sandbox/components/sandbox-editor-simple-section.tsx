@@ -54,7 +54,6 @@ export function SandboxEditorSimpleSection({
       <FormSection
         data-testid="sandbox-editor-profile"
         description="Safe defaults are enough for most agent sessions."
-        size="compact"
         title="The profile"
       >
         {isCreate ? (
@@ -95,7 +94,6 @@ export function SandboxEditorSimpleSection({
             ? "The execution backend for sessions using this profile."
             : "Switching backend applies to new sessions only."
         }
-        size="compact"
         title="Where does it run?"
       >
         <div

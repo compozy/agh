@@ -83,14 +83,22 @@ describe("agent-create-draft reasoning effort validation", () => {
 
 describe("agent-create-draft disclosure tiers", () => {
   it("Should isolate an advanced-only failure from the Simple tier so submit can reveal it", () => {
+    const validation = validateAgentCreateDraft({ ...baseDraft(""), tools: ["  "] }, context);
+
+    expect(validation.fields.tools).toBe("Tool entries cannot be blank.");
+    expect(validation.advancedValid).toBe(false);
+    expect(validation.simpleValid).toBe(true);
+    expect(validation.canSubmit).toBe(false);
+  });
+
+  it("Should fail the Simple tier for an invalid category path, which Simple now renders", () => {
     const validation = validateAgentCreateDraft(
       { ...baseDraft(""), categoryPath: "operations//incident" },
       context
     );
 
     expect(validation.fields.categoryPath).toBe("Category path cannot contain blank segments.");
-    expect(validation.advancedValid).toBe(false);
-    expect(validation.simpleValid).toBe(true);
+    expect(validation.simpleValid).toBe(false);
     expect(validation.canSubmit).toBe(false);
   });
 

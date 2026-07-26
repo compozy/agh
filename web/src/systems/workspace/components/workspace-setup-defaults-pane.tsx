@@ -58,7 +58,6 @@ export function WorkspaceSetupDefaultsPane({
   return (
     <FormSection
       description="Optional — every one of these can change later."
-      size="compact"
       title="Session defaults"
     >
       <div className="flex flex-col gap-4">

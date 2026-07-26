@@ -1,11 +1,14 @@
+import type * as React from "react";
+
 import { Bot } from "lucide-react";
 
 import {
   Field,
-  FieldDescription,
   FieldError,
+  FieldHeader,
   FieldLabel,
   FormSection,
+  HelpTip,
   Input,
   RequiredMark,
   Textarea,
@@ -17,6 +20,8 @@ export interface AgentCreateDefinitionSectionProps {
   draft: AgentCreateDialogDraft;
   errors: Record<string, string | undefined>;
   onDraftChange: (draft: AgentCreateDialogDraft) => void;
+  /** Runtime + catalog pair, which belongs to naming the agent rather than to a section of its own. */
+  children?: React.ReactNode;
 }
 
 /**
@@ -29,13 +34,13 @@ export function AgentCreateDefinitionSection({
   draft,
   errors,
   onDraftChange,
+  children,
 }: AgentCreateDefinitionSectionProps) {
   return (
     <FormSection
       data-testid="agent-create-definition"
-      description="Who is this agent, and what is it responsible for?"
+      help="Name and instructions are the only fields the daemon rejects when empty. Everything else falls back to the project defaults."
       icon={Bot}
-      size="compact"
       title="The definition"
     >
       <Field data-invalid={Boolean(errors.name)}>
@@ -57,11 +62,16 @@ export function AgentCreateDefinitionSection({
       </Field>
 
       <Field data-invalid={Boolean(errors.prompt)}>
-        <FieldLabel htmlFor="agent-create-prompt">
-          Instructions
-          <RequiredMark />
-        </FieldLabel>
-        <FieldDescription>Responsibility, boundaries, and escalation rules.</FieldDescription>
+        <FieldHeader>
+          <FieldLabel htmlFor="agent-create-prompt">
+            Instructions
+            <RequiredMark />
+          </FieldLabel>
+          <HelpTip label="About instructions">
+            The system prompt every session inherits — the agent's responsibility, its boundaries,
+            and when it should escalate to a person.
+          </HelpTip>
+        </FieldHeader>
         <Textarea
           aria-invalid={Boolean(errors.prompt)}
           className="min-h-40"
@@ -73,6 +83,8 @@ export function AgentCreateDefinitionSection({
         />
         <FieldError data-testid="agent-create-prompt-error">{errors.prompt}</FieldError>
       </Field>
+
+      {children}
     </FormSection>
   );
 }

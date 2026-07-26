@@ -59,7 +59,6 @@ export function MCPEditorConnectionSection({
     <FormSection
       data-testid="settings-mcp-editor-connection"
       description="Switching transport replaces the launch configuration."
-      size="compact"
       title={isCreate ? "How does it run?" : "Connection"}
     >
       {isCreate ? null : (

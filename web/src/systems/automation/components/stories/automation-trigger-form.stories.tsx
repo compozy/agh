@@ -1,3 +1,4 @@
+import { agentFixtures } from "@/systems/agent/mocks";
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
@@ -35,12 +36,8 @@ const storyWorkspaces = [
   { id: storyWorkspaceIds.growth, name: storyWorkspaceNames.growth },
 ];
 
-const storyAgents = [
-  storyAgentNames.compliance,
-  storyAgentNames.support,
-  storyAgentNames.release,
-  storyAgentNames.fraud,
-];
+// The target selector reads the real agent catalog shape, not bare names.
+const storyAgents = agentFixtures;
 
 const STOP_PROMPT =
   "Session {{ .Data.session_id }} (agent {{ .Data.agent_name }}) stopped with reason " +

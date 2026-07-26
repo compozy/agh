@@ -4,7 +4,7 @@ import { ArrowRight, SlidersHorizontal } from "lucide-react";
 import * as React from "react";
 
 import { DIALOG_TOUCH_TARGET_SEGMENTS_CLASS } from "../../lib/dialog-shell";
-import { cn } from "../../lib/utils";
+import { EntityDialogToolbar } from "./entity-dialog-toolbar";
 import { PillGroup, type PillGroupItem } from "./pill-group";
 
 /** The only disclosure tier an entity editor may have. */
@@ -70,33 +70,24 @@ function EntityModeToolbar({
   ...props
 }: EntityModeToolbarProps) {
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-center gap-3 border-y border-line-soft bg-canvas-tint px-6 py-3",
-        className
-      )}
+    <EntityDialogToolbar
+      className={className}
       data-slot="entity-mode-toolbar"
       data-mode={mode}
+      leading={
+        <PillGroup
+          aria-label={ariaLabel}
+          className={DIALOG_TOUCH_TARGET_SEGMENTS_CLASS}
+          items={modeItems(testIdPrefix)}
+          onChange={onModeChange}
+          size="sm"
+          value={mode}
+        />
+      }
+      trailing={trailing}
+      trailingLabel={trailingLabel}
       {...props}
-    >
-      <PillGroup
-        aria-label={ariaLabel}
-        className={DIALOG_TOUCH_TARGET_SEGMENTS_CLASS}
-        items={modeItems(testIdPrefix)}
-        onChange={onModeChange}
-        size="sm"
-        value={mode}
-      />
-      <div className="flex-1" />
-      {trailing ? (
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {trailingLabel ? (
-            <span className="text-form-hint text-subtle">{trailingLabel}</span>
-          ) : null}
-          {trailing}
-        </div>
-      ) : null}
-    </div>
+    />
   );
 }
 

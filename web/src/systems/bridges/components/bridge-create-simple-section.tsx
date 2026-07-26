@@ -50,7 +50,6 @@ export function BridgeCreateSimpleSection({
         data-testid="bridge-create-section-identity"
         description="How this bridge appears in lists and receipts."
         icon={Fingerprint}
-        size="compact"
         title="Identity"
       >
         <Field>

@@ -63,7 +63,6 @@ export function ProviderAuthFields({ mode, draft, entry, onChange }: ProviderAut
     <FormSection
       data-testid="settings-providers-editor-auth"
       description="AGH asks for credentials only under a bound-secret contract."
-      size="compact"
       title="Who owns authentication?"
     >
       <div

@@ -121,7 +121,7 @@ export function SandboxEditor({
         />
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col">
         <SandboxEditorSimpleSection
           draft={draft}
           isCreate={isCreate}

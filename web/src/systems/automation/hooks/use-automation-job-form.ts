@@ -1,3 +1,4 @@
+import type { AgentPayload } from "@/systems/agent";
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 
@@ -71,7 +72,7 @@ export interface UseAutomationJobFormParams {
   onChange: (draft: CreateAutomationJobRequest) => void;
   onSubmit: () => void;
   workspaces?: ReadonlyArray<WorkspaceOption>;
-  agents?: string[];
+  agents?: AgentPayload[];
 }
 
 /** Read the current cron expression off the draft schedule (cron mode only). */

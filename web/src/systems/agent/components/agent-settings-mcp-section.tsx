@@ -10,7 +10,6 @@ export function AgentSettingsMcpSection({ agent }: { agent: AgentPayload }) {
     <FormSection
       data-testid="agent-settings-mcp"
       icon={Plug}
-      size="compact"
       title="MCP servers"
       description="MCP servers are defined in the agent file."
     >

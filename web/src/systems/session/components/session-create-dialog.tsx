@@ -182,7 +182,7 @@ function SessionCreateDialog({
         <EntityModeToolbar mode={mode} onModeChange={onModeChange} testIdPrefix="session-create" />
 
         <form className="contents" onSubmit={handleSubmit}>
-          <EntityDialogBody className="flex flex-col gap-4">
+          <EntityDialogBody className="flex flex-col">
             <SessionCreateSimpleSection
               agents={agents}
               isSubmitting={isSubmitting}

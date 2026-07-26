@@ -183,7 +183,7 @@ export function BridgeCreateDialog({
           trailingLabel="Scope"
         />
 
-        <EntityDialogBody className="flex flex-col gap-4">
+        <EntityDialogBody className="flex flex-col">
           {secretRecovery ? (
             <>
               <Alert data-testid="bridge-create-secret-recovery" variant="danger">

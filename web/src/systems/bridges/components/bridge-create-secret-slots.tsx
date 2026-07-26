@@ -49,7 +49,6 @@ export function BridgeCreateSecretSlots({
           : "This provider declares no credential slots in its manifest."
       }
       icon={KeyRound}
-      size="compact"
       title="Credentials"
     >
       {deferredHint && declared.length > 0 ? (

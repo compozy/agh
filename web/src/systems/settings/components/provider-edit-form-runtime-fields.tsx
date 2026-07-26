@@ -32,7 +32,6 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
     <FormSection
       data-testid="settings-providers-editor-runtime"
       description="Provider-specific overrides stay out of the primary path."
-      size="compact"
       title="Runtime & models"
     >
       <ModalSettingsFieldRow
