@@ -18,6 +18,35 @@
   </p>
 </div>
 
+> [!WARNING]
+>
+> # 🚨 This repository has been merged into Compozy
+>
+> ### **AGH is now CompozyOS. Development continues at [github.com/compozy/compozy](https://github.com/compozy/compozy).**
+>
+> **This repository is frozen and no longer accepts issues, pull requests, or releases.**
+>
+> **What happened.** AGH and [Compozy](https://github.com/compozy/compozy) were two projects solving the same problem from opposite ends. Instead of maintaining both, the AGH codebase — the daemon, the autonomy kernel, the network, the web UI — became the engine of Compozy, and Compozy keeps its name, its history, and its community. The merged product ships as **CompozyOS `v0.3.0` — "The OS Release"**.
+>
+> **What that means for you.**
+>
+> | Before (AGH)                       | After (CompozyOS)                  |
+> | ---------------------------------- | ---------------------------------- |
+> | `agh` binary                       | `compozy` binary                   |
+> | `github.com/compozy/agh`           | `github.com/compozy/compozy`       |
+> | `@compozy/agh` (npm)               | `@compozy/cli` (npm)               |
+> | `.agh/` home                       | `.compozy/` home                   |
+> | `AGH_*` env vars                   | `COMPOZY_*` env vars               |
+> | `agh-network/v0`                   | `compozy-network/v0`               |
+> | `agh__*` native tools              | `compozy__*` native tools          |
+> | [agh.network](https://agh.network) | [compozy.com](https://compozy.com) |
+>
+> **This is an intentional breaking change with no compatibility shims.** A migration guide ships with `v0.3.0`, covering the old-to-new command map, an automatic configuration migrator, and what changed and why. Existing installs upgrade in place through the same Homebrew and npm channels.
+>
+> **Where to go now:** [github.com/compozy/compozy](https://github.com/compozy/compozy) for the code, issues, and releases. The last AGH release remains downloadable here, unsupported.
+
+---
+
 AGH is a local-first agent operating system. It runs the agent CLIs you already use — Claude Code, OpenClaw, Hermes, and others — as durable, inspectable sessions managed by a single background daemon, and connects them on the open `agh-network/v0` so sessions can discover peers, share capabilities, and close work with receipts.
 
 The complete documentation lives at [agh.network](https://agh.network).
